@@ -88,56 +88,56 @@ _STRATEGY_EMOJI = {
 }
 
 
+def _h(text: str) -> str:
+    """Escape HTML special characters for Telegram HTML mode."""
+    return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def _format_recommendation(rec: Recommendation) -> str:
     emoji = _STRATEGY_EMOJI.get(rec.strategy, "📊")
     date  = rec.vix_snapshot.date
 
-    # Signals line
     iv_note = ""
     if abs(rec.iv_snapshot.iv_rank - rec.iv_snapshot.iv_percentile) > 15:
-        iv_note = f" \\(IVP {rec.iv_snapshot.iv_percentile:.0f} used\\)"
+        iv_note = f" (IVP {rec.iv_snapshot.iv_percentile:.0f} used — IVR distorted)"
+
     signals = (
-        f"VIX `{rec.vix_snapshot.vix:.1f}` \\[`{rec.vix_snapshot.regime.value}`\\]  "
-        f"IVR `{rec.iv_snapshot.iv_rank:.0f}`{iv_note}  "
-        f"Trend `{rec.trend_snapshot.signal.value}`"
+        f"VIX <code>{rec.vix_snapshot.vix:.1f}</code> [{rec.vix_snapshot.regime.value}]  "
+        f"IVR <code>{rec.iv_snapshot.iv_rank:.0f}</code>{_h(iv_note)}  "
+        f"Trend <code>{rec.trend_snapshot.signal.value}</code>"
     )
 
-    # Legs
     if rec.legs:
         legs_lines = "\n".join(
-            f"  {l.action} {l.option:<4} {l.dte}DTE  δ{l.delta:.2f}  _{l.note}_"
+            f"  {l.action} {l.option:<4} {l.dte}DTE  δ{l.delta:.2f}  <i>{_h(l.note)}</i>"
             for l in rec.legs
         )
     else:
-        legs_lines = "  _No new position_"
+        legs_lines = "  <i>No new position</i>"
 
-    # Macro warning
-    macro = "\n⚠️ *SPX below 200MA* — reduce size 25–50% on bullish trades\\." if rec.macro_warning else ""
+    macro = "\n⚠️ <b>SPX below 200MA</b> — reduce size 25–50% on bullish trades." if rec.macro_warning else ""
 
-    msg = (
-        f"*{emoji} Options Recommendation — {date}*\n"
+    return (
+        f"{emoji} <b>Options Recommendation — {_h(date)}</b>\n"
         f"{'─' * 32}\n"
-        f"*Strategy:*  {rec.strategy.value}\n"
-        f"*Underlying:* {rec.underlying}\n\n"
-        f"*Legs:*\n{legs_lines}\n\n"
-        f"*Max Risk:*  {_esc(rec.max_risk)}\n"
-        f"*Target:*    {_esc(rec.target_return)}\n"
-        f"*Size Rule:* {_esc(rec.size_rule)}\n"
-        f"*Roll At:*   {_esc(rec.roll_rule)}\n\n"
-        f"*Why:* _{_esc(rec.rationale)}_\n\n"
-        f"*Signals:* {signals}"
+        f"<b>Strategy:</b>   {_h(rec.strategy.value)}\n"
+        f"<b>Underlying:</b> {_h(rec.underlying)}\n\n"
+        f"<b>Legs:</b>\n{legs_lines}\n\n"
+        f"<b>Max Risk:</b>  {_h(rec.max_risk)}\n"
+        f"<b>Target:</b>    {_h(rec.target_return)}\n"
+        f"<b>Size Rule:</b> {_h(rec.size_rule)}\n"
+        f"<b>Roll At:</b>   {_h(rec.roll_rule)}\n\n"
+        f"<b>Why:</b> <i>{_h(rec.rationale)}</i>\n\n"
+        f"<b>Signals:</b> {signals}"
         f"{macro}\n"
         f"{'─' * 32}\n"
-        f"_Verify strikes on your broker before executing\\._"
+        f"<i>Verify strikes on your broker before executing.</i>"
     )
-    return msg
 
 
+# Keep _esc for any legacy use; no longer used in formatting
 def _esc(text: str) -> str:
-    """Escape MarkdownV2 special characters."""
-    for ch in r"_*[]()~`>#+-=|{}.!":
-        text = text.replace(ch, f"\\{ch}")
-    return text
+    return _h(text)
 
 
 def _format_backtest_summary(trades, metrics: dict) -> str:
@@ -149,16 +149,16 @@ def _format_backtest_summary(trades, metrics: dict) -> str:
         for n, s in metrics["by_strategy"].items()
     )
     return (
-        f"*📈 Backtest Summary \\(1 year\\)*\n"
+        f"📈 <b>Backtest Summary (1 year)</b>\n"
         f"{'─' * 32}\n"
-        f"Trades:    `{metrics['total_trades']}`\n"
-        f"Win rate:  `{metrics['win_rate']*100:.1f}%`\n"
-        f"Expectancy: `${metrics['expectancy']:+.0f}` / trade\n"
-        f"Total P&L: `${metrics['total_pnl']:+,.0f}`\n"
-        f"Max DD:    `${metrics['max_drawdown']:+,.0f}`\n"
-        f"Sharpe:    `{metrics['sharpe']:.2f}`\n\n"
-        f"*By strategy:*\n```\n{by_strat}\n```\n"
-        f"_Precision B \\(Black\\-Scholes\\, no slippage\\)_"
+        f"Trades:     <code>{metrics['total_trades']}</code>\n"
+        f"Win rate:   <code>{metrics['win_rate']*100:.1f}%</code>\n"
+        f"Expectancy: <code>${metrics['expectancy']:+.0f}</code> / trade\n"
+        f"Total P&amp;L: <code>${metrics['total_pnl']:+,.0f}</code>\n"
+        f"Max DD:     <code>${metrics['max_drawdown']:+,.0f}</code>\n"
+        f"Sharpe:     <code>{metrics['sharpe']:.2f}</code>\n\n"
+        f"<b>By strategy:</b>\n<pre>{by_strat}</pre>\n"
+        f"<i>Precision B (Black-Scholes, no slippage)</i>"
     )
 
 
@@ -170,7 +170,7 @@ async def cmd_today(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         rec = get_recommendation()
         await update.message.reply_text(
             _format_recommendation(rec),
-            parse_mode=ParseMode.MARKDOWN_V2,
+            parse_mode=ParseMode.HTML,
         )
     except Exception as e:
         log.exception("cmd_today failed")
@@ -178,14 +178,14 @@ async def cmd_today(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def cmd_backtest(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Running 1\\-year backtest… \\(~30 sec\\)", parse_mode=ParseMode.MARKDOWN_V2)
+    await update.message.reply_text("Running 1-year backtest… (~30 sec)")
     try:
         from datetime import date, timedelta
         start = (date.today() - timedelta(days=365)).isoformat()
         trades, metrics = run_backtest(start_date=start, verbose=False)
         await update.message.reply_text(
             _format_backtest_summary(trades, metrics),
-            parse_mode=ParseMode.MARKDOWN_V2,
+            parse_mode=ParseMode.HTML,
         )
     except Exception as e:
         log.exception("cmd_backtest failed")
@@ -209,14 +209,14 @@ async def cmd_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         ivp_warn   = f" \\(IVP {iv_snap.iv_percentile:.0f} preferred\\)" if abs(iv_snap.iv_rank - iv_snap.iv_percentile) > 15 else ""
 
         msg = (
-            f"*📡 Market Status — {vix_snap.date}*\n"
+            f"📡 <b>Market Status — {_h(vix_snap.date)}</b>\n"
             f"{'─' * 28}\n"
-            f"VIX:    `{vix_snap.vix:.2f}` → `{vix_snap.regime.value}` \\({vix_snap.trend.value}\\)\n"
-            f"IVR:    `{iv_snap.iv_rank:.1f}` / IVP `{iv_snap.iv_percentile:.1f}`{ivp_warn}\n"
-            f"Trend:  SPX `{tr_snap.spx:,.0f}`  gap `{tr_snap.ma_gap_pct*100:+.2f}%` → `{tr_snap.signal.value}`{_esc(trend_warn)}\n"
-            f"20MA:   `{tr_snap.ma20:,.0f}`  50MA: `{tr_snap.ma50:,.0f}`\n"
+            f"VIX:   <code>{vix_snap.vix:.2f}</code> → <code>{vix_snap.regime.value}</code> ({vix_snap.trend.value})\n"
+            f"IVR:   <code>{iv_snap.iv_rank:.1f}</code> / IVP <code>{iv_snap.iv_percentile:.1f}</code>{_h(ivp_warn)}\n"
+            f"Trend: SPX <code>{tr_snap.spx:,.0f}</code>  gap <code>{tr_snap.ma_gap_pct*100:+.2f}%</code> → <code>{tr_snap.signal.value}</code>{_h(trend_warn)}\n"
+            f"20MA:  <code>{tr_snap.ma20:,.0f}</code>  50MA: <code>{tr_snap.ma50:,.0f}</code>\n"
         )
-        await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
     except Exception as e:
         log.exception("cmd_status failed")
         await update.message.reply_text(f"⚠️ Error: {e}")
@@ -224,13 +224,13 @@ async def cmd_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "*SPX Strategy Bot*\n\n"
+        "<b>SPX Strategy Bot</b>\n\n"
         "/today — Today's strategy recommendation\n"
         "/status — Current VIX / IVR / Trend signals\n"
-        "/backtest — 1\\-year backtest summary\n"
+        "/backtest — 1-year backtest summary\n"
         "/help — This message\n\n"
-        "_Recommendations are signals only\\. Always verify strikes and execute manually\\._",
-        parse_mode=ParseMode.MARKDOWN_V2,
+        "<i>Recommendations are signals only. Always verify strikes and execute manually.</i>",
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -246,7 +246,7 @@ async def scheduled_push(bot: Bot, chat_id: str) -> None:
         await bot.send_message(
             chat_id=chat_id,
             text=_format_recommendation(rec),
-            parse_mode=ParseMode.MARKDOWN_V2,
+            parse_mode=ParseMode.HTML,
         )
         log.info("Daily recommendation sent.")
     except Exception:
