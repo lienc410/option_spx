@@ -287,24 +287,25 @@ def main() -> None:
     if not chat_id:
         sys.exit("❌ TELEGRAM_CHAT_ID not set. Run with --get-chat-id first.")
 
-    app = Application.builder().token(token).build()
+    # Start scheduler inside the running event loop via post_init hook
+    async def post_init(application: Application) -> None:
+        scheduler = AsyncIOScheduler(timezone=ET)
+        scheduler.add_job(
+            scheduled_push,
+            CronTrigger(day_of_week="mon-fri", hour=9, minute=35, timezone=ET),
+            args=[application.bot, chat_id],
+            id="daily_push",
+            name="Daily recommendation push",
+        )
+        scheduler.start()
+        log.info("Scheduler started — daily push at 09:35 ET (Mon–Fri, trading days only)")
+
+    app = Application.builder().token(token).post_init(post_init).build()
     app.add_handler(CommandHandler("today",    cmd_today))
     app.add_handler(CommandHandler("backtest", cmd_backtest))
     app.add_handler(CommandHandler("status",   cmd_status))
     app.add_handler(CommandHandler("help",     cmd_help))
     app.add_handler(CommandHandler("start",    cmd_help))
-
-    # Scheduler: 09:35 ET, Mon–Fri
-    scheduler = AsyncIOScheduler(timezone=ET)
-    scheduler.add_job(
-        scheduled_push,
-        CronTrigger(day_of_week="mon-fri", hour=9, minute=35, timezone=ET),
-        args=[app.bot, chat_id],
-        id="daily_push",
-        name="Daily recommendation push",
-    )
-    scheduler.start()
-    log.info("Scheduler started — daily push at 09:35 ET (Mon–Fri, trading days only)")
 
     print("\n🤖 Bot is running. Commands: /today /status /backtest /help")
     print("   Press Ctrl+C to stop.\n")
