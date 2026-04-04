@@ -11,10 +11,11 @@
 
 ### Q001 — SPEC-020 RS-020-2 ablation 未完成
 - **状态**：blocked
-- **内容**：ATR entry gate + persistence filter 的4路ablation（AC7–AC10）尚未完成；RS-020-1 FAIL，等待 Codex 提交 RS-020-2 修复 `run_backtest` toggle
-- **依赖**：RS-020-2 由 Codex 实施
-- **阻塞下游**：overlay_mode 切换为 active 要等此项完成
-- **来源**：SPEC-020 §7，clean_strategy_status_delta_2026-04-02
+- **内容**：RS-020-1 FAIL（信号逻辑15/15通过，但 `run_backtest` 缺少 toggle 参数，ablation AC7–AC10无法验证）；AMP 负责修复 `run_backtest` toggle 并完整实现 `run_trend_ablation.py`（4路ablation + regime breakdown + OOS路径）
+- **依赖**：RS-020-2 由 AMP 实施，HC不应假设其已提交或通过
+- **阻塞下游**：overlay_mode 切换为 active；SPEC-020 → DONE
+- **注意**：`bearish_persistence_days` 实际值为3（signals/trend.py L33），HC不得自行修改
+- **来源**：MC Handoff 2026-04-04
 
 ### Q002 — Shock Active Mode 生产切换决策（Phase B）
 - **状态**：open
@@ -73,4 +74,3 @@
 | — | Overlay L2 AND还是OR条件 | AND：防止VIX正常上升但组合风险可控时误触 | 2026-04-01 |
 | — | book_core_shock 信号路径（freeze触发后的缺陷）| 每日独立计算，不依赖入场路径 | 2026-04-01 |
 | — | ATR阈值选择（1.0 vs 其他）| 1.0，gap_sigma分布与原+1%band最接近 | 2026-04-02 |
-| — | Persistence天数（3 vs 5）| RS-020-2 驳回 persistence filter，保持 bearish_persistence_days=1 | 2026-04-02 |

@@ -5,7 +5,7 @@
 
 最后完整同步：2026-04-04
 HC版本：v1
-MC版本：v0（待首次MC同步）
+MC版本：v1-MC-corrected（MC首次同步 2026-04-04）
 
 **当前推荐生产配置**：`overlay_mode=disabled`（待SPEC-020 RS-020-2完成后切换 `active`）
 
@@ -45,9 +45,9 @@ MC版本：v0（待首次MC同步）
 
 | 参数 | 当前值 | 上次值 | 更新环境 | 更新日期 | status | source SPEC | 说明 |
 |------|--------|--------|----------|----------|--------|-------------|------|
-| bp_target_low_vol | 0.10 | — | HC | 2026-04-01 | active | SPEC-024 | LOW_VOL每笔BP目标（占账户）|
-| bp_target_normal | 0.10 | — | HC | 2026-04-01 | active | SPEC-024 | NORMAL每笔BP目标 |
-| bp_target_high_vol | 0.07 | — | HC | 2026-04-01 | active | SPEC-024 | HIGH_VOL每笔BP目标 |
+| bp_target_low_vol | 0.05 | 0.10 | MC | 2026-04-04 | active | baseline | LOW_VOL每笔BP目标（占账户）|
+| bp_target_normal | 0.05 | 0.10 | MC | 2026-04-04 | active | baseline | NORMAL每笔BP目标 |
+| bp_target_high_vol | 0.035 | 0.07 | MC | 2026-04-04 | active | baseline | HIGH_VOL每笔BP目标 |
 | bp_ceiling_low_vol | 0.25 | — | HC | 2026-04-01 | active | SPEC-024 | LOW_VOL组合BP上限 |
 | bp_ceiling_normal | 0.35 | — | HC | 2026-04-01 | active | SPEC-024 | NORMAL组合BP上限 |
 | bp_ceiling_high_vol | 0.50 | — | HC | 2026-04-01 | active | SPEC-024 | HIGH_VOL组合BP上限 |
@@ -100,7 +100,7 @@ MC版本：v0（待首次MC同步）
 | 参数 | 当前值 | 上次值 | 更新环境 | 更新日期 | status | source SPEC | 说明 |
 |------|--------|--------|----------|----------|--------|-------------|------|
 | use_atr_trend | True | False | HC | 2026-04-02 | active | SPEC-020 | ATR-normalized entry gate（RS-020-2验证通过）|
-| bearish_persistence_days | 1 | 3（实验值）| HC | 2026-04-02 | active | SPEC-020 | 1=legacy单日翻转（persistence filter RS-020-2驳回）|
+| bearish_persistence_days | 3 | 1（HC错误值）| MC | 2026-04-04 | active | SPEC-020 | RS-020-2尚未发生；signals/trend.py L33实际值=3；HC的1来自模板示例误读 |
 
 ---
 
@@ -122,3 +122,4 @@ MC版本：v0（待首次MC同步）
 | 版本 | 日期 | 环境 | 变更摘要 |
 |------|------|------|----------|
 | v1 | 2026-04-04 | HC | 初始化：25个参数，增加status和source SPEC字段，v3协议同步 |
+| v1-MC-corrected | 2026-04-04 | MC | MC首次同步：修正4个参数（bp_target×3，bearish_persistence_days）|
