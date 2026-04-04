@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPX Strategy · Signal Matrix</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:            #080A13;
+  --surface:       #0D1020;
+  --surface-hi:    #131728;
+  --border:        #191E33;
+  --border-2:      #232A42;
+  --text:          #C4CEEC;
+  --text-2:        #606880;
+  --text-muted:    #363C52;
+  --gold:          #C9A840;
+  --gold-bg:       rgba(201,168,64,0.07);
+  --gold-border:   rgba(201,168,64,0.22);
+  --green:         #42CC7C;
+  --green-bg:      rgba(66,204,124,0.07);
+  --green-border:  rgba(66,204,124,0.22);
+  --red:           #E04862;
+  --red-bg:        rgba(224,72,98,0.07);
+  --red-border:    rgba(224,72,98,0.22);
+  --blue:          #4888E8;
+  --blue-bg:       rgba(72,136,232,0.07);
+  --blue-border:   rgba(72,136,232,0.22);
+  --orange:        #E08040;
+  --orange-bg:     rgba(224,128,64,0.07);
+  --orange-border: rgba(224,128,64,0.22);
+  --gray-bg:       rgba(96,104,128,0.08);
+  --gray-border:   rgba(96,104,128,0.2);
+
+  --f-display: 'Newsreader', Georgia, serif;
+  --f-mono:    'JetBrains Mono', 'Courier New', monospace;
+  --f-ui:      'DM Sans', system-ui, sans-serif;
+}
+
+html { font-size: 14px; }
+body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-height: 100vh; }
+
+/* ── Nav ── */
+.nav {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px; height: 50px;
+  background: rgba(8,10,19,0.88); backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.nav-brand { font-family: var(--f-display); font-size: 1.05rem; color: var(--text); }
+.nav-brand em { color: var(--gold); font-style: italic; }
+.nav-links { display: flex; gap: 2px; }
+.nav-link {
+  font-size: 0.76rem; font-weight: 500; color: var(--text-2);
+  text-decoration: none; padding: 5px 13px; border-radius: 5px;
+  letter-spacing: 0.03em; transition: color .15s, background .15s;
+}
+.nav-link:hover  { color: var(--text);  background: var(--surface-hi); }
+.nav-link.active { color: var(--gold);  background: var(--gold-bg); }
+.nav-right { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-muted); }
+
+/* ── Layout ── */
+.container { max-width: 900px; margin: 0 auto; padding: 26px 24px 72px; }
+
+/* ── Current signal banner ── */
+.signal-banner {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--surface); border: 1px solid var(--border-2);
+  border-radius: 9px; padding: 13px 18px; margin-bottom: 18px;
+  font-size: 0.76rem;
+}
+.sb-label { color: var(--text-muted); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; font-size: 0.6rem; }
+.sb-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 4px; font-family: var(--f-mono); font-size: 0.72rem;
+}
+.sb-arrow { color: var(--text-muted); font-size: 0.65rem; margin: 0 2px; }
+.sb-result {
+  margin-left: auto; font-family: var(--f-display); font-style: italic;
+  font-size: 0.92rem; color: var(--text);
+}
+.sb-result em { color: var(--gold); }
+.sb-loading { color: var(--text-muted); font-size: 0.76rem; font-style: italic; }
+
+/* ── VIX tabs ── */
+.regime-tabs { display: flex; gap: 0; margin-bottom: 16px; }
+.regime-tab {
+  flex: 1; padding: 10px 16px; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--border-2);
+  color: var(--text-2); font-size: 0.75rem; font-weight: 600;
+  letter-spacing: 0.05em; text-transform: uppercase;
+  text-align: center; transition: all .15s; user-select: none;
+}
+.regime-tab:first-child { border-radius: 8px 0 0 8px; }
+.regime-tab:last-child  { border-radius: 0 8px 8px 0; }
+.regime-tab:not(:last-child) { border-right: none; }
+.regime-tab:hover { color: var(--text); background: var(--surface-hi); }
+.regime-tab.active-low  { background: var(--blue-bg);   color: var(--blue);   border-color: var(--blue-border);   }
+.regime-tab.active-norm { background: var(--gold-bg);   color: var(--gold);   border-color: var(--gold-border);   }
+.regime-tab.active-high { background: var(--red-bg);    color: var(--red);    border-color: var(--red-border);    }
+.regime-tab .tab-range { display: block; font-size: 0.6rem; font-weight: 400; margin-top: 2px; opacity: 0.7; font-family: var(--f-mono); }
+
+/* ── Matrix grid ── */
+.matrix-wrap {
+  background: var(--surface); border: 1px solid var(--border-2);
+  border-radius: 10px; overflow: hidden; margin-bottom: 16px;
+}
+.matrix-grid {
+  display: grid;
+  grid-template-columns: 96px repeat(3, 1fr);
+  grid-template-rows: auto repeat(3, 1fr);
+}
+
+/* Header cells */
+.mh-corner {
+  background: var(--surface-hi); border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  padding: 10px 8px; font-size: 0.58rem; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted);
+}
+.mh-trend {
+  background: var(--surface-hi); border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 10px 8px; gap: 4px;
+}
+.mh-trend:last-child { border-right: none; }
+.mh-trend-icon { font-size: 1rem; }
+.mh-trend-label {
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+}
+.trend-bull  { color: var(--green);  }
+.trend-bear  { color: var(--red);    }
+.trend-neut  { color: var(--text-2); }
+
+/* Row label */
+.mh-iv {
+  background: var(--surface-hi); border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 10px 6px; gap: 3px;
+}
+.mh-iv:last-of-type { border-bottom: none; }
+.mh-iv-label {
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+}
+.iv-high { color: var(--orange); }
+.iv-neut { color: var(--text-2); }
+.iv-low  { color: var(--blue);   }
+.mh-iv-sub { font-size: 0.55rem; color: var(--text-muted); font-family: var(--f-mono); }
+
+/* Strategy cell */
+.mcell {
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 10px;
+  cursor: pointer; transition: all .12s;
+  display: flex; flex-direction: column; justify-content: space-between;
+  min-height: 80px; position: relative;
+}
+.mcell:nth-child(4n) { border-right: none; }
+.mcell:nth-last-child(-n+3) { border-bottom: none; }
+.mcell:hover { background: var(--surface-hi); }
+.cell-stats { margin-top: 6px; display: flex; flex-direction: row; gap: 6px; align-items: flex-start; }
+.cell-stat-col { display: flex; flex-direction: column; gap: 2px; }
+.cell-stat-col-right {
+  border-left: 1px solid var(--border); padding-left: 6px;
+}
+.cell-stat-row {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 0.52rem; font-family: var(--f-mono); color: var(--text-muted);
+}
+.cell-stat-label { opacity: 0.55; }
+.cell-stat-n { color: var(--text-2); }
+.cell-stat-wr { font-weight: 600; }
+.cell-stat-wr.wr-high { color: var(--green); }
+.cell-stat-wr.wr-mid  { color: var(--gold); }
+.cell-stat-wr.wr-low  { color: var(--red); }
+.cell-stat-na { color: var(--text-muted); opacity: 0.5; font-style: italic; }
+
+/* Active cell (current position) */
+.mcell.current {
+  box-shadow: inset 0 0 0 2px var(--gold);
+  background: var(--gold-bg);
+}
+.mcell.current::after {
+  content: 'NOW';
+  position: absolute; top: 6px; right: 7px;
+  font-size: 0.5rem; font-weight: 700; letter-spacing: 0.1em;
+  color: var(--gold); opacity: 0.7;
+}
+
+.mcell.selected { background: var(--surface-hi); box-shadow: inset 0 0 0 1px var(--border-2); }
+
+.cell-strategy {
+  font-size: 0.78rem; font-weight: 500; line-height: 1.3;
+  margin-bottom: 6px;
+}
+.cell-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.ctag {
+  display: inline-block; padding: 1px 5px; border-radius: 2px;
+  font-size: 0.55rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+}
+.ctag-bull { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green-border);  }
+.ctag-bear { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red-border);    }
+.ctag-neut { background: var(--gold-bg);   color: var(--gold);   border: 1px solid var(--gold-border);   }
+.ctag-wait { background: var(--gray-bg);   color: var(--text-2); border: 1px solid var(--gray-border);   }
+.ctag-def  { background: var(--blue-bg);   color: var(--blue);   border: 1px solid var(--blue-border);   }
+
+/* ── Detail panel ── */
+.detail-panel {
+  background: var(--surface); border: 1px solid var(--border-2);
+  border-radius: 10px; overflow: hidden;
+  transition: opacity .2s;
+}
+.detail-panel.empty { opacity: 0.4; }
+
+.dp-header {
+  display: flex; align-items: baseline; gap: 12px;
+  padding: 18px 22px 14px; border-bottom: 1px solid var(--border);
+  position: relative;
+}
+.dp-header::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+}
+.dp-emoji { font-size: 1.2rem; }
+.dp-name {
+  font-family: var(--f-display); font-style: italic;
+  font-size: 1.4rem; font-weight: 400; color: var(--text);
+}
+.dp-hint { color: var(--text-muted); font-size: 0.75rem; font-style: italic; }
+
+.dp-body { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.dp-row {
+  padding: 13px 22px; border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+.dp-row:nth-child(2n) { border-right: none; }
+.dp-row:nth-last-child(-n+2) { border-bottom: none; }
+.dp-row-full {
+  padding: 13px 22px; border-bottom: 1px solid var(--border);
+  grid-column: 1 / -1;
+}
+.dp-row-full:last-child { border-bottom: none; }
+.dp-label {
+  font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: 4px;
+}
+.dp-val { font-family: var(--f-mono); font-size: 0.8rem; color: var(--text); line-height: 1.4; }
+.dp-val-text { font-size: 0.82rem; color: var(--text-2); line-height: 1.5; }
+
+/* ── Legend ── */
+.legend {
+  display: flex; gap: 12px; flex-wrap: wrap;
+  padding: 12px 0; font-size: 0.68rem; color: var(--text-muted);
+  align-items: center;
+}
+.leg-item { display: flex; align-items: center; gap: 5px; }
+.leg-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+/* ── Matrix trade log ── */
+.matrix-trades-section {
+  background: var(--surface); border: 1px solid var(--border-2);
+  border-radius: 9px; overflow: hidden; margin-top: 16px;
+  display: none;
+}
+.mt-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px; border-bottom: 1px solid var(--border);
+}
+.mt-title {
+  font-size: 0.62rem; font-weight: 700;
+  letter-spacing: 0.11em; text-transform: uppercase; color: var(--text-muted);
+}
+.mt-count { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-2); }
+table.mt-tbl { width: 100%; border-collapse: collapse; min-width: 640px; }
+.mt-tbl thead th {
+  padding: 8px 14px; text-align: left;
+  font-size: 0.6rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--text-muted); border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; background: var(--surface);
+}
+.mt-tbl tbody td {
+  padding: 9px 14px; font-size: 0.76rem;
+  border-bottom: 1px solid var(--border);
+}
+.mt-tbl tbody tr:last-child td { border-bottom: none; }
+.mt-tbl tbody tr:hover td { background: var(--surface-hi); }
+.mt-tbl tbody tr.mt-match-row td { background: rgba(201,168,64,0.03); }
+.mt-tag {
+  display: inline-block; padding: 1px 6px; border-radius: 3px;
+  font-size: 0.58rem; font-weight: 700; letter-spacing: 0.04em;
+}
+.mt-tag-match { background: var(--gold-bg); color: var(--gold); border: 1px solid var(--gold-border); }
+.mt-tag-other { background: rgba(96,104,128,.07); color: var(--text-muted); border: 1px solid rgba(96,104,128,.18); }
+.reason-tag { display: inline-block; padding: 1px 7px; border-radius: 3px; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.05em; }
+.reason-profit { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+.reason-stop   { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red-border); }
+.reason-roll   { background: var(--gold-bg);  color: var(--gold);  border: 1px solid var(--gold-border); }
+.reason-default { background: rgba(96,104,128,.07); color: var(--text-2); border: 1px solid rgba(96,104,128,.2); }
+.num { font-family: var(--f-mono); font-size: 0.76rem; }
+.num.pos { color: var(--green); }
+.num.neg { color: var(--red); }
+
+/* ── Loading ── */
+.spinner {
+  width: 22px; height: 22px;
+  border: 2px solid var(--border-2); border-top-color: var(--gold);
+  border-radius: 50%; animation: spin .75s linear infinite; display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.footer {
+  border-top: 1px solid var(--border); margin-top: 20px; padding: 13px 24px;
+  text-align: center; font-size: 0.67rem; color: var(--text-muted); font-style: italic;
+}
+
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav-brand">SPX <em>Strategy</em></span>
+  <div class="nav-links">
+    <a href="/" class="nav-link">Dashboard</a>
+    <a href="/matrix" class="nav-link active">Matrix</a>
+    <a href="/backtest" class="nav-link">Backtest</a>
+    <a href="/margin" class="nav-link">Margin</a>
+  </div>
+  <div class="nav-right" id="nav-date">—</div>
+</nav>
+
+<div class="container">
+
+  <!-- Current signal path -->
+  <div class="signal-banner" id="sig-banner">
+    <span class="sb-loading"><span class="spinner"></span>&nbsp; Loading current signals…</span>
+  </div>
+
+  <!-- VIX regime tabs -->
+  <div class="regime-tabs">
+    <div class="regime-tab" id="tab-low"  onclick="setTab('LOW_VOL')">
+      LOW VOL <span class="tab-range">VIX &lt; 15</span>
+    </div>
+    <div class="regime-tab" id="tab-norm" onclick="setTab('NORMAL')">
+      NORMAL <span class="tab-range">VIX 15–22</span>
+    </div>
+    <div class="regime-tab" id="tab-high" onclick="setTab('HIGH_VOL')">
+      HIGH VOL <span class="tab-range">VIX 22–35</span>
+    </div>
+    <div class="regime-tab" id="tab-extreme" onclick="setTab('EXTREME_VOL')">
+      EXTREME <span class="tab-range">VIX ≥ 35</span>
+    </div>
+  </div>
+
+  <!-- 3×3 Matrix -->
+  <div class="matrix-wrap">
+    <div class="matrix-grid" id="matrix-grid">
+      <!-- populated by JS -->
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <span style="color:var(--text-muted);font-weight:600;font-size:0.6rem;letter-spacing:.08em;text-transform:uppercase">Direction:</span>
+    <span class="leg-item"><span class="leg-dot" style="background:var(--green)"></span> Bullish</span>
+    <span class="leg-item"><span class="leg-dot" style="background:var(--red)"></span> Bearish</span>
+    <span class="leg-item"><span class="leg-dot" style="background:var(--gold)"></span> Neutral / Both</span>
+    <span class="leg-item"><span class="leg-dot" style="background:var(--blue)"></span> Defensive</span>
+    <span class="leg-item"><span class="leg-dot" style="background:var(--text-muted)"></span> Wait</span>
+    &nbsp;·&nbsp;
+    <span style="color:var(--gold)">NOW</span> = current signals
+    &nbsp;·&nbsp; Click cell for details
+  </div>
+
+  <!-- Detail panel -->
+  <div class="detail-panel empty" id="detail-panel">
+    <div class="dp-header">
+      <span class="dp-emoji">📊</span>
+      <span class="dp-name">Click a cell to see details</span>
+    </div>
+    <div class="dp-body">
+      <div class="dp-row"><div class="dp-label">Underlying</div><div class="dp-val" id="dp-ul">—</div></div>
+      <div class="dp-row"><div class="dp-label">DTE Structure</div><div class="dp-val" id="dp-dte">—</div></div>
+      <div class="dp-row"><div class="dp-label">Delta Targets</div><div class="dp-val" id="dp-delta">—</div></div>
+      <div class="dp-row"><div class="dp-label">Trade Type</div><div class="dp-val" id="dp-type">—</div></div>
+      <div class="dp-row-full"><div class="dp-label">When to Use</div><div class="dp-val-text" id="dp-when">—</div></div>
+      <div class="dp-row-full"><div class="dp-label">Risk Profile</div><div class="dp-val-text" id="dp-risk">—</div></div>
+      <div class="dp-row-full"><div class="dp-label">Roll / Exit Rule</div><div class="dp-val-text" id="dp-roll">—</div></div>
+    </div>
+  </div>
+
+  <!-- Matrix trade log (populated on cell click) -->
+  <div class="matrix-trades-section" id="matrix-trades-section">
+    <div class="mt-header">
+      <span class="mt-title" id="mt-title">Trades</span>
+      <span class="mt-count"><span id="mt-count">0</span> trades · 3Y backtest</span>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="mt-tbl">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Signal Match</th>
+            <th>Entry</th>
+            <th>Exit</th>
+            <th>SPX In</th>
+            <th>SPX Out</th>
+            <th>VIX In</th>
+            <th>VIX Out</th>
+            <th>Trend (in→out)</th>
+            <th>IVP</th>
+            <th>P&amp;L</th>
+            <th>Exit Reason</th>
+          </tr>
+        </thead>
+        <tbody id="mt-tbl-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  Decision matrix based on VIX regime × IV signal × trend. Click any cell to explore the strategy.
+</div>
+
+<script>
+// ── Strategy data ──────────────────────────────────────────────────────────────
+const STRAT = {
+  'Bull Call Diagonal': {
+    emoji: '📈', ul: 'SPX', dte: 'Long 90 DTE / Short 45 DTE', delta: 'Long call δ0.70 (90d)  Short call δ0.30 (45d)',
+    type: 'Debit — Diagonal Spread', direction: 'bull',
+    when: 'LOW_VOL + BULLISH. Cheap theta and bullish trend favor a 90/45 diagonal when volatility is already subdued.',
+    risk: 'Max risk = net debit paid (~$2,800/unit). Profit if SPX rises or holds above short strike. Short leg erodes faster than long leg.',
+    roll: 'Roll short leg at DTE=21 to the next 45 DTE cycle. Stop out at 50% loss of debit.',
+  },
+  'Bear Call Diagonal': {
+    emoji: '📉', ul: 'SPX', dte: 'Long 90 DTE / Short 45 DTE', delta: 'Long put δ0.70 (90d)  Short put δ0.30 (45d)',
+    type: 'Debit — Put Diagonal Spread', direction: 'bear',
+    when: 'LOW_VOL regime, bearish trend. Long deep-ITM put (90 DTE) + short OTM put (45 DTE). Profits from SPX decline + short-leg decay.',
+    risk: 'Max risk = net debit. Profits if SPX falls or stays below short put strike. Theta works in your favor on short leg.',
+    roll: 'Roll short put leg at DTE=21. Close at 50% profit or stop at 2× debit loss.',
+  },
+  'Iron Condor': {
+    emoji: '🦅', ul: 'SPX', dte: '45 DTE (all legs)', delta: 'Short put δ0.16 / Short call δ0.16 | Long wings ~1.5% width',
+    type: 'Credit — Iron Condor', direction: 'neut',
+    when: 'LOW_VOL or NORMAL regime when the selector allows a range trade. Requires stable VIX and IVP in an acceptable band; otherwise the system waits instead.',
+    risk: 'Max risk = wing width − net credit. Defined risk on both sides. Theta positive; vega negative (benefits from low vol).',
+    roll: 'Close at 50% of credit received. Stop if position value exceeds 2× credit. Roll short legs if tested at DTE=21.',
+  },
+  'Bull Put Spread': {
+    emoji: '💰', ul: 'SPX', dte: '30 DTE', delta: 'Short put δ0.30  Long put δ0.15',
+    type: 'Credit — Bull Put Spread', direction: 'bull',
+    when: 'NORMAL regime, NEUTRAL IV, bullish trend, with VIX stable and IVP in the allowed range. The selector now blocks many HIGH-IV bullish setups and waits instead.',
+    risk: 'Max risk = spread width − net credit. Fully defined. Short put at δ0.30, long put at δ0.15 (same expiry). Typical width $50–100 on SPX.',
+    roll: 'Close at 50% of credit (only after holding ≥ 10 days). Stop at 2× credit. Roll short leg at DTE=21 to next 30 DTE.',
+  },
+  'Bull Call Spread': {
+    emoji: '🐂', ul: 'SPY', dte: '21 DTE', delta: 'Long call δ0.50  Short call δ0.25',
+    type: 'Debit — Vertical Spread', direction: 'bull',
+    when: 'NORMAL regime, LOW IV, bullish trend. IV is cheap — buy debit spreads for directional exposure without overpaying for premium.',
+    risk: 'Max risk = net debit. Max profit = spread width − debit. Defined risk, defined reward. Low cost directional play.',
+    roll: 'Close at 75–80% of max profit. Stop at full debit loss. Short tenor (21 DTE) = hold to expiry or close early.',
+  },
+  'Bear Put Spread': {
+    emoji: '🐻', ul: 'SPY', dte: '21 DTE', delta: 'Long put δ0.50  Short put δ0.25',
+    type: 'Debit — Vertical Spread', direction: 'bear',
+    when: 'NORMAL regime, HIGH or LOW IV, bearish trend. Directional downside bet with defined risk. Efficient in any IV environment.',
+    risk: 'Max risk = net debit. Max profit = spread width − debit. Profits if SPY declines. Loses full debit if SPY stays above long put strike.',
+    roll: 'Close at 75% of max profit. No roll — let expire or close before expiry.',
+  },
+  'Bear Call Spread': {
+    emoji: '🐻', ul: 'SPY', dte: '21 DTE', delta: 'Short call δ0.40  Long call δ0.20',
+    type: 'Credit — Vertical Spread', direction: 'bear',
+    when: 'NORMAL regime, NEUTRAL IV, bearish trend. Sell OTM call spread for credit when vol is moderate and trend is down.',
+    risk: 'Max risk = spread width − credit. Max profit = credit received. Profits if SPY stays below short call strike.',
+    roll: 'Close at 50% of credit. Stop at 2× credit. No roll at 21 DTE — close position.',
+  },
+  'Bull Put Spread (High Vol)': {
+    emoji: '🔥', ul: 'SPX', dte: '35 DTE', delta: 'Short put δ0.20  Long put δ0.10',
+    type: 'Credit — Vertical Spread (Reduced Size)', direction: 'bull',
+    when: 'HIGH_VOL regime with bullish trend only. Volatility Risk Premium is elevated, so use tighter delta and half size to capture premium while limiting tail risk. Backwardation or rising VIX blocks entry.',
+    risk: 'Max risk = spread width − credit. Sell at δ0.20 (further OTM than normal) with 50% normal size. 35 DTE provides adequate theta capture window; roll_21dte fires at DTE≤21 (~14-day effective hold).',
+    roll: 'Close at 50% of credit (profit target). Stop at 2× credit. No roll at expiry — close and reassess regime.',
+  },
+  'Bear Call Spread (High Vol)': {
+    emoji: '🛡️', ul: 'SPX', dte: '45 DTE', delta: 'Short call δ0.20  Long call δ0.10',
+    type: 'Credit — Vertical Spread (Reduced Size)', direction: 'bear',
+    when: 'HIGH_VOL regime with bearish trend when VIX is not rising. Inflated call premium and bearish trend allow a defined-risk call spread with tighter delta and reduced size.',
+    risk: 'Max risk = spread width − credit. Sell at δ0.20 with a further OTM long call to cap upside risk. Reduced size reflects elevated vol regime and gap risk.',
+    roll: 'Close at 21 DTE; stop at 2× credit. Wait instead if VIX is still rising.',
+  },
+  'Iron Condor (High Vol)': {
+    emoji: '🦅', ul: 'SPX', dte: '45 DTE (all legs)', delta: 'Short put δ0.16 / Short call δ0.16 | Long wings δ0.08',
+    type: 'Credit — Iron Condor (Reduced Size)', direction: 'neut',
+    when: 'HIGH_VOL regime with neutral trend when VIX is stable and term structure is not in backwardation. Rich premium on both sides supports a reduced-size condor.',
+    risk: 'Defined risk on both sides. Elevated premium improves credit, but position size stays reduced because vol regime remains stressed.',
+    roll: 'Close at 21 DTE; stop at 2× credit. Skip when VIX is rising or term structure is inverted.',
+  },
+  'Reduce / Wait': {
+    emoji: '⏸', ul: '—', dte: '—', delta: '—',
+    type: 'No position', direction: 'wait',
+    when: 'No new position. Used for EXTREME_VOL and any cell where guardrails reject the setup: weak premium, stressed IVP, rising VIX, backwardation, or low-edge bearish and low-vol conditions.',
+    risk: 'Cash is a position. Hold flat and preserve capital when the selector does not see a positive-expectancy entry.',
+    roll: 'No position to roll. Re-evaluate on the next session after signals update.',
+  },
+};
+
+const DIR_TAG = {
+  bull: '<span class="ctag ctag-bull">Bullish</span>',
+  bear: '<span class="ctag ctag-bear">Bearish</span>',
+  neut: '<span class="ctag ctag-neut">Neutral</span>',
+  def:  '<span class="ctag ctag-def">Defensive</span>',
+  wait: '<span class="ctag ctag-wait">Wait</span>',
+};
+
+const DIR_COLOR = {
+  bull: 'var(--green)', bear: 'var(--red)', neut: 'var(--gold)',
+  def: 'var(--blue)', wait: 'var(--text-muted)',
+};
+
+// ── Decision matrix ────────────────────────────────────────────────────────────
+const MATRIX = {
+  LOW_VOL: {
+    HIGH:    { BULLISH: 'Bull Call Diagonal', NEUTRAL: 'Reduce / Wait',  BEARISH: 'Reduce / Wait' },
+    NEUTRAL: { BULLISH: 'Bull Call Diagonal', NEUTRAL: 'Iron Condor',    BEARISH: 'Reduce / Wait' },
+    LOW:     { BULLISH: 'Bull Call Diagonal', NEUTRAL: 'Iron Condor',    BEARISH: 'Reduce / Wait' },
+  },
+  NORMAL: {
+    HIGH:    { BULLISH: 'Reduce / Wait',      NEUTRAL: 'Reduce / Wait',   BEARISH: 'Reduce / Wait' },
+    NEUTRAL: { BULLISH: 'Bull Put Spread',    NEUTRAL: 'Iron Condor',     BEARISH: 'Iron Condor' },
+    LOW:     { BULLISH: 'Reduce / Wait',      NEUTRAL: 'Reduce / Wait',   BEARISH: 'Reduce / Wait' },
+  },
+  HIGH_VOL: {
+    HIGH:    { BULLISH: 'Bull Put Spread (High Vol)', NEUTRAL: 'Iron Condor (High Vol)', BEARISH: 'Bear Call Spread (High Vol)' },
+    NEUTRAL: { BULLISH: 'Bull Put Spread (High Vol)', NEUTRAL: 'Iron Condor (High Vol)', BEARISH: 'Bear Call Spread (High Vol)' },
+    LOW:     { BULLISH: 'Bull Put Spread (High Vol)', NEUTRAL: 'Iron Condor (High Vol)', BEARISH: 'Bear Call Spread (High Vol)' },
+  },
+  EXTREME_VOL: {
+    HIGH:    { BULLISH: 'Reduce / Wait', NEUTRAL: 'Reduce / Wait', BEARISH: 'Reduce / Wait' },
+    NEUTRAL: { BULLISH: 'Reduce / Wait', NEUTRAL: 'Reduce / Wait', BEARISH: 'Reduce / Wait' },
+    LOW:     { BULLISH: 'Reduce / Wait', NEUTRAL: 'Reduce / Wait', BEARISH: 'Reduce / Wait' },
+  },
+};
+
+const IV_ROWS    = ['HIGH', 'NEUTRAL', 'LOW'];
+const TREND_COLS = ['BULLISH', 'NEUTRAL', 'BEARISH'];
+
+// ── State ──────────────────────────────────────────────────────────────────────
+let currentRegime = 'NORMAL';
+let currentIV     = null;
+let currentTrend  = null;
+let activeTab     = 'NORMAL';
+let selectedCell  = null;
+let _stratStats   = {};   // { "3y": { "Bull Put Spread": {n,win_rate}, ... }, "10y": {...}, "all": {...} }
+let _cellStats    = {};   // { "3y": { "NORMAL|NEUTRAL|BULLISH": {n,win_rate}, ... }, "10y": {...}, "all": {...} }
+
+// ── Build matrix ───────────────────────────────────────────────────────────────
+function buildMatrix(regime) {
+  const grid = document.getElementById('matrix-grid');
+  grid.innerHTML = '';
+
+  // Corner
+  const corner = document.createElement('div');
+  corner.className = 'mh-corner';
+  corner.textContent = 'IV / Trend';
+  grid.appendChild(corner);
+
+  // Trend headers
+  const trendInfo = [
+    { key:'BULLISH', icon:'↑', cls:'trend-bull', label:'Bullish', sub:'SPX > 50MA +1%' },
+    { key:'NEUTRAL', icon:'→', cls:'trend-neut', label:'Neutral', sub:'±1% of 50MA'    },
+    { key:'BEARISH', icon:'↓', cls:'trend-bear', label:'Bearish', sub:'SPX < 50MA −1%' },
+  ];
+  trendInfo.forEach(t => {
+    const th = document.createElement('div');
+    th.className = 'mh-trend';
+    th.innerHTML = `<span class="mh-trend-icon ${t.cls}">${t.icon}</span>
+                    <span class="mh-trend-label ${t.cls}">${t.label}</span>
+                    <span class="mh-iv-sub">${t.sub}</span>`;
+    grid.appendChild(th);
+  });
+
+  // Rows
+  const ivInfo = [
+    { key:'HIGH',    label:'HIGH IV',    sub:'IVR/IVP > 50', cls:'iv-high' },
+    { key:'NEUTRAL', label:'NEUTRAL IV', sub:'30–50',         cls:'iv-neut' },
+    { key:'LOW',     label:'LOW IV',     sub:'IVR/IVP < 30',  cls:'iv-low'  },
+  ];
+
+  ivInfo.forEach((iv, ri) => {
+    // IV row header
+    const rh = document.createElement('div');
+    rh.className = 'mh-iv';
+    rh.innerHTML = `<span class="mh-iv-label ${iv.cls}">${iv.label}</span>
+                    <span class="mh-iv-sub">${iv.sub}</span>`;
+    grid.appendChild(rh);
+
+    // Strategy cells
+    TREND_COLS.forEach((trend, ci) => {
+      const strat = MATRIX[regime][iv.key][trend];
+      const sd = STRAT[strat];
+      const isCurrent = (regime === currentRegime && iv.key === currentIV && trend === currentTrend);
+      const cell = document.createElement('div');
+      cell.className = 'mcell' + (isCurrent ? ' current' : '');
+      cell.dataset.strat = strat;
+      const cellKey = `${regime}|${iv.key}|${trend}`;
+      const s3   = (_stratStats['3y']  || {})[strat];
+      const s10  = (_stratStats['10y'] || {})[strat];
+      const sAll = (_stratStats['all'] || {})[strat];
+      const c3   = (_cellStats['3y']   || {})[cellKey];
+      const c10  = (_cellStats['10y']  || {})[cellKey];
+      const cAll = (_cellStats['all']  || {})[cellKey];
+      const wrClass = wr => wr >= 75 ? 'wr-high' : wr >= 55 ? 'wr-mid' : 'wr-low';
+      const statsLoaded = Object.keys(_cellStats).length > 0;
+      const showStats = statsLoaded && strat !== 'Reduce / Wait';
+      const stat = (s, lbl) => s
+        ? `<span class="cell-stat-n">${s.n}×</span><span class="cell-stat-wr ${wrClass(s.win_rate)}">${s.win_rate}%</span>`
+        : '<span class="cell-stat-na">NA</span>';
+      const stratCol = showStats ? `
+        <div class="cell-stat-col">
+          <div class="cell-stat-row"><span class="cell-stat-label">3Y</span>${stat(s3)}</div>
+          <div class="cell-stat-row"><span class="cell-stat-label">10Y</span>${stat(s10)}</div>
+          <div class="cell-stat-row"><span class="cell-stat-label">All</span>${stat(sAll)}</div>
+        </div>` : '';
+      const cellCol = showStats ? `
+        <div class="cell-stat-col cell-stat-col-right">
+          <div class="cell-stat-row"><span class="cell-stat-label">3Y⊙</span>${stat(c3)}</div>
+          <div class="cell-stat-row"><span class="cell-stat-label">10Y⊙</span>${stat(c10)}</div>
+          <div class="cell-stat-row"><span class="cell-stat-label">All⊙</span>${stat(cAll)}</div>
+        </div>` : '';
+      const statHtml = (stratCol || cellCol) ? `<div class="cell-stats">${stratCol}${cellCol}</div>` : '';
+      cell.innerHTML = `
+        <div class="cell-strategy" style="color:${DIR_COLOR[sd.direction]}">${strat}</div>
+        <div class="cell-tags">${DIR_TAG[sd.direction]}<span class="ctag" style="background:rgba(96,104,128,.08);color:var(--text-muted);border:1px solid rgba(96,104,128,.15);font-size:.52rem">${sd.ul}</span></div>
+        ${statHtml}`;
+      cell.addEventListener('click', () => selectCell(cell, strat, regime, iv.key, trend));
+      grid.appendChild(cell);
+    });
+  });
+}
+
+function setTab(regime) {
+  activeTab = regime;
+  buildMatrix(regime);
+
+  document.getElementById('tab-low').className     = 'regime-tab' + (regime === 'LOW_VOL'     ? ' active-low'  : '');
+  document.getElementById('tab-norm').className    = 'regime-tab' + (regime === 'NORMAL'      ? ' active-norm' : '');
+  document.getElementById('tab-high').className    = 'regime-tab' + (regime === 'HIGH_VOL'    ? ' active-high' : '');
+  document.getElementById('tab-extreme').className = 'regime-tab' + (regime === 'EXTREME_VOL' ? ' active-high' : '');
+
+  // Re-select if a cell was selected
+  if (selectedCell) {
+    const match = document.querySelector(`.mcell[data-strat="${selectedCell}"]`);
+    if (match) { match.classList.add('selected'); showDetail(selectedCell); }
+  }
+}
+
+function selectCell(el, strat, regime, ivKey, trendKey) {
+  document.querySelectorAll('.mcell.selected').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedCell = strat;
+  showDetail(strat);
+  loadMatrixTrades(strat, regime, ivKey, trendKey);
+}
+
+function showDetail(strat) {
+  const sd = STRAT[strat];
+  if (!sd) return;
+  const panel = document.getElementById('detail-panel');
+  panel.classList.remove('empty');
+
+  const hd = panel.querySelector('.dp-header');
+  hd.style.setProperty('--accent', DIR_COLOR[sd.direction]);
+  hd.querySelector('::before'); // CSS handles the bar via ::before
+  hd.style.background = ''; // reset
+  panel.querySelector('.dp-header::before') ; // can't set via JS easily, use inline style trick
+  hd.style.borderLeft = `3px solid ${DIR_COLOR[sd.direction]}`;
+  hd.style.paddingLeft = '19px';
+
+  hd.querySelector('.dp-emoji').textContent = sd.emoji;
+  hd.querySelector('.dp-name').textContent  = strat;
+
+  document.getElementById('dp-ul').textContent    = sd.ul;
+  document.getElementById('dp-dte').textContent   = sd.dte;
+  document.getElementById('dp-delta').textContent = sd.delta;
+  document.getElementById('dp-type').textContent  = sd.type;
+  document.getElementById('dp-when').textContent  = sd.when;
+  document.getElementById('dp-risk').textContent  = sd.risk;
+  document.getElementById('dp-roll').textContent  = sd.roll;
+}
+
+// ── Load current signals ───────────────────────────────────────────────────────
+async function loadSignals() {
+  try {
+    const res  = await fetch('/api/recommendation');
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    const vix  = data.vix_snapshot;
+    const iv   = data.iv_snapshot;
+    const tr   = data.trend_snapshot;
+
+    currentRegime = vix.regime;
+    // Map IV signal to matrix key
+    const ivSig = iv.signal.toUpperCase();
+    currentIV = ivSig === 'HIGH' ? 'HIGH' : ivSig === 'LOW' ? 'LOW' : 'NEUTRAL';
+    // Map trend signal
+    const trSig = tr.signal.toUpperCase();
+    currentTrend = trSig.includes('BULL') ? 'BULLISH' : trSig.includes('BEAR') ? 'BEARISH' : 'NEUTRAL';
+
+    // Banner
+    const banner = document.getElementById('sig-banner');
+    const regimeColor = currentRegime === 'LOW_VOL' ? 'var(--blue)' : (currentRegime === 'HIGH_VOL' || currentRegime === 'EXTREME_VOL') ? 'var(--red)' : 'var(--gold)';
+    const ivColor = currentIV === 'HIGH' ? 'var(--orange)' : currentIV === 'LOW' ? 'var(--blue)' : 'var(--text-2)';
+    const trColor = currentTrend === 'BULLISH' ? 'var(--green)' : currentTrend === 'BEARISH' ? 'var(--red)' : 'var(--text-2)';
+    const curStrat = MATRIX[currentRegime]?.[currentIV]?.[currentTrend] || '—';
+
+    banner.innerHTML = `
+      <span class="sb-label">Now</span>
+      <span class="sb-chip" style="background:rgba(0,0,0,.2);color:${regimeColor};border:1px solid ${regimeColor}33">
+        VIX ${vix.vix.toFixed(1)} &nbsp;[${vix.regime}]
+      </span>
+      <span class="sb-arrow">→</span>
+      <span class="sb-chip" style="background:rgba(0,0,0,.2);color:${ivColor};border:1px solid ${ivColor}33">
+        IV ${iv.signal} &nbsp;(IVP ${iv.iv_percentile.toFixed(0)})
+      </span>
+      <span class="sb-arrow">→</span>
+      <span class="sb-chip" style="background:rgba(0,0,0,.2);color:${trColor};border:1px solid ${trColor}33">
+        ${tr.signal}
+      </span>
+      <span class="sb-result">→ &nbsp;<em>${curStrat}</em></span>`;
+
+    // Switch to current regime tab and rebuild
+    setTab(currentRegime);
+
+    // Auto-show detail for current strategy
+    selectedCell = curStrat;
+    const match = document.querySelector(`.mcell[data-strat="${curStrat}"]`);
+    if (match) { match.classList.add('selected'); showDetail(curStrat); }
+
+  } catch (e) {
+    document.getElementById('sig-banner').innerHTML =
+      `<span style="color:var(--text-muted);font-size:.75rem;font-style:italic">Could not load live signals — matrix shown below is static reference.</span>`;
+    // Still build the default matrix
+    setTab('NORMAL');
+  }
+}
+
+// ── Load backtest stats ────────────────────────────────────────────────────────
+async function loadStratStats() {
+  try {
+    const res  = await fetch('/api/backtest/stats');
+    const data = await res.json();
+    if (data.error) return;
+    _stratStats = data;
+    _cellStats  = { '3y': data['3y_cell'] || {}, '10y': data['10y_cell'] || {}, 'all': data['all_cell'] || {} };
+    // Rebuild current tab so cells show stats
+    buildMatrix(activeTab);
+    // Re-apply current selection highlight
+    if (selectedCell) {
+      const match = document.querySelector(`.mcell[data-strat="${selectedCell}"]`);
+      if (match) match.classList.add('selected');
+    }
+  } catch (_) {}
+}
+
+// ── Matrix trade log ───────────────────────────────────────────────────────
+let _matrixTrades  = null;
+let _matrixSignals = null;
+let _matrixLoading = false;
+
+function fmtDollarFull(n) {
+  return (n >= 0 ? '+' : '-') + '$' + Math.abs(n).toLocaleString('en-US', {maximumFractionDigits:0});
+}
+function pnlClass(n) { return n >= 0 ? 'pos' : 'neg'; }
+function reasonTag(r) {
+  if (!r) return `<span class="reason-tag reason-default">—</span>`;
+  const cls = r.includes('profit') ? 'reason-profit'
+            : r.includes('stop')   ? 'reason-stop'
+            : r.includes('roll')   ? 'reason-roll'
+            : 'reason-default';
+  return `<span class="reason-tag ${cls}">${r}</span>`;
+}
+function ivLevel(ivp) {
+  return ivp > 70 ? 'HIGH' : ivp < 40 ? 'LOW' : 'NEUTRAL';
+}
+
+async function ensureMatrixTrades() {
+  if (_matrixTrades) return true;
+  if (_matrixLoading) return false;
+  _matrixLoading = true;
+  try {
+    const start = new Date();
+    start.setFullYear(start.getFullYear() - 3);
+    const res  = await fetch(`/api/backtest?start=${start.toISOString().slice(0,10)}`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    _matrixTrades  = data.trades  || [];
+    _matrixSignals = data.signals || [];
+    return true;
+  } catch (e) {
+    return false;
+  } finally {
+    _matrixLoading = false;
+  }
+}
+
+async function loadMatrixTrades(strat, regime, ivKey, trendKey) {
+  const section = document.getElementById('matrix-trades-section');
+  section.style.display = 'block';
+  document.getElementById('mt-title').textContent = strat + ' — Trade Log';
+  if (strat === 'Reduce / Wait') {
+    document.getElementById('mt-count').textContent = '—';
+    document.getElementById('mt-tbl-body').innerHTML =
+      '<tr><td colspan="12" style="text-align:center;color:var(--text-muted);padding:20px;font-style:italic">Reduce / Wait means no new trade is opened for this signal path, so there is no trade log for this cell.</td></tr>';
+    section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    return;
+  }
+  document.getElementById('mt-count').textContent = '…';
+  document.getElementById('mt-tbl-body').innerHTML =
+    '<tr><td colspan="12" style="text-align:center;color:var(--text-muted);padding:20px;font-style:italic">Loading…</td></tr>';
+
+  const ok = await ensureMatrixTrades();
+  if (!ok) {
+    document.getElementById('mt-tbl-body').innerHTML =
+      '<tr><td colspan="12" style="text-align:center;color:var(--red);padding:20px">Failed to load backtest data</td></tr>';
+    return;
+  }
+
+  // Signal lookup
+  const sigMap = {};
+  (_matrixSignals || []).forEach(r => { sigMap[r.date] = r; });
+
+  // Trend helpers
+  function trendLbl(sig) {
+    if (!sig) return '—';
+    const t = sig.trend;
+    if (!t) { const g = sig.trend_gap; return g > 0.005 ? '↑' : g < -0.005 ? '↓' : '→'; }
+    return t === 'BULLISH' ? '↑' : t === 'BEARISH' ? '↓' : '→';
+  }
+  function trendClr(sig) {
+    const t = sig?.trend || '';
+    return t === 'BULLISH' ? 'var(--green)' : t === 'BEARISH' ? 'var(--red)' : 'var(--text-2)';
+  }
+
+  const stratTrades = _matrixTrades.filter(t => t.strategy === strat);
+  document.getElementById('mt-count').textContent = stratTrades.length;
+
+  if (!stratTrades.length) {
+    document.getElementById('mt-tbl-body').innerHTML =
+      '<tr><td colspan="12" style="text-align:center;color:var(--text-muted);padding:20px;font-style:italic">No trades for this strategy in 3Y window</td></tr>';
+    return;
+  }
+
+  const tbody = document.getElementById('mt-tbl-body');
+  tbody.innerHTML = '';
+  stratTrades.forEach((t, i) => {
+    const sigIn  = sigMap[t.entry_date] || {};
+    const sigOut = sigMap[t.exit_date]  || {};
+    const tradeRegime = sigIn.regime || '';
+    const tradeIV     = ivLevel(parseFloat(sigIn.ivp || 50));
+    const tradeTrend  = sigIn.trend || 'NEUTRAL';
+    const isMatch = (tradeRegime === regime && tradeIV === ivKey && tradeTrend === trendKey);
+
+    const matchTag = isMatch
+      ? `<span class="mt-tag mt-tag-match">This Cell</span>`
+      : `<span class="mt-tag mt-tag-other">Other Signal</span>`;
+
+    const spxIn  = t.entry_spx ? t.entry_spx.toLocaleString('en-US',{maximumFractionDigits:0}) : '—';
+    const spxOut = t.exit_spx  ? t.exit_spx.toLocaleString('en-US', {maximumFractionDigits:0}) : '—';
+    const vixIn  = t.entry_vix ? t.entry_vix.toFixed(1) : '—';
+    const vixOut = sigOut.vix  ? sigOut.vix.toFixed(1)  : '—';
+    const tIn    = trendLbl(sigIn);  const tClrIn  = trendClr(sigIn);
+    const tOut   = trendLbl(sigOut); const tClrOut = trendClr(sigOut);
+    const ivpIn  = sigIn.ivp  != null ? sigIn.ivp.toFixed(0)  : '—';
+    const ivpOut = sigOut.ivp != null ? sigOut.ivp.toFixed(0) : '—';
+
+    const tr = document.createElement('tr');
+    if (isMatch) tr.className = 'mt-match-row';
+    tr.innerHTML = `
+      <td class="num" style="color:var(--text-muted)">${i+1}</td>
+      <td>${matchTag}</td>
+      <td class="num">${t.entry_date}</td>
+      <td class="num">${t.exit_date}</td>
+      <td class="num">${spxIn}</td>
+      <td class="num">${spxOut}</td>
+      <td class="num">${vixIn}</td>
+      <td class="num">${vixOut}</td>
+      <td class="num"><span style="color:${tClrIn}">${tIn}</span><span style="color:var(--text-muted)">→</span><span style="color:${tClrOut}">${tOut}</span></td>
+      <td class="num">${ivpIn}<span style="color:var(--text-muted)">→</span>${ivpOut}</td>
+      <td class="num ${pnlClass(t.exit_pnl)}">${fmtDollarFull(t.exit_pnl)}</td>
+      <td>${reasonTag(t.exit_reason)}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  // Scroll trade log into view
+  section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+document.getElementById('nav-date').textContent = new Date().toLocaleDateString('en-US',{
+  weekday:'short', month:'short', day:'numeric', year:'numeric'
+});
+
+// Build matrix immediately with default tab, then overlay live data
+setTab('NORMAL');
+loadSignals();
+loadStratStats();  // async — rebuilds cells once backtest stats arrive
+</script>
+</body>
+</html>

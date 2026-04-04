@@ -1,0 +1,7 @@
+Metadata-Version: 2.4
+Name: spx-strat
+Version: 0.1.0
+Requires-Python: >=3.11
+Requires-Dist: yfinance>=0.2
+Requires-Dist: pandas>=2.0
+Requires-Dist: numpy>=1.26

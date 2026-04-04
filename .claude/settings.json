@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(office-hours)",
+      "Skill(office-hours:*)",
+      "Read(//Users/lienchen/.gstack/projects/spx-strat/**)",
+      "Bash(git init:*)",
+      "Bash(git branch:*)",
+      "Bash(python3 -m venv venv)",
+      "Bash(source venv/bin/activate)",
+      "Bash(pip install:*)",
+      "Bash(python signals/vix_regime.py)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(python signals/iv_rank.py)",
+      "Bash(PYTHONPATH=. python signals/iv_rank.py)",
+      "Bash(python -m signals.iv_rank)",
+      "Bash(python -m signals.trend)",
+      "Bash(python -m strategy.selector)",
+      "Bash(python -c \"import scipy; print\\(''scipy'', scipy.__version__\\)\")",
+      "Bash(python -m backtest.engine)",
+      "Bash(python -c \":*)",
+      "Bash(python main.py --dry-run)",
+      "Bash(launchctl load:*)",
+      "Bash(launchctl list:*)",
+      "Bash(launchctl unload:*)",
+      "Bash(1 sleep:*)"
+    ],
+    "additionalDirectories": [
+      "/Users/lienchen/.claude/projects/-Users-lienchen-Documents-workspace-SPX-strat",
+      "/Users/lienchen/.gstack/projects/spx-strat",
+      "/Users/lienchen/Library/LaunchAgents"
+    ]
+  }
+}

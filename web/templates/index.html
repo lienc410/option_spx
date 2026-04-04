@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPX Strategy · Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:            #080A13;
+  --surface:       #0D1020;
+  --surface-hi:    #131728;
+  --border:        #191E33;
+  --border-2:      #232A42;
+  --text:          #C4CEEC;
+  --text-2:        #606880;
+  --text-muted:    #363C52;
+  --gold:          #C9A840;
+  --gold-bg:       rgba(201,168,64,0.07);
+  --gold-border:   rgba(201,168,64,0.22);
+  --green:         #42CC7C;
+  --green-bg:      rgba(66,204,124,0.07);
+  --green-border:  rgba(66,204,124,0.22);
+  --red:           #E04862;
+  --red-bg:        rgba(224,72,98,0.07);
+  --red-border:    rgba(224,72,98,0.22);
+  --blue:          #4888E8;
+  --blue-bg:       rgba(72,136,232,0.07);
+  --blue-border:   rgba(72,136,232,0.22);
+  --orange:        #E08040;
+  --orange-bg:     rgba(224,128,64,0.07);
+  --orange-border: rgba(224,128,64,0.22);
+  --gray-bg:       rgba(96,104,128,0.08);
+  --gray-border:   rgba(96,104,128,0.2);
+
+  --f-display: 'Newsreader', Georgia, serif;
+  --f-mono:    'JetBrains Mono', 'Courier New', monospace;
+  --f-ui:      'DM Sans', system-ui, sans-serif;
+}
+
+html { font-size: 14px; }
+body {
+  font-family: var(--f-ui);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.55;
+}
+
+/* ── Nav ────────────────────────────────────────────────────── */
+.nav {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px;
+  height: 50px;
+  background: rgba(8,10,19,0.88);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.nav-brand {
+  font-family: var(--f-display);
+  font-size: 1.05rem;
+  color: var(--text);
+  letter-spacing: 0.01em;
+  user-select: none;
+}
+.nav-brand em { color: var(--gold); font-style: italic; }
+.nav-links { display: flex; gap: 2px; }
+.nav-link {
+  font-size: 0.76rem; font-weight: 500;
+  color: var(--text-2);
+  text-decoration: none;
+  padding: 5px 13px; border-radius: 5px;
+  letter-spacing: 0.03em;
+  transition: color 0.15s, background 0.15s;
+}
+.nav-link:hover          { color: var(--text);  background: var(--surface-hi); }
+.nav-link.active         { color: var(--gold);  background: var(--gold-bg); }
+.nav-right {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--f-mono); font-size: 0.68rem;
+  color: var(--text-muted);
+}
+.live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 5px var(--green);
+  animation: blink 2.4s ease-in-out infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+/* ── Layout ─────────────────────────────────────────────────── */
+.container { max-width: 880px; margin: 0 auto; padding: 26px 24px 72px; }
+
+/* ── Signals ────────────────────────────────────────────────── */
+.signals {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.sig-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--border-2);
+  border-radius: 9px;
+  padding: 15px 17px 14px;
+  transition: border-top-color 0.3s;
+}
+.sig-card.color-gold   { border-top-color: var(--gold);   }
+.sig-card.color-green  { border-top-color: var(--green);  }
+.sig-card.color-red    { border-top-color: var(--red);    }
+.sig-card.color-blue   { border-top-color: var(--blue);   }
+.sig-card.color-orange { border-top-color: var(--orange); }
+.sig-label {
+  font-size: 0.6rem; font-weight: 600;
+  letter-spacing: 0.11em; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: 7px;
+}
+.sig-value {
+  font-family: var(--f-mono);
+  font-size: 1.55rem; font-weight: 600;
+  color: var(--text); line-height: 1; margin-bottom: 7px;
+}
+.badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 8px; border-radius: 3px;
+  font-size: 0.63rem; font-weight: 700;
+  letter-spacing: 0.07em; text-transform: uppercase;
+}
+.badge-gold   { background:var(--gold-bg);   color:var(--gold);   border:1px solid var(--gold-border);   }
+.badge-green  { background:var(--green-bg);  color:var(--green);  border:1px solid var(--green-border);  }
+.badge-red    { background:var(--red-bg);    color:var(--red);    border:1px solid var(--red-border);    }
+.badge-blue   { background:var(--blue-bg);   color:var(--blue);   border:1px solid var(--blue-border);   }
+.badge-orange { background:var(--orange-bg); color:var(--orange); border:1px solid var(--orange-border); }
+.badge-gray   { background:var(--gray-bg);   color:var(--text-2); border:1px solid var(--gray-border);   }
+.sig-sub {
+  font-size: 0.69rem; color: var(--text-2);
+  margin-top: 5px; line-height: 1.4;
+}
+.sig-warn {
+  font-size: 0.65rem; color: var(--orange);
+  margin-top: 4px; font-style: italic;
+}
+
+/* ── Recommendation card ─────────────────────────────────────── */
+.rec-card {
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* Header */
+.rec-hd {
+  position: relative;
+  padding: 22px 26px 18px 30px;
+  border-bottom: 1px solid var(--border);
+}
+.rec-hd::before {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--gold) 0%, rgba(201,168,64,0.2) 100%);
+  border-radius: 0;
+}
+.rec-emoji { font-size: 1.25rem; display: block; margin-bottom: 6px; }
+.rec-name {
+  font-family: var(--f-display);
+  font-style: italic;
+  font-size: 1.9rem; font-weight: 400;
+  color: var(--text); line-height: 1.05;
+  margin-bottom: 6px;
+}
+.rec-meta {
+  font-family: var(--f-mono); font-size: 0.67rem;
+  color: var(--text-muted);
+}
+.rec-meta span { color: var(--text-2); }
+
+/* Section */
+.rec-sec { padding: 18px 26px; border-bottom: 1px solid var(--border); }
+.rec-sec:last-of-type { border-bottom: none; }
+.sec-label {
+  font-size: 0.58rem; font-weight: 700;
+  letter-spacing: 0.13em; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: 11px;
+}
+
+/* Legs table */
+.legs { width: 100%; border-collapse: collapse; }
+.legs td { padding: 9px 0; font-family: var(--f-mono); font-size: 0.78rem; }
+.legs tr { border-bottom: 1px solid var(--border); }
+.legs tr:last-child { border-bottom: none; }
+.leg-buy  { color: var(--green);  font-weight: 600; width: 44px; }
+.leg-sell { color: var(--orange); font-weight: 600; width: 44px; }
+.leg-call { color: var(--blue);   width: 44px; }
+.leg-put  { color: var(--red);    width: 44px; }
+.leg-dte  { color: var(--text-2); width: 68px; }
+.leg-delta{ color: var(--gold);   width: 60px; }
+.leg-note { color: var(--text-muted); font-style: italic; font-size: 0.7rem; }
+
+/* Metrics */
+.metrics {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  border-bottom: 1px solid var(--border);
+}
+.metric {
+  padding: 16px 20px;
+  border-right: 1px solid var(--border);
+}
+.metric:last-child { border-right: none; }
+.metric-label {
+  font-size: 0.58rem; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: 5px;
+}
+.metric-val {
+  font-family: var(--f-mono); font-size: 0.83rem;
+  color: var(--text); font-weight: 500; line-height: 1.3;
+}
+
+/* Rationale */
+.rec-why {
+  padding: 18px 26px;
+  color: var(--text-2); font-size: 0.88rem;
+  font-style: italic; line-height: 1.65;
+  border-bottom: 1px solid var(--border);
+}
+.rec-why::before { content: '\201C'; color: var(--gold); font-size: 1.1em; margin-right: 1px; }
+.rec-why::after  { content: '\201D'; color: var(--gold); font-size: 1.1em; margin-left:  1px; }
+
+/* Macro warning */
+.macro-warn {
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 26px;
+  background: var(--red-bg);
+  color: var(--red);
+  font-size: 0.78rem;
+  border-bottom: 1px solid var(--red-border);
+}
+
+/* No position */
+.no-pos { padding:28px; text-align:center; color:var(--text-muted); font-style:italic; font-size:0.85rem; }
+
+/* ── Intraday bar ───────────────────────────────────────────── */
+.intraday-bar {
+  display: none;                        /* hidden outside market hours */
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.intraday-bar.market-open { display: grid; }
+.intra-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 12px 16px;
+  display: flex; align-items: center; gap: 12px;
+}
+.intra-card.level-warning { border-color: var(--orange-border); background: var(--orange-bg); }
+.intra-card.level-alert   { border-color: var(--red-border);    background: var(--red-bg);    }
+.intra-card.level-caution { border-color: var(--gold-border);   background: var(--gold-bg);   }
+.intra-card.level-trigger { border-color: var(--red-border);    background: var(--red-bg);    }
+.intra-icon { font-size: 1.2rem; flex-shrink: 0; }
+.intra-body { flex: 1; min-width: 0; }
+.intra-label {
+  font-size: 0.58rem; font-weight: 700;
+  letter-spacing: 0.11em; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: 3px;
+}
+.intra-val {
+  font-family: var(--f-mono); font-size: 0.95rem;
+  font-weight: 600; color: var(--text); line-height: 1;
+}
+.intra-sub { font-size: 0.68rem; color: var(--text-2); margin-top: 3px; }
+
+/* ── Position panel ─────────────────────────────────────────── */
+.pos-panel {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--blue);
+  border-radius: 9px;
+  padding: 13px 18px;
+  margin-top: 12px;
+  font-size: 0.8rem;
+}
+.pos-panel.pos-empty {
+  border-left-color: var(--border-2);
+  color: var(--text-muted);
+  font-style: italic;
+}
+.pos-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--blue);
+  box-shadow: 0 0 6px var(--blue);
+  flex-shrink: 0;
+}
+.pos-body { flex: 1; }
+.pos-name { font-weight: 600; color: var(--text); }
+.pos-meta { color: var(--text-2); margin-top: 2px; font-size: 0.73rem; font-family: var(--f-mono); }
+.pos-notes { color: var(--text-muted); margin-top: 4px; font-size: 0.7rem; font-style: italic; }
+
+/* ── Loading / Error ─────────────────────────────────────────── */
+.state-box { padding: 52px 20px; text-align: center; }
+.spinner {
+  width: 28px; height: 28px;
+  border: 2px solid var(--border-2);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: spin .75s linear infinite;
+  margin: 0 auto 14px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.state-text { color: var(--text-muted); font-size: 0.82rem; }
+.err-icon { font-size: 1.6rem; margin-bottom: 10px; }
+.err-msg  { color: var(--red); font-size: 0.82rem; margin-bottom: 14px; }
+.btn-retry {
+  padding: 7px 16px;
+  background: var(--surface-hi);
+  border: 1px solid var(--border-2);
+  color: var(--text-2); border-radius: 5px;
+  cursor: pointer; font-family: var(--f-ui); font-size: 0.76rem;
+  transition: all .15s;
+}
+.btn-retry:hover { border-color: var(--gold); color: var(--gold); }
+
+/* ── Footer ─────────────────────────────────────────────────── */
+.footer {
+  border-top: 1px solid var(--border);
+  margin-top: 20px; padding: 13px 24px;
+  text-align: center; font-size: 0.67rem;
+  color: var(--text-muted); font-style: italic;
+}
+
+.hidden { display: none !important; }
+.fade-in { animation: fadeIn .28s ease-out; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav-brand">SPX <em>Strategy</em></span>
+  <div class="nav-links">
+    <a href="/" class="nav-link active">Dashboard</a>
+    <a href="/matrix" class="nav-link">Matrix</a>
+    <a href="/backtest" class="nav-link">Backtest</a>
+    <a href="/margin" class="nav-link">Margin</a>
+  </div>
+  <div class="nav-right">
+    <div class="live-dot"></div>
+    <span id="nav-date">—</span>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- Intraday alert bar (visible only during market hours) -->
+  <div class="intraday-bar" id="intraday-bar">
+    <div class="intra-card" id="intra-vix">
+      <div class="intra-icon" id="intra-vix-icon">〰</div>
+      <div class="intra-body">
+        <div class="intra-label">VIX Spike Monitor</div>
+        <div class="intra-val" id="intra-vix-val">—</div>
+        <div class="intra-sub" id="intra-vix-sub">Loading…</div>
+      </div>
+      <span class="badge badge-gray" id="intra-vix-badge">CALM</span>
+    </div>
+    <div class="intra-card" id="intra-spx">
+      <div class="intra-icon" id="intra-spx-icon">〰</div>
+      <div class="intra-body">
+        <div class="intra-label">SPX Drop Monitor</div>
+        <div class="intra-val" id="intra-spx-val">—</div>
+        <div class="intra-sub" id="intra-spx-sub">Loading…</div>
+      </div>
+      <span class="badge badge-gray" id="intra-spx-badge">CALM</span>
+    </div>
+  </div>
+
+  <!-- Signal strip -->
+  <div class="signals">
+    <div class="sig-card" id="card-vix">
+      <div class="sig-label">VIX Index</div>
+      <div class="sig-value" id="sig-vix">—</div>
+      <span class="badge badge-gray" id="badge-regime">—</span>
+      <div class="sig-sub" id="sig-vix-sub">Loading…</div>
+    </div>
+    <div class="sig-card" id="card-iv">
+      <div class="sig-label">IV Rank / Percentile</div>
+      <div class="sig-value" id="sig-iv">—</div>
+      <span class="badge badge-gray" id="badge-iv">—</span>
+      <div class="sig-warn hidden" id="sig-iv-warn"></div>
+    </div>
+    <div class="sig-card" id="card-trend">
+      <div class="sig-label">SPX Trend</div>
+      <div class="sig-value" id="sig-spx">—</div>
+      <span class="badge badge-gray" id="badge-trend">—</span>
+      <div class="sig-sub" id="sig-trend-sub">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Rec area -->
+  <div id="loading-box" class="rec-card">
+    <div class="state-box">
+      <div class="spinner"></div>
+      <div class="state-text">Fetching market signals…</div>
+    </div>
+  </div>
+
+  <div id="rec-card" class="rec-card hidden"></div>
+
+  <div id="err-box" class="rec-card hidden">
+    <div class="state-box">
+      <div class="err-icon">⚠</div>
+      <div class="err-msg" id="err-msg">Failed to load recommendation.</div>
+      <button class="btn-retry" onclick="load()">Try again</button>
+    </div>
+  </div>
+
+  <!-- Open position panel -->
+  <div id="pos-panel" class="pos-panel pos-empty">
+    <span>No open position on record.</span>
+  </div>
+
+</div>
+
+<div class="footer">
+  Signals only — verify strikes and fill prices on your broker before executing.
+</div>
+
+<script>
+const EMOJI = {
+  "Bull Put Spread": "💰", "Bull Put Spread (High Vol)": "🔥",
+  "Bull Call Diagonal": "📈", "Bear Call Diagonal": "📉",
+  "Iron Condor": "🦅", "Bull Call Spread": "🐂",
+  "Bear Put Spread": "🐻", "Bear Call Spread": "🐻",
+  "Reduce / Wait": "⏸",
+};
+
+function regimeClass(r) {
+  if (!r) return 'gray';
+  r = r.toUpperCase();
+  if (r.includes('LOW')) return 'blue';
+  if (r.includes('HIGH')) return 'red';
+  if (r.includes('NORMAL')) return 'gold';
+  return 'gray';
+}
+function trendClass(s) {
+  if (!s) return 'gray';
+  s = s.toUpperCase();
+  if (s.includes('BULL')) return 'green';
+  if (s.includes('BEAR')) return 'red';
+  return 'gray';
+}
+function ivClass(s) {
+  if (!s) return 'gray';
+  s = s.toUpperCase();
+  if (s === 'HIGH') return 'orange';
+  if (s === 'LOW')  return 'blue';
+  return 'gray';
+}
+
+function setBadge(id, text, color) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = `badge badge-${color}`;
+}
+function setCardColor(id, color) {
+  const el = document.getElementById(id);
+  el.className = el.className.replace(/\bcolor-\w+\b/, '');
+  if (color !== 'gray') el.classList.add(`color-${color}`);
+}
+
+function fmt(n, d=2)  { return typeof n==='number' ? n.toFixed(d) : '—'; }
+function fmtK(n)      { return typeof n==='number' ? n.toLocaleString('en-US',{maximumFractionDigits:0}) : '—'; }
+
+function updateSignals(d) {
+  const {vix_snapshot: v, iv_snapshot: iv, trend_snapshot: tr} = d;
+
+  // VIX
+  document.getElementById('sig-vix').textContent = fmt(v.vix);
+  const rc = regimeClass(v.regime);
+  setBadge('badge-regime', v.regime, rc);
+  setCardColor('card-vix', rc);
+  let vixSub = `Trend: ${v.trend}${v.transition_warning ? '  ⚠ threshold' : ''}`;
+  if (v.vix3m != null) {
+    const tsLabel = v.backwardation ? '  ⚠ backwardation' : '  contango';
+    vixSub += `  ·  VIX3M ${v.vix3m.toFixed(2)}${tsLabel}`;
+  }
+  document.getElementById('sig-vix-sub').textContent = vixSub;
+
+  // IV
+  document.getElementById('sig-iv').textContent = `${fmt(iv.iv_rank,0)} / ${fmt(iv.iv_percentile,0)}`;
+  const ic = ivClass(iv.signal);
+  setBadge('badge-iv', iv.signal, ic);
+  setCardColor('card-iv', ic);
+  const warnEl = document.getElementById('sig-iv-warn');
+  if (iv.divergence_warning) {
+    warnEl.textContent = `IVP ${fmt(iv.iv_percentile,0)} preferred (IVR spike distortion)`;
+    warnEl.classList.remove('hidden');
+  }
+
+  // Trend
+  document.getElementById('sig-spx').textContent = fmtK(tr.spx);
+  const tc = trendClass(tr.signal);
+  setBadge('badge-trend', tr.signal, tc);
+  setCardColor('card-trend', tc);
+  const gap = (tr.ma_gap_pct * 100).toFixed(2);
+  const below200 = !tr.above_200 ? '  ·  ⚠ below 200MA' : '';
+  document.getElementById('sig-trend-sub').textContent = `vs 50MA: ${gap>=0?'+':''}${gap}%${below200}`;
+}
+
+function buildLegs(legs) {
+  if (!legs || legs.length === 0)
+    return `<tr><td colspan="5" class="no-pos">No new position</td></tr>`;
+  return legs.map(l => `
+    <tr>
+      <td class="leg-${l.action.toLowerCase()}">${l.action}</td>
+      <td class="leg-${l.option.toLowerCase()}">${l.option}</td>
+      <td class="leg-dte">${l.dte} DTE</td>
+      <td class="leg-delta">δ ${l.delta.toFixed(2)}</td>
+      <td class="leg-note">${l.note}</td>
+    </tr>`).join('');
+}
+
+function buildCard(d) {
+  const emoji = EMOJI[d.strategy] || '📊';
+  const actionColors = {
+    'OPEN': 'var(--green)', 'HOLD': 'var(--blue)',
+    'CLOSE_AND_OPEN': 'var(--orange)', 'WAIT': 'var(--text-muted)',
+    'CLOSE_AND_WAIT': 'var(--red)',
+  };
+  const actionColor = actionColors[d.position_action] || 'var(--text-muted)';
+  const macroWarn = d.macro_warning
+    ? `<div class="macro-warn">⚠&nbsp; SPX below 200MA — reduce size 25–50% on bullish trades.</div>`
+    : '';
+  const bkWarn = d.backwardation
+    ? `<div class="macro-warn">⚠&nbsp; VIX backwardation — Bull Put Spread skipped.</div>`
+    : '';
+  return `
+    <div class="rec-hd">
+      <span class="rec-emoji">${emoji}</span>
+      <div class="rec-name">${d.strategy}</div>
+      <div class="rec-meta">
+        <span style="color:${actionColor};font-weight:600">${d.position_action || ''}</span>
+        &nbsp;·&nbsp;<span>${d.underlying}</span>&nbsp;·&nbsp;<span>${d.vix_snapshot.date}</span>
+      </div>
+    </div>
+
+    <div class="rec-sec">
+      <div class="sec-label">Position Legs</div>
+      <table class="legs">${buildLegs(d.legs)}</table>
+    </div>
+
+    <div class="metrics">
+      <div class="metric">
+        <div class="metric-label">Max Risk</div>
+        <div class="metric-val">${d.max_risk}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Target Return</div>
+        <div class="metric-val">${d.target_return}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Size Rule</div>
+        <div class="metric-val">${d.size_rule}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Roll At</div>
+        <div class="metric-val">${d.roll_rule}</div>
+      </div>
+    </div>
+
+    <div class="rec-why">${d.rationale}</div>
+    ${macroWarn}${bkWarn}`;
+}
+
+async function load() {
+  document.getElementById('loading-box').classList.remove('hidden');
+  document.getElementById('rec-card').classList.add('hidden');
+  document.getElementById('err-box').classList.add('hidden');
+  try {
+    const res = await fetch('/api/recommendation');
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    updateSignals(data);
+    const card = document.getElementById('rec-card');
+    card.innerHTML = buildCard(data);
+    card.classList.remove('hidden');
+    card.classList.add('fade-in');
+    document.getElementById('loading-box').classList.add('hidden');
+  } catch (e) {
+    document.getElementById('loading-box').classList.add('hidden');
+    document.getElementById('err-msg').textContent = e.message || 'Network error';
+    document.getElementById('err-box').classList.remove('hidden');
+  }
+}
+
+function renderPosition(p) {
+  const panel = document.getElementById('pos-panel');
+  if (!p || !p.open) {
+    panel.className = 'pos-panel pos-empty';
+    panel.innerHTML = '<span>No open position on record.</span>';
+    return;
+  }
+  panel.className = 'pos-panel';
+  const rollLine = p.roll_count
+    ? `  ·  rolled ${p.roll_count}×${p.rolled_at ? ' (last ' + p.rolled_at + ')' : ''}`
+    : '';
+  const notes = (p.notes || []);
+  const notesHtml = notes.length
+    ? `<div class="pos-notes">${notes.slice(-2).map(n => '· ' + n).join('<br>')}</div>`
+    : '';
+  panel.innerHTML = `
+    <div class="pos-dot"></div>
+    <div class="pos-body">
+      <div class="pos-name">📋 ${p.strategy} <span style="color:var(--text-muted);font-weight:400">on ${p.underlying}</span></div>
+      <div class="pos-meta">Opened ${p.opened_at}${rollLine}</div>
+      ${notesHtml}
+    </div>`;
+}
+
+async function loadPosition() {
+  try {
+    const res = await fetch('/api/position');
+    const data = await res.json();
+    renderPosition(data);
+  } catch (_) {
+    // non-critical — leave panel as-is
+  }
+}
+
+// ── Intraday panel ──────────────────────────────────────────────────────────
+
+const SPIKE_LEVEL_RANK = { CALM: 0, WARNING: 1, ALERT: 2 };
+const STOP_LEVEL_RANK  = { CALM: 0, CAUTION: 1, TRIGGER: 2 };
+
+function spikeClass(lvl) {
+  if (lvl === 'ALERT')   return 'level-alert';
+  if (lvl === 'WARNING') return 'level-warning';
+  return '';
+}
+function stopClass(lvl) {
+  if (lvl === 'TRIGGER') return 'level-trigger';
+  if (lvl === 'CAUTION') return 'level-caution';
+  return '';
+}
+function spikeBadgeColor(lvl) {
+  if (lvl === 'ALERT')   return 'red';
+  if (lvl === 'WARNING') return 'orange';
+  return 'gray';
+}
+function stopBadgeColor(lvl) {
+  if (lvl === 'TRIGGER') return 'red';
+  if (lvl === 'CAUTION') return 'gold';
+  return 'gray';
+}
+
+function updateIntraday(d) {
+  const bar = document.getElementById('intraday-bar');
+  if (!d.market_open) { bar.classList.remove('market-open'); return; }
+  bar.classList.add('market-open');
+
+  // VIX spike
+  const vs = d.vix_spike;
+  const vCard = document.getElementById('intra-vix');
+  vCard.className = 'intra-card ' + spikeClass(vs.level);
+  document.getElementById('intra-vix-icon').textContent = vs.level === 'ALERT' ? '🔥' : vs.level === 'WARNING' ? '⚠️' : '〰';
+  document.getElementById('intra-vix-val').textContent  = `VIX ${fmt(vs.vix_current)} (+${fmt(vs.spike_pct)}%)`;
+  document.getElementById('intra-vix-sub').textContent  = `Open: ${fmt(vs.vix_open)}  ·  ${vs.timestamp || ''}`;
+  setBadge('intra-vix-badge', vs.level, spikeBadgeColor(vs.level));
+
+  // SPX stop
+  const ss = d.spx_stop;
+  const sCard = document.getElementById('intra-spx');
+  sCard.className = 'intra-card ' + stopClass(ss.level);
+  document.getElementById('intra-spx-icon').textContent = ss.level === 'TRIGGER' ? '🛑' : ss.level === 'CAUTION' ? '⚠️' : '〰';
+  document.getElementById('intra-spx-val').textContent  = `SPX ${fmtK(ss.spx_current)} (${ss.drop_pct >= 0 ? '+' : ''}${fmt(ss.drop_pct)}%)`;
+  document.getElementById('intra-spx-sub').textContent  = `Open: ${fmtK(ss.spx_open)}  ·  ${ss.timestamp || ''}`;
+  setBadge('intra-spx-badge', ss.level, stopBadgeColor(ss.level));
+}
+
+async function loadIntraday() {
+  try {
+    const res = await fetch('/api/intraday');
+    const data = await res.json();
+    if (!data.error) updateIntraday(data);
+  } catch (_) { /* non-critical */ }
+}
+
+// ── Set nav date ────────────────────────────────────────────────────────────
+const now = new Date();
+document.getElementById('nav-date').textContent = now.toLocaleDateString('en-US',{
+  weekday:'short', month:'short', day:'numeric', year:'numeric'
+});
+
+// ── Auto-refresh ─────────────────────────────────────────────────────────────
+// Recommendation: every 5 min  |  Intraday: every 60 s  |  Position: every 30 s
+load();
+loadPosition();
+loadIntraday();
+setInterval(load,          5 * 60 * 1000);
+setInterval(loadPosition,      30 * 1000);
+setInterval(loadIntraday,      60 * 1000);
+</script>
+</body>
+</html>

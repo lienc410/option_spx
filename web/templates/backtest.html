@@ -1,0 +1,2466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPX Strategy · Backtest</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:            #080A13;
+  --surface:       #0D1020;
+  --surface-hi:    #131728;
+  --border:        #191E33;
+  --border-2:      #232A42;
+  --text:          #C4CEEC;
+  --text-2:        #606880;
+  --text-muted:    #363C52;
+  --gold:          #C9A840;
+  --gold-bg:       rgba(201,168,64,0.07);
+  --gold-border:   rgba(201,168,64,0.22);
+  --green:         #42CC7C;
+  --green-bg:      rgba(66,204,124,0.07);
+  --green-border:  rgba(66,204,124,0.22);
+  --red:           #E04862;
+  --red-bg:        rgba(224,72,98,0.07);
+  --red-border:    rgba(224,72,98,0.22);
+  --blue:          #4888E8;
+  --blue-bg:       rgba(72,136,232,0.07);
+  --orange:        #E08040;
+
+  --f-display: 'Newsreader', Georgia, serif;
+  --f-mono:    'JetBrains Mono', 'Courier New', monospace;
+  --f-ui:      'DM Sans', system-ui, sans-serif;
+}
+
+html { font-size: 14px; }
+body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-height: 100vh; }
+
+/* ── Nav ── */
+.nav {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px; height: 50px;
+  background: rgba(8,10,19,0.88); backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.nav-brand { font-family: var(--f-display); font-size: 1.05rem; color: var(--text); }
+.nav-brand em { color: var(--gold); font-style: italic; }
+.nav-links { display: flex; gap: 2px; }
+.nav-link {
+  font-size: 0.76rem; font-weight: 500; color: var(--text-2);
+  text-decoration: none; padding: 5px 13px; border-radius: 5px;
+  letter-spacing: 0.03em; transition: color .15s, background .15s;
+}
+.nav-link:hover   { color: var(--text); background: var(--surface-hi); }
+.nav-link.active  { color: var(--gold); background: var(--gold-bg); }
+.nav-right {
+  font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-muted);
+}
+
+/* ── Layout ── */
+.container { max-width: 900px; margin: 0 auto; padding: 26px 24px 72px; }
+.page-hd { margin-bottom: 20px; }
+.page-title {
+  font-family: var(--f-display); font-style: italic;
+  font-size: 1.5rem; font-weight: 400; color: var(--text);
+}
+
+/* ── Controls bar ── */
+.controls {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface); border: 1px solid var(--border-2);
+  border-radius: 9px; padding: 14px 18px; margin-bottom: 18px;
+}
+.ctrl-label { font-size: 0.7rem; color: var(--text-muted); font-weight: 500; white-space: nowrap; }
+.ctrl-divider { width: 1px; height: 20px; background: var(--border-2); margin: 0 2px; flex-shrink: 0; }
+.period-pills { display: flex; gap: 3px; }
+.period-btn {
+  font-family: var(--f-mono); font-size: 0.70rem; font-weight: 500;
+  padding: 5px 10px; border-radius: 5px;
+  background: transparent; border: 1px solid var(--border-2);
+  color: var(--text-2); cursor: pointer; transition: all .15s;
+}
+.period-btn:hover { color: var(--text); border-color: var(--text-muted); background: var(--surface-hi); }
+.period-btn.active { color: var(--gold); background: var(--gold-bg); border-color: var(--gold-border); }
+.ctrl-input {
+  font-family: var(--f-mono); font-size: 0.78rem;
+  background: var(--surface-hi); border: 1px solid var(--border-2);
+  color: var(--text); padding: 7px 12px; border-radius: 5px;
+  outline: none; transition: border-color .15s;
+}
+.ctrl-input:focus { border-color: var(--gold); }
+.btn-run {
+  margin-left: auto;
+  padding: 8px 20px;
+  background: var(--gold-bg); border: 1px solid var(--gold-border);
+  color: var(--gold); border-radius: 5px;
+  cursor: pointer; font-family: var(--f-ui); font-size: 0.78rem; font-weight: 500;
+  letter-spacing: 0.03em; transition: all .15s;
+}
+.btn-run:hover:not(:disabled) { background: rgba(201,168,64,0.14); }
+.btn-run:disabled { opacity: 0.45; cursor: not-allowed; }
+.run-status {
+  font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-muted);
+  margin-left: 8px;
+}
+
+/* ── Metric cards ── */
+.metric-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 10px; margin-bottom: 18px;
+}
+.m-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 9px; padding: 16px 18px;
+}
+.m-label {
+  font-size: 0.58rem; font-weight: 700; letter-spacing: 0.11em;
+  text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;
+}
+.m-value {
+  font-family: var(--f-mono); font-size: 1.45rem; font-weight: 600;
+  line-height: 1; color: var(--text); margin-bottom: 4px;
+}
+.m-value.pos { color: var(--green); }
+.m-value.neg { color: var(--red); }
+.m-sub { font-size: 0.68rem; color: var(--text-2); }
+
+/* ── Chart section ── */
+.chart-section {
+  background: var(--surface); border: 1px solid var(--border-2);
+  border-radius: 9px; padding: 20px 22px; margin-bottom: 18px;
+}
+.section-title {
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.11em;
+  text-transform: uppercase; color: var(--text-muted); margin-bottom: 16px;
+}
+.chart-wrap { position: relative; height: 220px; }
+.equity-legend {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  padding: 8px 4px 2px; font-size: 0.68rem; color: var(--text-muted);
+}
+.eq-leg-item { display: flex; align-items: center; gap: 4px; }
+.eq-arrow { font-size: 0.75rem; line-height: 1; }
+.eq-leg-note { margin-left: auto; font-style: italic; font-size: 0.63rem; }
+
+/* ── SPX chart overlay controls ── */
+.spx-chart-hd { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.overlay-bar { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.overlay-btn {
+  font-family: var(--f-mono); font-size: 0.68rem; font-weight: 500;
+  padding: 4px 9px; border-radius: 4px;
+  background: transparent; border: 1px solid var(--border-2);
+  color: var(--text-2); cursor: pointer; transition: all .12s;
+}
+.overlay-btn:hover  { color: var(--text); border-color: var(--text-muted); background: var(--surface-hi); }
+.overlay-btn.active { color: var(--gold); background: var(--gold-bg); border-color: var(--gold-border); }
+.spx-band-note {
+  margin-top: 10px;
+  font-size: 0.64rem;
+  color: var(--text-muted);
+  font-style: italic;
+  letter-spacing: 0.02em;
+}
+.spx-window {
+  margin-top: 12px;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(19,23,40,0.72);
+}
+.spx-window-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.spx-window-title {
+  font-family: var(--f-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.spx-window-range {
+  font-family: var(--f-mono);
+  font-size: 0.68rem;
+  color: var(--text);
+}
+.spx-window-slider {
+  --window-cut: 0%;
+  width: 100%;
+  height: 18px;
+  appearance: none;
+  -webkit-appearance: none;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(201,168,64,0.22) 0%,
+      rgba(201,168,64,0.22) var(--window-cut),
+      rgba(201,168,64,0.92) var(--window-cut),
+      rgba(201,168,64,0.92) 100%
+    );
+  border: 1px solid var(--gold-border);
+  border-radius: 999px;
+  cursor: ew-resize;
+}
+.spx-window-slider::-webkit-slider-runnable-track {
+  height: 100%;
+  background: transparent;
+}
+.spx-window-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: #F6E7A3;
+  border: 1px solid rgba(8,10,19,0.8);
+  box-shadow: 0 0 0 2px rgba(201,168,64,0.28);
+}
+.spx-window-slider::-moz-range-track {
+  height: 100%;
+  background: transparent;
+  border: none;
+}
+.spx-window-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #F6E7A3;
+  border: 1px solid rgba(8,10,19,0.8);
+  box-shadow: 0 0 0 2px rgba(201,168,64,0.28);
+}
+.spx-window-scale {
+  margin-top: 6px;
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--f-mono);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+}
+.signal-matrix {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(19,23,40,0.96), rgba(13,16,32,0.92)),
+    radial-gradient(circle at top left, rgba(201,168,64,0.08), transparent 38%);
+}
+.signal-matrix-row {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+.signal-matrix-label {
+  font-family: var(--f-mono);
+  font-size: 0.63rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.signal-matrix-track {
+  height: 16px;
+  display: flex;
+  overflow: hidden;
+  border-radius: 999px;
+  border: 1px solid var(--border-2);
+  background: rgba(8,10,19,0.78);
+}
+.signal-matrix-seg {
+  min-width: 1px;
+  height: 100%;
+  border-right: 1px solid rgba(8,10,19,0.4);
+  position: relative;
+}
+.signal-matrix-seg:last-child { border-right: none; }
+.signal-matrix-seg::after {
+  content: attr(data-short);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--f-mono);
+  font-size: 0.52rem;
+  letter-spacing: 0.06em;
+  color: rgba(255,255,255,0.88);
+  opacity: 0;
+}
+.signal-matrix-seg.show-label::after { opacity: 0.9; }
+
+/* ── Strategy table ── */
+.table-section {
+  background: var(--surface); border: 1px solid var(--border-2);
+  border-radius: 9px; overflow: hidden; margin-bottom: 18px;
+}
+.table-hd {
+  padding: 14px 18px; border-bottom: 1px solid var(--border);
+  font-size: 0.62rem; font-weight: 700;
+  letter-spacing: 0.11em; text-transform: uppercase; color: var(--text-muted);
+}
+table.strat-tbl { width: 100%; border-collapse: collapse; }
+.strat-tbl thead th {
+  padding: 9px 18px; text-align: left;
+  font-size: 0.62rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--text-muted); border-bottom: 1px solid var(--border);
+}
+.strat-tbl tbody td {
+  padding: 11px 18px; font-size: 0.8rem;
+  border-bottom: 1px solid var(--border);
+}
+.strat-tbl tbody tr:last-child td { border-bottom: none; }
+.strat-tbl tbody tr:hover td { background: var(--surface-hi); }
+.num { font-family: var(--f-mono); font-size: 0.78rem; }
+.num.pos { color: var(--green); }
+.num.neg { color: var(--red);   }
+
+/* ── Trade log ── */
+.trade-log-wrap {
+  background: var(--surface); border: 1px solid var(--border-2);
+  border-radius: 9px; overflow: hidden;
+}
+.log-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px; cursor: pointer; user-select: none;
+  border-bottom: 1px solid var(--border);
+  transition: background .12s;
+}
+.log-toggle:hover { background: var(--surface-hi); }
+.log-toggle-label {
+  font-size: 0.62rem; font-weight: 700;
+  letter-spacing: 0.11em; text-transform: uppercase; color: var(--text-muted);
+}
+.log-toggle-arrow { font-size: 0.7rem; color: var(--text-muted); transition: transform .2s; }
+.log-toggle-arrow.open { transform: rotate(180deg); }
+.log-body { display: none; overflow-x: auto; }
+.log-body.open { display: block; }
+
+table.log-tbl { width: 100%; border-collapse: collapse; min-width: 980px; }
+.log-tbl thead th {
+  padding: 8px 14px; text-align: left;
+  font-size: 0.6rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--text-muted); border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; background: var(--surface);
+}
+.log-tbl tbody td {
+  padding: 9px 14px; font-size: 0.76rem;
+  border-bottom: 1px solid var(--border);
+}
+.log-tbl tbody tr:last-child td { border-bottom: none; }
+.log-tbl tbody tr:hover td { background: var(--surface-hi); }
+.reason-tag {
+  display: inline-block; padding: 1px 7px; border-radius: 3px;
+  font-size: 0.6rem; font-weight: 600; letter-spacing: 0.05em;
+}
+.reason-profit  { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+.reason-stop    { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red-border); }
+.reason-roll    { background: var(--gold-bg);  color: var(--gold);  border: 1px solid var(--gold-border); }
+.reason-default { background: rgba(96,104,128,.07); color: var(--text-2); border: 1px solid rgba(96,104,128,.2); }
+
+/* ── Trade log filter bar ── */
+.log-filter-bar {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  background: var(--surface-hi);
+}
+.log-filter-btn {
+  font-family: var(--f-mono); font-size: 0.65rem; font-weight: 500;
+  padding: 3px 9px; border-radius: 4px;
+  background: transparent; border: 1px solid var(--border-2);
+  color: var(--text-2); cursor: pointer; transition: all .12s;
+}
+.log-filter-btn:hover  { color: var(--text); border-color: var(--text-muted); }
+.log-filter-btn.active { color: var(--gold); background: var(--gold-bg); border-color: var(--gold-border); }
+
+/* ── Loading / Error ── */
+.state-box { padding: 52px 20px; text-align: center; }
+.spinner {
+  width: 28px; height: 28px;
+  border: 2px solid var(--border-2); border-top-color: var(--gold);
+  border-radius: 50%; animation: spin .75s linear infinite; margin: 0 auto 14px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.state-text { color: var(--text-muted); font-size: 0.82rem; }
+.state-timer { font-family: var(--f-mono); font-size: 0.7rem; color: var(--text-muted); margin-top: 6px; }
+.err-icon { font-size: 1.6rem; margin-bottom: 10px; }
+.err-msg  { color: var(--red); font-size: 0.82rem; }
+
+.hidden { display: none !important; }
+.fade-in { animation: fi .28s ease-out; }
+@keyframes fi { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+
+.precision-note {
+  font-size: 0.65rem; color: var(--text-muted); font-style: italic;
+  text-align: center; margin-top: 10px;
+}
+
+/* ── Parameters panel ── */
+.params-panel {
+  background: var(--surface); border: 1px solid var(--border-2);
+  border-radius: 9px; overflow: hidden; margin-bottom: 18px;
+}
+.params-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 13px 18px; border-bottom: 1px solid var(--border);
+  cursor: pointer; user-select: none; transition: background .12s;
+}
+.params-hd:hover { background: var(--surface-hi); }
+.params-hd-label {
+  font-size: 0.62rem; font-weight: 700;
+  letter-spacing: 0.11em; text-transform: uppercase; color: var(--text-muted);
+}
+.params-hd-arrow { font-size: 0.7rem; color: var(--text-muted); transition: transform .2s; }
+.params-hd-arrow.open { transform: rotate(180deg); }
+.params-body { display: none; padding: 18px; }
+.params-body.open { display: block; }
+.params-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 12px; margin-bottom: 14px;
+}
+.param-group { }
+.param-label {
+  font-size: 0.6rem; font-weight: 700;
+  letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: 6px;
+}
+.param-row { display: flex; flex-direction: column; gap: 6px; }
+.param-item { display: flex; align-items: center; gap: 8px; }
+.param-item label { font-size: 0.7rem; color: var(--text-2); min-width: 130px; }
+.param-input {
+  font-family: var(--f-mono); font-size: 0.76rem;
+  background: var(--surface-hi); border: 1px solid var(--border-2);
+  color: var(--text); padding: 5px 9px; border-radius: 4px;
+  outline: none; width: 80px; transition: border-color .15s;
+}
+.param-input:focus { border-color: var(--gold); }
+.params-note-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+}
+.params-note-row label { font-size: 0.7rem; color: var(--text-2); white-space: nowrap; }
+.param-note-input {
+  flex: 1; font-family: var(--f-mono); font-size: 0.76rem;
+  background: var(--surface-hi); border: 1px solid var(--border-2);
+  color: var(--text); padding: 5px 10px; border-radius: 4px;
+  outline: none; transition: border-color .15s;
+}
+.param-note-input:focus { border-color: var(--gold); }
+.params-btn-row { display: flex; gap: 8px; align-items: center; }
+.btn-run-exp {
+  padding: 8px 18px;
+  background: var(--gold-bg); border: 1px solid var(--gold-border);
+  color: var(--gold); border-radius: 5px;
+  cursor: pointer; font-family: var(--f-ui); font-size: 0.78rem; font-weight: 500;
+  letter-spacing: 0.03em; transition: all .15s;
+}
+.btn-run-exp:hover:not(:disabled) { background: rgba(201,168,64,0.14); }
+.btn-run-exp:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-auto {
+  padding: 8px 18px;
+  background: var(--blue-bg); border: 1px solid var(--blue-border);
+  color: var(--blue); border-radius: 5px;
+  cursor: pointer; font-family: var(--f-ui); font-size: 0.78rem; font-weight: 500;
+  letter-spacing: 0.03em; transition: all .15s;
+}
+.btn-auto:hover:not(:disabled) { background: rgba(72,136,232,0.14); }
+.btn-auto:disabled { opacity: 0.45; cursor: not-allowed; }
+.exp-status { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-muted); }
+
+/* ── Auto-search panel ── */
+.auto-panel {
+  margin-top: 14px; padding: 14px;
+  background: var(--surface-hi); border: 1px solid var(--border-2);
+  border-radius: 7px; display: none;
+}
+.auto-panel.open { display: block; }
+.auto-panel-title {
+  font-size: 0.6rem; font-weight: 700;
+  letter-spacing: 0.11em; text-transform: uppercase;
+  color: var(--blue); margin-bottom: 10px;
+}
+.auto-params-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 8px; margin-bottom: 12px;
+}
+.auto-param-item { display: flex; align-items: center; gap: 6px; }
+.auto-param-item input[type="checkbox"] { accent-color: var(--blue); }
+.auto-param-item label { font-size: 0.7rem; color: var(--text-2); cursor: pointer; }
+.auto-param-values {
+  font-family: var(--f-mono); font-size: 0.65rem;
+  color: var(--text-muted); margin-left: 22px; margin-top: 2px; margin-bottom: 6px;
+}
+.auto-footer {
+  display: flex; align-items: center; gap: 12px; margin-top: 10px;
+}
+.progress-wrap {
+  flex: 1; height: 6px; background: var(--border-2);
+  border-radius: 3px; overflow: hidden;
+}
+.progress-bar {
+  height: 100%; background: var(--blue);
+  border-radius: 3px; width: 0%; transition: width .3s;
+}
+.progress-label { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-2); white-space: nowrap; }
+
+/* ── Experiments table ── */
+.experiments-section {
+  background: var(--surface); border: 1px solid var(--border-2);
+  border-radius: 9px; overflow: hidden; margin-bottom: 18px;
+}
+.experiments-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px; border-bottom: 1px solid var(--border);
+}
+.experiments-hd-label {
+  font-size: 0.62rem; font-weight: 700;
+  letter-spacing: 0.11em; text-transform: uppercase; color: var(--text-muted);
+}
+.btn-compare {
+  padding: 5px 14px;
+  background: transparent; border: 1px solid var(--border-2);
+  color: var(--text-2); border-radius: 4px;
+  cursor: pointer; font-family: var(--f-ui); font-size: 0.72rem;
+  transition: all .12s;
+}
+.btn-compare:hover:not(:disabled) { border-color: var(--blue); color: var(--blue); }
+.btn-compare:disabled { opacity: 0.4; cursor: not-allowed; }
+table.exp-tbl { width: 100%; border-collapse: collapse; }
+.exp-tbl thead th {
+  padding: 9px 14px; text-align: left;
+  font-size: 0.6rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--text-muted); border-bottom: 1px solid var(--border);
+}
+.exp-tbl tbody td {
+  padding: 10px 14px; font-size: 0.78rem;
+  border-bottom: 1px solid var(--border);
+}
+.exp-tbl tbody tr:last-child td { border-bottom: none; }
+.exp-tbl tbody tr:hover td { background: var(--surface-hi); }
+.exp-tbl tbody tr.best-row td { background: rgba(201,168,64,0.04); }
+.exp-select { accent-color: var(--blue); }
+.auto-tag {
+  display: inline-block; padding: 1px 6px; border-radius: 3px;
+  font-size: 0.58rem; font-weight: 600;
+  background: var(--blue-bg); color: var(--blue);
+  border: 1px solid var(--blue-border); margin-left: 4px;
+}
+
+/* ── Comparison block ── */
+.compare-block {
+  padding: 16px 18px; border-top: 1px solid var(--border);
+  display: none;
+}
+.compare-block.open { display: block; }
+.compare-title {
+  font-size: 0.6rem; font-weight: 700;
+  letter-spacing: 0.11em; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: 12px;
+}
+.compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.compare-col-title { font-size: 0.65rem; color: var(--text-2); font-weight: 600; margin-bottom: 8px; }
+table.cmp-tbl { width: 100%; border-collapse: collapse; }
+.cmp-tbl td {
+  padding: 5px 0; font-size: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.cmp-tbl td:first-child { color: var(--text-muted); font-size: 0.68rem; padding-right: 12px; }
+.cmp-tbl tr:last-child td { border-bottom: none; }
+.cmp-delta { font-family: var(--f-mono); font-size: 0.72rem; }
+.cmp-delta.pos { color: var(--green); }
+.cmp-delta.neg { color: var(--red); }
+.cmp-param-changed { color: var(--gold); font-family: var(--f-mono); font-size: 0.72rem; }
+
+/* ── Signal charts ── */
+.signals-section {
+  background: var(--surface); border: 1px solid var(--border-2);
+  border-radius: 9px; overflow: hidden; margin-bottom: 18px;
+}
+.signals-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px; border-bottom: 1px solid var(--border);
+}
+.granularity-bar { display: flex; gap: 4px; }
+.gran-btn {
+  padding: 4px 12px; border-radius: 4px;
+  font-size: 0.68rem; font-weight: 600; letter-spacing: 0.05em;
+  background: transparent; border: 1px solid var(--border-2);
+  color: var(--text-2); cursor: pointer; transition: all .12s;
+}
+.gran-btn:hover  { border-color: var(--gold); color: var(--gold); }
+.gran-btn.active { background: var(--gold-bg); border-color: var(--gold-border); color: var(--gold); }
+.sig-chart-row {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 0; border-bottom: 1px solid var(--border);
+}
+.sig-chart-row:last-child { border-bottom: none; }
+.sig-chart-cell {
+  padding: 16px 18px;
+  border-right: 1px solid var(--border);
+}
+.sig-chart-cell:last-child { border-right: none; }
+.sig-chart-cell.full { grid-column: 1 / -1; border-right: none; }
+.sig-chart-title {
+  font-size: 0.58rem; font-weight: 700; letter-spacing: 0.11em;
+  text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px;
+}
+.sig-chart-wrap { position: relative; height: 160px; }
+.sig-chart-wrap.tall { height: 200px; }
+
+/* ── Footer ── */
+.footer {
+  border-top: 1px solid var(--border); margin-top: 20px; padding: 13px 24px;
+  text-align: center; font-size: 0.67rem; color: var(--text-muted); font-style: italic;
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav-brand">SPX <em>Strategy</em></span>
+  <div class="nav-links">
+    <a href="/" class="nav-link">Dashboard</a>
+    <a href="/matrix" class="nav-link">Matrix</a>
+    <a href="/backtest" class="nav-link active">Backtest</a>
+    <a href="/margin" class="nav-link">Margin</a>
+  </div>
+  <div class="nav-right" id="nav-date">—</div>
+</nav>
+
+<div class="container">
+
+  <div class="page-hd">
+    <div class="page-title">Backtest Analysis</div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="period-pills">
+      <button class="period-btn" id="pbtn-1y"  onclick="setPeriod('1y',  this)">1Y</button>
+      <button class="period-btn" id="pbtn-3y"  onclick="setPeriod('3y',  this)">3Y</button>
+      <button class="period-btn" id="pbtn-5y"  onclick="setPeriod('5y',  this)">5Y</button>
+      <button class="period-btn" id="pbtn-10y" onclick="setPeriod('10y', this)">10Y</button>
+      <button class="period-btn" id="pbtn-max" onclick="setPeriod('max', this)">Max</button>
+    </div>
+    <div class="ctrl-divider"></div>
+    <span class="ctrl-label">Start</span>
+    <input id="inp-start" type="date" class="ctrl-input" value="" oninput="clearActivePeriod()">
+    <span class="ctrl-label">End</span>
+    <input id="inp-end" type="date" class="ctrl-input" value="" oninput="clearActivePeriod()">
+    <button id="btn-run" class="btn-run" onclick="runBacktest()">Run</button>
+    <span class="run-status" id="run-status"></span>
+  </div>
+
+  <!-- Loading -->
+  <div id="loading-box" class="hidden">
+    <div class="state-box">
+      <div class="spinner"></div>
+      <div class="state-text">Running walk-forward simulation…</div>
+      <div class="state-timer" id="run-timer">0s</div>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div id="err-box" class="hidden" style="text-align:center;padding:40px 20px">
+    <div class="err-icon">⚠</div>
+    <div class="err-msg" id="err-msg"></div>
+  </div>
+
+  <!-- Parameters panel -->
+  <div class="params-panel">
+    <div class="params-hd" onclick="toggleParams()">
+      <span class="params-hd-label">⚙ Strategy Parameters</span>
+      <span class="params-hd-arrow" id="params-arrow">▼</span>
+    </div>
+    <div class="params-body" id="params-body">
+      <div class="params-grid">
+        <div class="param-group">
+          <div class="param-label">VIX Thresholds</div>
+          <div class="param-row">
+            <div class="param-item">
+              <label>HIGH_VOL cutoff (≥)</label>
+              <input class="param-input" id="p-hv-cut" type="number" value="22" min="15" max="50" step="1" disabled title="Derived from signals layer">
+            </div>
+            <div class="param-item">
+              <label>EXTREME_VOL cutoff (≥)</label>
+              <input class="param-input" id="p-ext-vix" type="number" value="35" min="25" max="80" step="1">
+            </div>
+          </div>
+        </div>
+        <div class="param-group">
+          <div class="param-label">HIGH_VOL Bull Put Spread</div>
+          <div class="param-row">
+            <div class="param-item">
+              <label>Short leg delta</label>
+              <input class="param-input" id="p-hv-delta" type="number" value="0.20" min="0.05" max="0.40" step="0.05">
+            </div>
+            <div class="param-item">
+              <label>DTE</label>
+              <input class="param-input" id="p-hv-dte" type="number" value="21" min="14" max="45" step="1">
+            </div>
+            <div class="param-item">
+              <label>Size (% of normal)</label>
+              <input class="param-input" id="p-hv-size" type="number" value="50" min="10" max="100" step="10">
+            </div>
+          </div>
+        </div>
+        <div class="param-group">
+          <div class="param-label">NORMAL Bull Put Spread</div>
+          <div class="param-row">
+            <div class="param-item">
+              <label>Short leg delta</label>
+              <input class="param-input" id="p-n-delta" type="number" value="0.30" min="0.10" max="0.50" step="0.05">
+            </div>
+            <div class="param-item">
+              <label>DTE</label>
+              <input class="param-input" id="p-n-dte" type="number" value="30" min="14" max="60" step="1">
+            </div>
+          </div>
+        </div>
+        <div class="param-group">
+          <div class="param-label">Exit Rules</div>
+          <div class="param-row">
+            <div class="param-item">
+              <label>Profit target (%)</label>
+              <input class="param-input" id="p-profit" type="number" value="50" min="20" max="90" step="5">
+            </div>
+            <div class="param-item">
+              <label>Stop loss (× credit)</label>
+              <input class="param-input" id="p-stop" type="number" value="2.0" min="1.0" max="4.0" step="0.5">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="params-note-row">
+        <label>Experiment note:</label>
+        <input class="param-note-input" id="p-note" type="text" placeholder="e.g. HIGH_VOL delta=0.20, testing tighter params">
+      </div>
+
+      <div class="params-btn-row">
+        <button class="btn-run-exp" id="btn-run-exp" onclick="runExperiment()">▶ Run &amp; Save Experiment</button>
+        <button class="btn-auto" onclick="toggleAutoPanel()">⚡ Auto-Search</button>
+        <span class="exp-status" id="exp-status"></span>
+      </div>
+
+      <!-- Auto-search panel -->
+      <div class="auto-panel" id="auto-panel">
+        <div class="auto-panel-title">⚡ Parameter Grid Search (max 3 params)</div>
+        <div class="auto-params-grid" id="auto-params-grid">
+          <!-- populated by JS -->
+        </div>
+        <div class="auto-footer">
+          <button class="btn-auto" id="btn-auto-run" onclick="startAutoSearch()" style="white-space:nowrap">Start Search</button>
+          <div class="progress-wrap"><div class="progress-bar" id="auto-progress-bar"></div></div>
+          <span class="progress-label" id="auto-progress-label">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Experiments history -->
+  <div class="experiments-section" id="experiments-section" style="display:none">
+    <div class="experiments-hd">
+      <span class="experiments-hd-label">📊 Experiments (<span id="exp-count">0</span> runs)</span>
+      <button class="btn-compare" id="btn-compare" onclick="loadComparison()" disabled>Compare selected</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="exp-tbl">
+        <thead>
+          <tr>
+            <th style="width:32px"></th>
+            <th>#</th>
+            <th>Note</th>
+            <th>Sharpe</th>
+            <th>Win %</th>
+            <th>Expectancy</th>
+            <th>Max DD</th>
+            <th>Trades</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody id="exp-tbl-body"></tbody>
+      </table>
+    </div>
+    <div class="compare-block" id="compare-block">
+      <div class="compare-title">Comparison</div>
+      <div id="compare-content"></div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div id="results" class="hidden">
+
+    <!-- Metric cards -->
+    <div class="metric-grid">
+      <div class="m-card">
+        <div class="m-label">Total Trades</div>
+        <div class="m-value" id="m-trades">—</div>
+        <div class="m-sub" id="m-period">—</div>
+      </div>
+      <div class="m-card">
+        <div class="m-label">Win Rate</div>
+        <div class="m-value" id="m-winrate">—</div>
+        <div class="m-sub" id="m-winloss">—</div>
+      </div>
+      <div class="m-card">
+        <div class="m-label">Expectancy</div>
+        <div class="m-value" id="m-exp">—</div>
+        <div class="m-sub">per trade</div>
+      </div>
+      <div class="m-card">
+        <div class="m-label">Total P&amp;L</div>
+        <div class="m-value" id="m-pnl">—</div>
+        <div class="m-sub">net realized</div>
+      </div>
+      <div class="m-card">
+        <div class="m-label">Max Drawdown</div>
+        <div class="m-value" id="m-dd">—</div>
+        <div class="m-sub">peak-to-trough</div>
+      </div>
+      <div class="m-card">
+        <div class="m-label">Sharpe Ratio</div>
+        <div class="m-value" id="m-sharpe">—</div>
+        <div class="m-sub">annualized</div>
+      </div>
+    </div>
+
+    <!-- SPX Price chart -->
+    <div class="chart-section">
+      <div class="spx-chart-hd">
+        <div class="section-title" style="margin-bottom:0">SPX Price — Trade Entry / Exit</div>
+        <div class="overlay-bar">
+          <span class="ctrl-label" style="margin-right:4px">Overlay:</span>
+          <button class="overlay-btn active" id="ovr-none" onclick="setSpxOverlay('none', this)">None</button>
+          <button class="overlay-btn" id="ovr-pnl"  onclick="setSpxOverlay('pnl',  this)">Cum. P&L</button>
+          <button class="overlay-btn" id="ovr-bp"   onclick="setSpxOverlay('bp',   this)">Total BP Used %</button>
+          <button class="overlay-btn" id="ovr-vix"  onclick="setSpxOverlay('vix',  this)">VIX</button>
+          <button class="overlay-btn" id="ovr-ivr"  onclick="setSpxOverlay('ivr',  this)">IV Rank</button>
+          <button class="overlay-btn" id="ovr-ivp"  onclick="setSpxOverlay('ivp',  this)">IV %ile</button>
+          <button class="overlay-btn" id="ovr-trend" onclick="setSpxOverlay('trend', this)">SPX Trend</button>
+        </div>
+      </div>
+      <div class="chart-wrap" style="height:260px">
+        <canvas id="spx-price-chart"></canvas>
+      </div>
+      <div class="spx-window">
+        <div class="spx-window-head">
+          <div class="spx-window-title">Visible Window Start</div>
+          <div class="spx-window-range" id="spx-window-range">—</div>
+        </div>
+        <input
+          type="range"
+          min="0"
+          max="0"
+          value="0"
+          step="1"
+          id="spx-window-slider"
+          class="spx-window-slider"
+          oninput="setSpxWindowStart(this.value)"
+        >
+        <div class="spx-window-scale">
+          <span id="spx-window-min">—</span>
+          <span id="spx-window-max">—</span>
+        </div>
+      </div>
+      <div class="spx-band-note" id="spx-band-note">Background bands are off. Pick a signal overlay to color the timeline by that signal only.</div>
+      <div class="signal-matrix" id="signal-matrix"></div>
+      <div class="equity-legend">
+        <span class="eq-leg-item"><span class="eq-arrow" style="color:#42CC7C">▲</span> Open — 盈利</span>
+        <span class="eq-leg-item"><span class="eq-arrow" style="color:#42CC7C">▼</span> Close — 盈利</span>
+        <span class="eq-leg-item"><span class="eq-arrow" style="color:#E04862">▲</span> Open — 亏损</span>
+        <span class="eq-leg-item"><span class="eq-arrow" style="color:#E04862">▼</span> Close — 亏损</span>
+      </div>
+    </div>
+
+    <!-- Equity curve -->
+    <div class="chart-section" style="display:none">
+      <div class="section-title">Equity Curve — Cumulative P&amp;L</div>
+      <div class="chart-wrap">
+        <canvas id="equity-chart"></canvas>
+      </div>
+      <div class="equity-legend">
+        <span class="eq-leg-item"><span class="eq-arrow" style="color:#42CC7C">▲</span> Open — 盈利</span>
+        <span class="eq-leg-item"><span class="eq-arrow" style="color:#42CC7C">▼</span> Close — 盈利</span>
+        <span class="eq-leg-item"><span class="eq-arrow" style="color:#E04862">▲</span> Open — 亏损</span>
+        <span class="eq-leg-item"><span class="eq-arrow" style="color:#E04862">▼</span> Close — 亏损</span>
+        <span class="eq-leg-note">箭头大小 ∝ 仓位大小</span>
+      </div>
+    </div>
+
+    <!-- Signal time series -->
+    <div class="signals-section">
+      <div class="signals-hd">
+        <span class="section-title" style="margin-bottom:0">Signal History</span>
+        <div class="granularity-bar">
+          <button class="gran-btn active" data-gran="1"  onclick="setGranularity(1)">Daily</button>
+          <button class="gran-btn"        data-gran="5"  onclick="setGranularity(5)">Weekly</button>
+          <button class="gran-btn"        data-gran="21" onclick="setGranularity(21)">Monthly</button>
+        </div>
+      </div>
+      <div class="sig-chart-row">
+        <div class="sig-chart-cell">
+          <div class="sig-chart-title">VIX Level — Regime</div>
+          <div class="sig-chart-wrap"><canvas id="chart-vix"></canvas></div>
+        </div>
+        <div class="sig-chart-cell">
+          <div class="sig-chart-title">IV Rank / IV Percentile</div>
+          <div class="sig-chart-wrap"><canvas id="chart-iv"></canvas></div>
+        </div>
+      </div>
+      <div class="sig-chart-row">
+        <div class="sig-chart-cell">
+          <div class="sig-chart-title">SPX Gap vs MA50 (%)</div>
+          <div class="sig-chart-wrap"><canvas id="chart-trend"></canvas></div>
+        </div>
+        <div class="sig-chart-cell">
+          <div class="sig-chart-title">VIX 5-Day Average</div>
+          <div class="sig-chart-wrap"><canvas id="chart-vix5d"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- By strategy -->
+    <div class="table-section">
+      <div class="table-hd">By Strategy</div>
+      <table class="strat-tbl">
+        <thead>
+          <tr>
+            <th>Strategy</th>
+            <th>Trades</th>
+            <th>Win %</th>
+            <th>Avg P&amp;L</th>
+          </tr>
+        </thead>
+        <tbody id="strat-body"></tbody>
+      </table>
+    </div>
+
+    <!-- Trade log -->
+    <div class="trade-log-wrap">
+      <div class="log-toggle" onclick="toggleLog()">
+        <span class="log-toggle-label">Trade Log (<span id="log-count">0</span> trades)</span>
+        <span class="log-toggle-arrow" id="log-arrow">▼</span>
+      </div>
+      <div class="log-body" id="log-body">
+        <div class="log-filter-bar" id="log-filter-bar">
+          <span class="ctrl-label" style="margin-right:4px">Filter:</span>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="log-tbl">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Strategy</th>
+                <th>Entry</th>
+                <th>Exit</th>
+                <th>SPX In</th>
+                <th>SPX Out</th>
+                <th>VIX In</th>
+                <th>VIX Out</th>
+                <th>Trend (in→out)</th>
+                <th>IVP</th>
+                <th>P&amp;L</th>
+                <th>Exit Reason</th>
+                <th title="Spread width in SPX index points">Spread</th>
+                <th title="Net option premium per contract (|credit or debit| × $100)">Premium</th>
+                <th title="Schwab PM buying power per contract">BP/c</th>
+                <th title="Total BP used as % of $150k account">BP%</th>
+              </tr>
+            </thead>
+            <tbody id="log-tbl-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="precision-note">
+      Precision B — Black-Scholes simulation, no bid/ask spread or slippage. Actual results may differ.
+    </div>
+
+  </div><!-- /results -->
+
+</div>
+
+<div class="footer">
+  Backtest results are for strategy validation only. Past performance does not guarantee future results.
+</div>
+
+<script>
+let equityChart   = null;
+let spxChart      = null;
+let timerInterval = null;
+let _autoInterval  = null;
+let _selectedExps  = new Set();   // ids selected for comparison
+let _spxOverlay    = 'none';
+let _spxChartData  = null;        // { events, ptRadius, ptColors, ptRotation, siblingIdx }
+let _spxStartIdx   = 0;
+let _spxFullSigData = [];         // full signal timeline for SPX chart + matrix
+let _spxWindowFetchTimer = null;
+let _allTrades = [];
+let _activeStratFilter = 'All';
+
+// ── Auto-search grid config ─────────────────────────────────────────────────
+const AUTO_PARAMS = [
+  { key: "extreme_vix",    label: "EXTREME_VOL cutoff", values: [30, 35, 40] },
+  { key: "high_vol_delta", label: "HIGH_VOL delta",     values: [0.15, 0.20, 0.25] },
+  { key: "high_vol_dte",   label: "HIGH_VOL DTE",       values: [21, 28] },
+  { key: "high_vol_size",  label: "HIGH_VOL size",      values: [0.40, 0.50, 0.60] },
+  { key: "normal_delta",   label: "NORMAL delta",       values: [0.25, 0.30, 0.35] },
+  { key: "normal_dte",     label: "NORMAL DTE",         values: [21, 30] },
+  { key: "profit_target",  label: "Profit target",      values: [0.40, 0.50] },
+  { key: "stop_mult",      label: "Stop mult",          values: [1.5, 2.0, 2.5] },
+];
+
+// ── Params panel ────────────────────────────────────────────────────────────
+function toggleParams() {
+  const body  = document.getElementById('params-body');
+  const arrow = document.getElementById('params-arrow');
+  body.classList.toggle('open');
+  arrow.classList.toggle('open');
+}
+
+function toggleAutoPanel() {
+  const panel = document.getElementById('auto-panel');
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open') && !document.getElementById('auto-params-grid').children.length) {
+    buildAutoGrid();
+  }
+}
+
+function buildAutoGrid() {
+  const grid = document.getElementById('auto-params-grid');
+  grid.innerHTML = '';
+  AUTO_PARAMS.forEach(p => {
+    const div = document.createElement('div');
+    div.style.gridColumn = 'span 2';
+    div.innerHTML = `
+      <div class="auto-param-item">
+        <input type="checkbox" id="ap-${p.key}" value="${p.key}">
+        <label for="ap-${p.key}">${p.label}</label>
+      </div>
+      <div class="auto-param-values">[${p.values.join(', ')}]</div>`;
+    grid.appendChild(div);
+    document.getElementById(`ap-${p.key}`).addEventListener('change', updateAutoCount);
+  });
+}
+
+function updateAutoCount() {
+  const selected = AUTO_PARAMS.filter(p => {
+    const el = document.getElementById(`ap-${p.key}`);
+    return el && el.checked;
+  });
+  const total = selected.reduce((acc, p) => acc * p.values.length, 1);
+  document.getElementById('auto-progress-label').textContent =
+    selected.length ? `${selected.length} params · ${total} combos` : '—';
+}
+
+function currentParams() {
+  return {
+    extreme_vix:    parseFloat(document.getElementById('p-ext-vix').value),
+    high_vol_delta: parseFloat(document.getElementById('p-hv-delta').value),
+    high_vol_dte:   parseInt(  document.getElementById('p-hv-dte').value),
+    high_vol_size:  parseFloat(document.getElementById('p-hv-size').value) / 100,
+    normal_delta:   parseFloat(document.getElementById('p-n-delta').value),
+    normal_dte:     parseInt(  document.getElementById('p-n-dte').value),
+    profit_target:  parseFloat(document.getElementById('p-profit').value) / 100,
+    stop_mult:      parseFloat(document.getElementById('p-stop').value),
+  };
+}
+
+// ── Run single experiment ────────────────────────────────────────────────────
+async function runExperiment() {
+  const btn  = document.getElementById('btn-run-exp');
+  const stat = document.getElementById('exp-status');
+  btn.disabled = true;
+  stat.textContent = 'Running…';
+  const start = document.getElementById('inp-start').value || '2020-01-01';
+  const end   = document.getElementById('inp-end').value   || '';
+  try {
+    const res = await fetch('/api/experiments/run', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        params:     currentParams(),
+        note:       document.getElementById('p-note').value,
+        start_date: start,
+        end_date:   end || null,
+      }),
+    });
+    const exp = await res.json();
+    if (exp.error) throw new Error(exp.error);
+    stat.textContent = `✓ Saved as #${exp.id} — Sharpe ${(exp.metrics?.sharpe||0).toFixed(2)}`;
+    await loadExperiments();
+  } catch (e) {
+    stat.textContent = '⚠ ' + (e.message || 'Failed');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Auto-search ──────────────────────────────────────────────────────────────
+async function startAutoSearch() {
+  const selected = AUTO_PARAMS.filter(p => {
+    const el = document.getElementById(`ap-${p.key}`);
+    return el && el.checked;
+  });
+  if (!selected.length) { alert('Select at least 1 parameter to sweep.'); return; }
+  if (selected.length > 3) { alert('Max 3 params to avoid overfitting.'); return; }
+
+  const grid  = {};
+  selected.forEach(p => { grid[p.key] = p.values; });
+  const fixed = currentParams();
+  selected.forEach(p => { delete fixed[p.key]; });
+
+  const start = document.getElementById('inp-start').value || '2020-01-01';
+  document.getElementById('btn-auto-run').disabled = true;
+  document.getElementById('auto-progress-bar').style.width = '0%';
+
+  try {
+    const res = await fetch('/api/experiments/auto', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ grid, fixed, start_date: start }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    pollAutoSearch(data.total);
+  } catch (e) {
+    alert('Auto-search error: ' + e.message);
+    document.getElementById('btn-auto-run').disabled = false;
+  }
+}
+
+function pollAutoSearch(total) {
+  if (_autoInterval) clearInterval(_autoInterval);
+  _autoInterval = setInterval(async () => {
+    try {
+      const res = await fetch('/api/experiments/auto/status');
+      const s   = await res.json();
+      const pct = total > 0 ? Math.round(s.completed / total * 100) : 0;
+      document.getElementById('auto-progress-bar').style.width = pct + '%';
+      document.getElementById('auto-progress-label').textContent =
+        `${s.completed}/${total} (${pct}%)${s.best ? '  best Sharpe ' + (s.best.sharpe||0).toFixed(2) : ''}`;
+      if (!s.running) {
+        clearInterval(_autoInterval);
+        document.getElementById('btn-auto-run').disabled = false;
+        document.getElementById('exp-status').textContent =
+          s.error ? '⚠ Auto-search error: ' + s.error
+                  : `✓ Auto-search done — best #${s.best?.id} Sharpe ${(s.best?.sharpe||0).toFixed(2)}`;
+        await loadExperiments();
+      }
+    } catch (_) {}
+  }, 2000);
+}
+
+// ── Experiments table ────────────────────────────────────────────────────────
+async function loadExperiments() {
+  try {
+    const res  = await fetch('/api/experiments');
+    const data = await res.json();
+    renderExperiments(data.experiments || []);
+  } catch (_) {}
+}
+
+function renderExperiments(exps) {
+  const section = document.getElementById('experiments-section');
+  const body    = document.getElementById('exp-tbl-body');
+  if (!exps.length) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  document.getElementById('exp-count').textContent = exps.length;
+
+  // Sort by Sharpe desc; mark best
+  const sorted = [...exps].sort((a,b) =>
+    (b.metrics?.sharpe||0) - (a.metrics?.sharpe||0));
+  const bestId = sorted[0]?.id;
+
+  body.innerHTML = '';
+  // Show most recent first in the table
+  [...exps].reverse().forEach(exp => {
+    const m   = exp.metrics || {};
+    const isBest = exp.id === bestId;
+    const autoTag = exp.is_auto ? '<span class="auto-tag">AUTO</span>' : '';
+    const checked = _selectedExps.has(exp.id) ? 'checked' : '';
+    const tr = document.createElement('tr');
+    if (isBest) tr.className = 'best-row';
+    tr.innerHTML = `
+      <td><input type="checkbox" class="exp-select" ${checked}
+           onchange="toggleExpSelect(${exp.id}, this.checked)"></td>
+      <td class="num" style="color:var(--text-muted)">${exp.id}${isBest ? ' ★' : ''}</td>
+      <td style="font-size:0.74rem">${exp.note}${autoTag}</td>
+      <td class="num ${(m.sharpe||0)>=0?'pos':'neg'}">${(m.sharpe||0).toFixed(2)}</td>
+      <td class="num ${(m.win_rate||0)>=0.5?'pos':'neg'}">${((m.win_rate||0)*100).toFixed(0)}%</td>
+      <td class="num ${(m.expectancy||0)>=0?'pos':'neg'}">${fmtDollarFull(m.expectancy||0)}</td>
+      <td class="num neg">${fmtDollarFull(m.max_drawdown||0)}</td>
+      <td class="num">${m.total_trades||0}</td>
+      <td class="num" style="color:var(--text-muted)">${(exp.ts||'').slice(0,10)}</td>`;
+    body.appendChild(tr);
+  });
+}
+
+function toggleExpSelect(id, checked) {
+  if (checked) _selectedExps.add(id);
+  else _selectedExps.delete(id);
+  const btn = document.getElementById('btn-compare');
+  btn.disabled = _selectedExps.size !== 2;
+}
+
+async function loadComparison() {
+  const [a, b] = [..._selectedExps];
+  try {
+    const res  = await fetch(`/api/experiments?compare_a=${a}&compare_b=${b}`);
+    const data = await res.json();
+    if (!data.comparison) return;
+    renderComparison(data.comparison);
+  } catch (_) {}
+}
+
+function renderComparison(cmp) {
+  const block = document.getElementById('compare-block');
+  const cont  = document.getElementById('compare-content');
+  const { a, b, param_diff, metric_diff } = cmp;
+
+  let paramRows = '';
+  Object.entries(param_diff).forEach(([k, [va, vb]]) => {
+    paramRows += `<tr>
+      <td>${k}</td>
+      <td class="cmp-param-changed">${va} → ${vb}</td>
+    </tr>`;
+  });
+
+  let metricRows = '';
+  Object.entries(metric_diff).forEach(([k, d]) => {
+    const pct   = d.pct != null ? ` (${d.pct>=0?'+':''}${d.pct.toFixed(1)}%)` : '';
+    const cls   = d.delta >= 0 ? 'pos' : 'neg';
+    const sign  = d.delta >= 0 ? '+' : '';
+    metricRows += `<tr>
+      <td>${k}</td>
+      <td class="num">${typeof d.a === 'number' ? d.a.toFixed(2) : d.a}</td>
+      <td class="num">${typeof d.b === 'number' ? d.b.toFixed(2) : d.b}</td>
+      <td class="cmp-delta ${cls}">${sign}${typeof d.delta === 'number' ? d.delta.toFixed(2) : d.delta}${pct}</td>
+    </tr>`;
+  });
+
+  cont.innerHTML = `
+    <div class="compare-grid">
+      <div>
+        <div class="compare-col-title">Parameter Changes (#${a.id} → #${b.id})</div>
+        <table class="cmp-tbl">
+          ${paramRows || '<tr><td colspan="2" style="color:var(--text-muted)">No param changes</td></tr>'}
+        </table>
+      </div>
+      <div>
+        <div class="compare-col-title">Metric Impact</div>
+        <table class="cmp-tbl">
+          <tr><th style="font-size:0.6rem;color:var(--text-muted)">Metric</th>
+              <th style="font-size:0.6rem;color:var(--text-muted)">#${a.id}</th>
+              <th style="font-size:0.6rem;color:var(--text-muted)">#${b.id}</th>
+              <th style="font-size:0.6rem;color:var(--text-muted)">Δ</th></tr>
+          ${metricRows}
+        </table>
+      </div>
+    </div>`;
+  block.classList.add('open');
+}
+
+// ── Signal charts state ─────────────────────────────────────────────────────
+const _sigCharts = {};        // id → Chart instance
+let   _sigData   = [];        // full signal_history array
+let   _granularity = 1;       // current downsample step
+
+function _downsample(arr, step) {
+  if (step <= 1) return arr;
+  return arr.filter((_, i) => i % step === 0);
+}
+
+function regimeColor(r) {
+  if (r === 'HIGH_VOL') return '#E04862';
+  if (r === 'LOW_VOL')  return '#4888E8';
+  return '#C9A840';
+}
+
+function ivRankSignal(ivr) {
+  if (ivr > 50) return 'HIGH';
+  if (ivr < 30) return 'LOW';
+  return 'NEUTRAL';
+}
+
+function ivBucket(ivp) {
+  if (ivp > 70) return 'HIGH';
+  if (ivp < 40) return 'LOW';
+  return 'NEUTRAL';
+}
+
+function overlaySignalKey(mode) {
+  if (mode === 'vix') return 'regime';
+  if (mode === 'ivr') return 'ivr_signal';
+  if (mode === 'ivp') return 'ivp_bucket';
+  if (mode === 'trend') return 'trend';
+  return null;
+}
+
+function signalValue(sig, key) {
+  if (key === 'regime') return sig.regime || 'NORMAL';
+  if (key === 'ivr_signal') return ivRankSignal(sig.ivr);
+  if (key === 'ivp_bucket') return ivBucket(sig.ivp);
+  if (key === 'trend') return sig.trend || 'NEUTRAL';
+  if (key === 'strategy') return sig.strategy || 'Reduce / Wait';
+  return '';
+}
+
+function signalShort(value, key) {
+  if (key === 'regime') return value === 'LOW_VOL' ? 'LOW' : value === 'HIGH_VOL' ? 'HIGH' : 'NORM';
+  if (key === 'ivr_signal' || key === 'ivp_bucket') return value === 'NEUTRAL' ? 'MID' : value;
+  if (key === 'trend') return value === 'BULLISH' ? 'BULL' : value === 'BEARISH' ? 'BEAR' : 'NEUT';
+  if (key === 'strategy') {
+    if (value === 'Reduce / Wait') return 'WAIT';
+    return value
+      .replace('Bull ', 'B ')
+      .replace('Bear ', 'Br ')
+      .replace('Iron Condor', 'IC')
+      .replace('Diagonal', 'Diag')
+      .replace('Spread', 'Spr');
+  }
+  return value;
+}
+
+function signalLabel(value, key) {
+  if (key === 'regime') return value.replace('_', ' ');
+  if (key === 'ivr_signal') return `IV Rank ${value}`;
+  if (key === 'ivp_bucket') return `IV %ile ${value}`;
+  if (key === 'trend') return `SPX ${value}`;
+  return value;
+}
+
+function signalFill(key, value, alpha = 0.14) {
+  if (key === 'regime') {
+    if (value === 'LOW_VOL') return `rgba(72,136,232,${alpha})`;
+    if (value === 'HIGH_VOL') return `rgba(224,72,98,${alpha})`;
+    return `rgba(201,168,64,${alpha})`;
+  }
+  if (key === 'ivr_signal' || key === 'ivp_bucket') {
+    if (value === 'LOW') return `rgba(72,136,232,${alpha})`;
+    if (value === 'HIGH') return `rgba(224,72,98,${alpha})`;
+    return `rgba(201,168,64,${alpha})`;
+  }
+  if (key === 'trend') {
+    if (value === 'BULLISH') return `rgba(66,204,124,${alpha})`;
+    if (value === 'BEARISH') return `rgba(224,72,98,${alpha})`;
+    return `rgba(201,168,64,${alpha})`;
+  }
+  if (key === 'strategy') {
+    if (value === 'Reduce / Wait') return `rgba(96,104,128,${alpha + 0.04})`;
+    if (value.includes('Iron Condor')) return `rgba(201,168,64,${alpha})`;
+    if (value.includes('Bull Put')) return `rgba(66,204,124,${alpha})`;
+    if (value.includes('Bull Call')) return `rgba(72,136,232,${alpha})`;
+    if (value.includes('Bear Call') || value.includes('Bear Put')) return `rgba(224,72,98,${alpha})`;
+    return `rgba(96,104,128,${alpha})`;
+  }
+  return `rgba(96,104,128,${alpha})`;
+}
+
+function signalStroke(key, value) {
+  return signalFill(key, value, 0.36);
+}
+
+function buildSignalBands(rows, key) {
+  if (!rows.length) return [];
+  const bands = [];
+  let start = 0;
+  let prevValue = signalValue(rows[0], key);
+  for (let i = 1; i < rows.length; i++) {
+    const value = signalValue(rows[i], key);
+    if (value !== prevValue) {
+      bands.push({ start, end: i - 1, sig: rows[start], key, value: prevValue });
+      start = i;
+      prevValue = value;
+    }
+  }
+  bands.push({ start, end: rows.length - 1, sig: rows[start], key, value: prevValue });
+  return bands;
+}
+
+function renderSignalMatrix() {
+  const host = document.getElementById('signal-matrix');
+  if (!host) return;
+  const rowsSrc = _spxFullSigData.slice(_spxStartIdx);
+  if (!rowsSrc.length) {
+    host.innerHTML = '';
+    return;
+  }
+
+  const rows = [
+    { key: 'regime', label: 'VIX' },
+    { key: 'ivr_signal', label: 'IV Rank' },
+    { key: 'ivp_bucket', label: 'IV %ile' },
+    { key: 'trend', label: 'Trend' },
+    { key: 'strategy', label: 'Strategy' },
+  ];
+
+  host.innerHTML = rows.map(({ key, label }) => {
+    const bands = buildSignalBands(rowsSrc, key);
+    const total = rowsSrc.length || 1;
+    const segs = bands.map(b => {
+      const days = b.end - b.start + 1;
+      const short = signalShort(b.value, key);
+      const title = `${label}: ${signalLabel(b.value, key)} (${rowsSrc[b.start].date} → ${rowsSrc[b.end].date})`;
+      const cls = days / total > 0.11 ? 'signal-matrix-seg show-label' : 'signal-matrix-seg';
+      return `<div class="${cls}" title="${title}" data-short="${short}"
+        style="flex:${days} 1 0; background:${signalFill(key, b.value, 0.78)}"></div>`;
+    }).join('');
+
+    return `
+      <div class="signal-matrix-row">
+        <div class="signal-matrix-label">${label}</div>
+        <div class="signal-matrix-track">${segs}</div>
+      </div>`;
+  }).join('');
+}
+
+function syncSpxWindowSlider() {
+  const slider = document.getElementById('spx-window-slider');
+  const range = document.getElementById('spx-window-range');
+  const min = document.getElementById('spx-window-min');
+  const max = document.getElementById('spx-window-max');
+  if (!slider || !range || !min || !max) return;
+
+  if (!_spxFullSigData.length) {
+    slider.min = 0;
+    slider.max = 0;
+    slider.value = 0;
+    slider.disabled = true;
+    range.textContent = '—';
+    min.textContent = '—';
+    max.textContent = '—';
+    return;
+  }
+
+  const maxIdx = Math.max(_spxFullSigData.length - 2, 0);
+  if (_spxStartIdx > maxIdx) _spxStartIdx = maxIdx;
+  slider.min = 0;
+  slider.max = maxIdx;
+  slider.value = _spxStartIdx;
+  slider.disabled = maxIdx === 0;
+  const cutPct = maxIdx > 0 ? (_spxStartIdx / maxIdx) * 100 : 0;
+  slider.style.setProperty('--window-cut', `${cutPct}%`);
+  min.textContent = _spxFullSigData[0].date;
+  max.textContent = _spxFullSigData[_spxFullSigData.length - 1].date;
+  range.textContent = `${_spxFullSigData[_spxStartIdx].date} → ${_spxFullSigData[_spxFullSigData.length - 1].date}`;
+}
+
+function setSpxWindowStart(value) {
+  _spxStartIdx = Math.max(0, Number(value) || 0);
+  syncSpxWindowSlider();
+  syncWindowDateInputs(true);
+  renderSignalMatrix();
+  renderSpxChart();
+  scheduleWindowBacktestSync();
+}
+
+function syncWindowDateInputs(clearPeriod = false) {
+  const startInput = document.getElementById('inp-start');
+  const endInput = document.getElementById('inp-end');
+  if (!startInput || !endInput || !_spxFullSigData.length) return;
+  startInput.value = _spxFullSigData[_spxStartIdx]?.date || _spxFullSigData[0].date;
+  endInput.value = _spxFullSigData[_spxFullSigData.length - 1].date;
+  if (clearPeriod) clearActivePeriod();
+}
+
+async function fetchWindowBacktest(start) {
+  const res = await fetch(`/api/backtest?start=${start}`);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+function scheduleWindowBacktestSync() {
+  if (!_spxFullSigData.length) return;
+  const start = _spxFullSigData[_spxStartIdx]?.date;
+  if (!start) return;
+  if (_spxWindowFetchTimer) clearTimeout(_spxWindowFetchTimer);
+  document.getElementById('run-status').textContent = 'Syncing visible window...';
+  _spxWindowFetchTimer = setTimeout(async () => {
+    try {
+      const data = await fetchWindowBacktest(start);
+      renderResults(data);
+      renderSignalMatrix();
+      renderSpxChart();
+      document.getElementById('run-status').textContent = `Window synced: ${start}`;
+    } catch (e) {
+      document.getElementById('run-status').textContent = e.message || 'Window sync failed';
+    }
+  }, 180);
+}
+
+function _makeChart(id, datasets, yOpts = {}, extraOpts = {}) {
+  const existing = _sigCharts[id];
+  if (existing) { existing.destroy(); }
+  const ctx = document.getElementById(id).getContext('2d');
+  _sigCharts[id] = new Chart(ctx, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: {
+          display: datasets.length > 1,
+          labels: {
+            color: '#606880', font: { family: "'DM Sans'", size: 10 },
+            boxWidth: 12, padding: 10,
+          },
+        },
+        tooltip: {
+          backgroundColor: '#0D1020', borderColor: '#2A3350', borderWidth: 1,
+          titleColor: '#C4CEEC', bodyColor: '#C4CEEC',
+          titleFont: { family: "'JetBrains Mono'", size: 10 },
+          bodyFont:  { family: "'JetBrains Mono'", size: 11, weight: '600' },
+          padding: 10,
+        },
+      },
+      scales: {
+        x: {
+          type: 'category',
+          grid: { color: '#191E33' },
+          ticks: {
+            color: '#363C52', font: { family: "'JetBrains Mono'", size: 9 },
+            maxTicksLimit: 10,
+            callback: (_, i, arr) => {
+              const ds = datasets[0]?.data || [];
+              const item = ds[i];
+              return item?.x ? item.x.slice(0, 7) : '';
+            },
+          },
+        },
+        y: {
+          grid: { color: '#191E33' },
+          ticks: { color: '#606880', font: { family: "'JetBrains Mono'", size: 9 } },
+          ...yOpts,
+        },
+      },
+      ...extraOpts,
+    },
+  });
+}
+
+function renderSignalCharts(step) {
+  const rows = _downsample(_sigData, step);
+  if (!rows.length) return;
+
+  // ── VIX Level — colored by regime ──
+  _makeChart('chart-vix', [{
+    label: 'VIX',
+    data: rows.map(r => ({ x: r.date, y: r.vix })),
+    borderColor: rows.map(r => regimeColor(r.regime)),
+    segment: {
+      borderColor: ctx => regimeColor(rows[ctx.p0DataIndex]?.regime || 'NORMAL'),
+    },
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    pointRadius: 0,
+    tension: 0.3,
+  }], {
+    ticks: { callback: v => v.toFixed(0) },
+  });
+
+  // ── IV Rank + IV Percentile ──
+  _makeChart('chart-iv', [
+    {
+      label: 'IV Rank',
+      data: rows.map(r => ({ x: r.date, y: r.ivr })),
+      borderColor: '#C9A840', backgroundColor: 'transparent',
+      borderWidth: 1.5, pointRadius: 0, tension: 0.3,
+    },
+    {
+      label: 'IV %ile',
+      data: rows.map(r => ({ x: r.date, y: r.ivp })),
+      borderColor: '#4888E8', backgroundColor: 'transparent',
+      borderWidth: 1.2, pointRadius: 0, tension: 0.3,
+      borderDash: [4, 3],
+    },
+  ], {
+    min: 0, max: 100,
+    ticks: { callback: v => v + '%', stepSize: 25 },
+  });
+
+  // ── SPX Gap vs MA50 (%) ──
+  _makeChart('chart-trend', [{
+    label: 'Gap %',
+    data: rows.map(r => ({ x: r.date, y: r.trend_gap })),
+    borderColor: rows.map(r => r.trend_gap >= 0 ? '#42CC7C' : '#E04862'),
+    segment: {
+      borderColor: ctx => rows[ctx.p0DataIndex]?.trend_gap >= 0 ? '#42CC7C' : '#E04862',
+    },
+    backgroundColor: 'transparent',
+    borderWidth: 1.5, pointRadius: 0, tension: 0.3,
+  }], {
+    ticks: { callback: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%' },
+  }, {
+    plugins: {
+      annotation: undefined,
+    },
+  });
+  // draw zero-line manually via scale baseline — handled by Chart.js automatically
+
+  // ── VIX 5-day average ──
+  _makeChart('chart-vix5d', [{
+    label: 'VIX 5d avg',
+    data: rows.map(r => ({ x: r.date, y: r.vix_5d_avg })),
+    borderColor: '#8860D0',
+    backgroundColor: 'rgba(136,96,208,0.06)',
+    fill: true,
+    borderWidth: 1.5, pointRadius: 0, tension: 0.35,
+  }], {
+    ticks: { callback: v => v.toFixed(0) },
+  });
+}
+
+function setGranularity(step) {
+  _granularity = step;
+  document.querySelectorAll('.gran-btn').forEach(b => {
+    b.classList.toggle('active', +b.dataset.gran === step);
+  });
+  renderSignalCharts(step);
+}
+
+// ── Date defaults ──────────────────────────────────────────────────────
+function toISO(d) { return d.toISOString().split('T')[0]; }
+const today = new Date();
+document.getElementById('inp-end').value = toISO(today);
+
+function clearActivePeriod() {
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+}
+
+function setPeriod(period, btn) {
+  const yrs = { '1y': 1, '3y': 3, '5y': 5, '10y': 10 };
+  let start;
+  if (period === 'max') {
+    start = '2000-01-01';
+  } else {
+    const d = new Date(today);
+    d.setFullYear(d.getFullYear() - yrs[period]);
+    start = toISO(d);
+  }
+  document.getElementById('inp-start').value = start;
+  document.getElementById('inp-end').value = toISO(today);
+  clearActivePeriod();
+  btn.classList.add('active');
+  runBacktest();
+}
+
+// Default: activate 1Y pill without auto-running
+(function() {
+  const d = new Date(today); d.setFullYear(d.getFullYear() - 1);
+  document.getElementById('inp-start').value = toISO(d);
+  document.getElementById('pbtn-1y').classList.add('active');
+})();
+document.getElementById('nav-date').textContent = today.toLocaleDateString('en-US',{
+  weekday:'short', month:'short', day:'numeric', year:'numeric'
+});
+
+// ── Toggle log ─────────────────────────────────────────────────────────
+function toggleLog() {
+  const body  = document.getElementById('log-body');
+  const arrow = document.getElementById('log-arrow');
+  body.classList.toggle('open');
+  arrow.classList.toggle('open');
+}
+
+// ── Formatting ─────────────────────────────────────────────────────────
+function fmtDollar(n) {
+  const abs = Math.abs(n);
+  const s = abs >= 1000
+    ? '$' + (abs/1000).toFixed(1) + 'k'
+    : '$' + abs.toFixed(0);
+  return n < 0 ? '-' + s : '+' + s;
+}
+function fmtDollarFull(n) {
+  return (n >= 0 ? '+' : '-') + '$' + Math.abs(n).toLocaleString('en-US', {maximumFractionDigits:0});
+}
+function pnlClass(n) { return n >= 0 ? 'pos' : 'neg'; }
+
+function reasonTag(r) {
+  if (!r) return `<span class="reason-tag reason-default">—</span>`;
+  const cls = r.includes('profit') ? 'reason-profit'
+            : r.includes('stop')   ? 'reason-stop'
+            : r.includes('roll')   ? 'reason-roll'
+            : 'reason-default';
+  return `<span class="reason-tag ${cls}">${r}</span>`;
+}
+
+// ── Render results ─────────────────────────────────────────────────────
+function renderResults(data) {
+  const {metrics: m, trades, signals} = data;
+
+  // Store signal history and render charts at current granularity
+  _sigData = signals || [];
+  renderSignalCharts(_granularity);
+
+  // Metric cards
+  document.getElementById('m-trades').textContent = m.total_trades;
+  document.getElementById('m-period').textContent = trades.length
+    ? `${trades[0].entry_date} → ${trades[trades.length-1].exit_date}`
+    : '—';
+
+  const wr = (m.win_rate * 100).toFixed(1);
+  const wrEl = document.getElementById('m-winrate');
+  wrEl.textContent = wr + '%';
+  wrEl.className = 'm-value ' + (m.win_rate >= 0.5 ? 'pos' : 'neg');
+  document.getElementById('m-winloss').textContent =
+    `Avg win ${fmtDollarFull(m.avg_win || 0)} / loss ${fmtDollarFull(m.avg_loss || 0)}`;
+
+  const expEl = document.getElementById('m-exp');
+  expEl.textContent = fmtDollarFull(m.expectancy);
+  expEl.className = 'm-value ' + pnlClass(m.expectancy);
+
+  const pnlEl = document.getElementById('m-pnl');
+  pnlEl.textContent = fmtDollarFull(m.total_pnl);
+  pnlEl.className = 'm-value ' + pnlClass(m.total_pnl);
+
+  const ddEl = document.getElementById('m-dd');
+  ddEl.textContent = fmtDollarFull(m.max_drawdown);
+  ddEl.className = 'm-value ' + pnlClass(m.max_drawdown);
+
+  const shEl = document.getElementById('m-sharpe');
+  shEl.textContent = (m.sharpe || 0).toFixed(2);
+  shEl.className = 'm-value ' + pnlClass(m.sharpe || 0);
+
+  // By-strategy table
+  const sb = document.getElementById('strat-body');
+  sb.innerHTML = '';
+  Object.entries(m.by_strategy || {}).forEach(([name, s]) => {
+    const avg = s.avg_pnl || 0;
+    sb.innerHTML += `
+      <tr>
+        <td>${name}</td>
+        <td class="num">${s.n}</td>
+        <td class="num ${(s.win_rate||0) >= 0.5 ? 'pos' : 'neg'}">${((s.win_rate||0)*100).toFixed(0)}%</td>
+        <td class="num ${pnlClass(avg)}">${fmtDollarFull(avg)}</td>
+      </tr>`;
+  });
+
+  // Equity curve — rebuild with both open (▲) and close (▼) events
+  const sortedByExit = [...trades].sort((a,b) => a.exit_date.localeCompare(b.exit_date));
+
+  // Build interleaved event list sorted by date: {date, type:'open'|'close', trade}
+  const events = [];
+  sortedByExit.forEach(t => {
+    events.push({ date: t.entry_date, type: 'open',  trade: t });
+    events.push({ date: t.exit_date,  type: 'close', trade: t });
+  });
+  events.sort((a, b) => a.date.localeCompare(b.date) || (a.type === 'open' ? -1 : 1));
+
+  // Cumulative P&L advances only at close events
+  let cum = 0;
+  const labels = [], vals = [], ptColors = [], ptRotation = [], ptTrades = [], ptTypes = [];
+  events.forEach(ev => {
+    if (ev.type === 'close') cum += ev.trade.exit_pnl;
+    labels.push(ev.date);
+    vals.push(cum);
+    const col = ev.trade.exit_pnl >= 0 ? '#42CC7C' : '#E04862';
+    ptColors.push(col);
+    ptRotation.push(ev.type === 'open' ? 0 : 180);   // 0 = ▲, 180 = ▼
+    ptTrades.push(ev.trade);
+    ptTypes.push(ev.type);
+  });
+
+  // Scale point radius by |exit_pnl|, range [4, 11]
+  const maxPnl = Math.max(...sortedByExit.map(t => Math.abs(t.exit_pnl)), 1);
+  const ptRadius = ptTrades.map(t => 4 + Math.round((Math.abs(t.exit_pnl) / maxPnl) * 7));
+
+  // Build sibling index: for each event index, the index of its paired open/close
+  const siblingIdx = new Array(events.length).fill(-1);
+  {
+    const tradeMap = new Map(); // trade object → {openIdx, closeIdx}
+    events.forEach((ev, i) => {
+      if (!tradeMap.has(ev.trade)) tradeMap.set(ev.trade, {});
+      tradeMap.get(ev.trade)[ev.type === 'open' ? 'openIdx' : 'closeIdx'] = i;
+    });
+    tradeMap.forEach(({openIdx, closeIdx}) => {
+      if (openIdx !== undefined && closeIdx !== undefined) {
+        siblingIdx[openIdx] = closeIdx;
+        siblingIdx[closeIdx] = openIdx;
+      }
+    });
+  }
+
+  // Store data for SPX price chart (rendered separately, persists for overlay toggle)
+  _spxChartData = { events, ptRadius, ptColors, ptRotation, siblingIdx };
+  renderSpxChart();
+
+  // Plugin: draw connector + highlight ring on sibling point when hovering
+  let _hoveredIdx = -1;
+  const siblingPlugin = {
+    id: 'siblingHighlight',
+    afterEvent(chart, args) {
+      const active = chart.getActiveElements();
+      const newIdx = active.length > 0 ? active[0].index : -1;
+      if (newIdx !== _hoveredIdx) { _hoveredIdx = newIdx; args.changed = true; }
+    },
+    afterDraw(chart) {
+      if (_hoveredIdx < 0) return;
+      const sib = siblingIdx[_hoveredIdx];
+      if (sib < 0) return;
+      const meta = chart.getDatasetMeta(0);
+      const ptA = meta.data[_hoveredIdx];
+      const ptB = meta.data[sib];
+      if (!ptA || !ptB) return;
+      const c = chart.ctx;
+      c.save();
+      // Connector line
+      c.beginPath();
+      c.moveTo(ptA.x, ptA.y);
+      c.lineTo(ptB.x, ptB.y);
+      c.strokeStyle = 'rgba(255,255,255,0.20)';
+      c.lineWidth = 1;
+      c.setLineDash([3, 4]);
+      c.stroke();
+      c.setLineDash([]);
+      // Highlight ring around sibling
+      c.beginPath();
+      c.arc(ptB.x, ptB.y, (ptRadius[sib] || 6) + 5, 0, Math.PI * 2);
+      c.strokeStyle = '#FFFFFF';
+      c.lineWidth = 1.5;
+      c.globalAlpha = 0.70;
+      c.stroke();
+      c.restore();
+    },
+  };
+
+  if (equityChart) { equityChart.destroy(); equityChart = null; }
+
+  Chart.defaults.color = '#363C52';
+  Chart.defaults.borderColor = '#191E33';
+
+  const ctx = document.getElementById('equity-chart').getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 0, 220);
+  gradient.addColorStop(0,   'rgba(201,168,64,0.18)');
+  gradient.addColorStop(0.6, 'rgba(201,168,64,0.04)');
+  gradient.addColorStop(1,   'rgba(201,168,64,0)');
+
+  equityChart = new Chart(ctx, {
+    plugins: [siblingPlugin],
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: vals,
+        borderColor: '#C9A840',
+        backgroundColor: gradient,
+        borderWidth: 1.5,
+        fill: true,
+        tension: 0.35,
+        pointRadius: ptRadius,
+        pointHoverRadius: ptRadius.map(r => r + 3),
+        pointBackgroundColor: ptColors,
+        pointBorderColor: ptColors,
+        pointBorderWidth: 0,
+        pointHoverBorderWidth: 2,
+        pointHoverBorderColor: '#fff',
+        pointStyle: 'triangle',
+        rotation: ptRotation,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { intersect: false, mode: 'nearest' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0D1020',
+          borderColor: '#2A3350',
+          borderWidth: 1,
+          titleColor: '#C4CEEC',
+          bodyColor: '#C4CEEC',
+          footerColor: '#606880',
+          titleFont: { family: "'DM Sans'", size: 11, weight: '500' },
+          bodyFont: { family: "'JetBrains Mono'", size: 12, weight: '600' },
+          footerFont: { family: "'JetBrains Mono'", size: 10 },
+          padding: 12,
+          boxPadding: 4,
+          footerMarginTop: 8,
+          callbacks: {
+            title: items => {
+              const i = items[0].dataIndex;
+              const ev = events[i];
+              const t = ev.trade;
+              const typeLabel = ev.type === 'open' ? '▲ Open' : '▼ Close';
+              return [`${typeLabel}  ·  ${t.strategy}  ·  ${t.underlying}`,
+                      `${t.entry_date} → ${t.exit_date}`];
+            },
+            label: item => {
+              const t = events[item.dataIndex].trade;
+              return `  P&L: ${fmtDollarFull(t.exit_pnl)}`;
+            },
+            footer: items => {
+              const i = items[0].dataIndex;
+              const t = events[i].trade;
+              const spxIn  = t.entry_spx ? t.entry_spx.toLocaleString('en-US',{maximumFractionDigits:0}) : '—';
+              const spxOut = t.exit_spx  ? t.exit_spx.toLocaleString('en-US', {maximumFractionDigits:0}) : '—';
+              return [
+                `Cumulative: ${fmtDollarFull(vals[i])}`,
+                `SPX: ${spxIn} → ${spxOut}   VIX: ${t.entry_vix ? t.entry_vix.toFixed(1) : '—'}`,
+                `Exit: ${t.exit_reason || '—'}`,
+              ];
+            },
+            labelColor: item => {
+              const c = events[item.dataIndex].trade.exit_pnl >= 0 ? '#42CC7C' : '#E04862';
+              return { backgroundColor: c, borderColor: c, borderRadius: 2 };
+            },
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'time',
+          time: {
+            tooltipFormat: 'yyyy-MM-dd',
+            displayFormats: { day: 'MM-dd', month: 'yyyy-MM', year: 'yyyy' },
+          },
+          grid: { color: '#191E33' },
+          ticks: {
+            color: '#363C52', font: { family: "'JetBrains Mono'", size: 10 },
+            maxTicksLimit: 8,
+          }
+        },
+        y: {
+          grid: { color: '#191E33' },
+          ticks: {
+            color: '#606880',
+            font: { family: "'JetBrains Mono'", size: 10 },
+            callback: v => (v >= 0 ? '+$' : '-$') + Math.abs(v).toLocaleString(),
+          }
+        }
+      }
+    }
+  });
+
+  // Build signal lookup map for trade log columns
+  const sigMap = {};
+  (_sigData || []).forEach(r => { sigMap[r.date] = r; });
+
+  // Helper: short trend label
+  function trendLabel(sig) {
+    if (!sig) return '—';
+    const t = sig.trend;
+    if (!t) {
+      const g = sig.trend_gap;
+      return g > 0.005 ? '↑' : g < -0.005 ? '↓' : '→';
+    }
+    return t === 'BULLISH' ? '↑' : t === 'BEARISH' ? '↓' : '→';
+  }
+  function trendColor(sig) {
+    const t = sig?.trend || '';
+    return t === 'BULLISH' ? 'var(--green)' : t === 'BEARISH' ? 'var(--red)' : 'var(--text-2)';
+  }
+
+  // Store all trades globally for filter
+  _allTrades = sortedByExit.map((t, i) => ({ ...t, _idx: i + 1, _sig: sigMap }));
+  _activeStratFilter = 'All';
+
+  // Build strategy filter buttons
+  const filterBar = document.getElementById('log-filter-bar');
+  const strategies = ['All', ...new Set(sortedByExit.map(t => t.strategy))];
+  filterBar.innerHTML = '<span class="ctrl-label" style="margin-right:4px">Filter:</span>';
+  strategies.forEach(s => {
+    const btn = document.createElement('button');
+    btn.className = 'log-filter-btn' + (s === 'All' ? ' active' : '');
+    btn.textContent = s;
+    btn.onclick = () => filterTradeLog(s, sortedByExit, sigMap, trendLabel, trendColor);
+    filterBar.appendChild(btn);
+  });
+
+  // Trade log
+  document.getElementById('log-count').textContent = sortedByExit.length;
+  renderTradeRows(sortedByExit, sigMap, trendLabel, trendColor);
+
+  document.getElementById('results').classList.remove('hidden');
+  document.getElementById('results').classList.add('fade-in');
+}
+
+// ── Trade log rendering helpers ─────────────────────────────────────────────
+function renderTradeRows(trades, sigMap, trendLabel, trendColor) {
+  const lb = document.getElementById('log-tbl-body');
+  lb.innerHTML = '';
+  trades.forEach((t, i) => {
+    const sigIn  = sigMap[t.entry_date] || {};
+    const sigOut = sigMap[t.exit_date]  || {};
+    const exitVix = sigOut.vix ? sigOut.vix.toFixed(1) : '—';
+    const ivpIn  = sigIn.ivp  != null ? sigIn.ivp.toFixed(0)  : '—';
+    const ivpOut = sigOut.ivp != null ? sigOut.ivp.toFixed(0) : '—';
+    const spxOut = t.exit_spx ? t.exit_spx.toLocaleString('en-US', {maximumFractionDigits:0}) : '—';
+    const tIn    = trendLabel(sigIn);
+    const tOut   = trendLabel(sigOut);
+    const tClrIn = trendColor(sigIn);
+    const tClrOut= trendColor(sigOut);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="num" style="color:var(--text-muted)">${i+1}</td>
+      <td>${t.strategy}</td>
+      <td class="num">${t.entry_date}</td>
+      <td class="num">${t.exit_date}</td>
+      <td class="num">${t.entry_spx ? t.entry_spx.toLocaleString('en-US',{maximumFractionDigits:0}) : '—'}</td>
+      <td class="num">${spxOut}</td>
+      <td class="num">${t.entry_vix ? t.entry_vix.toFixed(1) : '—'}</td>
+      <td class="num">${exitVix}</td>
+      <td class="num"><span style="color:${tClrIn}">${tIn}</span><span style="color:var(--text-muted)">→</span><span style="color:${tClrOut}">${tOut}</span></td>
+      <td class="num">${ivpIn}<span style="color:var(--text-muted)">→</span>${ivpOut}</td>
+      <td class="num ${pnlClass(t.exit_pnl)}">${fmtDollarFull(t.exit_pnl)}</td>
+      <td>${reasonTag(t.exit_reason)}</td>
+      <td class="num" style="color:var(--text-2)">${t.spread_width ? t.spread_width.toFixed(0)+'pt' : '—'}</td>
+      <td class="num" style="color:var(--text-2)">${t.option_premium ? '$'+t.option_premium.toLocaleString('en-US',{maximumFractionDigits:0}) : '—'}</td>
+      <td class="num" style="color:var(--text-2)">${t.bp_per_contract ? '$'+t.bp_per_contract.toLocaleString('en-US',{maximumFractionDigits:0}) : '—'}</td>
+      <td class="num" style="color:${(t.bp_pct_account||0)>7?'var(--orange)':(t.bp_pct_account||0)>4?'var(--gold)':'var(--text-2)'}">${t.bp_pct_account != null ? t.bp_pct_account.toFixed(1)+'%' : '—'}</td>`;
+    lb.appendChild(tr);
+  });
+}
+
+function filterTradeLog(strat, allTrades, sigMap, trendLabel, trendColor) {
+  _activeStratFilter = strat;
+  document.querySelectorAll('.log-filter-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent === strat);
+  });
+  const filtered = strat === 'All' ? allTrades : allTrades.filter(t => t.strategy === strat);
+  document.getElementById('log-count').textContent = filtered.length;
+  renderTradeRows(filtered, sigMap, trendLabel, trendColor);
+}
+
+// ── SPX Price Chart ─────────────────────────────────────────────────────
+function renderSpxChart() {
+  if (!_spxChartData || !_spxFullSigData.length) return;
+  const { events, ptRadius, ptColors, ptRotation, siblingIdx } = _spxChartData;
+  const startIdx = Math.min(_spxStartIdx, Math.max(_spxFullSigData.length - 1, 0));
+  const visibleRows = _spxFullSigData.slice(startIdx);
+  if (!visibleRows.length) return;
+  const visibleStartDate = visibleRows[0].date;
+  const eventIndexMap = [];
+  const visibleEvents = [];
+  events.forEach((ev, i) => {
+    if (ev.date >= visibleStartDate) {
+      eventIndexMap.push(i);
+      visibleEvents.push(ev);
+    }
+  });
+  const visibleSiblingIdx = new Array(visibleEvents.length).fill(-1);
+  visibleEvents.forEach((_, i) => {
+    const oldSibling = siblingIdx[eventIndexMap[i]];
+    if (oldSibling < 0) return;
+    const mapped = eventIndexMap.indexOf(oldSibling);
+    visibleSiblingIdx[i] = mapped;
+  });
+  const visiblePtRadius = eventIndexMap.map(i => ptRadius[i]);
+  const visiblePtColors = eventIndexMap.map(i => ptColors[i]);
+  const visiblePtRotation = eventIndexMap.map(i => ptRotation[i]);
+
+  const bandKey = overlaySignalKey(_spxOverlay);
+  const bands = bandKey ? buildSignalBands(visibleRows, bandKey) : [];
+
+  // Trade event points at actual SPX prices — same logic as equity chart (markers on the line)
+  const tradePoints = visibleEvents.map(ev => ({
+    x: ev.date,
+    y: ev.type === 'open' ? ev.trade.entry_spx : ev.trade.exit_spx,
+  }));
+
+  const datasets = [
+    {
+      label: 'SPX',
+      data: visibleRows.map(r => ({ x: r.date, y: r.spx })),
+      borderColor: 'rgba(72,136,232,0.55)',
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      pointRadius: 0,
+      pointHitRadius: 0,
+      tension: 0.1,
+      yAxisID: 'y',
+    },
+    {
+      label: 'Trades',
+      data: tradePoints,
+      pointStyle: 'triangle',
+      rotation: visiblePtRotation,
+      pointRadius: visiblePtRadius,
+      pointHoverRadius: visiblePtRadius.map(r => r + 3),
+      pointHoverBorderWidth: 2,
+      pointHoverBorderColor: '#fff',
+      pointBackgroundColor: visiblePtColors,
+      pointBorderColor: visiblePtColors,
+      pointBorderWidth: 0,
+      showLine: false,
+      yAxisID: 'y',
+    },
+  ];
+
+  if (_spxOverlay === 'pnl') {
+    let cum = 0;
+    const priorCloseEvents = events.filter(e => e.type === 'close' && e.date < visibleStartDate);
+    priorCloseEvents.forEach(ev => { cum += ev.trade.exit_pnl; });
+    const pnlData = visibleRows.length ? [{ x: visibleRows[0].date, y: cum }] : [];
+    visibleEvents
+      .filter(e => e.type === 'close')
+      .forEach(ev => { cum += ev.trade.exit_pnl; pnlData.push({ x: ev.date, y: cum }); });
+    datasets.push({
+      label: 'Cum. P&L',
+      data: pnlData,
+      borderColor: 'rgba(201,168,64,0.75)',
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      pointRadius: 0,
+      pointHitRadius: 0,
+      tension: 0.3,
+      yAxisID: 'y2',
+    });
+  } else if (_spxOverlay === 'bp') {
+    let totalBpPct = 0;
+    const bpEventsByDate = new Map();
+    events.forEach(ev => {
+      const bpPct = ev.trade.bp_pct_account || 0;
+      const delta = ev.type === 'open' ? bpPct : -bpPct;
+      if (ev.date < visibleStartDate) {
+        totalBpPct += delta;
+      } else {
+        bpEventsByDate.set(ev.date, (bpEventsByDate.get(ev.date) || 0) + delta);
+      }
+    });
+    const bpData = visibleRows.map(r => {
+      totalBpPct += bpEventsByDate.get(r.date) || 0;
+      return { x: r.date, y: Math.max(totalBpPct, 0) };
+    });
+    datasets.push({
+      label: 'Total BP Used %',
+      data: bpData,
+      borderColor: 'rgba(136,96,208,0.82)',
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      pointRadius: 0,
+      pointHitRadius: 0,
+      stepped: 'before',
+      yAxisID: 'y2',
+    });
+  } else if (_spxOverlay === 'vix') {
+    datasets.push({
+      label: 'VIX',
+      data: visibleRows.map(r => ({ x: r.date, y: r.vix })),
+      borderColor: 'rgba(224,72,98,0.65)',
+      backgroundColor: 'transparent',
+      borderWidth: 1.2,
+      pointRadius: 0,
+      pointHitRadius: 0,
+      tension: 0.3,
+      yAxisID: 'y2',
+    });
+  } else if (_spxOverlay === 'ivr') {
+    datasets.push({
+      label: 'IV Rank',
+      data: visibleRows.map(r => ({ x: r.date, y: r.ivr })),
+      borderColor: 'rgba(201,168,64,0.75)',
+      backgroundColor: 'transparent',
+      borderWidth: 1.2,
+      pointRadius: 0,
+      pointHitRadius: 0,
+      tension: 0.3,
+      yAxisID: 'y2',
+    });
+  } else if (_spxOverlay === 'ivp') {
+    datasets.push({
+      label: 'IV %ile',
+      data: visibleRows.map(r => ({ x: r.date, y: r.ivp })),
+      borderColor: 'rgba(72,136,232,0.75)',
+      backgroundColor: 'transparent',
+      borderWidth: 1.2,
+      pointRadius: 0,
+      pointHitRadius: 0,
+      tension: 0.3,
+      yAxisID: 'y2',
+    });
+  } else if (_spxOverlay === 'trend') {
+    datasets.push({
+      label: 'SPX Trend Gap',
+      data: visibleRows.map(r => ({ x: r.date, y: r.trend_gap })),
+      borderColor: '#C9A840',
+      segment: {
+        borderColor: ctx => {
+          const row = visibleRows[ctx.p0DataIndex] || {};
+          return row.trend === 'BULLISH' ? '#42CC7C'
+            : row.trend === 'BEARISH' ? '#E04862'
+            : '#C9A840';
+        },
+      },
+      backgroundColor: 'transparent',
+      borderWidth: 1.2,
+      pointRadius: 0,
+      pointHitRadius: 0,
+      tension: 0.3,
+      yAxisID: 'y2',
+    });
+  }
+
+  // Sibling plugin (dataset 1 only — trade markers)
+  let _spxHoveredIdx = -1;
+  const spxSiblingPlugin = {
+    id: 'spxSiblingHighlight',
+    afterEvent(chart, args) {
+      const active = chart.getActiveElements();
+      const el = active.find(e => e.datasetIndex === 1);
+      const newIdx = el ? el.index : -1;
+      if (newIdx !== _spxHoveredIdx) { _spxHoveredIdx = newIdx; args.changed = true; }
+    },
+    afterDraw(chart) {
+      if (_spxHoveredIdx < 0) return;
+      const sib = visibleSiblingIdx[_spxHoveredIdx];
+      if (sib < 0) return;
+      const meta = chart.getDatasetMeta(1);
+      const ptA = meta.data[_spxHoveredIdx];
+      const ptB = meta.data[sib];
+      if (!ptA || !ptB) return;
+      const c = chart.ctx;
+      c.save();
+      c.beginPath(); c.moveTo(ptA.x, ptA.y); c.lineTo(ptB.x, ptB.y);
+      c.strokeStyle = 'rgba(255,255,255,0.20)'; c.lineWidth = 1;
+      c.setLineDash([3, 4]); c.stroke(); c.setLineDash([]);
+      c.beginPath(); c.arc(ptB.x, ptB.y, (visiblePtRadius[sib] || 6) + 5, 0, Math.PI * 2);
+      c.strokeStyle = '#FFFFFF'; c.lineWidth = 1.5; c.globalAlpha = 0.70; c.stroke();
+      c.restore();
+    },
+  };
+
+  const spxSignalBandsPlugin = {
+    id: 'spxSignalBands',
+    beforeDatasetsDraw(chart) {
+      const meta = chart.getDatasetMeta(0);
+      const pts = meta?.data || [];
+      if (!pts.length) return;
+      const { ctx, chartArea } = chart;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(chartArea.left, chartArea.top, chartArea.right - chartArea.left, chartArea.bottom - chartArea.top);
+      ctx.clip();
+
+      bands.forEach(b => {
+        const p0 = pts[b.start];
+        const p1 = pts[b.end];
+        if (!p0 || !p1) return;
+        const prev = pts[b.start - 1];
+        const next = pts[b.end + 1];
+        const left = prev ? (prev.x + p0.x) / 2 : chartArea.left;
+        const right = next ? (p1.x + next.x) / 2 : chartArea.right;
+        const width = right - left;
+        if (width <= 1) return;
+
+        ctx.fillStyle = signalFill(b.key, b.value);
+        ctx.fillRect(left, chartArea.top, width, chartArea.bottom - chartArea.top);
+
+        ctx.strokeStyle = signalStroke(b.key, b.value);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(left, chartArea.top + 0.5);
+        ctx.lineTo(right, chartArea.top + 0.5);
+        ctx.stroke();
+
+        if (width > 86) {
+          ctx.fillStyle = 'rgba(196,206,236,0.34)';
+          ctx.font = width > 170 ? "500 10px 'JetBrains Mono'" : "500 9px 'JetBrains Mono'";
+          ctx.textBaseline = 'top';
+          const label = signalLabel(b.value, b.key);
+          ctx.fillText(label, left + 6, chartArea.top + 8);
+        }
+      });
+
+      ctx.restore();
+    },
+  };
+
+  if (spxChart) { spxChart.destroy(); spxChart = null; }
+
+  const scales = {
+    x: {
+      type: 'time',
+      time: {
+        tooltipFormat: 'yyyy-MM-dd',
+        displayFormats: { day: 'MM-dd', month: 'yyyy-MM', year: 'yyyy' },
+      },
+      grid: { color: '#191E33' },
+      ticks: { color: '#363C52', font: { family: "'JetBrains Mono'", size: 10 }, maxTicksLimit: 8 },
+    },
+    y: {
+      position: 'left',
+      grid: { color: '#191E33' },
+      ticks: {
+        color: '#606880', font: { family: "'JetBrains Mono'", size: 10 },
+        callback: v => v.toLocaleString('en-US', { maximumFractionDigits: 0 }),
+      },
+    },
+  };
+  if (_spxOverlay !== 'none') {
+    scales.y2 = {
+      position: 'right',
+      grid: { drawOnChartArea: false },
+      ticks: {
+        color: '#606880', font: { family: "'JetBrains Mono'", size: 10 },
+        callback: _spxOverlay === 'pnl'
+          ? v => (v >= 0 ? '+$' : '-$') + Math.abs(v / 1000).toFixed(0) + 'k'
+          : _spxOverlay === 'bp'
+            ? v => v.toFixed(1) + '%'
+          : _spxOverlay === 'trend'
+            ? v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%'
+            : v => v.toFixed(0),
+      },
+    };
+  }
+
+  const ctx2 = document.getElementById('spx-price-chart').getContext('2d');
+  spxChart = new Chart(ctx2, {
+    plugins: [spxSignalBandsPlugin, spxSiblingPlugin],
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { intersect: false, mode: 'nearest' },
+      plugins: {
+        legend: {
+          display: _spxOverlay !== 'none',
+          labels: {
+            color: '#606880', font: { family: "'DM Sans'", size: 10 },
+            boxWidth: 12, padding: 10,
+            filter: item => item.datasetIndex >= 1,
+          },
+        },
+        tooltip: {
+          backgroundColor: '#0D1020', borderColor: '#2A3350', borderWidth: 1,
+          titleColor: '#C4CEEC', bodyColor: '#C4CEEC', footerColor: '#606880',
+          titleFont: { family: "'DM Sans'", size: 11, weight: '500' },
+          bodyFont:  { family: "'JetBrains Mono'", size: 12, weight: '600' },
+          footerFont: { family: "'JetBrains Mono'", size: 10 },
+          padding: 12, boxPadding: 4, footerMarginTop: 8,
+          filter: item => item.datasetIndex === 1,
+          callbacks: {
+            title: items => {
+              const i = items[0].dataIndex;
+              const ev = visibleEvents[i];
+              const t = ev.trade;
+              const typeLabel = ev.type === 'open' ? '▲ Open' : '▼ Close';
+              return [`${typeLabel}  ·  ${t.strategy}  ·  ${t.underlying}`,
+                      `${t.entry_date} → ${t.exit_date}`];
+            },
+            label: item => {
+              const t = visibleEvents[item.dataIndex].trade;
+              return `  P&L: ${fmtDollarFull(t.exit_pnl)}`;
+            },
+            footer: items => {
+              const i = items[0].dataIndex;
+              const t = visibleEvents[i].trade;
+              const spxIn  = t.entry_spx ? t.entry_spx.toLocaleString('en-US', {maximumFractionDigits:0}) : '—';
+              const spxOut = t.exit_spx  ? t.exit_spx.toLocaleString('en-US',  {maximumFractionDigits:0}) : '—';
+              return [
+                `SPX: ${spxIn} → ${spxOut}   VIX: ${t.entry_vix ? t.entry_vix.toFixed(1) : '—'}`,
+                `Exit: ${t.exit_reason || '—'}`,
+              ];
+            },
+            labelColor: item => {
+              const c = visibleEvents[item.dataIndex].trade.exit_pnl >= 0 ? '#42CC7C' : '#E04862';
+              return { backgroundColor: c, borderColor: c, borderRadius: 2 };
+            },
+          },
+        },
+      },
+      scales,
+    },
+  });
+
+  const note = document.getElementById('spx-band-note');
+  if (note) {
+    if (!bandKey) {
+      note.textContent = 'Background bands are off. Pick VIX, IV Rank, IV %ile, or SPX Trend to color the timeline by one signal.';
+    } else {
+      const name = bandKey === 'regime' ? 'VIX regime'
+        : bandKey === 'ivr_signal' ? 'IV Rank signal'
+        : bandKey === 'ivp_bucket' ? 'IV percentile bucket'
+        : 'SPX trend';
+      note.textContent = `Background bands now follow ${name} only. The matrix below keeps the full multi-signal view.`;
+    }
+  }
+}
+
+function setSpxOverlay(type, btn) {
+  _spxOverlay = type;
+  document.querySelectorAll('.overlay-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderSpxChart();
+}
+
+// ── Run backtest ───────────────────────────────────────────────────────
+async function runBacktest() {
+  const start = document.getElementById('inp-start').value;
+  if (!start) { alert('Please pick a start date.'); return; }
+
+  document.getElementById('btn-run').disabled = true;
+  document.getElementById('results').classList.add('hidden');
+  document.getElementById('err-box').classList.add('hidden');
+  document.getElementById('loading-box').classList.remove('hidden');
+  document.getElementById('run-status').textContent = '';
+
+  let elapsed = 0;
+  timerInterval = setInterval(() => {
+    elapsed++;
+    document.getElementById('run-timer').textContent = `${elapsed}s`;
+  }, 1000);
+
+  try {
+    const [res, fullRes] = await Promise.all([
+      fetch(`/api/backtest?start=${start}`),
+      start === '2000-01-01'
+        ? Promise.resolve(null)
+        : fetch('/api/backtest?start=2000-01-01'),
+    ]);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    let fullData = data;
+    if (fullRes) {
+      fullData = await fullRes.json();
+      if (fullData.error) throw new Error(fullData.error);
+    }
+    _spxFullSigData = fullData.signals || data.signals || [];
+    const startIdx = _spxFullSigData.findIndex(r => r.date >= start);
+    _spxStartIdx = startIdx >= 0 ? startIdx : Math.max(_spxFullSigData.length - 1, 0);
+    syncSpxWindowSlider();
+    syncWindowDateInputs();
+    clearInterval(timerInterval);
+    document.getElementById('loading-box').classList.add('hidden');
+    document.getElementById('run-status').textContent = `Done in ${elapsed}s`;
+    renderResults(data);
+    renderSignalMatrix();
+    renderSpxChart();
+  } catch (e) {
+    clearInterval(timerInterval);
+    document.getElementById('loading-box').classList.add('hidden');
+    document.getElementById('err-msg').textContent = e.message || 'Backtest failed';
+    document.getElementById('err-box').classList.remove('hidden');
+  } finally {
+    document.getElementById('btn-run').disabled = false;
+  }
+}
+
+// Auto-run on page load with default dates
+runBacktest();
+loadExperiments();
+</script>
+</body>
+</html>

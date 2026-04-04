@@ -1,0 +1,7 @@
+backtest
+data
+db
+notify
+signals
+strategy
+venv

@@ -1,0 +1,13 @@
+pyproject.toml
+backtest/__init__.py
+data/__init__.py
+notify/__init__.py
+signals/__init__.py
+signals/iv_rank.py
+signals/vix_regime.py
+spx_strat.egg-info/PKG-INFO
+spx_strat.egg-info/SOURCES.txt
+spx_strat.egg-info/dependency_links.txt
+spx_strat.egg-info/requires.txt
+spx_strat.egg-info/top_level.txt
+strategy/__init__.py
