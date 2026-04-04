@@ -95,12 +95,19 @@ def compute_iv_percentile(series: pd.Series) -> float:
     return round(pct_below, 1)
 
 
-def get_current_iv_snapshot(df: Optional[pd.DataFrame] = None) -> IVSnapshot:
+def get_current_iv_snapshot(
+    df: Optional[pd.DataFrame] = None,
+    current_vix: Optional[float] = None,
+) -> IVSnapshot:
     """
     Return an IVSnapshot for the most recent trading day.
 
     Args:
         df: Optional pre-fetched VIX DataFrame (column: 'vix'). Fetches if None.
+        current_vix: Optional override for the current VIX level. When provided,
+                     it replaces the last value in the 252-day window so IV Rank
+                     and IV Percentile are measured against today's live VIX while
+                     preserving the historical EOD baseline.
     """
     if df is None:
         df = fetch_vix_history(period="1y")
@@ -109,7 +116,9 @@ def get_current_iv_snapshot(df: Optional[pd.DataFrame] = None) -> IVSnapshot:
         raise ValueError(f"Need ≥30 rows for IV Rank, got {len(df)}")
 
     # Use up to 252 trading days for the lookback window
-    window = df["vix"].iloc[-LOOKBACK_DAYS:]
+    window = df["vix"].iloc[-LOOKBACK_DAYS:].copy()
+    if current_vix is not None:
+        window.iloc[-1] = float(current_vix)
 
     vix          = float(window.iloc[-1])
     iv_rank      = round(compute_iv_rank(window), 1)

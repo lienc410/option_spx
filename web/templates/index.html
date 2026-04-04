@@ -435,13 +435,19 @@ body {
 </div>
 
 <script>
-const EMOJI = {
-  "Bull Put Spread": "💰", "Bull Put Spread (High Vol)": "🔥",
-  "Bull Call Diagonal": "📈", "Bear Call Diagonal": "📉",
-  "Iron Condor": "🦅", "Bull Call Spread": "🐂",
-  "Bear Put Spread": "🐻", "Bear Call Spread": "🐻",
-  "Reduce / Wait": "⏸",
-};
+let STRATEGY_META = {};
+
+function effectiveIvBucket(iv) {
+  const ivRank = Number(iv.iv_rank ?? 0);
+  const ivPct = Number(iv.iv_percentile ?? 0);
+  const raw = String(iv.iv_signal ?? 'NEUTRAL').toUpperCase();
+  if (Math.abs(ivRank - ivPct) > 15) {
+    if (ivPct > 70) return 'HIGH';
+    if (ivPct < 40) return 'LOW';
+    return 'NEUTRAL';
+  }
+  return raw === 'HIGH' ? 'HIGH' : raw === 'LOW' ? 'LOW' : 'NEUTRAL';
+}
 
 function regimeClass(r) {
   if (!r) return 'gray';
@@ -497,13 +503,16 @@ function updateSignals(d) {
 
   // IV
   document.getElementById('sig-iv').textContent = `${fmt(iv.iv_rank,0)} / ${fmt(iv.iv_percentile,0)}`;
-  const ic = ivClass(iv.signal);
-  setBadge('badge-iv', iv.signal, ic);
+  const effectiveIV = effectiveIvBucket(iv);
+  const ic = ivClass(effectiveIV);
+  setBadge('badge-iv', effectiveIV, ic);
   setCardColor('card-iv', ic);
   const warnEl = document.getElementById('sig-iv-warn');
-  if (iv.divergence_warning) {
+  if (Math.abs(Number(iv.iv_rank ?? 0) - Number(iv.iv_percentile ?? 0)) > 15) {
     warnEl.textContent = `IVP ${fmt(iv.iv_percentile,0)} preferred (IVR spike distortion)`;
     warnEl.classList.remove('hidden');
+  } else {
+    warnEl.classList.add('hidden');
   }
 
   // Trend
@@ -530,7 +539,8 @@ function buildLegs(legs) {
 }
 
 function buildCard(d) {
-  const emoji = EMOJI[d.strategy] || '📊';
+  const meta = STRATEGY_META[d.strategy_key] || {};
+  const emoji = meta.emoji || '📊';
   const actionColors = {
     'OPEN': 'var(--green)', 'HOLD': 'var(--blue)',
     'CLOSE_AND_OPEN': 'var(--orange)', 'WAIT': 'var(--text-muted)',
@@ -602,6 +612,12 @@ async function load() {
   }
 }
 
+async function loadStrategyMeta() {
+  const res = await fetch('/api/strategy-catalog');
+  const data = await res.json();
+  STRATEGY_META = data.strategies || {};
+}
+
 function renderPosition(p) {
   const panel = document.getElementById('pos-panel');
   if (!p || !p.open) {
@@ -610,6 +626,9 @@ function renderPosition(p) {
     return;
   }
   panel.className = 'pos-panel';
+  const meta = p.strategy_meta || STRATEGY_META[p.strategy_key] || {};
+  const emoji = meta.emoji || '📋';
+  const strategyName = meta.name || p.strategy || '—';
   const rollLine = p.roll_count
     ? `  ·  rolled ${p.roll_count}×${p.rolled_at ? ' (last ' + p.rolled_at + ')' : ''}`
     : '';
@@ -620,7 +639,7 @@ function renderPosition(p) {
   panel.innerHTML = `
     <div class="pos-dot"></div>
     <div class="pos-body">
-      <div class="pos-name">📋 ${p.strategy} <span style="color:var(--text-muted);font-weight:400">on ${p.underlying}</span></div>
+      <div class="pos-name">${emoji} ${strategyName} <span style="color:var(--text-muted);font-weight:400">on ${p.underlying}</span></div>
       <div class="pos-meta">Opened ${p.opened_at}${rollLine}</div>
       ${notesHtml}
     </div>`;
@@ -702,12 +721,15 @@ document.getElementById('nav-date').textContent = now.toLocaleDateString('en-US'
 
 // ── Auto-refresh ─────────────────────────────────────────────────────────────
 // Recommendation: every 5 min  |  Intraday: every 60 s  |  Position: every 30 s
-load();
-loadPosition();
-loadIntraday();
-setInterval(load,          5 * 60 * 1000);
-setInterval(loadPosition,      30 * 1000);
-setInterval(loadIntraday,      60 * 1000);
+(async () => {
+  try { await loadStrategyMeta(); } catch (_) {}
+  load();
+  loadPosition();
+  loadIntraday();
+  setInterval(load,          5 * 60 * 1000);
+  setInterval(loadPosition,      30 * 1000);
+  setInterval(loadIntraday,      60 * 1000);
+})();
 </script>
 </body>
 </html>

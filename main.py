@@ -35,7 +35,7 @@ def main() -> None:
             if a.startswith("--start="):
                 start = a.split("=")[1]
         print(f"Running backtest from {start}...\n")
-        trades, metrics = run_backtest(start_date=start, verbose="--verbose" in args)
+        trades, metrics, _ = run_backtest(start_date=start, verbose="--verbose" in args)
         print_report(trades, metrics)
         return
 
@@ -43,6 +43,16 @@ def main() -> None:
         sys.argv = [sys.argv[0], "--get-chat-id"]
         from notify.telegram_bot import main as bot_main
         bot_main()
+        return
+
+    if "--web" in args:
+        from web.server import app
+        port = 5050
+        for a in args:
+            if a.startswith("--port="):
+                port = int(a.split("=")[1])
+        print(f"\n🌐  Dashboard → http://localhost:{port}\n")
+        app.run(host="127.0.0.1", port=port, debug=False)
         return
 
     # Default: run the bot

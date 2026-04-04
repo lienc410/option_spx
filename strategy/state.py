@@ -7,6 +7,7 @@ can determine whether to OPEN, HOLD, CLOSE_AND_OPEN, or WAIT.
 State file: logs/current_position.json
 Schema:
   {
+    "strategy_key": "bull_put_spread", // stable internal key
     "strategy":   "Bull Put Spread",  // StrategyName value
     "underlying": "SPX",
     "opened_at":  "2025-01-15",       // ISO date of initial entry
@@ -32,6 +33,8 @@ import os
 import tempfile
 from datetime import date
 from typing import Optional
+
+from strategy.catalog import strategy_key as catalog_strategy_key
 
 STATE_FILE = os.path.join(os.path.dirname(__file__), "..", "logs", "current_position.json")
 
@@ -85,16 +88,27 @@ def read_state() -> Optional[dict]:
     """
     data = _load_raw()
     if data and data.get("status") == "open":
+        if not data.get("strategy_key"):
+            try:
+                data["strategy_key"] = catalog_strategy_key(data["strategy"])
+            except Exception:
+                pass
         return data
     return None
 
 
-def write_state(strategy: str, underlying: str = "SPX") -> None:
+def write_state(strategy: str, underlying: str = "SPX", strategy_key: Optional[str] = None) -> None:
     """
     Persist a newly opened position. Initialises all extended fields.
     Creates the logs/ directory if needed.
     """
+    if strategy_key is None:
+        try:
+            strategy_key = catalog_strategy_key(strategy)
+        except Exception:
+            strategy_key = None
     _save({
+        "strategy_key": strategy_key,
         "strategy":   strategy,
         "underlying": underlying,
         "opened_at":  date.today().isoformat(),
@@ -146,7 +160,7 @@ def add_note(note: str) -> None:
     _save(data)
 
 
-def get_position_action(new_strategy: str, is_wait: bool) -> str:
+def get_position_action(new_strategy: str, is_wait: bool, strategy_key: Optional[str] = None) -> str:
     """
     Compare the new recommendation against the stored open position.
 
@@ -171,7 +185,11 @@ def get_position_action(new_strategy: str, is_wait: bool) -> str:
     if is_wait:
         return "CLOSE_AND_WAIT"
 
-    if current["strategy"] == new_strategy:
+    current_key = current.get("strategy_key")
+    if strategy_key and current_key:
+        if current_key == strategy_key:
+            return "HOLD"
+    elif current["strategy"] == new_strategy:
         return "HOLD"
 
     return "CLOSE_AND_OPEN"

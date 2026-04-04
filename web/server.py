@@ -119,12 +119,24 @@ def api_recommendation():
         return jsonify({"error": str(exc)}), 500
 
 
+@app.route("/api/strategy-catalog")
+def api_strategy_catalog():
+    from strategy.catalog import strategy_catalog_payload
+    return jsonify(strategy_catalog_payload())
+
+
 @app.route("/api/position")
 def api_position():
     from strategy.state import read_state
+    from strategy.catalog import strategy_descriptor
     state = read_state()
     if state is None:
         return jsonify({"open": False})
+    if state.get("strategy_key"):
+        try:
+            state["strategy_meta"] = asdict(strategy_descriptor(state["strategy_key"]))
+        except Exception:
+            pass
     return jsonify({"open": True, **state})
 
 
@@ -158,6 +170,7 @@ def api_intraday():
 @app.route("/api/backtest")
 def api_backtest():
     from backtest.engine import run_backtest
+    from strategy.catalog import strategy_key as catalog_strategy_key
     start = flask_req.args.get(
         "start", (date.today() - timedelta(days=365)).isoformat()
     )
@@ -169,6 +182,7 @@ def api_backtest():
         trades_data = [
             {
                 "strategy":        t.strategy.value,
+                "strategy_key":    catalog_strategy_key(t.strategy.value),
                 "underlying":      t.underlying,
                 "entry_date":      t.entry_date,
                 "exit_date":       t.exit_date,
@@ -216,6 +230,7 @@ def api_backtest_stats():
         }
     """
     from backtest.engine import run_backtest
+    from strategy.catalog import strategy_key as catalog_strategy_key
     result = {}
     today       = date.today().isoformat()
     phash       = _params_hash()
@@ -256,10 +271,10 @@ def api_backtest_stats():
             by_cell:  dict[str, dict] = {}
 
             for t in trades:
-                name = t.strategy.value
+                key  = catalog_strategy_key(t.strategy.value)
                 win  = t.exit_pnl > 0
 
-                rec = by_strat.setdefault(name, {"n": 0, "wins": 0})
+                rec = by_strat.setdefault(key, {"n": 0, "wins": 0})
                 rec["n"] += 1
                 if win: rec["wins"] += 1
 

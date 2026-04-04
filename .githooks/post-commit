@@ -1,0 +1,20 @@
+#!/bin/bash
+# 检测本次 commit 是否包含触发文件，若是则清缓存并重启 Web
+
+CHANGED=$(git diff-tree --no-commit-id -r --name-only HEAD 2>/dev/null)
+
+NEEDS_REFRESH=0
+for f in $CHANGED; do
+    case "$f" in
+        strategy/selector.py|backtest/engine.py|signals/*)
+            NEEDS_REFRESH=1
+            break
+            ;;
+    esac
+done
+
+if [ "$NEEDS_REFRESH" -eq 1 ]; then
+    rm -f data/backtest_stats_cache.json
+    launchctl kickstart -k "gui/$(id -u)/com.spxstrat.web" 2>/dev/null || true
+    echo "[post-commit] Cache cleared & web restarted"
+fi

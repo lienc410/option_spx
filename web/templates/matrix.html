@@ -86,6 +86,37 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   font-size: 0.92rem; color: var(--text);
 }
 .sb-result em { color: var(--gold); }
+.sb-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 10px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--gold-border);
+  background: var(--gold-bg);
+  font-size: 0.68rem;
+  color: var(--text);
+  font-family: var(--f-ui);
+}
+.sb-live-label {
+  color: var(--gold);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.58rem;
+}
+.sb-live-value {
+  font-family: var(--f-display);
+  font-style: italic;
+}
+.sb-note {
+  width: 100%;
+  margin-top: 4px;
+  color: var(--text-2);
+  font-size: 0.7rem;
+}
+.sb-note strong { color: var(--gold); font-weight: 600; }
 .sb-loading { color: var(--text-muted); font-size: 0.76rem; font-style: italic; }
 
 /* ── VIX tabs ── */
@@ -430,90 +461,12 @@ table.mt-tbl { width: 100%; border-collapse: collapse; min-width: 640px; }
 </div>
 
 <div class="footer">
-  Decision matrix based on VIX regime × IV signal × trend. Click any cell to explore the strategy.
+  Matrix cells show the canonical strategy for each VIX regime × IV bucket × trend path when guardrails pass. Live recommendations may still downgrade to Reduce / Wait when rising VIX, backwardation, or IVP filters block entry.
 </div>
 
 <script>
 // ── Strategy data ──────────────────────────────────────────────────────────────
-const STRAT = {
-  'Bull Call Diagonal': {
-    emoji: '📈', ul: 'SPX', dte: 'Long 90 DTE / Short 45 DTE', delta: 'Long call δ0.70 (90d)  Short call δ0.30 (45d)',
-    type: 'Debit — Diagonal Spread', direction: 'bull',
-    when: 'LOW_VOL + BULLISH. Cheap theta and bullish trend favor a 90/45 diagonal when volatility is already subdued.',
-    risk: 'Max risk = net debit paid (~$2,800/unit). Profit if SPX rises or holds above short strike. Short leg erodes faster than long leg.',
-    roll: 'Roll short leg at DTE=21 to the next 45 DTE cycle. Stop out at 50% loss of debit.',
-  },
-  'Bear Call Diagonal': {
-    emoji: '📉', ul: 'SPX', dte: 'Long 90 DTE / Short 45 DTE', delta: 'Long put δ0.70 (90d)  Short put δ0.30 (45d)',
-    type: 'Debit — Put Diagonal Spread', direction: 'bear',
-    when: 'LOW_VOL regime, bearish trend. Long deep-ITM put (90 DTE) + short OTM put (45 DTE). Profits from SPX decline + short-leg decay.',
-    risk: 'Max risk = net debit. Profits if SPX falls or stays below short put strike. Theta works in your favor on short leg.',
-    roll: 'Roll short put leg at DTE=21. Close at 50% profit or stop at 2× debit loss.',
-  },
-  'Iron Condor': {
-    emoji: '🦅', ul: 'SPX', dte: '45 DTE (all legs)', delta: 'Short put δ0.16 / Short call δ0.16 | Long wings ~1.5% width',
-    type: 'Credit — Iron Condor', direction: 'neut',
-    when: 'LOW_VOL or NORMAL regime when the selector allows a range trade. Requires stable VIX and IVP in an acceptable band; otherwise the system waits instead.',
-    risk: 'Max risk = wing width − net credit. Defined risk on both sides. Theta positive; vega negative (benefits from low vol).',
-    roll: 'Close at 50% of credit received. Stop if position value exceeds 2× credit. Roll short legs if tested at DTE=21.',
-  },
-  'Bull Put Spread': {
-    emoji: '💰', ul: 'SPX', dte: '30 DTE', delta: 'Short put δ0.30  Long put δ0.15',
-    type: 'Credit — Bull Put Spread', direction: 'bull',
-    when: 'NORMAL regime, NEUTRAL IV, bullish trend, with VIX stable and IVP in the allowed range. The selector now blocks many HIGH-IV bullish setups and waits instead.',
-    risk: 'Max risk = spread width − net credit. Fully defined. Short put at δ0.30, long put at δ0.15 (same expiry). Typical width $50–100 on SPX.',
-    roll: 'Close at 50% of credit (only after holding ≥ 10 days). Stop at 2× credit. Roll short leg at DTE=21 to next 30 DTE.',
-  },
-  'Bull Call Spread': {
-    emoji: '🐂', ul: 'SPY', dte: '21 DTE', delta: 'Long call δ0.50  Short call δ0.25',
-    type: 'Debit — Vertical Spread', direction: 'bull',
-    when: 'NORMAL regime, LOW IV, bullish trend. IV is cheap — buy debit spreads for directional exposure without overpaying for premium.',
-    risk: 'Max risk = net debit. Max profit = spread width − debit. Defined risk, defined reward. Low cost directional play.',
-    roll: 'Close at 75–80% of max profit. Stop at full debit loss. Short tenor (21 DTE) = hold to expiry or close early.',
-  },
-  'Bear Put Spread': {
-    emoji: '🐻', ul: 'SPY', dte: '21 DTE', delta: 'Long put δ0.50  Short put δ0.25',
-    type: 'Debit — Vertical Spread', direction: 'bear',
-    when: 'NORMAL regime, HIGH or LOW IV, bearish trend. Directional downside bet with defined risk. Efficient in any IV environment.',
-    risk: 'Max risk = net debit. Max profit = spread width − debit. Profits if SPY declines. Loses full debit if SPY stays above long put strike.',
-    roll: 'Close at 75% of max profit. No roll — let expire or close before expiry.',
-  },
-  'Bear Call Spread': {
-    emoji: '🐻', ul: 'SPY', dte: '21 DTE', delta: 'Short call δ0.40  Long call δ0.20',
-    type: 'Credit — Vertical Spread', direction: 'bear',
-    when: 'NORMAL regime, NEUTRAL IV, bearish trend. Sell OTM call spread for credit when vol is moderate and trend is down.',
-    risk: 'Max risk = spread width − credit. Max profit = credit received. Profits if SPY stays below short call strike.',
-    roll: 'Close at 50% of credit. Stop at 2× credit. No roll at 21 DTE — close position.',
-  },
-  'Bull Put Spread (High Vol)': {
-    emoji: '🔥', ul: 'SPX', dte: '35 DTE', delta: 'Short put δ0.20  Long put δ0.10',
-    type: 'Credit — Vertical Spread (Reduced Size)', direction: 'bull',
-    when: 'HIGH_VOL regime with bullish trend only. Volatility Risk Premium is elevated, so use tighter delta and half size to capture premium while limiting tail risk. Backwardation or rising VIX blocks entry.',
-    risk: 'Max risk = spread width − credit. Sell at δ0.20 (further OTM than normal) with 50% normal size. 35 DTE provides adequate theta capture window; roll_21dte fires at DTE≤21 (~14-day effective hold).',
-    roll: 'Close at 50% of credit (profit target). Stop at 2× credit. No roll at expiry — close and reassess regime.',
-  },
-  'Bear Call Spread (High Vol)': {
-    emoji: '🛡️', ul: 'SPX', dte: '45 DTE', delta: 'Short call δ0.20  Long call δ0.10',
-    type: 'Credit — Vertical Spread (Reduced Size)', direction: 'bear',
-    when: 'HIGH_VOL regime with bearish trend when VIX is not rising. Inflated call premium and bearish trend allow a defined-risk call spread with tighter delta and reduced size.',
-    risk: 'Max risk = spread width − credit. Sell at δ0.20 with a further OTM long call to cap upside risk. Reduced size reflects elevated vol regime and gap risk.',
-    roll: 'Close at 21 DTE; stop at 2× credit. Wait instead if VIX is still rising.',
-  },
-  'Iron Condor (High Vol)': {
-    emoji: '🦅', ul: 'SPX', dte: '45 DTE (all legs)', delta: 'Short put δ0.16 / Short call δ0.16 | Long wings δ0.08',
-    type: 'Credit — Iron Condor (Reduced Size)', direction: 'neut',
-    when: 'HIGH_VOL regime with neutral trend when VIX is stable and term structure is not in backwardation. Rich premium on both sides supports a reduced-size condor.',
-    risk: 'Defined risk on both sides. Elevated premium improves credit, but position size stays reduced because vol regime remains stressed.',
-    roll: 'Close at 21 DTE; stop at 2× credit. Skip when VIX is rising or term structure is inverted.',
-  },
-  'Reduce / Wait': {
-    emoji: '⏸', ul: '—', dte: '—', delta: '—',
-    type: 'No position', direction: 'wait',
-    when: 'No new position. Used for EXTREME_VOL and any cell where guardrails reject the setup: weak premium, stressed IVP, rising VIX, backwardation, or low-edge bearish and low-vol conditions.',
-    risk: 'Cash is a position. Hold flat and preserve capital when the selector does not see a positive-expectancy entry.',
-    roll: 'No position to roll. Re-evaluate on the next session after signals update.',
-  },
-};
+let STRAT = {};
 
 const DIR_TAG = {
   bull: '<span class="ctag ctag-bull">Bullish</span>',
@@ -529,28 +482,7 @@ const DIR_COLOR = {
 };
 
 // ── Decision matrix ────────────────────────────────────────────────────────────
-const MATRIX = {
-  LOW_VOL: {
-    HIGH:    { BULLISH: 'Bull Call Diagonal', NEUTRAL: 'Reduce / Wait',  BEARISH: 'Reduce / Wait' },
-    NEUTRAL: { BULLISH: 'Bull Call Diagonal', NEUTRAL: 'Iron Condor',    BEARISH: 'Reduce / Wait' },
-    LOW:     { BULLISH: 'Bull Call Diagonal', NEUTRAL: 'Iron Condor',    BEARISH: 'Reduce / Wait' },
-  },
-  NORMAL: {
-    HIGH:    { BULLISH: 'Reduce / Wait',      NEUTRAL: 'Reduce / Wait',   BEARISH: 'Reduce / Wait' },
-    NEUTRAL: { BULLISH: 'Bull Put Spread',    NEUTRAL: 'Iron Condor',     BEARISH: 'Iron Condor' },
-    LOW:     { BULLISH: 'Reduce / Wait',      NEUTRAL: 'Reduce / Wait',   BEARISH: 'Reduce / Wait' },
-  },
-  HIGH_VOL: {
-    HIGH:    { BULLISH: 'Bull Put Spread (High Vol)', NEUTRAL: 'Iron Condor (High Vol)', BEARISH: 'Bear Call Spread (High Vol)' },
-    NEUTRAL: { BULLISH: 'Bull Put Spread (High Vol)', NEUTRAL: 'Iron Condor (High Vol)', BEARISH: 'Bear Call Spread (High Vol)' },
-    LOW:     { BULLISH: 'Bull Put Spread (High Vol)', NEUTRAL: 'Iron Condor (High Vol)', BEARISH: 'Bear Call Spread (High Vol)' },
-  },
-  EXTREME_VOL: {
-    HIGH:    { BULLISH: 'Reduce / Wait', NEUTRAL: 'Reduce / Wait', BEARISH: 'Reduce / Wait' },
-    NEUTRAL: { BULLISH: 'Reduce / Wait', NEUTRAL: 'Reduce / Wait', BEARISH: 'Reduce / Wait' },
-    LOW:     { BULLISH: 'Reduce / Wait', NEUTRAL: 'Reduce / Wait', BEARISH: 'Reduce / Wait' },
-  },
-};
+let MATRIX = {};
 
 const IV_ROWS    = ['HIGH', 'NEUTRAL', 'LOW'];
 const TREND_COLS = ['BULLISH', 'NEUTRAL', 'BEARISH'];
@@ -559,15 +491,40 @@ const TREND_COLS = ['BULLISH', 'NEUTRAL', 'BEARISH'];
 let currentRegime = 'NORMAL';
 let currentIV     = null;
 let currentTrend  = null;
+let currentStrategy = null;
 let activeTab     = 'NORMAL';
 let selectedCell  = null;
-let _stratStats   = {};   // { "3y": { "Bull Put Spread": {n,win_rate}, ... }, "10y": {...}, "all": {...} }
+let _stratStats   = {};   // { "3y": { "bull_put_spread": {n,win_rate}, ... }, "10y": {...}, "all": {...} }
 let _cellStats    = {};   // { "3y": { "NORMAL|NEUTRAL|BULLISH": {n,win_rate}, ... }, "10y": {...}, "all": {...} }
+
+function effectiveIvBucket(iv) {
+  const ivRank = Number(iv.iv_rank ?? 0);
+  const ivPct = Number(iv.iv_percentile ?? 0);
+  const raw = String(iv.iv_signal ?? 'NEUTRAL').toUpperCase();
+  if (Math.abs(ivRank - ivPct) > 15) {
+    if (ivPct > 70) return 'HIGH';
+    if (ivPct < 40) return 'LOW';
+    return 'NEUTRAL';
+  }
+  return raw === 'HIGH' ? 'HIGH' : raw === 'LOW' ? 'LOW' : 'NEUTRAL';
+}
+
+async function loadStrategyCatalog() {
+  const res = await fetch('/api/strategy-catalog');
+  const data = await res.json();
+  STRAT = data.strategies || {};
+  MATRIX = data.matrix || {};
+}
+
+function strategyName(key) {
+  return (STRAT[key] || {}).name || key || '—';
+}
 
 // ── Build matrix ───────────────────────────────────────────────────────────────
 function buildMatrix(regime) {
   const grid = document.getElementById('matrix-grid');
   grid.innerHTML = '';
+  if (!MATRIX[regime]) return;
 
   // Corner
   const corner = document.createElement('div');
@@ -622,7 +579,7 @@ function buildMatrix(regime) {
       const cAll = (_cellStats['all']  || {})[cellKey];
       const wrClass = wr => wr >= 75 ? 'wr-high' : wr >= 55 ? 'wr-mid' : 'wr-low';
       const statsLoaded = Object.keys(_cellStats).length > 0;
-      const showStats = statsLoaded && strat !== 'Reduce / Wait';
+      const showStats = statsLoaded && strat !== 'reduce_wait';
       const stat = (s, lbl) => s
         ? `<span class="cell-stat-n">${s.n}×</span><span class="cell-stat-wr ${wrClass(s.win_rate)}">${s.win_rate}%</span>`
         : '<span class="cell-stat-na">NA</span>';
@@ -639,9 +596,12 @@ function buildMatrix(regime) {
           <div class="cell-stat-row"><span class="cell-stat-label">All⊙</span>${stat(cAll)}</div>
         </div>` : '';
       const statHtml = (stratCol || cellCol) ? `<div class="cell-stats">${stratCol}${cellCol}</div>` : '';
+      const guardrailTag = (isCurrent && currentStrategy && currentStrategy !== strat)
+        ? `<span class="ctag ctag-wait">${window.__guardrailLabel || 'Guardrail Override'}</span>`
+        : '';
       cell.innerHTML = `
-        <div class="cell-strategy" style="color:${DIR_COLOR[sd.direction]}">${strat}</div>
-        <div class="cell-tags">${DIR_TAG[sd.direction]}<span class="ctag" style="background:rgba(96,104,128,.08);color:var(--text-muted);border:1px solid rgba(96,104,128,.15);font-size:.52rem">${sd.ul}</span></div>
+        <div class="cell-strategy" style="color:${DIR_COLOR[sd.direction]}">${sd.name}</div>
+        <div class="cell-tags">${DIR_TAG[sd.direction]}${guardrailTag}<span class="ctag" style="background:rgba(96,104,128,.08);color:var(--text-muted);border:1px solid rgba(96,104,128,.15);font-size:.52rem">${sd.underlying}</span></div>
         ${statHtml}`;
       cell.addEventListener('click', () => selectCell(cell, strat, regime, iv.key, trend));
       grid.appendChild(cell);
@@ -680,23 +640,20 @@ function showDetail(strat) {
   panel.classList.remove('empty');
 
   const hd = panel.querySelector('.dp-header');
-  hd.style.setProperty('--accent', DIR_COLOR[sd.direction]);
-  hd.querySelector('::before'); // CSS handles the bar via ::before
   hd.style.background = ''; // reset
-  panel.querySelector('.dp-header::before') ; // can't set via JS easily, use inline style trick
   hd.style.borderLeft = `3px solid ${DIR_COLOR[sd.direction]}`;
   hd.style.paddingLeft = '19px';
 
   hd.querySelector('.dp-emoji').textContent = sd.emoji;
-  hd.querySelector('.dp-name').textContent  = strat;
+  hd.querySelector('.dp-name').textContent  = sd.name;
 
-  document.getElementById('dp-ul').textContent    = sd.ul;
-  document.getElementById('dp-dte').textContent   = sd.dte;
-  document.getElementById('dp-delta').textContent = sd.delta;
-  document.getElementById('dp-type').textContent  = sd.type;
-  document.getElementById('dp-when').textContent  = sd.when;
-  document.getElementById('dp-risk').textContent  = sd.risk;
-  document.getElementById('dp-roll').textContent  = sd.roll;
+  document.getElementById('dp-ul').textContent    = sd.underlying;
+  document.getElementById('dp-dte').textContent   = sd.dte_text;
+  document.getElementById('dp-delta').textContent = sd.delta_text;
+  document.getElementById('dp-type').textContent  = sd.trade_type;
+  document.getElementById('dp-when').textContent  = sd.when_text;
+  document.getElementById('dp-risk').textContent  = sd.risk_text;
+  document.getElementById('dp-roll').textContent  = sd.detail_roll_text;
 }
 
 // ── Load current signals ───────────────────────────────────────────────────────
@@ -710,10 +667,10 @@ async function loadSignals() {
     const iv   = data.iv_snapshot;
     const tr   = data.trend_snapshot;
 
-    currentRegime = vix.regime;
-    // Map IV signal to matrix key
-    const ivSig = iv.signal.toUpperCase();
-    currentIV = ivSig === 'HIGH' ? 'HIGH' : ivSig === 'LOW' ? 'LOW' : 'NEUTRAL';
+    currentRegime = vix.vix >= 35 ? 'EXTREME_VOL' : vix.regime;
+    currentStrategy = data.strategy_key;
+    window.__guardrailLabel = data.guardrail_label || 'Guardrail Override';
+    currentIV = effectiveIvBucket(iv);
     // Map trend signal
     const trSig = tr.signal.toUpperCase();
     currentTrend = trSig.includes('BULL') ? 'BULLISH' : trSig.includes('BEAR') ? 'BEARISH' : 'NEUTRAL';
@@ -723,7 +680,19 @@ async function loadSignals() {
     const regimeColor = currentRegime === 'LOW_VOL' ? 'var(--blue)' : (currentRegime === 'HIGH_VOL' || currentRegime === 'EXTREME_VOL') ? 'var(--red)' : 'var(--gold)';
     const ivColor = currentIV === 'HIGH' ? 'var(--orange)' : currentIV === 'LOW' ? 'var(--blue)' : 'var(--text-2)';
     const trColor = currentTrend === 'BULLISH' ? 'var(--green)' : currentTrend === 'BEARISH' ? 'var(--red)' : 'var(--text-2)';
-    const curStrat = MATRIX[currentRegime]?.[currentIV]?.[currentTrend] || '—';
+    const curStrat = currentStrategy || MATRIX[currentRegime]?.[currentIV]?.[currentTrend] || null;
+    const curStratName = curStrat ? strategyName(curStrat) : '—';
+    const canonicalKey = MATRIX[currentRegime]?.[currentIV]?.[currentTrend] || null;
+    const canonicalName = canonicalKey ? strategyName(canonicalKey) : '—';
+    const liveBadge = (curStrat && canonicalKey && curStrat !== canonicalKey)
+      ? `<span class="sb-live"><span class="sb-live-label">Live</span><span class="sb-live-value">${curStratName}</span></span>`
+      : '';
+    const overrideNote = (curStrat && canonicalKey && curStrat !== canonicalKey)
+      ? `<div class="sb-note"><strong>${window.__guardrailLabel || 'Guardrail Override'}:</strong> canonical matrix path is ${canonicalName}, but current signals downgrade to ${curStratName}.</div>`
+      : '';
+    const ivLabel = Math.abs(Number(iv.iv_rank) - Number(iv.iv_percentile)) > 15
+      ? `${currentIV} (IVP override)`
+      : currentIV;
 
     banner.innerHTML = `
       <span class="sb-label">Now</span>
@@ -732,25 +701,28 @@ async function loadSignals() {
       </span>
       <span class="sb-arrow">→</span>
       <span class="sb-chip" style="background:rgba(0,0,0,.2);color:${ivColor};border:1px solid ${ivColor}33">
-        IV ${iv.signal} &nbsp;(IVP ${iv.iv_percentile.toFixed(0)})
+        IV ${ivLabel} &nbsp;(IVP ${iv.iv_percentile.toFixed(0)})
       </span>
       <span class="sb-arrow">→</span>
       <span class="sb-chip" style="background:rgba(0,0,0,.2);color:${trColor};border:1px solid ${trColor}33">
         ${tr.signal}
       </span>
-      <span class="sb-result">→ &nbsp;<em>${curStrat}</em></span>`;
+      <span class="sb-result">→ &nbsp;<em>${curStratName}</em></span>
+      ${liveBadge}
+      ${overrideNote}`;
 
     // Switch to current regime tab and rebuild
     setTab(currentRegime);
 
     // Auto-show detail for current strategy
     selectedCell = curStrat;
-    const match = document.querySelector(`.mcell[data-strat="${curStrat}"]`);
+    const match = curStrat ? document.querySelector(`.mcell[data-strat="${curStrat}"]`) : null;
     if (match) { match.classList.add('selected'); showDetail(curStrat); }
+    else if (curStrat && STRAT[curStrat]) { showDetail(curStrat); }
 
   } catch (e) {
     document.getElementById('sig-banner').innerHTML =
-      `<span style="color:var(--text-muted);font-size:.75rem;font-style:italic">Could not load live signals — matrix shown below is static reference.</span>`;
+      `<span style="color:var(--text-muted);font-size:.75rem;font-style:italic">Could not load live signals — matrix below shows canonical selector paths when guardrails pass.</span>`;
     // Still build the default matrix
     setTab('NORMAL');
   }
@@ -818,8 +790,8 @@ async function ensureMatrixTrades() {
 async function loadMatrixTrades(strat, regime, ivKey, trendKey) {
   const section = document.getElementById('matrix-trades-section');
   section.style.display = 'block';
-  document.getElementById('mt-title').textContent = strat + ' — Trade Log';
-  if (strat === 'Reduce / Wait') {
+  document.getElementById('mt-title').textContent = strategyName(strat) + ' — Trade Log';
+  if (strat === 'reduce_wait') {
     document.getElementById('mt-count').textContent = '—';
     document.getElementById('mt-tbl-body').innerHTML =
       '<tr><td colspan="12" style="text-align:center;color:var(--text-muted);padding:20px;font-style:italic">Reduce / Wait means no new trade is opened for this signal path, so there is no trade log for this cell.</td></tr>';
@@ -853,7 +825,7 @@ async function loadMatrixTrades(strat, regime, ivKey, trendKey) {
     return t === 'BULLISH' ? 'var(--green)' : t === 'BEARISH' ? 'var(--red)' : 'var(--text-2)';
   }
 
-  const stratTrades = _matrixTrades.filter(t => t.strategy === strat);
+  const stratTrades = _matrixTrades.filter(t => t.strategy_key === strat);
   document.getElementById('mt-count').textContent = stratTrades.length;
 
   if (!stratTrades.length) {
@@ -912,10 +884,13 @@ document.getElementById('nav-date').textContent = new Date().toLocaleDateString(
   weekday:'short', month:'short', day:'numeric', year:'numeric'
 });
 
-// Build matrix immediately with default tab, then overlay live data
-setTab('NORMAL');
-loadSignals();
-loadStratStats();  // async — rebuilds cells once backtest stats arrive
+// Load catalog first so matrix/detail rendering uses the canonical source of truth.
+(async () => {
+  await loadStrategyCatalog();
+  setTab('NORMAL');
+  loadSignals();
+  loadStratStats();
+})();
 </script>
 </body>
 </html>

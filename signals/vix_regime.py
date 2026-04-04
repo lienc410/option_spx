@@ -1,10 +1,10 @@
 """
 VIX Regime Classifier
 
-Classifies current market environment into one of three regimes based on VIX level:
-  LOW_VOL  : VIX < 15  → Iron Condor / Bear Call Diagonal (45/90 DTE)
-  NORMAL   : 15 ≤ VIX < 22 → Bull Call Diagonal (30/90-120 DTE)
-  HIGH_VOL : VIX ≥ 22  → Buy LEAP / reduce short exposure
+Classifies current market environment into three VIX regimes used by the selector:
+  LOW_VOL  : VIX < 15      → Iron Condor / Bull Call Diagonal / Reduce-Wait
+  NORMAL   : 15 ≤ VIX < 22 → Bull Put Spread / Iron Condor / Bull Call Diagonal / Reduce-Wait
+  HIGH_VOL : VIX ≥ 22      → Bull Put Spread (High Vol) / Reduce-Wait
 
 Also computes a 5-day VIX trend (rising / falling / flat) to detect regime transitions.
 """
@@ -14,6 +14,8 @@ from enum import Enum
 from typing import Optional
 import pandas as pd
 import yfinance as yf
+
+from data.market_cache import load_or_fetch_history
 
 
 class Regime(str, Enum):
@@ -43,14 +45,20 @@ class VixSnapshot:
     vix_5d_avg: float
     vix_5d_ago: float
     transition_warning: bool  # True if near a threshold (within 1 point)
+    vix3m: Optional[float]   # 3-month VIX (^VIX3M); None if unavailable
+    backwardation: bool       # True if spot VIX > VIX3M (elevated near-term panic)
 
     def __str__(self) -> str:
         warn = " ⚠ near threshold" if self.transition_warning else ""
+        ts_str = ""
+        if self.vix3m is not None:
+            ts_label = " ⚠ BACKWARDATION" if self.backwardation else ""
+            ts_str = f" | VIX3M: {self.vix3m:.2f}{ts_label}"
         return (
             f"[{self.date}] VIX: {self.vix:.2f} | "
             f"Regime: {self.regime.value} | "
             f"Trend: {self.trend.value} | "
-            f"5d avg: {self.vix_5d_avg:.2f}{warn}"
+            f"5d avg: {self.vix_5d_avg:.2f}{warn}{ts_str}"
         )
 
 
@@ -82,27 +90,81 @@ def _is_near_threshold(vix: float, band: float = 1.0) -> bool:
     )
 
 
-def fetch_vix_history(period: str = "3mo") -> pd.DataFrame:
-    """
-    Download VIX closing prices from Yahoo Finance.
+def fetch_vix3m_history(period: str = "3mo", interval: str = "1d") -> pd.DataFrame:
+    """Download 3-month VIX prices from Yahoo Finance."""
+    def _fetch() -> pd.DataFrame:
+        ticker = yf.Ticker("^VIX3M")
+        return ticker.history(period=period, interval=interval)
 
-    Returns a DataFrame with columns: ['Close'] indexed by date.
+    df = load_or_fetch_history(
+        source="yahoo",
+        symbol="VIX3M",
+        period=period,
+        interval=interval,
+        fetcher=_fetch,
+    )
+    if df.empty:
+        raise RuntimeError("Could not fetch VIX3M data from Yahoo Finance.")
+    return df[["Close"]].rename(columns={"Close": "vix3m"})
+
+
+def fetch_vix3m() -> Optional[float]:
+    """
+    Fetch the current 3-month VIX (^VIX3M) from Yahoo Finance.
+    Returns None if the data is unavailable.
+    """
+    try:
+        df = fetch_vix3m_history(period="5d")
+        if df.empty:
+            return None
+        return float(df["vix3m"].iloc[-1])
+    except Exception:
+        return None
+
+
+def fetch_vix_history(period: str = "3mo", interval: str = "1d") -> pd.DataFrame:
+    """
+    Download VIX prices from Yahoo Finance.
+
+    Args:
+        period:   lookback window (e.g. "3mo", "1y", "60d").
+        interval: bar size — "1d" for daily (default), "1h" or "5m" for intraday.
+                  yfinance intraday limits:
+                    "5m"  → max 60 days history
+                    "1h"  → max 730 days history
+
+    Returns a DataFrame with column 'vix', indexed by datetime.
     Raises RuntimeError if data cannot be fetched.
     """
-    ticker = yf.Ticker("^VIX")
-    df = ticker.history(period=period)
+    def _fetch() -> pd.DataFrame:
+        ticker = yf.Ticker("^VIX")
+        return ticker.history(period=period, interval=interval)
+
+    df = load_or_fetch_history(
+        source="yahoo",
+        symbol="VIX",
+        period=period,
+        interval=interval,
+        fetcher=_fetch,
+    )
     if df.empty:
         raise RuntimeError("Could not fetch VIX data from Yahoo Finance.")
     return df[["Close"]].rename(columns={"Close": "vix"})
 
 
-def get_current_snapshot(df: Optional[pd.DataFrame] = None) -> VixSnapshot:
+def get_current_snapshot(
+    df: Optional[pd.DataFrame] = None,
+    current_vix: Optional[float] = None,
+) -> VixSnapshot:
     """
     Return a VixSnapshot for the most recent trading day.
 
     Args:
-        df: Optional pre-fetched VIX DataFrame (for testing / caching).
-            If None, fetches fresh data from Yahoo Finance.
+        df:          Optional pre-fetched VIX EOD DataFrame (column: 'vix').
+                     Fetches if None. Always used for 5-day trend and VIX3M baseline.
+        current_vix: Override for the current VIX level (e.g. from a 5m or 1h bar).
+                     When provided, replaces df.iloc[-1] for regime classification only.
+                     The 5-day rolling trend and VIX3M comparison remain EOD-based.
     """
     if df is None:
         df = fetch_vix_history(period="1mo")
@@ -110,9 +172,9 @@ def get_current_snapshot(df: Optional[pd.DataFrame] = None) -> VixSnapshot:
     if len(df) < 6:
         raise ValueError(f"Not enough VIX data: need ≥6 rows, got {len(df)}")
 
-    latest      = df.iloc[-1]
-    vix         = float(latest["vix"])
-    date_str    = df.index[-1].strftime("%Y-%m-%d")
+    # Current VIX level: intraday override if provided, else latest EOD close
+    vix      = current_vix if current_vix is not None else float(df.iloc[-1]["vix"])
+    date_str = df.index[-1].strftime("%Y-%m-%d")
 
     # 5-day rolling average: last 5 days vs prior 5 days
     vix_5d_avg  = float(df["vix"].iloc[-5:].mean())
@@ -121,6 +183,8 @@ def get_current_snapshot(df: Optional[pd.DataFrame] = None) -> VixSnapshot:
     regime  = _classify_regime(vix)
     trend   = _classify_trend(vix_5d_avg, vix_5d_ago)
     warning = _is_near_threshold(vix)
+    vix3m   = fetch_vix3m()
+    backwardation = (vix3m is not None) and (vix > vix3m)
 
     return VixSnapshot(
         date=date_str,
@@ -130,6 +194,8 @@ def get_current_snapshot(df: Optional[pd.DataFrame] = None) -> VixSnapshot:
         vix_5d_avg=vix_5d_avg,
         vix_5d_ago=vix_5d_ago,
         transition_warning=warning,
+        vix3m=vix3m,
+        backwardation=backwardation,
     )
 
 
@@ -169,9 +235,9 @@ if __name__ == "__main__":
 
     # --- Regime description ---
     descriptions = {
-        Regime.LOW_VOL:  "Strategy: Iron Condor or Bear Call Diagonal | DTE: 45/90",
-        Regime.NORMAL:   "Strategy: Bull Call Diagonal (primary)      | DTE: 30/90-120",
-        Regime.HIGH_VOL: "Strategy: Buy LEAP (reduce short exposure)  | DTE: 1-2 years",
+        Regime.LOW_VOL:  "Strategy set: Iron Condor / Bull Call Diagonal / Reduce-Wait",
+        Regime.NORMAL:   "Strategy set: Bull Put Spread / Iron Condor / Bull Call Diagonal / Reduce-Wait",
+        Regime.HIGH_VOL: "Strategy set: Bull Put Spread (High Vol) / Reduce-Wait",
     }
     print("→", descriptions[snapshot.regime])
 
