@@ -192,6 +192,10 @@ class Recommendation:
     macro_warning:   bool = False  # True if SPX below 200MA
     backwardation:   bool = False  # True if spot VIX > VIX3M (term structure filter triggered)
     guardrail_label: str = ""
+    canonical_strategy: str = ""
+    re_enable_hint: str = ""
+    overlay_mode: str = "disabled"
+    shock_mode: str = "disabled"
 
     def summary(self) -> str:
         """Single-line summary for quick reading."""
@@ -265,6 +269,7 @@ def _size_rule(vix: VixSnapshot, iv_s: IVSignal, t: TrendSignal) -> str:
 def _build_recommendation(
     strategy: StrategyName,
     *,
+    params: StrategyParams = DEFAULT_PARAMS,
     vix: VixSnapshot,
     iv: IVSnapshot,
     trend: TrendSnapshot,
@@ -275,6 +280,8 @@ def _build_recommendation(
     macro_warning: bool = False,
     backwardation: bool = False,
     guardrail_label: str = "",
+    canonical_strategy: str = "",
+    re_enable_hint: str = "",
 ) -> Recommendation:
     desc = strategy_descriptor(strategy.value)
     return Recommendation(
@@ -294,6 +301,10 @@ def _build_recommendation(
         macro_warning   = macro_warning,
         backwardation   = backwardation,
         guardrail_label = guardrail_label,
+        canonical_strategy = canonical_strategy or strategy.value,
+        re_enable_hint = re_enable_hint,
+        overlay_mode = params.overlay_mode,
+        shock_mode = params.shock_mode,
     )
 
 
@@ -314,9 +325,27 @@ def _guardrail_label(reason: str, backwardation: bool = False) -> str:
     return "GUARDRAIL"
 
 
+def _re_enable_hint(label: str, params: StrategyParams = DEFAULT_PARAMS) -> str:
+    if label == "EXTREME VOL":
+        return f"VIX below {params.extreme_vix:.0f}"
+    if label == "BACKWARDATION":
+        return "VIX spot falls below VIX3M (contango restored)"
+    if label == "VIX RISING":
+        return "VIX trend turns FLAT or FALLING"
+    if label == "MACRO DOWNTREND":
+        return "SPX recovers above 200MA"
+    if label == "IVP FILTER":
+        return "IV percentile returns to the allowed band"
+    if label == "PREMIUM FILTER":
+        return "Premium widens back to an acceptable level"
+    return "Conditions improve"
+
+
 def _reduce_wait(reason: str, vix: VixSnapshot, iv: IVSnapshot, trend: TrendSnapshot,
-                 macro_warn: bool, backwardation: bool = False) -> Recommendation:
+                 macro_warn: bool, backwardation: bool = False,
+                 canonical_strategy: str = "", params: StrategyParams = DEFAULT_PARAMS) -> Recommendation:
     """Helper: build a REDUCE_WAIT recommendation."""
+    label = _guardrail_label(reason, backwardation)
     action = get_position_action(
         StrategyName.REDUCE_WAIT.value,
         is_wait=True,
@@ -332,7 +361,10 @@ def _reduce_wait(reason: str, vix: VixSnapshot, iv: IVSnapshot, trend: TrendSnap
         size_rule="Hold cash; re-evaluate when conditions improve",
         macro_warning=macro_warn,
         backwardation=backwardation,
-        guardrail_label=_guardrail_label(reason, backwardation),
+        guardrail_label=label,
+        canonical_strategy=canonical_strategy,
+        re_enable_hint=_re_enable_hint(label, params),
+        params=params,
     )
 
 
@@ -360,6 +392,12 @@ def select_strategy(
         return _reduce_wait(
             f"EXTREME_VOL (VIX ≥ {params.extreme_vix:.0f}) — tail risk too elevated; hold cash",
             vix, iv, trend, macro_warn,
+            canonical_strategy=(
+                StrategyName.BEAR_CALL_SPREAD_HV.value if t == TrendSignal.BEARISH
+                else StrategyName.IRON_CONDOR_HV.value if t == TrendSignal.NEUTRAL
+                else StrategyName.BULL_PUT_SPREAD_HV.value
+            ),
+            params=params,
         )
 
     # ── HIGH_VOL: trade with tighter params ──────────────────────────
@@ -369,6 +407,8 @@ def select_strategy(
                 return _reduce_wait(
                     "HIGH_VOL + BEARISH + VIX RISING — panic escalating; wait for VIX to stabilise before selling calls",
                     vix, iv, trend, macro_warn,
+                    canonical_strategy=StrategyName.BEAR_CALL_SPREAD_HV.value,
+                    params=params,
                 )
             action = get_position_action(
                 StrategyName.BEAR_CALL_SPREAD_HV.value,
@@ -404,11 +444,15 @@ def select_strategy(
                 return _reduce_wait(
                     "HIGH_VOL + NEUTRAL + VIX RISING — vol escalating; wait for VIX to stabilise",
                     vix, iv, trend, macro_warn,
+                    canonical_strategy=StrategyName.IRON_CONDOR_HV.value,
+                    params=params,
                 )
             if vix.backwardation:
                 return _reduce_wait(
                     "HIGH_VOL + NEUTRAL + BACKWARDATION — near-term put panic elevated; skip IC HV",
                     vix, iv, trend, macro_warn, backwardation=True,
+                    canonical_strategy=StrategyName.IRON_CONDOR_HV.value,
+                    params=params,
                 )
             action = get_position_action(
                 StrategyName.IRON_CONDOR_HV.value,
@@ -447,12 +491,16 @@ def select_strategy(
             return _reduce_wait(
                 "HIGH_VOL + BACKWARDATION — VIX term structure inverted; skip Bull Put Spread",
                 vix, iv, trend, macro_warn, backwardation=True,
+                canonical_strategy=StrategyName.BULL_PUT_SPREAD_HV.value,
+                params=params,
             )
         # P1: VIX momentum rising → premium spiking, near-term risk elevated
         if vix.trend == Trend.RISING:
             return _reduce_wait(
                 "HIGH_VOL + VIX RISING — near-term panic building; wait for VIX to stabilise",
                 vix, iv, trend, macro_warn,
+                canonical_strategy=StrategyName.BULL_PUT_SPREAD_HV.value,
+                params=params,
             )
         action = get_position_action(
             StrategyName.BULL_PUT_SPREAD_HV.value,
@@ -491,12 +539,16 @@ def select_strategy(
                 return _reduce_wait(
                     "LOW_VOL + NEUTRAL but VIX RISING — potential regime shift; Iron Condor risk too high",
                     vix, iv, trend, macro_warn,
+                    canonical_strategy=StrategyName.IRON_CONDOR.value,
+                    params=params,
                 )
             # P3: IVP outside 20–50 sweet-spot — too low = insufficient premium; too high = tail risk
             if iv.iv_percentile < 20 or iv.iv_percentile > 50:
                 return _reduce_wait(
                     f"LOW_VOL + NEUTRAL but IVP={iv.iv_percentile:.0f} outside 20–50 — Iron Condor risk/reward unfavourable",
                     vix, iv, trend, macro_warn,
+                    canonical_strategy=StrategyName.IRON_CONDOR.value,
+                    params=params,
                 )
             action = get_position_action(
                 StrategyName.IRON_CONDOR.value,
@@ -545,6 +597,7 @@ def select_strategy(
         return _reduce_wait(
             "LOW_VOL + BEARISH — 低波动环境中的方向性看跌无统计边际；V型反转概率高，等待趋势确认",
             vix, iv, trend, macro_warn,
+            params=params,
         )
 
     # ── NORMAL ───────────────────────────────────────────────────────
@@ -555,18 +608,24 @@ def select_strategy(
                 return _reduce_wait(
                     "NORMAL + IV HIGH + BULLISH but VIX term structure in BACKWARDATION — skip Bull Put Spread",
                     vix, iv, trend, macro_warn, backwardation=True,
+                    canonical_strategy=StrategyName.BULL_PUT_SPREAD.value,
+                    params=params,
                 )
             # P1: VIX momentum rising → conditions deteriorating, skip selling puts
             if vix.trend == Trend.RISING:
                 return _reduce_wait(
                     "NORMAL + IV HIGH + BULLISH but VIX RISING — wait for VIX to stabilise before selling premium",
                     vix, iv, trend, macro_warn,
+                    canonical_strategy=StrategyName.BULL_PUT_SPREAD.value,
+                    params=params,
                 )
             # P1: IVP ≥ 50 means market already stressed — tail risk outweighs extra premium
             if iv.iv_percentile >= 50:
                 return _reduce_wait(
                     f"NORMAL + IV HIGH + BULLISH but IVP={iv.iv_percentile:.0f} ≥ 50 — stressed vol environment, BPS tail risk too high",
                     vix, iv, trend, macro_warn,
+                    canonical_strategy=StrategyName.BULL_PUT_SPREAD.value,
+                    params=params,
                 )
             action = get_position_action(
                 StrategyName.BULL_PUT_SPREAD.value,
@@ -593,11 +652,15 @@ def select_strategy(
                 return _reduce_wait(
                     "NORMAL + IV HIGH + BEARISH + VIX RISING — skip Iron Condor while vol escalating",
                     vix, iv, trend, macro_warn,
+                    canonical_strategy=StrategyName.IRON_CONDOR.value,
+                    params=params,
                 )
             if iv.iv_percentile >= 50:
                 return _reduce_wait(
                     f"NORMAL + IV HIGH + BEARISH but IVP={iv.iv_percentile:.0f} ≥ 50 — stressed vol; IC put side at risk",
                     vix, iv, trend, macro_warn,
+                    canonical_strategy=StrategyName.IRON_CONDOR.value,
+                    params=params,
                 )
             action = get_position_action(
                 StrategyName.IRON_CONDOR.value,
@@ -630,12 +693,16 @@ def select_strategy(
             return _reduce_wait(
                 "NORMAL + IV HIGH + NEUTRAL but VIX RISING — Iron Condor unsafe; wait for vol to stabilise",
                 vix, iv, trend, macro_warn,
+                canonical_strategy=StrategyName.IRON_CONDOR.value,
+                params=params,
             )
         # P3: IVP > 50 means market already stressed — condor too likely to be breached
         if iv.iv_percentile > 50:
             return _reduce_wait(
                 f"NORMAL + IV HIGH + NEUTRAL but IVP={iv.iv_percentile:.0f} > 50 — tail risk too elevated for Iron Condor",
                 vix, iv, trend, macro_warn,
+                canonical_strategy=StrategyName.IRON_CONDOR.value,
+                params=params,
             )
         action = get_position_action(
             StrategyName.IRON_CONDOR.value,
@@ -664,18 +731,21 @@ def select_strategy(
             return _reduce_wait(
                 "NORMAL + IV LOW + BULLISH — thin premium (IVP<40) makes Diagonal risk/reward unfavourable; wait for IV to expand",
                 vix, iv, trend, macro_warn,
+                params=params,
             )
 
         if t == TrendSignal.BEARISH:
             return _reduce_wait(
                 "NORMAL + IV LOW + BEARISH — low premium insufficient for IC; skip",
                 vix, iv, trend, macro_warn,
+                params=params,
             )
 
         # NEUTRAL + LOW IV → no edge in any direction, not worth selling premium either
         return _reduce_wait(
             "NORMAL + IV LOW + NEUTRAL — no directional edge and premium cheap; skip",
             vix, iv, trend, macro_warn,
+            params=params,
         )
 
     # iv_s == NEUTRAL, regime == NORMAL
@@ -685,18 +755,24 @@ def select_strategy(
             return _reduce_wait(
                 "NORMAL + IV NEUTRAL + BULLISH but VIX term structure in BACKWARDATION — skip Bull Put Spread",
                 vix, iv, trend, macro_warn, backwardation=True,
+                canonical_strategy=StrategyName.BULL_PUT_SPREAD.value,
+                params=params,
             )
         # P1: VIX momentum rising → conditions deteriorating, skip selling puts
         if vix.trend == Trend.RISING:
             return _reduce_wait(
                 "NORMAL + IV NEUTRAL + BULLISH but VIX RISING — wait for VIX to stabilise before selling premium",
                 vix, iv, trend, macro_warn,
+                canonical_strategy=StrategyName.BULL_PUT_SPREAD.value,
+                params=params,
             )
         # P1: IVP ≥ 50 — stressed vol; tail risk exceeds premium benefit
         if iv.iv_percentile >= 50:
             return _reduce_wait(
                 f"NORMAL + IV NEUTRAL + BULLISH but IVP={iv.iv_percentile:.0f} ≥ 50 — stressed vol environment, BPS tail risk too high",
                 vix, iv, trend, macro_warn,
+                canonical_strategy=StrategyName.BULL_PUT_SPREAD.value,
+                params=params,
             )
         # P2: IVP < 43 — insufficient premium for BPS risk/reward
         # Analysis (2026-03-28): borderline entry at IVP=43 caused 2025-10-03 loss.
@@ -705,6 +781,8 @@ def select_strategy(
             return _reduce_wait(
                 f"NORMAL + IV NEUTRAL + BULLISH but IVP={iv.iv_percentile:.0f} < 43 — insufficient premium for BPS risk/reward",
                 vix, iv, trend, macro_warn,
+                canonical_strategy=StrategyName.BULL_PUT_SPREAD.value,
+                params=params,
             )
         action = get_position_action(
             StrategyName.BULL_PUT_SPREAD.value,
@@ -731,11 +809,15 @@ def select_strategy(
             return _reduce_wait(
                 "NORMAL + IV NEUTRAL + BEARISH + VIX RISING — skip Iron Condor while vol escalating",
                 vix, iv, trend, macro_warn,
+                canonical_strategy=StrategyName.IRON_CONDOR.value,
+                params=params,
             )
         if iv.iv_percentile < 20 or iv.iv_percentile > 50:
             return _reduce_wait(
                 f"NORMAL + IV NEUTRAL + BEARISH but IVP={iv.iv_percentile:.0f} outside 20–50 — IC risk/reward unfavourable",
                 vix, iv, trend, macro_warn,
+                canonical_strategy=StrategyName.IRON_CONDOR.value,
+                params=params,
             )
         action = get_position_action(
             StrategyName.IRON_CONDOR.value,
@@ -768,12 +850,16 @@ def select_strategy(
         return _reduce_wait(
             "NORMAL + IV NEUTRAL + NEUTRAL but VIX RISING — Iron Condor unsafe; wait for vol to stabilise",
             vix, iv, trend, macro_warn,
+            canonical_strategy=StrategyName.IRON_CONDOR.value,
+            params=params,
         )
     # P3: IVP outside 20–50 — too low = free money illusion; too high = breached too often
     if iv.iv_percentile < 20 or iv.iv_percentile > 50:
         return _reduce_wait(
             f"NORMAL + IV NEUTRAL + NEUTRAL but IVP={iv.iv_percentile:.0f} outside 20–50 — Iron Condor risk/reward unfavourable",
             vix, iv, trend, macro_warn,
+            canonical_strategy=StrategyName.IRON_CONDOR.value,
+            params=params,
         )
     action = get_position_action(
         StrategyName.IRON_CONDOR.value,

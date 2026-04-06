@@ -135,7 +135,7 @@
 
 ## Review
 
-- 结论：N/A（研究+协议性 SPEC，无 Codex 实现）
+- 结论：DONE（PM 2026-04-04 确认同意 Protocol 1–4 作为未来 filter 评估标准）
 
 ---
 
@@ -147,4 +147,4 @@
 4. 新 filter 提案必须通过 Protocol 1 的 n≥50 门槛
 
 ---
-Status: DRAFT
+Status: DONE

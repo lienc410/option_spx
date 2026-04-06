@@ -110,6 +110,61 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-muted);
   margin-left: 8px;
 }
+.meta-bar, .stale-bar, .empty-cta {
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: 9px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+.meta-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 0.74rem;
+  color: var(--text-2);
+}
+.meta-badge, .stale-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.meta-badge {
+  background: rgba(96,104,128,0.08);
+  border: 1px solid var(--border-2);
+  color: var(--text);
+}
+.stale-bar {
+  background: rgba(201,168,64,0.08);
+  border-color: var(--gold-border);
+  color: var(--text);
+  font-size: 0.75rem;
+}
+.stale-badge {
+  background: var(--gold-bg);
+  border: 1px solid var(--gold-border);
+  color: var(--gold);
+}
+.empty-cta {
+  text-align: center;
+  color: var(--text-2);
+}
+.empty-cta-title {
+  font-family: var(--f-display);
+  font-style: italic;
+  font-size: 1.15rem;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.empty-cta-copy {
+  font-size: 0.78rem;
+}
 
 /* ── Metric cards ── */
 .metric-grid {
@@ -492,6 +547,12 @@ table.log-tbl { width: 100%; border-collapse: collapse; min-width: 980px; }
   letter-spacing: 0.11em; text-transform: uppercase;
   color: var(--blue); margin-bottom: 10px;
 }
+.auto-warning {
+  margin-bottom: 10px;
+  font-size: 0.66rem;
+  color: var(--orange);
+  line-height: 1.5;
+}
 .auto-params-grid {
   display: grid; grid-template-columns: repeat(4, 1fr);
   gap: 8px; margin-bottom: 12px;
@@ -636,6 +697,7 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
     <a href="/matrix" class="nav-link">Matrix</a>
     <a href="/backtest" class="nav-link active">Backtest</a>
     <a href="/margin" class="nav-link">Margin</a>
+    <a href="/performance" class="nav-link">Performance</a>
   </div>
   <div class="nav-right" id="nav-date">—</div>
 </nav>
@@ -662,6 +724,13 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
     <input id="inp-end" type="date" class="ctrl-input" value="" oninput="clearActivePeriod()">
     <button id="btn-run" class="btn-run" onclick="runBacktest()">Run</button>
     <span class="run-status" id="run-status"></span>
+  </div>
+
+  <div id="bt-meta-bar" class="meta-bar hidden"></div>
+  <div id="bt-stale-bar" class="stale-bar hidden"></div>
+  <div id="empty-cta" class="empty-cta hidden">
+    <div class="empty-cta-title">No backtest results yet.</div>
+    <div class="empty-cta-copy">Select a period and click Run to start.</div>
   </div>
 
   <!-- Loading -->
@@ -759,6 +828,7 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
       <!-- Auto-search panel -->
       <div class="auto-panel" id="auto-panel">
         <div class="auto-panel-title">⚡ Parameter Grid Search (max 3 params)</div>
+        <div class="auto-warning">⚠ If start_date spans full history, results are in-sample. For valid OOS test, use start_date ≥ 2021-01-01.</div>
         <div class="auto-params-grid" id="auto-params-grid">
           <!-- populated by JS -->
         </div>
@@ -901,6 +971,13 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
       </div>
     </div>
 
+    <div class="chart-section hidden" id="annual-pnl-section">
+      <div class="section-title">Annual P&amp;L — By Year</div>
+      <div class="chart-wrap" style="height:240px">
+        <canvas id="annual-pnl-chart"></canvas>
+      </div>
+    </div>
+
     <!-- Signal time series -->
     <div class="signals-section">
       <div class="signals-hd">
@@ -1002,6 +1079,7 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
 <script>
 let equityChart   = null;
 let spxChart      = null;
+let annualPnlChart = null;
 let timerInterval = null;
 let _autoInterval  = null;
 let _selectedExps  = new Set();   // ids selected for comparison
@@ -1012,6 +1090,7 @@ let _spxFullSigData = [];         // full signal timeline for SPX chart + matrix
 let _spxWindowFetchTimer = null;
 let _allTrades = [];
 let _activeStratFilter = 'All';
+let _displayedResultMeta = null;
 
 // ── Auto-search grid config ─────────────────────────────────────────────────
 const AUTO_PARAMS = [
@@ -1070,14 +1149,14 @@ function updateAutoCount() {
 
 function currentParams() {
   return {
-    extreme_vix:    parseFloat(document.getElementById('p-ext-vix').value),
-    high_vol_delta: parseFloat(document.getElementById('p-hv-delta').value),
-    high_vol_dte:   parseInt(  document.getElementById('p-hv-dte').value),
-    high_vol_size:  parseFloat(document.getElementById('p-hv-size').value) / 100,
-    normal_delta:   parseFloat(document.getElementById('p-n-delta').value),
-    normal_dte:     parseInt(  document.getElementById('p-n-dte').value),
-    profit_target:  parseFloat(document.getElementById('p-profit').value) / 100,
-    stop_mult:      parseFloat(document.getElementById('p-stop').value),
+    extreme_vix:    parseFloat(elValue('p-ext-vix', '45')),
+    high_vol_delta: parseFloat(elValue('p-hv-delta', '0.15')),
+    high_vol_dte:   parseInt(elValue('p-hv-dte', '45')),
+    high_vol_size:  parseFloat(elValue('p-hv-size', '0.25')) / 100,
+    normal_delta:   parseFloat(elValue('p-n-delta', '0.20')),
+    normal_dte:     parseInt(elValue('p-n-dte', '35')),
+    profit_target:  parseFloat(elValue('p-profit', '50')) / 100,
+    stop_mult:      parseFloat(elValue('p-stop', '2.0')),
   };
 }
 
@@ -1087,15 +1166,15 @@ async function runExperiment() {
   const stat = document.getElementById('exp-status');
   btn.disabled = true;
   stat.textContent = 'Running…';
-  const start = document.getElementById('inp-start').value || '2020-01-01';
-  const end   = document.getElementById('inp-end').value   || '';
+  const start = elValue('inp-start', '2020-01-01') || '2020-01-01';
+  const end   = elValue('inp-end', '') || '';
   try {
     const res = await fetch('/api/experiments/run', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         params:     currentParams(),
-        note:       document.getElementById('p-note').value,
+        note:       elValue('p-note', ''),
         start_date: start,
         end_date:   end || null,
       }),
@@ -1125,7 +1204,7 @@ async function startAutoSearch() {
   const fixed = currentParams();
   selected.forEach(p => { delete fixed[p.key]; });
 
-  const start = document.getElementById('inp-start').value || '2020-01-01';
+  const start = elValue('inp-start', '2020-01-01') || '2020-01-01';
   document.getElementById('btn-auto-run').disabled = true;
   document.getElementById('auto-progress-bar').style.width = '0%';
 
@@ -1480,7 +1559,9 @@ function syncWindowDateInputs(clearPeriod = false) {
 }
 
 async function fetchWindowBacktest(start) {
-  const res = await fetch(`/api/backtest?start=${start}`);
+  const query = new URLSearchParams(collectBacktestQuery());
+  query.set('start', start);
+  const res = await fetch(`/api/backtest?${query.toString()}`);
   const data = await res.json();
   if (data.error) throw new Error(data.error);
   return data;
@@ -1495,7 +1576,9 @@ function scheduleWindowBacktestSync() {
   _spxWindowFetchTimer = setTimeout(async () => {
     try {
       const data = await fetchWindowBacktest(start);
+      _displayedResultMeta = data;
       renderResults(data);
+      await refreshResultBadges();
       renderSignalMatrix();
       renderSpxChart();
       document.getElementById('run-status').textContent = `Window synced: ${start}`;
@@ -1640,11 +1723,101 @@ function setGranularity(step) {
 
 // ── Date defaults ──────────────────────────────────────────────────────
 function toISO(d) { return d.toISOString().split('T')[0]; }
+function elValue(id, fallback = '') {
+  const el = document.getElementById(id);
+  return el ? (el.value || fallback) : fallback;
+}
+function setElValue(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.value = value;
+}
+async function hashCurrentParams() {
+  const payload = JSON.stringify(currentParams(), Object.keys(currentParams()).sort());
+  const bytes = new TextEncoder().encode(payload);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 10);
+}
+function setRunButtonLabel(label) {
+  const btn = document.getElementById('btn-run');
+  if (btn) btn.textContent = label;
+}
+function showEmptyCta(show) {
+  document.getElementById('empty-cta').classList.toggle('hidden', !show);
+}
+async function refreshResultBadges() {
+  const metaBar = document.getElementById('bt-meta-bar');
+  const staleBar = document.getElementById('bt-stale-bar');
+  if (!_displayedResultMeta) {
+    metaBar.classList.add('hidden');
+    staleBar.classList.add('hidden');
+    return;
+  }
+  const currentStart = elValue('inp-start', '');
+  const currentHash = await hashCurrentParams();
+  const paramsChanged = currentHash !== _displayedResultMeta.params_hash;
+  const startChanged = currentStart && currentStart !== _displayedResultMeta.start_date;
+  metaBar.innerHTML = `
+    <span class="meta-badge">Last computed: ${(_displayedResultMeta.computed_at || '').replace('T', ' ')}</span>
+    <span class="meta-badge">start ${_displayedResultMeta.start_date || '—'}</span>
+    <span class="meta-badge">${Math.round(((_displayedResultMeta.metrics?.win_rate) || 0) * 100)}% WR</span>
+  `;
+  metaBar.classList.remove('hidden');
+  if (paramsChanged || startChanged) {
+    const bits = [];
+    if (paramsChanged) bits.push('Params changed since last run — results may be stale.');
+    if (startChanged) bits.push('Showing results for a different period. Click Run to update.');
+    staleBar.innerHTML = `<span class="stale-badge">Stale</span>${bits.join(' ')}`;
+    staleBar.classList.remove('hidden');
+  } else {
+    staleBar.classList.add('hidden');
+  }
+}
+function collectBacktestQuery() {
+  const params = currentParams();
+  const query = new URLSearchParams({ start: elValue('inp-start', '') });
+  Object.entries(params).forEach(([key, value]) => query.set(key, String(value)));
+  return query.toString();
+}
+async function loadSignalHistory() {
+  const res = await fetch('/api/signals/history?start=2000-01-01');
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  _spxFullSigData = data.signals || [];
+  _sigData = _spxFullSigData;
+  const start = elValue('inp-start', '');
+  const startIdx = _spxFullSigData.findIndex(r => r.date >= start);
+  _spxStartIdx = startIdx >= 0 ? startIdx : Math.max(_spxFullSigData.length - 1, 0);
+  syncSpxWindowSlider();
+  renderSignalMatrix();
+  renderSpxChart();
+}
+async function loadCachedResult() {
+  const res = await fetch('/api/backtest/latest-cached');
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  if (data.empty) {
+    _displayedResultMeta = null;
+    showEmptyCta(true);
+    setRunButtonLabel('Run');
+    document.getElementById('results').classList.add('hidden');
+    document.getElementById('bt-meta-bar').classList.add('hidden');
+    document.getElementById('bt-stale-bar').classList.add('hidden');
+    return;
+  }
+  showEmptyCta(false);
+  _displayedResultMeta = data;
+  setElValue('inp-start', data.start_date || elValue('inp-start', ''));
+  clearActivePeriod();
+  renderResults(data);
+  setRunButtonLabel('Re-run');
+  await refreshResultBadges();
+}
 const today = new Date();
-document.getElementById('inp-end').value = toISO(today);
+setElValue('inp-end', toISO(today));
 
 function clearActivePeriod() {
   document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+  refreshResultBadges();
 }
 
 function setPeriod(period, btn) {
@@ -1657,18 +1830,19 @@ function setPeriod(period, btn) {
     d.setFullYear(d.getFullYear() - yrs[period]);
     start = toISO(d);
   }
-  document.getElementById('inp-start').value = start;
-  document.getElementById('inp-end').value = toISO(today);
+  setElValue('inp-start', start);
+  setElValue('inp-end', toISO(today));
   clearActivePeriod();
   btn.classList.add('active');
-  runBacktest();
+  refreshResultBadges();
 }
 
 // Default: activate 1Y pill without auto-running
 (function() {
   const d = new Date(today); d.setFullYear(d.getFullYear() - 1);
-  document.getElementById('inp-start').value = toISO(d);
-  document.getElementById('pbtn-1y').classList.add('active');
+  setElValue('inp-start', toISO(d));
+  const oneYearBtn = document.getElementById('pbtn-1y');
+  if (oneYearBtn) oneYearBtn.classList.add('active');
 })();
 document.getElementById('nav-date').textContent = today.toLocaleDateString('en-US',{
   weekday:'short', month:'short', day:'numeric', year:'numeric'
@@ -1706,10 +1880,10 @@ function reasonTag(r) {
 
 // ── Render results ─────────────────────────────────────────────────────
 function renderResults(data) {
-  const {metrics: m, trades, signals} = data;
+  const {metrics: m, trades} = data;
 
-  // Store signal history and render charts at current granularity
-  _sigData = signals || [];
+  // Signal history now comes from /api/signals/history, not /api/backtest
+  _sigData = _spxFullSigData || [];
   renderSignalCharts(_granularity);
 
   // Metric cards
@@ -1803,6 +1977,7 @@ function renderResults(data) {
   // Store data for SPX price chart (rendered separately, persists for overlay toggle)
   _spxChartData = { events, ptRadius, ptColors, ptRotation, siblingIdx };
   renderSpxChart();
+  renderAnnualPnlChart(trades);
 
   // Plugin: draw connector + highlight ring on sibling point when hovering
   let _hoveredIdx = -1;
@@ -1993,6 +2168,84 @@ function renderResults(data) {
 
   document.getElementById('results').classList.remove('hidden');
   document.getElementById('results').classList.add('fade-in');
+}
+
+function renderAnnualPnlChart(trades) {
+  const section = document.getElementById('annual-pnl-section');
+  if (annualPnlChart) { annualPnlChart.destroy(); annualPnlChart = null; }
+  const startInput = document.getElementById('inp-start');
+  const startDate = startInput ? (startInput.value || '') : '';
+  if (!trades.length || startDate >= '2003-01-01') {
+    section.classList.add('hidden');
+    return;
+  }
+
+  const byYear = {};
+  trades.forEach(t => {
+    const year = String(t.exit_date || '').slice(0, 4);
+    if (!year) return;
+    byYear[year] = (byYear[year] || 0) + (t.exit_pnl || 0);
+  });
+  const years = Object.keys(byYear).sort();
+  if (years.length < 3) {
+    section.classList.add('hidden');
+    return;
+  }
+
+  section.classList.remove('hidden');
+  const values = years.map(y => byYear[y]);
+  const stressYears = new Set(['2008', '2011', '2015', '2020', '2022']);
+  const stressPlugin = {
+    id: 'stressLabels',
+    afterDatasetsDraw(chart) {
+      const {ctx} = chart;
+      const meta = chart.getDatasetMeta(0);
+      ctx.save();
+      ctx.font = "10px 'JetBrains Mono'";
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#C9A840';
+      years.forEach((year, idx) => {
+        if (!stressYears.has(year)) return;
+        const bar = meta.data[idx];
+        if (!bar) return;
+        ctx.fillText('stress', bar.x, bar.y - 8);
+      });
+      ctx.restore();
+    }
+  };
+  const ctx = document.getElementById('annual-pnl-chart').getContext('2d');
+  annualPnlChart = new Chart(ctx, {
+    type: 'bar',
+    plugins: [stressPlugin],
+    data: {
+      labels: years,
+      datasets: [{
+        data: values,
+        backgroundColor: values.map(v => v >= 0 ? 'rgba(66,204,124,0.7)' : 'rgba(224,72,98,0.7)'),
+        borderColor: values.map(v => v >= 0 ? '#42CC7C' : '#E04862'),
+        borderWidth: 1.2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: '#606880', font: { family: "'JetBrains Mono'", size: 10 } }
+        },
+        y: {
+          grid: { color: '#191E33' },
+          ticks: {
+            color: '#606880',
+            font: { family: "'JetBrains Mono'", size: 10 },
+            callback: v => (v >= 0 ? '+$' : '-$') + Math.abs(v).toLocaleString(),
+          }
+        }
+      }
+    }
+  });
 }
 
 // ── Trade log rendering helpers ─────────────────────────────────────────────
@@ -2408,10 +2661,12 @@ function setSpxOverlay(type, btn) {
 
 // ── Run backtest ───────────────────────────────────────────────────────
 async function runBacktest() {
-  const start = document.getElementById('inp-start').value;
+  const start = elValue('inp-start', '');
   if (!start) { alert('Please pick a start date.'); return; }
 
+  setRunButtonLabel('Running…');
   document.getElementById('btn-run').disabled = true;
+  showEmptyCta(false);
   document.getElementById('results').classList.add('hidden');
   document.getElementById('err-box').classList.add('hidden');
   document.getElementById('loading-box').classList.remove('hidden');
@@ -2424,20 +2679,10 @@ async function runBacktest() {
   }, 1000);
 
   try {
-    const [res, fullRes] = await Promise.all([
-      fetch(`/api/backtest?start=${start}`),
-      start === '2000-01-01'
-        ? Promise.resolve(null)
-        : fetch('/api/backtest?start=2000-01-01'),
-    ]);
+    const res = await fetch(`/api/backtest?${collectBacktestQuery()}`);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    let fullData = data;
-    if (fullRes) {
-      fullData = await fullRes.json();
-      if (fullData.error) throw new Error(fullData.error);
-    }
-    _spxFullSigData = fullData.signals || data.signals || [];
+    _displayedResultMeta = data;
     const startIdx = _spxFullSigData.findIndex(r => r.date >= start);
     _spxStartIdx = startIdx >= 0 ? startIdx : Math.max(_spxFullSigData.length - 1, 0);
     syncSpxWindowSlider();
@@ -2446,6 +2691,7 @@ async function runBacktest() {
     document.getElementById('loading-box').classList.add('hidden');
     document.getElementById('run-status').textContent = `Done in ${elapsed}s`;
     renderResults(data);
+    await refreshResultBadges();
     renderSignalMatrix();
     renderSpxChart();
   } catch (e) {
@@ -2455,12 +2701,23 @@ async function runBacktest() {
     document.getElementById('err-box').classList.remove('hidden');
   } finally {
     document.getElementById('btn-run').disabled = false;
+    setRunButtonLabel(_displayedResultMeta ? 'Re-run' : 'Run');
   }
 }
 
-// Auto-run on page load with default dates
-runBacktest();
-loadExperiments();
+document.querySelectorAll('.param-input').forEach(el => {
+  el.addEventListener('input', () => { refreshResultBadges(); });
+});
+
+(async function initBacktestPage() {
+  try {
+    await loadSignalHistory();
+    await loadCachedResult();
+  } catch (e) {
+    document.getElementById('run-status').textContent = e.message || 'Init failed';
+  }
+  loadExperiments();
+})();
 </script>
 </body>
 </html>

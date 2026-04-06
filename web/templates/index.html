@@ -96,6 +96,61 @@ body {
 /* ── Layout ─────────────────────────────────────────────────── */
 .container { max-width: 880px; margin: 0 auto; padding: 26px 24px 72px; }
 
+.decision-strip,
+.risk-flag-bar {
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: 9px;
+  margin-bottom: 12px;
+}
+.decision-strip { padding: 12px 16px; }
+.decision-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.action-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.action-open  { color: var(--green);  background: var(--green-bg);  border: 1px solid var(--green-border); }
+.action-hold  { color: var(--blue);   background: var(--blue-bg);   border: 1px solid var(--blue-border); }
+.action-wait  { color: var(--orange); background: var(--orange-bg); border: 1px solid var(--orange-border); }
+.action-shift { color: var(--gold);   background: var(--gold-bg);   border: 1px solid var(--gold-border); }
+.decision-strategy {
+  font-family: var(--f-display);
+  font-style: italic;
+  font-size: 1rem;
+  color: var(--text);
+}
+.decision-lines {
+  margin-top: 8px;
+  display: grid;
+  gap: 4px;
+}
+.decision-line { font-size: 0.72rem; color: var(--text-2); }
+.decision-line strong { color: var(--text); font-weight: 600; }
+.decision-loading {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.risk-flag-bar { padding: 10px 14px; }
+.risk-flags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.risk-flags-empty { color: var(--green); font-size: 0.72rem; }
+
 /* ── Signals ────────────────────────────────────────────────── */
 .signals {
   display: grid;
@@ -231,6 +286,20 @@ body {
   font-style: italic; line-height: 1.65;
   border-bottom: 1px solid var(--border);
 }
+.edge-row {
+  padding: 12px 26px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.7rem;
+  color: var(--text-2);
+  font-family: var(--f-mono);
+}
+.edge-row strong {
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.58rem;
+  margin-right: 10px;
+}
 .rec-why::before { content: '\201C'; color: var(--gold); font-size: 1.1em; margin-right: 1px; }
 .rec-why::after  { content: '\201D'; color: var(--gold); font-size: 1.1em; margin-left:  1px; }
 
@@ -305,6 +374,96 @@ body {
 .pos-name { font-weight: 600; color: var(--text); }
 .pos-meta { color: var(--text-2); margin-top: 2px; font-size: 0.73rem; font-family: var(--f-mono); }
 .pos-notes { color: var(--text-muted); margin-top: 4px; font-size: 0.7rem; font-style: italic; }
+.pos-live {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 0.72rem;
+}
+.pos-live-title {
+  color: var(--text-muted);
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  margin-bottom: 4px;
+}
+.pos-live-row { color: var(--text-2); }
+.pos-live-row strong { color: var(--text); font-family: var(--f-mono); font-weight: 600; }
+.pos-actions {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  margin-top: 10px;
+}
+.action-btn {
+  padding: 7px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-2);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.74rem;
+  transition: all .15s;
+}
+.action-btn:hover { border-color: var(--gold); color: var(--gold); }
+.action-btn.primary { background: var(--gold-bg); border-color: var(--gold-border); color: var(--gold); }
+.modal-wrap {
+  position: fixed;
+  inset: 0;
+  background: rgba(8,10,19,0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 300;
+}
+.modal {
+  width: min(560px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: 12px;
+  padding: 20px 22px;
+}
+.modal-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.modal-title {
+  font-family: var(--f-display);
+  font-style: italic;
+  font-size: 1.15rem;
+}
+.modal-close {
+  background: transparent; border: none; color: var(--text-2);
+  cursor: pointer; font-size: 1.2rem;
+}
+.modal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.modal-field { display: grid; gap: 5px; }
+.modal-field.full { grid-column: 1 / -1; }
+.modal-label {
+  font-size: 0.62rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .09em;
+}
+.modal-input, .modal-select {
+  width: 100%;
+  background: var(--surface-hi);
+  border: 1px solid var(--border-2);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 9px 11px;
+  font-family: var(--f-ui);
+  font-size: 0.82rem;
+}
+.modal-hint { font-size: 0.7rem; color: var(--text-2); }
+.modal-cta {
+  display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;
+}
+.modal-msg {
+  margin-top: 10px; font-size: 0.76rem;
+}
+.modal-msg.error { color: var(--red); }
+.modal-msg.ok { color: var(--green); }
 
 /* ── Loading / Error ─────────────────────────────────────────── */
 .state-box { padding: 52px 20px; text-align: center; }
@@ -352,6 +511,7 @@ body {
     <a href="/matrix" class="nav-link">Matrix</a>
     <a href="/backtest" class="nav-link">Backtest</a>
     <a href="/margin" class="nav-link">Margin</a>
+    <a href="/performance" class="nav-link">Performance</a>
   </div>
   <div class="nav-right">
     <div class="live-dot"></div>
@@ -381,6 +541,14 @@ body {
       </div>
       <span class="badge badge-gray" id="intra-spx-badge">CALM</span>
     </div>
+  </div>
+
+  <div class="decision-strip" id="decision-strip">
+    <div class="decision-loading">Loading decision summary…</div>
+  </div>
+
+  <div class="risk-flag-bar" id="risk-flag-bar">
+    <div class="decision-loading">Loading risk flags…</div>
   </div>
 
   <!-- Signal strip -->
@@ -427,6 +595,17 @@ body {
   <div id="pos-panel" class="pos-panel pos-empty">
     <span>No open position on record.</span>
   </div>
+  <div id="pos-actions" class="pos-actions"></div>
+
+  <div id="trade-modal-wrap" class="modal-wrap hidden">
+    <div class="modal">
+      <div class="modal-hd">
+        <div class="modal-title" id="trade-modal-title">Trade Action</div>
+        <button class="modal-close" onclick="closeTradeModal()">×</button>
+      </div>
+      <div id="trade-modal-body"></div>
+    </div>
+  </div>
 
 </div>
 
@@ -436,6 +615,10 @@ body {
 
 <script>
 let STRATEGY_META = {};
+let STRAT_STATS = {};
+let CURRENT_REC = null;
+let CURRENT_POS = null;
+let MANUAL_OPTIONS = [];
 
 function effectiveIvBucket(iv) {
   const ivRank = Number(iv.iv_rank ?? 0);
@@ -553,6 +736,13 @@ function buildCard(d) {
   const bkWarn = d.backwardation
     ? `<div class="macro-warn">⚠&nbsp; VIX backwardation — Bull Put Spread skipped.</div>`
     : '';
+  const edge3 = ((STRAT_STATS['3y'] || {})[d.strategy_key]) || null;
+  const edgeAll = ((STRAT_STATS['all'] || {})[d.strategy_key]) || null;
+  const edgeText = s => {
+    if (!s) return '—';
+    if ((s.n || 0) < 5) return 'n too small';
+    return `WR ${s.win_rate}% · n ${s.n}`;
+  };
   return `
     <div class="rec-hd">
       <span class="rec-emoji">${emoji}</span>
@@ -587,8 +777,58 @@ function buildCard(d) {
       </div>
     </div>
 
+    <div class="edge-row"><strong>Historical Edge</strong> All-time: ${edgeText(edgeAll)} &nbsp;&nbsp; 3Y: ${edgeText(edge3)}</div>
     <div class="rec-why">${d.rationale}</div>
     ${macroWarn}${bkWarn}`;
+}
+
+function dteEstimate(meta, p) {
+  if ((p.roll_count || 0) > 0) return 'DTE est. unavailable (rolled)';
+  const text = meta.dte_text || '';
+  const matches = [...text.matchAll(/(\d+)\s*DTE/gi)].map(m => Number(m[1]));
+  if (!matches.length) return null;
+  const entryDte = Math.min(...matches);
+  const opened = p.opened_at ? new Date(p.opened_at + 'T00:00:00') : null;
+  if (!opened || Number.isNaN(opened.getTime())) return null;
+  const today = new Date();
+  const daysHeld = Math.max(0, Math.floor((today - opened) / (1000 * 60 * 60 * 24)));
+  const remaining = entryDte - daysHeld;
+  return `Day ${daysHeld}  ·  ${remaining > 0 ? `~${remaining} DTE remaining` : 'expired / roll?'}`;
+}
+
+function renderDecisionStrip(d) {
+  const strip = document.getElementById('decision-strip');
+  const actionClass = d.position_action === 'OPEN' ? 'action-open'
+    : d.position_action === 'HOLD' ? 'action-hold'
+    : d.position_action === 'CLOSE_AND_OPEN' ? 'action-shift'
+    : 'action-wait';
+  const lines = [];
+  if (d.guardrail_label) lines.push(`<div class="decision-line"><strong>Blocked by:</strong> ${d.guardrail_label}</div>`);
+  if (d.canonical_strategy && d.canonical_strategy !== d.strategy) lines.push(`<div class="decision-line"><strong>Canonical:</strong> ${d.canonical_strategy}</div>`);
+  if (d.re_enable_hint) lines.push(`<div class="decision-line"><strong>Re-enable:</strong> ${d.re_enable_hint}</div>`);
+  if (d.position_action === 'HOLD' && CURRENT_POS && CURRENT_POS.opened_at) lines.push(`<div class="decision-line"><strong>Position:</strong> open since ${CURRENT_POS.opened_at}</div>`);
+  if (!lines.length) lines.push('<div class="decision-line"><strong>Status:</strong> no blockers</div>');
+  strip.innerHTML = `
+    <div class="decision-main">
+      <span class="action-pill ${actionClass}">${d.position_action}</span>
+      <span class="decision-strategy">${d.strategy}</span>
+    </div>
+    <div class="decision-lines">${lines.join('')}</div>`;
+}
+
+function renderRiskFlags(d) {
+  const bar = document.getElementById('risk-flag-bar');
+  const flags = [];
+  const push = (label, cls) => flags.push(`<span class="badge badge-${cls}">${label}</span>`);
+  if (String(d.vix_snapshot?.regime || '').toUpperCase() === 'EXTREME_VOL') push('EXTREME VOL', 'red');
+  if (d.backwardation) push('BACKWARDATION', 'orange');
+  if (d.macro_warning) push('MACRO DOWNTREND', 'orange');
+  if (d.vix_snapshot?.transition_warning) push('VIX RISING', 'gold');
+  if (d.overlay_mode === 'active') push('OVERLAY ACTIVE', 'blue');
+  if (d.shock_mode && d.shock_mode !== 'disabled') push(`SHOCK ${String(d.shock_mode).toUpperCase()}`, 'gray');
+  bar.innerHTML = flags.length
+    ? `<div class="risk-flags">${flags.join('')}</div>`
+    : `<div class="risk-flags risk-flags-empty">✓ No active risk flags</div>`;
 }
 
 async function load() {
@@ -599,7 +839,10 @@ async function load() {
     const res = await fetch('/api/recommendation');
     const data = await res.json();
     if (data.error) throw new Error(data.error);
+    CURRENT_REC = data;
     updateSignals(data);
+    renderDecisionStrip(data);
+    renderRiskFlags(data);
     const card = document.getElementById('rec-card');
     card.innerHTML = buildCard(data);
     card.classList.remove('hidden');
@@ -616,19 +859,38 @@ async function loadStrategyMeta() {
   const res = await fetch('/api/strategy-catalog');
   const data = await res.json();
   STRATEGY_META = data.strategies || {};
+  MANUAL_OPTIONS = data.manual_entry_options || [];
+}
+
+async function loadStats() {
+  try {
+    const res = await fetch('/api/backtest/stats');
+    const data = await res.json();
+    if (!data.error) {
+      STRAT_STATS = data;
+      if (CURRENT_REC) {
+        const card = document.getElementById('rec-card');
+        if (card && !card.classList.contains('hidden')) card.innerHTML = buildCard(CURRENT_REC);
+      }
+    }
+  } catch (_) {}
 }
 
 function renderPosition(p) {
   const panel = document.getElementById('pos-panel');
+  const actions = document.getElementById('pos-actions');
   if (!p || !p.open) {
+    CURRENT_POS = null;
     panel.className = 'pos-panel pos-empty';
     panel.innerHTML = '<span>No open position on record.</span>';
+    actions.innerHTML = `<button class="action-btn primary" onclick="openTradeModal('open')">+ Open Position</button>`;
     return;
   }
   panel.className = 'pos-panel';
   const meta = p.strategy_meta || STRATEGY_META[p.strategy_key] || {};
   const emoji = meta.emoji || '📋';
   const strategyName = meta.name || p.strategy || '—';
+  const paperBadge = p.paper_trade ? ' <span class="badge badge-orange">PAPER</span>' : '';
   const rollLine = p.roll_count
     ? `  ·  rolled ${p.roll_count}×${p.rolled_at ? ' (last ' + p.rolled_at + ')' : ''}`
     : '';
@@ -636,13 +898,436 @@ function renderPosition(p) {
   const notesHtml = notes.length
     ? `<div class="pos-notes">${notes.slice(-2).map(n => '· ' + n).join('<br>')}</div>`
     : '';
+  const live = p.schwab_live || {};
+  const liveHtml = live.visible ? `
+    <div class="pos-live">
+      <div class="pos-live-title">Live Greeks (Schwab) ${live.stale ? ' · stale' : ''}</div>
+      <div class="pos-live-row"><strong>Δ</strong> ${fmt(live.delta)} &nbsp; <strong>Γ</strong> ${fmt(live.gamma, 3)} &nbsp; <strong>Θ</strong> ${fmt(live.theta)} /day &nbsp; <strong>V</strong> ${fmt(live.vega)}</div>
+      <div class="pos-live-row"><strong>Mark</strong> ${fmt(live.mark)} &nbsp; <strong>Bid</strong> ${fmt(live.bid)} &nbsp; <strong>Ask</strong> ${fmt(live.ask)}</div>
+      <div class="pos-live-row"><strong>Unrealized</strong> ${live.unrealized_pnl == null ? '—' : live.unrealized_pnl.toFixed(2)} &nbsp; <strong>Trade-log PnL</strong> ${live.trade_log_pnl == null ? '—' : live.trade_log_pnl.toFixed(2)}</div>
+    </div>` : '';
+  const dteLine = dteEstimate(meta, p);
+  CURRENT_POS = p;
   panel.innerHTML = `
     <div class="pos-dot"></div>
     <div class="pos-body">
-      <div class="pos-name">${emoji} ${strategyName} <span style="color:var(--text-muted);font-weight:400">on ${p.underlying}</span></div>
-      <div class="pos-meta">Opened ${p.opened_at}${rollLine}</div>
+      <div class="pos-name">${emoji} ${strategyName}${paperBadge} <span style="color:var(--text-muted);font-weight:400">on ${p.underlying}</span></div>
+      <div class="pos-meta">Opened ${p.opened_at}${dteLine ? '  ·  ' + dteLine : ''}${rollLine}</div>
       ${notesHtml}
+      ${liveHtml}
     </div>`;
+  actions.innerHTML = `
+    <button class="action-btn" onclick="openTradeModal('close')">Close</button>
+    <button class="action-btn" onclick="openTradeModal('roll')">Roll</button>
+    <button class="action-btn" onclick="openTradeModal('note')">Add Note</button>
+    <button class="action-btn" onclick="openTradeModal('correct')">Correct</button>
+    <button class="action-btn" onclick="openTradeModal('void')">Void</button>`;
+}
+
+function closeTradeModal() {
+  document.getElementById('trade-modal-wrap').classList.add('hidden');
+}
+
+function dteDefault(meta) {
+  const text = meta?.dte_text || '';
+  const nums = [...text.matchAll(/(\d+)\s*DTE/gi)].map(m => Number(m[1])).filter(Boolean);
+  return nums.length ? Math.min(...nums) : 30;
+}
+
+function plusDays(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + Number(days || 0));
+  return d.toISOString().slice(0, 10);
+}
+
+function selectedOpenMeta() {
+  const key = document.getElementById('open-strategy-key')?.value || CURRENT_REC?.strategy_key;
+  return STRATEGY_META[key] || {};
+}
+
+function updateOpenDerivedFields() {
+  const strategyKey = document.getElementById('open-strategy-key')?.value || '';
+  const meta = STRATEGY_META[strategyKey] || {};
+  const expiryInput = document.getElementById('open-expiry');
+  const underlyingInput = document.getElementById('open-underlying');
+  if (underlyingInput) underlyingInput.value = meta.underlying || 'SPX';
+  if (expiryInput && !expiryInput.dataset.locked) expiryInput.value = plusDays(dteDefault(meta));
+  updatePremiumDiff();
+}
+
+function applyOpenDraft(draft) {
+  const set = (id, value) => {
+    const el = document.getElementById(id);
+    if (el && value != null) el.value = value;
+  };
+  set('open-strategy-key', draft.strategy_key);
+  set('open-underlying', draft.underlying);
+  set('open-expiry', draft.expiry);
+  set('open-dte', draft.dte_at_entry);
+  set('open-short-strike', draft.short_strike);
+  set('open-long-strike', draft.long_strike);
+  set('open-contracts', draft.contracts || 1);
+  set('open-model-premium', draft.model_premium);
+  const paperEl = document.getElementById('open-paper-trade');
+  if (paperEl) paperEl.checked = !!draft.paper_trade;
+  const hint = document.getElementById('open-legs-hint');
+  if (hint) hint.textContent = draft.legs_hint || 'Algorithm draft loaded.';
+  updatePremiumDiff();
+}
+
+async function loadOpenDraft() {
+  try {
+    const res = await fetch('/api/position/open-draft');
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    applyOpenDraft(data);
+  } catch (e) {
+    const hint = document.getElementById('open-legs-hint');
+    if (hint) hint.textContent = e.message || 'Could not prefill from recommendation.';
+  }
+}
+
+function updatePremiumDiff() {
+  const actual = Number(document.getElementById('open-actual-premium')?.value || 0);
+  const model = Number(document.getElementById('open-model-premium')?.value || 0);
+  const hint = document.getElementById('open-premium-diff');
+  if (!hint) return;
+  if (!actual || !model) {
+    hint.textContent = 'Fill actual + model premium to see the variance.';
+    return;
+  }
+  const diff = (actual - model).toFixed(2);
+  hint.textContent = `Actual vs model: ${diff >= 0 ? '+' : ''}${diff}`;
+}
+
+function updateCloseDerivedFields() {
+  const exitPremium = Number(document.getElementById('close-exit-premium')?.value || 0);
+  const pnlEl = document.getElementById('close-pnl');
+  const modelEl = document.getElementById('close-model-pnl');
+  if (!CURRENT_POS || !pnlEl || !modelEl) return;
+  const contracts = Number(CURRENT_POS.contracts || 1);
+  const entry = Number(CURRENT_POS.actual_premium || 0);
+  const model = Number(CURRENT_POS.model_premium || 0);
+  pnlEl.textContent = entry ? (((entry - exitPremium) * contracts * 100).toFixed(2)) : '—';
+  modelEl.textContent = model ? (((model - exitPremium) * contracts * 100).toFixed(2)) : '—';
+}
+
+function modalShell(inner) {
+  return `${inner}<div id="trade-modal-msg" class="modal-msg hidden"></div>`;
+}
+
+function openTradeModal(kind) {
+  const wrap = document.getElementById('trade-modal-wrap');
+  const body = document.getElementById('trade-modal-body');
+  const title = document.getElementById('trade-modal-title');
+  if (kind === 'open') {
+    const options = MANUAL_OPTIONS.map(o => `<option value="${o.key}" ${o.key === CURRENT_REC?.strategy_key ? 'selected' : ''}>${o.name}</option>`).join('');
+    title.textContent = 'Open Position';
+    body.innerHTML = modalShell(`
+      <div class="modal-grid">
+        <div class="modal-field">
+          <label class="modal-label">Strategy</label>
+          <select id="open-strategy-key" class="modal-select" onchange="updateOpenDerivedFields()">${options}</select>
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Underlying</label>
+          <input id="open-underlying" class="modal-input" value="${CURRENT_REC?.underlying || 'SPX'}">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Expiry</label>
+          <input id="open-expiry" class="modal-input" type="date" value="${plusDays(dteDefault(STRATEGY_META[CURRENT_REC?.strategy_key] || {}))}" oninput="this.dataset.locked='1'">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">DTE at Entry</label>
+          <input id="open-dte" class="modal-input" type="number" value="${dteDefault(STRATEGY_META[CURRENT_REC?.strategy_key] || {})}">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Short Strike</label>
+          <input id="open-short-strike" class="modal-input" type="number">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Long Strike</label>
+          <input id="open-long-strike" class="modal-input" type="number">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Contracts</label>
+          <input id="open-contracts" class="modal-input" type="number" min="1" step="1" value="1">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Actual Premium</label>
+          <input id="open-actual-premium" class="modal-input" type="number" step="0.01" oninput="updatePremiumDiff()">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Model Premium</label>
+          <input id="open-model-premium" class="modal-input" type="number" step="0.01" oninput="updatePremiumDiff()">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Entry Note</label>
+          <input id="open-note" class="modal-input">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Paper Trade</label>
+          <label class="modal-check"><input id="open-paper-trade" type="checkbox"> Mark as paper trade</label>
+        </div>
+        <div class="modal-field full">
+          <div class="modal-hint" id="open-legs-hint">Loading algorithm draft…</div>
+        </div>
+        <div class="modal-field full">
+          <div class="modal-hint" id="open-premium-diff">Fill actual + model premium to see the variance.</div>
+        </div>
+      </div>
+      <div class="modal-cta">
+        <button class="action-btn" onclick="closeTradeModal()">Cancel</button>
+        <button class="action-btn primary" onclick="submitOpenPosition()">Open</button>
+      </div>`);
+    updateOpenDerivedFields();
+    loadOpenDraft();
+  } else if (kind === 'close') {
+    title.textContent = 'Close Position';
+    body.innerHTML = modalShell(`
+      <div class="modal-grid">
+        <div class="modal-field">
+          <label class="modal-label">Exit Premium</label>
+          <input id="close-exit-premium" class="modal-input" type="number" step="0.01" oninput="updateCloseDerivedFields()">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Exit Reason</label>
+          <select id="close-reason" class="modal-select">
+            <option value="50pct_profit">50pct_profit</option>
+            <option value="stop_loss">stop_loss</option>
+            <option value="roll_21dte">roll_21dte</option>
+            <option value="manual">manual</option>
+            <option value="expired">expired</option>
+          </select>
+        </div>
+        <div class="modal-field full">
+          <label class="modal-label">Note</label>
+          <input id="close-note" class="modal-input">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Actual PnL</label>
+          <div class="modal-hint" id="close-pnl">—</div>
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Model PnL</label>
+          <div class="modal-hint" id="close-model-pnl">—</div>
+        </div>
+      </div>
+      <div class="modal-cta">
+        <button class="action-btn" onclick="closeTradeModal()">Cancel</button>
+        <button class="action-btn primary" onclick="submitClosePosition()">Close</button>
+      </div>`);
+    updateCloseDerivedFields();
+  } else if (kind === 'correct') {
+    title.textContent = 'Correct Position';
+    body.innerHTML = modalShell(`
+      <div class="modal-grid">
+        <div class="modal-field">
+          <label class="modal-label">Actual Premium</label>
+          <input id="correct-actual-premium" class="modal-input" type="number" step="0.01" value="${CURRENT_POS?.actual_premium ?? ''}">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Contracts</label>
+          <input id="correct-contracts" class="modal-input" type="number" step="1" value="${CURRENT_POS?.contracts ?? 1}">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Short Strike</label>
+          <input id="correct-short-strike" class="modal-input" type="number" value="${CURRENT_POS?.short_strike ?? ''}">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Long Strike</label>
+          <input id="correct-long-strike" class="modal-input" type="number" value="${CURRENT_POS?.long_strike ?? ''}">
+        </div>
+        <div class="modal-field full">
+          <label class="modal-label">Expiry</label>
+          <input id="correct-expiry" class="modal-input" type="date" value="${CURRENT_POS?.expiry ?? ''}">
+        </div>
+        <div class="modal-field full">
+          <label class="modal-label">Reason</label>
+          <input id="correct-reason" class="modal-input" placeholder="mistyped premium at entry">
+        </div>
+      </div>
+      <div class="modal-cta">
+        <button class="action-btn" onclick="closeTradeModal()">Cancel</button>
+        <button class="action-btn primary" onclick="submitCorrection()">Save Correction</button>
+      </div>`);
+  } else if (kind === 'void') {
+    title.textContent = 'Void Position';
+    body.innerHTML = modalShell(`
+      <div class="modal-grid">
+        <div class="modal-field full">
+          <div class="modal-hint">⚠ Void this position? This will mark the entire trade as void and clear the open position. This cannot be undone.</div>
+        </div>
+        <div class="modal-field full">
+          <label class="modal-label">Reason</label>
+          <input id="void-reason" class="modal-input" placeholder="duplicate entry">
+        </div>
+      </div>
+      <div class="modal-cta">
+        <button class="action-btn" onclick="closeTradeModal()">Cancel</button>
+        <button class="action-btn primary" onclick="submitVoidTrade()">Void Trade</button>
+      </div>`);
+  } else if (kind === 'roll') {
+    title.textContent = 'Roll Position';
+    body.innerHTML = modalShell(`
+      <div class="modal-grid">
+        <div class="modal-field">
+          <label class="modal-label">New Expiry</label>
+          <input id="roll-expiry" class="modal-input" type="date" value="${CURRENT_POS?.expiry || plusDays(30)}">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Roll Credit</label>
+          <input id="roll-credit" class="modal-input" type="number" step="0.01">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">New Short Strike</label>
+          <input id="roll-short-strike" class="modal-input" type="number" value="${CURRENT_POS?.short_strike || ''}">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">New Long Strike</label>
+          <input id="roll-long-strike" class="modal-input" type="number" value="${CURRENT_POS?.long_strike || ''}">
+        </div>
+        <div class="modal-field full">
+          <label class="modal-label">Note</label>
+          <input id="roll-note" class="modal-input" value="rolled at 21 DTE">
+        </div>
+      </div>
+      <div class="modal-cta">
+        <button class="action-btn" onclick="closeTradeModal()">Cancel</button>
+        <button class="action-btn primary" onclick="submitRollPosition()">Roll</button>
+      </div>`);
+  } else {
+    title.textContent = 'Add Note';
+    body.innerHTML = modalShell(`
+      <div class="modal-grid">
+        <div class="modal-field full">
+          <label class="modal-label">Note</label>
+          <input id="note-body" class="modal-input" placeholder="VIX spiked intraday, held position">
+        </div>
+      </div>
+      <div class="modal-cta">
+        <button class="action-btn" onclick="closeTradeModal()">Cancel</button>
+        <button class="action-btn primary" onclick="submitPositionNote()">Save Note</button>
+      </div>`);
+  }
+  wrap.classList.remove('hidden');
+}
+
+function showTradeModalMessage(msg, isError=false) {
+  const el = document.getElementById('trade-modal-msg');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = `modal-msg ${isError ? 'error' : 'ok'}`;
+}
+
+async function postJson(url, payload) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  });
+  return res.json();
+}
+
+async function submitOpenPosition() {
+  const strategyKey = document.getElementById('open-strategy-key').value;
+  const payload = {
+    strategy_key: strategyKey,
+    underlying: document.getElementById('open-underlying').value || 'SPX',
+    short_strike: Number(document.getElementById('open-short-strike').value || 0),
+    long_strike: Number(document.getElementById('open-long-strike').value || 0),
+    expiry: document.getElementById('open-expiry').value,
+    dte_at_entry: Number(document.getElementById('open-dte').value || dteDefault(selectedOpenMeta())),
+    contracts: Number(document.getElementById('open-contracts').value || 1),
+    actual_premium: document.getElementById('open-actual-premium').value || null,
+    model_premium: document.getElementById('open-model-premium').value || null,
+    entry_spx: CURRENT_REC?.trend_snapshot?.spx ?? null,
+    entry_vix: CURRENT_REC?.vix_snapshot?.vix ?? null,
+    regime: CURRENT_REC?.vix_snapshot?.regime ?? null,
+    iv_signal: effectiveIvBucket(CURRENT_REC?.iv_snapshot || {}),
+    trend_signal: CURRENT_REC?.trend_snapshot?.signal ?? null,
+    paper_trade: !!document.getElementById('open-paper-trade')?.checked,
+    note: document.getElementById('open-note').value || '',
+  };
+  const data = await postJson('/api/position/open', payload);
+  if (data.error) return showTradeModalMessage(data.error, true);
+  showTradeModalMessage(`Opened trade ${data.trade_id}`);
+  await loadPosition();
+  setTimeout(closeTradeModal, 400);
+}
+
+async function submitClosePosition() {
+  const payload = {
+    exit_premium: Number(document.getElementById('close-exit-premium').value || 0),
+    exit_spx: CURRENT_REC?.trend_snapshot?.spx ?? null,
+    exit_reason: document.getElementById('close-reason').value,
+    note: document.getElementById('close-note').value || '',
+  };
+  const data = await postJson('/api/position/close', payload);
+  if (data.error) return showTradeModalMessage(data.error, true);
+  showTradeModalMessage(`Closed position · PnL ${data.actual_pnl ?? '—'}`);
+  await loadPosition();
+  setTimeout(closeTradeModal, 400);
+}
+
+async function submitRollPosition() {
+  const payload = {
+    new_expiry: document.getElementById('roll-expiry').value,
+    new_short_strike: Number(document.getElementById('roll-short-strike').value || 0),
+    new_long_strike: Number(document.getElementById('roll-long-strike').value || 0),
+    roll_credit: Number(document.getElementById('roll-credit').value || 0),
+    note: document.getElementById('roll-note').value || '',
+  };
+  const data = await postJson('/api/position/roll', payload);
+  if (data.error) return showTradeModalMessage(data.error, true);
+  showTradeModalMessage('Rolled position');
+  await loadPosition();
+  setTimeout(closeTradeModal, 400);
+}
+
+async function submitPositionNote() {
+  const payload = { note: document.getElementById('note-body').value || '' };
+  const data = await postJson('/api/position/note', payload);
+  if (data.error) return showTradeModalMessage(data.error, true);
+  showTradeModalMessage('Note saved');
+  await loadPosition();
+  setTimeout(closeTradeModal, 400);
+}
+
+async function submitCorrection() {
+  const payload = {
+    trade_id: CURRENT_POS?.trade_id,
+    target_event: 'open',
+    fields: {
+      actual_premium: document.getElementById('correct-actual-premium').value || null,
+      contracts: Number(document.getElementById('correct-contracts').value || 0),
+      short_strike: Number(document.getElementById('correct-short-strike').value || 0),
+      long_strike: Number(document.getElementById('correct-long-strike').value || 0),
+      expiry: document.getElementById('correct-expiry').value || null,
+      paper_trade: !!CURRENT_POS?.paper_trade,
+    },
+    reason: document.getElementById('correct-reason').value || '',
+  };
+  Object.keys(payload.fields).forEach(k => {
+    if (payload.fields[k] === null || payload.fields[k] === 0 || payload.fields[k] === '') delete payload.fields[k];
+  });
+  const data = await postJson('/api/position/correction', payload);
+  if (data.error) return showTradeModalMessage(data.error, true);
+  showTradeModalMessage(data.auto_recalculated ? 'Correction saved · close PnL recalculated' : 'Correction saved');
+  await loadPosition();
+  setTimeout(closeTradeModal, 500);
+}
+
+async function submitVoidTrade() {
+  const payload = {
+    trade_id: CURRENT_POS?.trade_id,
+    reason: document.getElementById('void-reason').value || '',
+  };
+  const data = await postJson('/api/position/void', payload);
+  if (data.error) return showTradeModalMessage(data.error, true);
+  showTradeModalMessage('Trade voided');
+  await loadPosition();
+  setTimeout(closeTradeModal, 500);
 }
 
 async function loadPosition() {
@@ -723,6 +1408,7 @@ document.getElementById('nav-date').textContent = now.toLocaleDateString('en-US'
 // Recommendation: every 5 min  |  Intraday: every 60 s  |  Position: every 30 s
 (async () => {
   try { await loadStrategyMeta(); } catch (_) {}
+  loadStats();
   load();
   loadPosition();
   loadIntraday();

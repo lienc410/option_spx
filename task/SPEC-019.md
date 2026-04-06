@@ -157,4 +157,4 @@ MA50 翻多时 MA20 平均领先仅 1.2 天（中位数 0 天）。**MA50 在实
 4. PM 了解：MA50 vs MA20 滞后性无实质差异（1.2 天均值领先）
 
 ---
-Status: DRAFT
+Status: DONE

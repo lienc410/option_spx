@@ -97,7 +97,12 @@ def read_state() -> Optional[dict]:
     return None
 
 
-def write_state(strategy: str, underlying: str = "SPX", strategy_key: Optional[str] = None) -> None:
+def write_state(
+    strategy: str,
+    underlying: str = "SPX",
+    strategy_key: Optional[str] = None,
+    **extra_fields,
+) -> None:
     """
     Persist a newly opened position. Initialises all extended fields.
     Creates the logs/ directory if needed.
@@ -107,7 +112,7 @@ def write_state(strategy: str, underlying: str = "SPX", strategy_key: Optional[s
             strategy_key = catalog_strategy_key(strategy)
         except Exception:
             strategy_key = None
-    _save({
+    payload = {
         "strategy_key": strategy_key,
         "strategy":   strategy,
         "underlying": underlying,
@@ -118,10 +123,12 @@ def write_state(strategy: str, underlying: str = "SPX", strategy_key: Optional[s
         "notes":      [],
         "closed_at":  None,
         "close_note": None,
-    })
+    }
+    payload.update({k: v for k, v in extra_fields.items() if v is not None})
+    _save(payload)
 
 
-def close_position(note: Optional[str] = None) -> None:
+def close_position(note: Optional[str] = None, **extra_fields) -> None:
     """
     Mark the current position as closed.
     Optionally records a close reason/note.
@@ -133,10 +140,11 @@ def close_position(note: Optional[str] = None) -> None:
     data["status"]     = "closed"
     data["closed_at"]  = date.today().isoformat()
     data["close_note"] = note or None
+    data.update({k: v for k, v in extra_fields.items() if v is not None})
     _save(data)
 
 
-def roll_position() -> None:
+def roll_position(**extra_fields) -> None:
     """
     Record a roll: increments roll_count and updates rolled_at.
     The position remains open with the same strategy/underlying.
@@ -146,10 +154,11 @@ def roll_position() -> None:
         return
     data["roll_count"] = data.get("roll_count", 0) + 1
     data["rolled_at"]  = date.today().isoformat()
+    data.update({k: v for k, v in extra_fields.items() if v is not None})
     _save(data)
 
 
-def add_note(note: str) -> None:
+def add_note(note: str, **extra_fields) -> None:
     """Append a free-text note to the current open position."""
     data = _load_raw()
     if data is None or data.get("status") != "open":
@@ -157,6 +166,16 @@ def add_note(note: str) -> None:
     notes = data.get("notes") or []
     notes.append(f"{date.today().isoformat()}: {note}")
     data["notes"] = notes
+    data.update({k: v for k, v in extra_fields.items() if v is not None})
+    _save(data)
+
+
+def update_open_position(**fields) -> None:
+    """Patch the current open position in place without resetting identity fields."""
+    data = _load_raw()
+    if data is None or data.get("status") != "open":
+        return
+    data.update({k: v for k, v in fields.items() if v is not None})
     _save(data)
 
 

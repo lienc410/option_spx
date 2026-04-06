@@ -125,4 +125,4 @@ IC / IC_HV 的 4 腿结构使 bid-ask 摩擦翻倍。在 NORMAL VIX 环境下，
 4. PM 已了解：Bull Put Spread（Normal）是 adj ROM 最高的策略（+2.433）
 
 ---
-Status: DRAFT
+Status: DONE

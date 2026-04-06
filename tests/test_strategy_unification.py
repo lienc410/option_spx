@@ -90,6 +90,8 @@ class SelectorCatalogConsistencyTests(unittest.TestCase):
         self.assertEqual(rec.strategy, StrategyName.REDUCE_WAIT)
         self.assertEqual(rec.strategy_key, "reduce_wait")
         self.assertTrue(rec.backwardation)
+        self.assertEqual(rec.canonical_strategy, "Bull Put Spread")
+        self.assertIn("contango restored", rec.re_enable_hint)
         self.assert_catalog_backed(rec)
 
     def test_normal_neutral_bearish_still_uses_iron_condor(self) -> None:
@@ -110,6 +112,10 @@ class SelectorCatalogConsistencyTests(unittest.TestCase):
         )
         self.assertEqual(rec.strategy, StrategyName.REDUCE_WAIT)
         self.assertEqual(rec.strategy_key, "reduce_wait")
+        self.assertEqual(rec.canonical_strategy, "Bear Call Spread (High Vol)")
+        self.assertEqual(rec.re_enable_hint, "VIX trend turns FLAT or FALLING")
+        self.assertEqual(rec.overlay_mode, "disabled")
+        self.assertEqual(rec.shock_mode, "shadow")
         self.assert_catalog_backed(rec)
 
     def test_high_vol_bearish_stable_still_uses_bear_call_spread_hv(self) -> None:

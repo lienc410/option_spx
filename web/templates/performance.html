@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPX Strategy · Performance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:            #080A13;
+  --surface:       #0D1020;
+  --surface-hi:    #131728;
+  --border:        #191E33;
+  --border-2:      #232A42;
+  --text:          #C4CEEC;
+  --text-2:        #606880;
+  --text-muted:    #363C52;
+  --gold:          #C9A840;
+  --gold-bg:       rgba(201,168,64,0.07);
+  --gold-border:   rgba(201,168,64,0.22);
+  --green:         #42CC7C;
+  --green-bg:      rgba(66,204,124,0.07);
+  --green-border:  rgba(66,204,124,0.22);
+  --red:           #E04862;
+  --red-bg:        rgba(224,72,98,0.07);
+  --red-border:    rgba(224,72,98,0.22);
+  --blue:          #4888E8;
+  --blue-bg:       rgba(72,136,232,0.07);
+  --orange:        #E08040;
+
+  --f-display: 'Newsreader', Georgia, serif;
+  --f-mono:    'JetBrains Mono', 'Courier New', monospace;
+  --f-ui:      'DM Sans', system-ui, sans-serif;
+}
+
+html { font-size: 14px; }
+body { font-family: var(--f-ui); background: radial-gradient(circle at top, rgba(72,136,232,0.08), transparent 38%), var(--bg); color: var(--text); min-height: 100vh; }
+
+.nav {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px; height: 50px;
+  background: rgba(8,10,19,0.88); backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.nav-brand { font-family: var(--f-display); font-size: 1.05rem; color: var(--text); }
+.nav-brand em { color: var(--gold); font-style: italic; }
+.nav-links { display: flex; gap: 2px; }
+.nav-link {
+  font-size: 0.76rem; font-weight: 500; color: var(--text-2);
+  text-decoration: none; padding: 5px 13px; border-radius: 5px;
+  letter-spacing: 0.03em; transition: color .15s, background .15s;
+}
+.nav-link:hover  { color: var(--text); background: var(--surface-hi); }
+.nav-link.active { color: var(--gold); background: var(--gold-bg); }
+.nav-right { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-muted); }
+
+.container { max-width: 1120px; margin: 0 auto; padding: 28px 24px 72px; }
+.page-hd { display: flex; justify-content: space-between; gap: 14px; align-items: end; margin-bottom: 22px; flex-wrap: wrap; }
+.page-title {
+  font-family: var(--f-display); font-style: italic; font-size: 1.65rem;
+  font-weight: 400; color: var(--text); margin-bottom: 8px;
+}
+.page-sub { font-size: 0.8rem; color: var(--text-2); max-width: 720px; line-height: 1.6; }
+.status-strip {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-muted);
+}
+.filter-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;
+}
+.toggle {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 12px; border-radius: 999px;
+  border: 1px solid var(--border-2); background: var(--surface);
+  color: var(--text); font-size: 0.74rem;
+}
+.toggle input { accent-color: var(--gold); }
+.toggle-note { font-size: 0.74rem; color: var(--text-2); }
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px; border-radius: 999px;
+  border: 1px solid var(--border-2); background: var(--surface);
+}
+.pill strong { color: var(--text); font-weight: 600; }
+
+.metric-grid {
+  display: grid; grid-template-columns: repeat(6, 1fr);
+  gap: 12px; margin-bottom: 18px;
+}
+.m-card {
+  background: linear-gradient(180deg, rgba(19,23,40,0.9), rgba(13,16,32,0.95));
+  border: 1px solid var(--border-2);
+  border-radius: 12px; padding: 16px 16px 14px;
+  min-height: 108px;
+}
+.m-label {
+  font-size: 0.58rem; font-weight: 700; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px;
+}
+.m-value {
+  font-family: var(--f-mono); font-size: 1.36rem; font-weight: 600;
+  line-height: 1.05; color: var(--text); margin-bottom: 6px;
+}
+.m-value.pos { color: var(--green); }
+.m-value.neg { color: var(--red); }
+.m-sub { font-size: 0.72rem; color: var(--text-2); line-height: 1.45; }
+
+.grid-2 { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; margin-bottom: 18px; }
+.grid-2-eq { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px; }
+.card {
+  background: var(--surface); border: 1px solid var(--border-2);
+  border-radius: 12px; padding: 18px 18px 16px;
+}
+.section-title {
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.11em;
+  text-transform: uppercase; color: var(--text-muted); margin-bottom: 14px;
+}
+.chart-wrap { position: relative; height: 240px; }
+.table-wrap { overflow: auto; }
+table { width: 100%; border-collapse: collapse; }
+th {
+  font-family: var(--f-mono); font-size: 0.63rem; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted);
+  text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border-2);
+}
+td {
+  padding: 11px 8px; border-bottom: 1px solid var(--border);
+  font-size: 0.79rem; color: var(--text);
+}
+tr:last-child td { border-bottom: none; }
+.mono { font-family: var(--f-mono); }
+.muted { color: var(--text-2); }
+.pos { color: var(--green); }
+.neg { color: var(--red); }
+.empty {
+  padding: 18px 0 6px; color: var(--text-2); font-size: 0.8rem; line-height: 1.6;
+}
+.open-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.open-card {
+  border: 1px solid var(--border-2); border-radius: 10px; padding: 14px 14px 12px;
+  background: linear-gradient(180deg, rgba(72,136,232,0.06), transparent 30%), var(--surface-hi);
+}
+.open-hd { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 10px; align-items: start; }
+.open-name { font-weight: 500; font-size: 0.9rem; color: var(--text); }
+.tag {
+  display: inline-block; padding: 2px 8px; border-radius: 999px;
+  font-size: 0.64rem; font-weight: 700; letter-spacing: 0.06em;
+  border: 1px solid var(--gold-border); background: var(--gold-bg); color: var(--gold);
+}
+.kv { display: flex; justify-content: space-between; gap: 10px; font-size: 0.75rem; color: var(--text-2); margin-top: 6px; }
+.kv strong { color: var(--text); font-family: var(--f-mono); font-weight: 600; }
+.error-box {
+  display: none; margin-bottom: 18px; padding: 13px 16px; border-radius: 10px;
+  background: var(--red-bg); border: 1px solid var(--red-border); color: var(--text);
+}
+
+@media (max-width: 980px) {
+  .metric-grid { grid-template-columns: repeat(3, 1fr); }
+  .grid-2, .grid-2-eq { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  .nav { padding: 0 14px; }
+  .nav-links { overflow-x: auto; }
+  .container { padding: 20px 16px 56px; }
+  .metric-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <span class="nav-brand">SPX <em>Strategy</em></span>
+  <div class="nav-links">
+    <a href="/" class="nav-link">Dashboard</a>
+    <a href="/matrix" class="nav-link">Matrix</a>
+    <a href="/backtest" class="nav-link">Backtest</a>
+    <a href="/margin" class="nav-link">Margin</a>
+    <a href="/performance" class="nav-link active">Performance</a>
+  </div>
+  <div class="nav-right" id="nav-date">—</div>
+</nav>
+
+<main class="container">
+  <header class="page-hd">
+    <div>
+      <h1 class="page-title">Live Trade Performance</h1>
+      <p class="page-sub">Resolved trade log only. Realized metrics exclude voided trades and open positions; Schwab data enriches the current open position when available but does not replace the ledger.</p>
+    </div>
+    <div class="status-strip">
+      <span class="pill">Raw IDs <strong id="raw-count">—</strong></span>
+      <span class="pill">Effective Trades <strong id="effective-count">—</strong></span>
+      <span class="pill">Schwab <strong id="schwab-state">Checking…</strong></span>
+    </div>
+  </header>
+
+  <div class="error-box" id="error-box"></div>
+  <div class="filter-row">
+    <label class="toggle"><input type="checkbox" id="exclude-paper-toggle" checked> Exclude Paper Trades</label>
+    <div class="toggle-note" id="paper-filter-note">Showing live performance excluding paper trades.</div>
+  </div>
+
+  <section class="metric-grid">
+    <article class="m-card">
+      <div class="m-label">Closed Trades</div>
+      <div class="m-value" id="m-closed">—</div>
+      <div class="m-sub">Resolved and non-voided</div>
+    </article>
+    <article class="m-card">
+      <div class="m-label">Win Rate</div>
+      <div class="m-value" id="m-win-rate">—</div>
+      <div class="m-sub">Realized only</div>
+    </article>
+    <article class="m-card">
+      <div class="m-label">Total Realized P&amp;L</div>
+      <div class="m-value" id="m-total-pnl">—</div>
+      <div class="m-sub">Closed trade log result</div>
+    </article>
+    <article class="m-card">
+      <div class="m-label">Avg Win / Loss</div>
+      <div class="m-value" id="m-avg-pair">—</div>
+      <div class="m-sub" id="m-avg-sub">—</div>
+    </article>
+    <article class="m-card">
+      <div class="m-label">Expectancy</div>
+      <div class="m-value" id="m-expectancy">—</div>
+      <div class="m-sub">Per closed trade</div>
+    </article>
+    <article class="m-card">
+      <div class="m-label">Open Trades</div>
+      <div class="m-value" id="m-open">—</div>
+      <div class="m-sub" id="m-open-sub">Not included in realized stats</div>
+    </article>
+  </section>
+
+  <section class="grid-2-eq">
+    <article class="card">
+      <div class="section-title">Monthly Realized P&amp;L</div>
+      <div class="chart-wrap"><canvas id="monthly-chart"></canvas></div>
+    </article>
+    <article class="card">
+      <div class="section-title">Cumulative Realized P&amp;L</div>
+      <div class="chart-wrap"><canvas id="cumulative-chart"></canvas></div>
+    </article>
+  </section>
+
+  <section class="grid-2">
+    <article class="card">
+      <div class="section-title">By Strategy</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Strategy</th>
+              <th>Trades</th>
+              <th>Win Rate</th>
+              <th>Total P&amp;L</th>
+              <th>Avg P&amp;L</th>
+            </tr>
+          </thead>
+          <tbody id="strategy-body"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="strategy-empty" style="display:none;">No closed trades yet, so by-strategy performance has nothing to aggregate.</div>
+    </article>
+
+    <article class="card">
+      <div class="section-title">Open Positions</div>
+      <div class="open-grid" id="open-grid"></div>
+      <div class="empty" id="open-empty" style="display:none;">No open live trades in the resolved log.</div>
+    </article>
+  </section>
+
+  <section class="card">
+    <div class="section-title">Recent Closed Trades</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Strategy</th>
+            <th>Opened</th>
+            <th>Closed</th>
+            <th>Contracts</th>
+            <th>Actual P&amp;L</th>
+          </tr>
+        </thead>
+        <tbody id="recent-body"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="recent-empty" style="display:none;">No closed trades are available yet.</div>
+  </section>
+</main>
+
+<script>
+let catalog = {};
+let monthlyChart = null;
+let cumulativeChart = null;
+
+const money = (value) => {
+  const n = Number(value || 0);
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(n);
+};
+
+const pct = (value) => `${(Number(value || 0) * 100).toFixed(0)}%`;
+const fixed = (value, digits = 2) => Number(value || 0).toFixed(digits);
+
+function setMetric(id, value, className = '') {
+  const el = document.getElementById(id);
+  el.textContent = value;
+  el.className = `m-value ${className}`.trim();
+}
+
+function strategyName(key, fallback) {
+  return catalog[key]?.name || fallback || key || '—';
+}
+
+function colorFor(value) {
+  return Number(value || 0) >= 0 ? '#42CC7C' : '#E04862';
+}
+
+function renderSummary(summary) {
+  setMetric('m-closed', summary.closed_trades || 0);
+  setMetric('m-win-rate', pct(summary.win_rate));
+  setMetric('m-total-pnl', money(summary.total_realized_pnl), Number(summary.total_realized_pnl || 0) >= 0 ? 'pos' : 'neg');
+  setMetric('m-avg-pair', `${money(summary.avg_win)} / ${money(summary.avg_loss)}`);
+  document.getElementById('m-avg-sub').textContent = `Best ${money(summary.best_trade)} · Worst ${money(summary.worst_trade)}`;
+  setMetric('m-expectancy', money(summary.expectancy), Number(summary.expectancy || 0) >= 0 ? 'pos' : 'neg');
+  setMetric('m-open', summary.open_trades || 0);
+}
+
+function renderByStrategy(byStrategy) {
+  const tbody = document.getElementById('strategy-body');
+  tbody.innerHTML = '';
+  const rows = Object.entries(byStrategy || {}).sort((a, b) => (b[1].total_pnl || 0) - (a[1].total_pnl || 0));
+  document.getElementById('strategy-empty').style.display = rows.length ? 'none' : 'block';
+  for (const [key, stats] of rows) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${strategyName(key, key)}</td>
+      <td class="mono">${stats.n || 0}</td>
+      <td class="mono">${pct(stats.win_rate)}</td>
+      <td class="mono ${Number(stats.total_pnl || 0) >= 0 ? 'pos' : 'neg'}">${money(stats.total_pnl)}</td>
+      <td class="mono ${Number(stats.avg_pnl || 0) >= 0 ? 'pos' : 'neg'}">${money(stats.avg_pnl)}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+function renderOpenPositions(rows, schwabVisible) {
+  const grid = document.getElementById('open-grid');
+  grid.innerHTML = '';
+  document.getElementById('open-empty').style.display = rows.length ? 'none' : 'block';
+  document.getElementById('schwab-state').textContent = schwabVisible ? 'Live' : 'Optional / Off';
+  document.getElementById('m-open-sub').textContent = schwabVisible
+    ? 'Schwab enrichment active for open trade'
+    : 'Trade-log only; Schwab enrichment unavailable';
+  for (const row of rows) {
+    const article = document.createElement('article');
+    article.className = 'open-card';
+    article.innerHTML = `
+      <div class="open-hd">
+        <div>
+          <div class="open-name">${strategyName(row.strategy_key, row.strategy)}${row.paper_trade ? ' <span class="tag">PAPER</span>' : ''}</div>
+          <div class="muted mono" style="margin-top:4px;">${row.id || '—'}</div>
+        </div>
+        <span class="tag">${row.contracts || 0}x</span>
+      </div>
+      <div class="kv"><span>Opened</span><strong>${row.opened_at || '—'}</strong></div>
+      <div class="kv"><span>Entry Premium</span><strong>${row.entry_premium == null ? '—' : fixed(row.entry_premium)}</strong></div>
+      <div class="kv"><span>Mark</span><strong>${row.mark == null ? '—' : fixed(row.mark)}</strong></div>
+      <div class="kv"><span>Trade Log P&amp;L</span><strong class="${Number(row.trade_log_pnl || 0) >= 0 ? 'pos' : 'neg'}">${row.trade_log_pnl == null ? '—' : money(row.trade_log_pnl)}</strong></div>
+      <div class="kv"><span>Unrealized P&amp;L</span><strong class="${Number(row.unrealized_pnl || 0) >= 0 ? 'pos' : 'neg'}">${row.unrealized_pnl == null ? '—' : money(row.unrealized_pnl)}</strong></div>
+      <div class="kv"><span>Greeks</span><strong>${row.delta == null ? '—' : `Δ ${fixed(row.delta)} · Θ ${fixed(row.theta)}${row.gamma == null ? '' : ` · Γ ${fixed(row.gamma, 3)}`}${row.vega == null ? '' : ` · ν ${fixed(row.vega)}`}`}</strong></div>
+    `;
+    grid.appendChild(article);
+  }
+}
+
+function renderRecent(rows) {
+  const tbody = document.getElementById('recent-body');
+  tbody.innerHTML = '';
+  document.getElementById('recent-empty').style.display = rows.length ? 'none' : 'block';
+  for (const row of rows) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="mono">${row.id || '—'}</td>
+      <td>${strategyName(row.strategy_key, row.strategy)}</td>
+      <td class="mono">${row.opened_at || '—'}</td>
+      <td class="mono">${row.closed_at || '—'}</td>
+      <td class="mono">${row.contracts || 0}</td>
+      <td class="mono ${Number(row.actual_pnl || 0) >= 0 ? 'pos' : 'neg'}">${money(row.actual_pnl)}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+function renderCharts(monthly) {
+  const labels = monthly.map((row) => row.month);
+  const realized = monthly.map((row) => Number(row.realized_pnl || 0));
+  let running = 0;
+  const cumulative = realized.map((value) => {
+    running += value;
+    return running;
+  });
+
+  if (monthlyChart) monthlyChart.destroy();
+  if (cumulativeChart) cumulativeChart.destroy();
+
+  monthlyChart = new Chart(document.getElementById('monthly-chart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Monthly P&L',
+        data: realized,
+        backgroundColor: realized.map(colorFor),
+        borderRadius: 6,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#606880' }, grid: { display: false } },
+        y: { ticks: { color: '#606880' }, grid: { color: 'rgba(35,42,66,0.45)' } },
+      },
+    },
+  });
+
+  cumulativeChart = new Chart(document.getElementById('cumulative-chart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Cumulative P&L',
+        data: cumulative,
+        borderColor: '#C9A840',
+        backgroundColor: 'rgba(201,168,64,0.12)',
+        fill: true,
+        tension: 0.25,
+        pointRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#606880' }, grid: { display: false } },
+        y: { ticks: { color: '#606880' }, grid: { color: 'rgba(35,42,66,0.45)' } },
+      },
+    },
+  });
+}
+
+async function loadPerformance() {
+  const errorBox = document.getElementById('error-box');
+  try {
+    const excludePaper = !!document.getElementById('exclude-paper-toggle')?.checked;
+    const perfUrl = excludePaper ? '/api/performance/live' : '/api/performance/live?include_paper=1';
+    const [catalogRes, perfRes] = await Promise.all([
+      fetch('/api/strategy-catalog'),
+      fetch(perfUrl),
+    ]);
+    if (!catalogRes.ok || !perfRes.ok) throw new Error('Failed to load live performance data');
+    const catalogData = await catalogRes.json();
+    const perf = await perfRes.json();
+    catalog = catalogData.strategies || {};
+    document.getElementById('raw-count').textContent = perf.trade_count_raw ?? '—';
+    document.getElementById('effective-count').textContent = perf.trade_count_effective ?? '—';
+    document.getElementById('paper-filter-note').textContent = perf.include_paper
+      ? `Including paper trades in summary · ${perf.paper_trade_count || 0} tagged`
+      : `Showing live performance excluding paper trades · ${perf.paper_trade_count || 0} tagged`;
+    renderSummary(perf.summary || {});
+    renderByStrategy(perf.by_strategy || {});
+    renderOpenPositions(perf.open_positions || [], (perf.open_positions || []).some((row) => row.unrealized_pnl != null || row.mark != null));
+    renderRecent(perf.recent_closed || []);
+    renderCharts(perf.monthly || []);
+    errorBox.style.display = 'none';
+  } catch (err) {
+    errorBox.textContent = err.message || String(err);
+    errorBox.style.display = 'block';
+  }
+}
+
+document.getElementById('nav-date').textContent = new Date().toLocaleDateString('en-US', {
+  year: 'numeric', month: 'short', day: 'numeric',
+});
+document.getElementById('exclude-paper-toggle').addEventListener('change', loadPerformance);
+loadPerformance();
+</script>
+</body>
+</html>

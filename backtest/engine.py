@@ -1033,6 +1033,159 @@ def run_backtest(
     )
 
 
+def run_signals_only(
+    start_date: str = "2000-01-01",
+    end_date: str | None = None,
+    interval: str = "1d",
+    params: StrategyParams = DEFAULT_PARAMS,
+) -> list[dict]:
+    """
+    Generate historical signal snapshots without running trade simulation.
+    """
+    vix_df = fetch_vix_history(period="max")
+    spx_df = fetch_spx_history(period="max")
+    try:
+        vix3m_df = fetch_vix3m_history(period="max")
+    except Exception:
+        vix3m_df = pd.DataFrame(columns=["vix3m"])
+
+    vix_df.index = pd.to_datetime(vix_df.index.date)
+    spx_df.index = pd.to_datetime(spx_df.index.date)
+    if not vix3m_df.empty:
+        vix3m_df.index = pd.to_datetime(vix3m_df.index.date)
+
+    intraday_current: dict[pd.Timestamp, tuple[float, float]] = {}
+    if interval == "1h":
+        try:
+            vix_1h = fetch_vix_history(period="2y", interval="1h")
+            spx_1h = fetch_spx_history(period="2y", interval="1h")
+            vix_1h["_date"] = pd.to_datetime(vix_1h.index.date)
+            spx_1h["_date"] = pd.to_datetime(spx_1h.index.date)
+            vix_first = vix_1h.groupby("_date")["vix"].first()
+            spx_first = spx_1h.groupby("_date")["close"].first()
+            for d in vix_first.index.intersection(spx_first.index):
+                intraday_current[d] = (float(vix_first[d]), float(spx_first[d]))
+        except Exception:
+            pass
+
+    df = pd.DataFrame({
+        "vix": vix_df["vix"],
+        "spx": spx_df["close"],
+    })
+    if not vix3m_df.empty:
+        df["vix3m"] = vix3m_df["vix3m"]
+    df = df.dropna(subset=["vix", "spx"])
+    df = df[df.index >= pd.Timestamp(start_date)]
+    if end_date:
+        df = df[df.index <= pd.Timestamp(end_date)]
+
+    if len(df) < 60:
+        raise ValueError(f"Not enough data after filtering: {len(df)} rows")
+
+    lookback_start = pd.Timestamp(start_date) - pd.Timedelta("400D")
+    full_vix = vix_df[vix_df.index >= lookback_start]
+    full_spx = spx_df[spx_df.index >= lookback_start]
+
+    signal_history: list[dict] = []
+    hv_spell_start: Optional[pd.Timestamp] = None
+    hv_spell_trade_count = 0
+    bearish_streak = 0
+
+    for date, row in df.iterrows():
+        spx_eod = float(row["spx"])
+        vix_eod = float(row["vix"])
+        if interval == "1h" and date in intraday_current:
+            vix, spx = intraday_current[date]
+        else:
+            vix, spx = vix_eod, spx_eod
+        vix3m = None if pd.isna(row.get("vix3m", np.nan)) else float(row["vix3m"])
+
+        date_key = pd.Timestamp(date)
+        vix_window = full_vix[full_vix.index <= date_key]["vix"]
+        spx_window = full_spx[full_spx.index <= date_key]["close"]
+
+        if len(vix_window) < 60 or len(spx_window) < 55:
+            continue
+
+        regime = _classify_regime(vix)
+        hv_spell_start, hv_spell_trade_count = _update_hv_spell_state(
+            regime,
+            vix,
+            date,
+            hv_spell_start,
+            hv_spell_trade_count,
+            params.extreme_vix,
+        )
+        iv_window = (vix_window.iloc[-252:] if len(vix_window) >= 252 else vix_window).copy()
+        iv_window.iloc[-1] = vix
+        ivr = compute_iv_rank(iv_window)
+        ivp = compute_iv_percentile(iv_window)
+        iv_eff = IVSig.HIGH if ivp > 70 else (IVSig.LOW if ivp < 40 else IVSig.NEUTRAL)
+
+        ma20_val = float(spx_window.rolling(20).mean().iloc[-1]) if len(spx_window) >= 20 else spx
+        ma50_val = float(spx_window.rolling(50).mean().iloc[-1]) if len(spx_window) >= 50 else spx
+        ma200_val = float(spx_window.rolling(200).mean().iloc[-1]) if len(spx_window) >= 200 else spx
+        gap = (spx - ma50_val) / ma50_val if ma50_val else 0
+
+        atr14 = None
+        gap_sigma = None
+        if len(spx_window) >= 64:
+            atr_series = _compute_atr14_close(spx_window)
+            latest_atr = atr_series.iloc[-1]
+            if pd.notna(latest_atr):
+                atr14 = float(latest_atr)
+                gap_sigma = (spx - ma50_val) / max(atr14, 1.0)
+        if params.use_atr_trend and gap_sigma is not None:
+            trend = _classify_trend_atr(gap_sigma)
+        else:
+            trend = TrendSignal.BULLISH if gap > TREND_THRESHOLD else (
+                TrendSignal.BEARISH if gap < -TREND_THRESHOLD else TrendSignal.NEUTRAL
+            )
+        bearish_streak = bearish_streak + 1 if trend == TrendSignal.BEARISH else 0
+
+        vix_5d_avg = float(vix_window.iloc[-5:].mean()) if len(vix_window) >= 5 else vix
+        vix_5d_ago = float(vix_window.iloc[-10:-5].mean()) if len(vix_window) >= 10 else vix_5d_avg
+        vix_trend = _vix_classify_trend(vix_5d_avg, vix_5d_ago)
+
+        vix_snap = VixSnapshot(
+            date=str(date.date()), vix=vix, regime=regime,
+            trend=vix_trend, vix_5d_avg=vix_5d_avg, vix_5d_ago=vix_5d_ago,
+            transition_warning=False, vix3m=vix3m,
+            backwardation=(vix3m is not None and vix > vix3m),
+        )
+        iv_snap = IVSnapshot(
+            date=str(date.date()), vix=vix,
+            iv_rank=ivr, iv_percentile=ivp, iv_signal=iv_eff,
+            iv_52w_high=float(iv_window.max()), iv_52w_low=float(iv_window.min()),
+        )
+        trend_snap = TrendSnapshot(
+            date=str(date.date()), spx=spx,
+            ma20=ma20_val, ma50=ma50_val, ma_gap_pct=gap, signal=trend,
+            above_200=(spx > ma200_val), atr14=atr14, gap_sigma=gap_sigma,
+        )
+        rec = select_strategy(vix_snap, iv_snap, trend_snap, params)
+        rec_key = catalog_key(rec.strategy.value) if rec.strategy != StrategyName.REDUCE_WAIT else None
+        spell_age = (date - hv_spell_start).days if hv_spell_start is not None else 0
+
+        signal_history.append({
+            "date": str(date.date()),
+            "vix": round(vix, 2),
+            "regime": regime.value,
+            "ivr": round(float(ivr), 1),
+            "ivp": round(float(ivp), 1),
+            "spx": round(spx, 2),
+            "trend": trend.value,
+            "trend_gap": round(gap * 100, 2),
+            "vix_5d_avg": round(vix_5d_avg, 2),
+            "strategy": rec.strategy.value,
+            "strategy_key": rec_key,
+            "hv_spell_age": spell_age if rec_key in HIGH_VOL_STRATEGY_KEYS or regime == Regime.HIGH_VOL else 0,
+            "bearish_streak": bearish_streak,
+        })
+
+    return signal_history
+
+
 # ─── Report ──────────────────────────────────────────────────────────────────
 
 def print_report(trades: list[Trade], metrics: dict) -> None:

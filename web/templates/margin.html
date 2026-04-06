@@ -194,6 +194,22 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   height: 6px; background: var(--border-2); border-radius: 3px; overflow: hidden;
 }
 .bp-bar-fill { height: 100%; border-radius: 3px; transition: width .6s ease; }
+.live-box {
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 18px;
+}
+.live-box-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.8rem;
+  color: var(--text-2);
+  margin-top: 6px;
+}
+.live-box-row strong { color: var(--text); font-family: var(--f-mono); font-weight: 600; }
 
 /* ── Footer ── */
 .footer {
@@ -212,6 +228,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     <a href="/matrix" class="nav-link">Matrix</a>
     <a href="/backtest" class="nav-link">Backtest</a>
     <a href="/margin" class="nav-link active">Margin</a>
+    <a href="/performance" class="nav-link">Performance</a>
   </div>
   <div class="nav-right">PM · $150k</div>
 </nav>
@@ -224,6 +241,8 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
       Schwab PM rules for SPX (broad-based index options) · Account $150,000 · risk_pct = 2%
     </div>
   </div>
+
+  <div id="live-bp-box" class="live-box" style="display:none"></div>
 
   <!-- ── How PM Works ──────────────────────────────────────────────── -->
   <div class="section">
@@ -642,5 +661,36 @@ BP = net_debit_paid × $100
   Formulas are deterministic for defined-risk spreads. Actual intraday margin may vary.
 </div>
 
+<script>
+async function loadLiveBp() {
+  const box = document.getElementById('live-bp-box');
+  try {
+    const res = await fetch('/api/schwab/balances');
+    const data = await res.json();
+    if (!data.configured) {
+      box.style.display = 'block';
+      box.innerHTML = '<div class="card-title">Live BP (Schwab)</div><div class="card-note">Schwab not configured — create a Schwab Developer app, set client_id / client_secret, then run <code>venv/bin/python -m schwab.setup</code>.</div>';
+      return;
+    }
+    if (!data.authenticated) {
+      box.style.display = 'block';
+      box.innerHTML = '<div class="card-title">Live BP (Schwab)</div><div class="card-note">Schwab configured but not authenticated. Run <code>venv/bin/python -m schwab.setup</code> to authorize.</div>';
+      return;
+    }
+    const used = Math.max(0, Number(data.initial_margin || 0));
+    const total = Number(data.buying_power || 0) + used;
+    const pct = total > 0 ? (used / total) * 100 : 0;
+    box.style.display = 'block';
+    box.innerHTML = `
+      <div class="card-title">Live BP (Schwab) ${data.stale ? '· stale' : ''}</div>
+      <div class="live-box-row"><span>Buying Power Used</span><strong>$${used.toLocaleString()} / $${total.toLocaleString()} (${pct.toFixed(1)}%)</strong></div>
+      <div class="live-box-row"><span>Remaining BP</span><strong>$${Number(data.buying_power || 0).toLocaleString()}</strong></div>
+      <div class="live-box-row"><span>Net Liquidation</span><strong>$${Number(data.net_liquidation || 0).toLocaleString()}</strong></div>
+      <div class="live-box-row"><span>Maintenance Margin</span><strong>$${Number(data.maintenance_margin || 0).toLocaleString()}</strong></div>
+      <div class="card-note" style="margin-top:8px">Last updated: ${(data.updated_at || '').replace('T', ' ')}</div>`;
+  } catch (_) {}
+}
+loadLiveBp();
+</script>
 </body>
 </html>

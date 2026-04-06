@@ -211,6 +211,9 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .cell-stat-label { opacity: 0.55; }
 .cell-stat-n { color: var(--text-2); }
 .cell-stat-wr { font-weight: 600; }
+.cell-stat-pnl { font-weight: 600; }
+.cell-stat-pnl.pnl-pos { color: var(--green); }
+.cell-stat-pnl.pnl-neg { color: var(--red); }
 .cell-stat-wr.wr-high { color: var(--green); }
 .cell-stat-wr.wr-mid  { color: var(--gold); }
 .cell-stat-wr.wr-low  { color: var(--red); }
@@ -365,6 +368,7 @@ table.mt-tbl { width: 100%; border-collapse: collapse; min-width: 640px; }
     <a href="/matrix" class="nav-link active">Matrix</a>
     <a href="/backtest" class="nav-link">Backtest</a>
     <a href="/margin" class="nav-link">Margin</a>
+    <a href="/performance" class="nav-link">Performance</a>
   </div>
   <div class="nav-right" id="nav-date">—</div>
 </nav>
@@ -578,10 +582,11 @@ function buildMatrix(regime) {
       const c10  = (_cellStats['10y']  || {})[cellKey];
       const cAll = (_cellStats['all']  || {})[cellKey];
       const wrClass = wr => wr >= 75 ? 'wr-high' : wr >= 55 ? 'wr-mid' : 'wr-low';
+      const avgClass = pnl => pnl >= 0 ? 'pnl-pos' : 'pnl-neg';
       const statsLoaded = Object.keys(_cellStats).length > 0;
       const showStats = statsLoaded && strat !== 'reduce_wait';
-      const stat = (s, lbl) => s
-        ? `<span class="cell-stat-n">${s.n}×</span><span class="cell-stat-wr ${wrClass(s.win_rate)}">${s.win_rate}%</span>`
+      const stat = s => s
+        ? `<span class="cell-stat-wr ${wrClass(s.win_rate)}">WR ${s.win_rate}%</span><span class="cell-stat-pnl ${avgClass(s.avg_pnl || 0)}">avg ${s.avg_pnl >= 0 ? '$+' : '$-'}${Math.abs(s.avg_pnl || 0)}</span><span class="cell-stat-n">n=${s.n}</span>`
         : '<span class="cell-stat-na">NA</span>';
       const stratCol = showStats ? `
         <div class="cell-stat-col">
@@ -774,11 +779,17 @@ async function ensureMatrixTrades() {
   try {
     const start = new Date();
     start.setFullYear(start.getFullYear() - 3);
-    const res  = await fetch(`/api/backtest?start=${start.toISOString().slice(0,10)}`);
+    const startStr = start.toISOString().slice(0,10);
+    const [res, sigRes] = await Promise.all([
+      fetch(`/api/backtest?start=${startStr}`),
+      fetch(`/api/signals/history?start=${startStr}`),
+    ]);
     const data = await res.json();
+    const sigData = await sigRes.json();
     if (data.error) throw new Error(data.error);
+    if (sigData.error) throw new Error(sigData.error);
     _matrixTrades  = data.trades  || [];
-    _matrixSignals = data.signals || [];
+    _matrixSignals = sigData.signals || [];
     return true;
   } catch (e) {
     return false;
