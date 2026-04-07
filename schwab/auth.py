@@ -163,12 +163,24 @@ def exchange_code_for_token(code: str) -> dict:
         "code": code,
         "redirect_uri": redirect_uri(),
     })
+    access_token = data["access_token"]
+    acct_hash = None
+    try:
+        res = requests.get(
+            "https://api.schwabapi.com/trader/v1/accounts/accountNumbers",
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=20,
+        )
+        if res.ok:
+            acct_hash = res.json()[0].get("hashValue")
+    except Exception:
+        pass
     payload = {
-        "access_token": data["access_token"],
+        "access_token": access_token,
         "refresh_token": data["refresh_token"],
         "expires_at": (now + timedelta(seconds=int(data.get("expires_in", 1800)))).isoformat(),
         "refresh_expires_at": (now + timedelta(days=7)).isoformat(),
-        "account_number": data.get("account_number"),
+        "account_number": acct_hash,
     }
     save_token(payload)
     return payload
