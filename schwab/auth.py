@@ -11,12 +11,15 @@ from urllib.parse import urlencode, urlparse, parse_qs
 from zoneinfo import ZoneInfo
 
 import requests
+from dotenv import load_dotenv
 
 
 _ET = ZoneInfo("America/New_York")
 TOKEN_FILE = Path.home() / ".spxstrat" / "schwab_token.json"
 AUTHORIZE_URL = os.getenv("SCHWAB_AUTHORIZE_URL", "https://api.schwabapi.com/v1/oauth/authorize")
 TOKEN_URL = os.getenv("SCHWAB_TOKEN_URL", "https://api.schwabapi.com/v1/oauth/token")
+
+load_dotenv()
 
 
 def client_id() -> str | None:

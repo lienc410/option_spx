@@ -212,6 +212,119 @@ def _now_et_iso() -> str:
     return datetime.now(_ET).isoformat(timespec="seconds")
 
 
+def _num(value) -> float | None:
+    try:
+        if value in (None, ""):
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _bp_target_fraction_for_strategy(strategy_key: str, regime_name: str | None = None) -> float:
+    from strategy.selector import DEFAULT_PARAMS
+
+    if regime_name == "HIGH_VOL" or strategy_key in {"bull_put_spread_hv", "bear_call_spread_hv", "iron_condor_hv"}:
+        return float(DEFAULT_PARAMS.bp_target_high_vol)
+    if regime_name == "LOW_VOL":
+        return float(DEFAULT_PARAMS.bp_target_low_vol)
+    return float(DEFAULT_PARAMS.bp_target_normal)
+
+
+def _estimate_bp_per_contract(strategy_key: str, short_strike, long_strike, premium) -> float | None:
+    short_k = _num(short_strike)
+    long_k = _num(long_strike)
+    premium_val = abs(_num(premium) or 0.0)
+    width = abs(short_k - long_k) if short_k is not None and long_k is not None else None
+
+    if strategy_key == "bull_call_diagonal":
+        return round(max(premium_val * 100.0, 0.0), 2)
+
+    if strategy_key in {
+        "bull_put_spread",
+        "bull_put_spread_hv",
+        "bear_call_spread_hv",
+        "iron_condor",
+        "iron_condor_hv",
+    }:
+        if width is None:
+            return None
+        return round(max((width - premium_val) * 100.0, 0.0), 2)
+
+    if width is not None:
+        return round(max((width - premium_val) * 100.0, 0.0), 2)
+    return round(max(premium_val * 100.0, 0.0), 2)
+
+
+def _bp_basis_snapshot() -> dict:
+    from schwab.client import get_account_balances
+    from strategy.selector import DEFAULT_PARAMS
+
+    basis = {
+        "basis_dollars": float(DEFAULT_PARAMS.initial_equity),
+        "basis_label": "Model Equity",
+        "basis_is_live": False,
+        "pct_basis_dollars": None,
+        "pct_basis_label": None,
+    }
+    try:
+        balances = get_account_balances()
+    except Exception:
+        return basis
+
+    option_bp = _num(balances.get("option_buying_power"))
+    buying_power = _num(balances.get("buying_power"))
+    if option_bp and option_bp > 0:
+        basis.update({
+            "basis_dollars": option_bp,
+            "basis_label": "Schwab Option BP",
+            "basis_is_live": True,
+            "pct_basis_dollars": option_bp,
+            "pct_basis_label": "Schwab Option BP",
+        })
+        return basis
+    if buying_power and buying_power > 0:
+        basis.update({
+            "basis_dollars": buying_power,
+            "basis_label": "Schwab Buying Power",
+            "basis_is_live": True,
+            "pct_basis_dollars": buying_power,
+            "pct_basis_label": "Schwab Buying Power",
+        })
+    return basis
+
+
+def _bp_preview_payload(strategy_key: str, regime_name: str | None, short_strike, long_strike, premium, contracts: int | float | None) -> dict:
+    target_fraction = _bp_target_fraction_for_strategy(strategy_key, regime_name)
+    basis = _bp_basis_snapshot()
+    bp_per_contract = _estimate_bp_per_contract(strategy_key, short_strike, long_strike, premium)
+    target_dollars = round(float(basis["basis_dollars"]) * target_fraction, 2)
+
+    if bp_per_contract and bp_per_contract > 0:
+        recommended_contracts = max(1, int(target_dollars // bp_per_contract))
+    else:
+        recommended_contracts = 1
+
+    contracts_value = max(1, int(_num(contracts) or recommended_contracts))
+    usage_dollars = round((bp_per_contract or 0.0) * contracts_value, 2) if bp_per_contract is not None else None
+    pct_basis = basis.get("pct_basis_dollars")
+    usage_pct = round((usage_dollars / pct_basis) * 100.0, 2) if usage_dollars is not None and pct_basis else None
+
+    return {
+        "bp_per_contract": bp_per_contract,
+        "bp_usage_dollars": usage_dollars,
+        "bp_usage_pct": usage_pct,
+        "bp_target_pct": round(target_fraction * 100.0, 2),
+        "bp_target_dollars": target_dollars,
+        "recommended_contracts": recommended_contracts,
+        "basis_dollars": round(float(basis["basis_dollars"]), 2),
+        "basis_label": basis["basis_label"],
+        "basis_is_live": basis["basis_is_live"],
+        "pct_basis_dollars": round(float(pct_basis), 2) if pct_basis else None,
+        "pct_basis_label": basis.get("pct_basis_label"),
+    }
+
+
 @app.route("/api/position/open", methods=["POST"])
 def api_position_open():
     from logs.trade_log_io import append_event, next_trade_id
@@ -284,6 +397,8 @@ def api_position_open():
 @app.route("/api/position/open-draft")
 def api_position_open_draft():
     from backtest.pricer import call_price, put_price, find_strike_for_delta
+    from schwab.auth import is_configured as schwab_is_configured
+    from schwab.scanner import build_strike_scan
     from strategy.selector import get_recommendation
 
     try:
@@ -310,12 +425,80 @@ def api_position_open_draft():
                 "note": leg.note,
             })
 
-        short_leg = next((l for l in priced_legs if l["action"] == "SELL"), None)
-        long_leg = next((l for l in priced_legs if l["action"] == "BUY"), None)
+        strike_scan = None
+        if schwab_is_configured():
+            scan_slots: dict[str, int] = {}
+            if rec.strategy_key == "bull_call_diagonal":
+                short_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "SELL" and l["option"] == "CALL"), None)
+                if short_idx is not None:
+                    scan_slots["short_leg"] = short_idx
+            elif rec.strategy_key in {"iron_condor", "iron_condor_hv"}:
+                short_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "SELL" and l["option"] == "CALL"), None)
+                long_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "BUY" and l["option"] == "CALL"), None)
+                if short_idx is not None:
+                    scan_slots["short_leg"] = short_idx
+                if long_idx is not None:
+                    scan_slots["long_leg"] = long_idx
+            else:
+                short_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "SELL"), None)
+                long_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "BUY"), None)
+                if short_idx is not None:
+                    scan_slots["short_leg"] = short_idx
+                if long_idx is not None:
+                    scan_slots["long_leg"] = long_idx
+
+            strike_scan = {"scan_fallback": False}
+            chosen_expiry = None
+            for slot, idx in scan_slots.items():
+                leg = priced_legs[idx]
+                target_delta = abs(float(leg["delta"])) if leg["option"] == "CALL" else -abs(float(leg["delta"]))
+                scan = build_strike_scan(
+                    symbol=rec.underlying,
+                    option_type=leg["option"],
+                    target_delta=target_delta,
+                    target_dte=int(leg["dte"]),
+                    center_strike=float(leg["strike"]),
+                )
+                enriched_rows = []
+                target_abs = abs(float(target_delta))
+                for row in scan["rows"]:
+                    live_delta = abs(float(row.get("delta"))) if row.get("delta") not in (None, "") else None
+                    delta_gap = abs(live_delta - target_abs) if live_delta is not None else None
+                    enriched_rows.append({
+                        **row,
+                        "target_delta": round(target_abs, 3),
+                        "live_delta": round(live_delta, 3) if live_delta is not None else None,
+                        "delta_gap": round(delta_gap, 3) if delta_gap is not None else None,
+                    })
+                strike_scan[slot] = enriched_rows
+                strike_scan["scan_fallback"] = strike_scan["scan_fallback"] or scan["scan_fallback"]
+                recommended = next((row for row in enriched_rows if row.get("recommended")), None)
+                if recommended:
+                    priced_legs[idx]["strike"] = int(round(float(recommended["strike"])))
+                    if recommended.get("mid") not in (None, ""):
+                        priced_legs[idx]["price"] = round(float(recommended["mid"]), 2)
+                    if recommended.get("expiry"):
+                        chosen_expiry = str(recommended["expiry"])
+
+            if len(strike_scan) == 1 and "scan_fallback" in strike_scan:
+                strike_scan = None
+        short_leg = None
+        long_leg = None
+        if rec.strategy_key in {"iron_condor", "iron_condor_hv"}:
+            short_leg = next((l for l in priced_legs if l["action"] == "SELL" and l["option"] == "CALL"), None)
+            long_leg = next((l for l in priced_legs if l["action"] == "BUY" and l["option"] == "CALL"), None)
+        elif rec.strategy_key == "bull_call_diagonal":
+            short_leg = next((l for l in priced_legs if l["action"] == "SELL" and l["option"] == "CALL"), None)
+            long_leg = next((l for l in priced_legs if l["action"] == "BUY" and l["option"] == "CALL"), None)
+        else:
+            short_leg = next((l for l in priced_legs if l["action"] == "SELL"), None)
+            long_leg = next((l for l in priced_legs if l["action"] == "BUY"), None)
         model_premium = round(sum((l["price"] if l["action"] == "SELL" else -l["price"]) for l in priced_legs), 2)
         expiry_dte = min(l["dte"] for l in priced_legs)
         expiry = (datetime.now(_ET).date() + timedelta(days=expiry_dte)).isoformat()
-        return jsonify({
+        if 'chosen_expiry' in locals() and chosen_expiry:
+            expiry = chosen_expiry
+        payload = {
             "strategy_key": rec.strategy_key,
             "strategy": rec.strategy.value,
             "underlying": rec.underlying,
@@ -333,7 +516,26 @@ def api_position_open_draft():
             "paper_trade": False,
             "legs": priced_legs,
             "legs_hint": " / ".join(f'{l["action"]} {l["option"]} {l["strike"]} ({l["dte"]}D)' for l in priced_legs),
-        })
+        }
+        bp_preview = _bp_preview_payload(
+            rec.strategy_key,
+            rec.vix_snapshot.regime.value,
+            payload["short_strike"],
+            payload["long_strike"],
+            model_premium,
+            1,
+        )
+        payload["contracts"] = bp_preview["recommended_contracts"]
+        payload["bp_preview"] = {
+            **bp_preview,
+            "bp_usage_dollars": round((bp_preview["bp_per_contract"] or 0.0) * payload["contracts"], 2)
+            if bp_preview["bp_per_contract"] is not None else None,
+            "bp_usage_pct": round((((bp_preview["bp_per_contract"] or 0.0) * payload["contracts"]) / bp_preview["pct_basis_dollars"]) * 100.0, 2)
+            if bp_preview["bp_per_contract"] is not None and bp_preview.get("pct_basis_dollars") else None,
+        }
+        if strike_scan:
+            payload["strike_scan"] = strike_scan
+        return jsonify(payload)
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 

@@ -410,10 +410,13 @@ body {
   inset: 0;
   background: rgba(8,10,19,0.72);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: 20px;
   z-index: 300;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .modal {
   width: min(560px, 100%);
@@ -421,6 +424,10 @@ body {
   border: 1px solid var(--border-2);
   border-radius: 12px;
   padding: 20px 22px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: auto 0;
 }
 .modal-hd {
   display: flex; align-items: center; justify-content: space-between;
@@ -455,6 +462,92 @@ body {
   font-family: var(--f-ui);
   font-size: 0.82rem;
 }
+.modal-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--text);
+}
+.scan-wrap {
+  display: grid;
+  gap: 6px;
+}
+.scan-box {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(72,136,232,0.05), transparent 28%), var(--surface-hi);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.scan-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.62rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.scan-note {
+  padding: 8px 10px;
+  font-size: 0.7rem;
+  color: var(--text-2);
+}
+.scan-table-wrap {
+  max-height: 220px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.scan-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--f-mono);
+}
+.scan-table th {
+  text-align: left;
+  padding: 7px 8px;
+  font-size: 0.58rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+.scan-table td {
+  padding: 8px 8px;
+  font-size: 0.67rem;
+  color: var(--text);
+  border-bottom: 1px solid rgba(35,42,66,0.45);
+}
+.scan-table tr:last-child td { border-bottom: none; }
+.scan-row {
+  cursor: pointer;
+  transition: background .12s ease, transform .12s ease;
+}
+.scan-row:hover {
+  background: rgba(201,168,64,0.06);
+}
+.scan-row.recommended {
+  background: rgba(66,204,124,0.07);
+}
+.scan-row.selected {
+  box-shadow: inset 0 0 0 1px var(--gold-border);
+  background: rgba(201,168,64,0.08);
+}
+.scan-row.warn td {
+  color: var(--orange);
+}
+.scan-row.gap-mid td {
+  color: #d6c26a;
+}
+.scan-row.gap-high td {
+  color: var(--red);
+}
+.scan-star { color: var(--gold); margin-right: 4px; }
 .modal-hint { font-size: 0.7rem; color: var(--text-2); }
 .modal-cta {
   display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;
@@ -464,6 +557,23 @@ body {
 }
 .modal-msg.error { color: var(--red); }
 .modal-msg.ok { color: var(--green); }
+
+@media (max-width: 720px) {
+  .modal-wrap {
+    padding: 12px;
+  }
+  .modal {
+    width: 100%;
+    max-height: calc(100vh - 24px);
+    padding: 16px;
+  }
+  .modal-grid {
+    grid-template-columns: 1fr;
+  }
+  .scan-table-wrap {
+    max-height: 180px;
+  }
+}
 
 /* ── Loading / Error ─────────────────────────────────────────── */
 .state-box { padding: 52px 20px; text-align: center; }
@@ -619,6 +729,8 @@ let STRAT_STATS = {};
 let CURRENT_REC = null;
 let CURRENT_POS = null;
 let MANUAL_OPTIONS = [];
+let CURRENT_OPEN_DRAFT = null;
+let CURRENT_BP_PREVIEW = null;
 
 function effectiveIvBucket(iv) {
   const ivRank = Number(iv.iv_rank ?? 0);
@@ -952,10 +1064,103 @@ function updateOpenDerivedFields() {
   const underlyingInput = document.getElementById('open-underlying');
   if (underlyingInput) underlyingInput.value = meta.underlying || 'SPX';
   if (expiryInput && !expiryInput.dataset.locked) expiryInput.value = plusDays(dteDefault(meta));
+  if (CURRENT_OPEN_DRAFT && CURRENT_OPEN_DRAFT.strategy_key === strategyKey) {
+    renderStrikeScan(CURRENT_OPEN_DRAFT);
+  } else {
+    renderStrikeScan(null);
+  }
   updatePremiumDiff();
+  updateOpenBpPreview();
+}
+
+function scanRowsFor(slot) {
+  return CURRENT_OPEN_DRAFT?.strike_scan?.[slot] || [];
+}
+
+function renderStrikeScan(draft) {
+  const shortWrap = document.getElementById('scan-short-wrap');
+  const longWrap = document.getElementById('scan-long-wrap');
+  if (!shortWrap || !longWrap) return;
+  const empty = '<div class="scan-note">No live strike scan available for this leg.</div>';
+  if (!draft?.strike_scan) {
+    shortWrap.innerHTML = '';
+    longWrap.innerHTML = '';
+    return;
+  }
+  const renderBox = (slot, label, selectedValue) => {
+    const rows = draft.strike_scan?.[slot] || [];
+    const limitValue = document.getElementById('open-scan-limit')?.value || '5';
+    const visibleRows = limitValue === 'all' ? rows : rows.slice(0, Number(limitValue || 5));
+    if (!rows.length) {
+      if (draft.strategy_key === 'bull_call_diagonal' && slot === 'long_leg') {
+        return `<div class="scan-box"><div class="scan-head"><span>${label}</span><span>Skipped</span></div><div class="scan-note">Scanner skipped this 90 DTE long leg by spec.</div></div>`;
+      }
+      return `<div class="scan-box"><div class="scan-head"><span>${label}</span><span>Fallback</span></div>${empty}</div>`;
+    }
+    const rowsHtml = visibleRows.map((row, idx) => {
+      const isSelected = Number(selectedValue || 0) === Number(row.strike || 0);
+      const cls = [
+        'scan-row',
+        row.recommended ? 'recommended' : '',
+        isSelected ? 'selected' : '',
+        Number(row.spread_pct || 0) > 0.30 ? 'warn' : '',
+        Number(row.delta_gap || 0) > 0.08 ? 'gap-high' : '',
+        Number(row.delta_gap || 0) > 0.03 && Number(row.delta_gap || 0) <= 0.08 ? 'gap-mid' : '',
+      ].filter(Boolean).join(' ');
+      return `
+        <tr class="${cls}" onclick="selectScanRow('${slot}', ${idx})">
+          <td>${row.recommended ? '<span class="scan-star">★</span>' : ''}${row.strike ?? '—'}</td>
+          <td>${row.expiry || '—'}</td>
+          <td>${row.bid == null ? '—' : Number(row.bid).toFixed(2)}</td>
+          <td>${row.ask == null ? '—' : Number(row.ask).toFixed(2)}</td>
+          <td>${row.spread_pct == null ? '—' : (Number(row.spread_pct) * 100).toFixed(1) + '%'}</td>
+          <td>${row.target_delta == null ? '—' : Number(row.target_delta).toFixed(2)}</td>
+          <td>${row.live_delta == null ? '—' : Number(row.live_delta).toFixed(2)}</td>
+          <td>${row.delta_gap == null ? '—' : Number(row.delta_gap).toFixed(3)}</td>
+          <td>${row.open_interest ?? '—'}</td>
+          <td>${row.score == null ? '—' : Number(row.score).toFixed(2)}</td>
+        </tr>`;
+    }).join('');
+    return `
+      <div class="scan-box">
+        <div class="scan-head"><span>${label}</span><span>Showing ${visibleRows.length}/${rows.length}</span></div>
+        <div class="scan-table-wrap">
+          <table class="scan-table">
+            <thead>
+              <tr><th>Strike</th><th>Expiry</th><th>Bid</th><th>Ask</th><th>Spread</th><th>Target Δ</th><th>Live Δ</th><th>Δ Gap</th><th>OI</th><th>Score</th></tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </div>
+      </div>`;
+  };
+  shortWrap.innerHTML = renderBox('short_leg', 'Short Leg Scan', document.getElementById('open-short-strike')?.value);
+  longWrap.innerHTML = renderBox('long_leg', 'Long Leg Scan', document.getElementById('open-long-strike')?.value);
+  if (draft.strike_scan.scan_fallback) {
+    const hint = document.getElementById('open-legs-hint');
+    if (hint) hint.textContent = 'No liquid strikes found for at least one leg — using model estimate where needed.';
+  }
+}
+
+function selectScanRow(slot, idx) {
+  const rows = scanRowsFor(slot);
+  const row = rows[idx];
+  if (!row) return;
+  const inputId = slot === 'short_leg' ? 'open-short-strike' : 'open-long-strike';
+  const input = document.getElementById(inputId);
+  if (input) input.value = row.strike ?? '';
+  const expiry = document.getElementById('open-expiry');
+  if (expiry && row.expiry) {
+    expiry.value = row.expiry;
+    expiry.dataset.locked = '1';
+  }
+  renderStrikeScan(CURRENT_OPEN_DRAFT);
+  updateOpenBpPreview();
 }
 
 function applyOpenDraft(draft) {
+  CURRENT_OPEN_DRAFT = draft;
+  CURRENT_BP_PREVIEW = draft.bp_preview || null;
   const set = (id, value) => {
     const el = document.getElementById(id);
     if (el && value != null) el.value = value;
@@ -972,7 +1177,9 @@ function applyOpenDraft(draft) {
   if (paperEl) paperEl.checked = !!draft.paper_trade;
   const hint = document.getElementById('open-legs-hint');
   if (hint) hint.textContent = draft.legs_hint || 'Algorithm draft loaded.';
+  renderStrikeScan(draft);
   updatePremiumDiff();
+  updateOpenBpPreview();
 }
 
 async function loadOpenDraft() {
@@ -998,6 +1205,51 @@ function updatePremiumDiff() {
   }
   const diff = (actual - model).toFixed(2);
   hint.textContent = `Actual vs model: ${diff >= 0 ? '+' : ''}${diff}`;
+}
+
+function bpTargetPctForStrategy(strategyKey) {
+  if (strategyKey === 'bull_put_spread_hv' || strategyKey === 'bear_call_spread_hv' || strategyKey === 'iron_condor_hv') return 7.0;
+  return 10.0;
+}
+
+function estimateBpPerContract(strategyKey, shortStrike, longStrike, premium) {
+  const shortVal = Number(shortStrike || 0);
+  const longVal = Number(longStrike || 0);
+  const premiumVal = Math.abs(Number(premium || 0));
+  const width = Math.abs(shortVal - longVal);
+  if (strategyKey === 'bull_call_diagonal') return premiumVal > 0 ? premiumVal * 100 : 0;
+  if (['bull_put_spread', 'bull_put_spread_hv', 'bear_call_spread_hv', 'iron_condor', 'iron_condor_hv'].includes(strategyKey)) {
+    return width > 0 ? Math.max((width - premiumVal) * 100, 0) : 0;
+  }
+  return width > 0 ? Math.max((width - premiumVal) * 100, 0) : premiumVal * 100;
+}
+
+function updateOpenBpPreview() {
+  const el = document.getElementById('open-bp-preview');
+  if (!el) return;
+  const strategyKey = document.getElementById('open-strategy-key')?.value || CURRENT_OPEN_DRAFT?.strategy_key || '';
+  const shortStrike = Number(document.getElementById('open-short-strike')?.value || 0);
+  const longStrike = Number(document.getElementById('open-long-strike')?.value || 0);
+  const modelPremium = document.getElementById('open-model-premium')?.value;
+  const actualPremium = document.getElementById('open-actual-premium')?.value;
+  const contracts = Math.max(1, Number(document.getElementById('open-contracts')?.value || CURRENT_BP_PREVIEW?.recommended_contracts || 1));
+  const premium = actualPremium || modelPremium || 0;
+  const bpPerContract = estimateBpPerContract(strategyKey, shortStrike, longStrike, premium);
+  const basisDollars = Number(CURRENT_BP_PREVIEW?.basis_dollars || 0);
+  const basisLabel = CURRENT_BP_PREVIEW?.basis_label || 'Model Equity';
+  const pctBasis = CURRENT_BP_PREVIEW?.pct_basis_dollars == null ? null : Number(CURRENT_BP_PREVIEW.pct_basis_dollars);
+  const targetPct = bpTargetPctForStrategy(strategyKey);
+  const targetDollars = basisDollars ? basisDollars * targetPct / 100 : Number(CURRENT_BP_PREVIEW?.bp_target_dollars || 0);
+  const recommendedContracts = bpPerContract > 0 && targetDollars > 0 ? Math.max(1, Math.floor(targetDollars / bpPerContract)) : 1;
+  const usageDollars = bpPerContract > 0 ? bpPerContract * contracts : 0;
+  const usagePct = pctBasis ? (usageDollars / pctBasis) * 100 : null;
+
+  el.innerHTML = `
+    Estimated BP: <strong>${bpPerContract > 0 ? '$' + bpPerContract.toLocaleString(undefined, {maximumFractionDigits: 0}) + '/contract' : '—'}</strong>
+    · Usage: <strong>$${usageDollars.toLocaleString(undefined, {maximumFractionDigits: 0})}</strong>${usagePct == null ? '' : ` <strong>(${usagePct.toFixed(2)}%)</strong>`}
+    · Target: <strong>$${targetDollars.toLocaleString(undefined, {maximumFractionDigits: 0})}</strong> <strong>(${targetPct.toFixed(2)}%)</strong>
+    · Basis: <strong>${basisLabel}</strong>${basisDollars ? ` <strong>($${basisDollars.toLocaleString(undefined, {maximumFractionDigits: 0})})</strong>` : ''}
+    · Recommended contracts: <strong>${recommendedContracts}</strong>`;
 }
 
 function updateCloseDerivedFields() {
@@ -1043,23 +1295,29 @@ function openTradeModal(kind) {
         </div>
         <div class="modal-field">
           <label class="modal-label">Short Strike</label>
-          <input id="open-short-strike" class="modal-input" type="number">
+          <input id="open-short-strike" class="modal-input" type="number" oninput="updateOpenBpPreview()">
+        </div>
+        <div class="modal-field full">
+          <div class="scan-wrap" id="scan-short-wrap"></div>
         </div>
         <div class="modal-field">
           <label class="modal-label">Long Strike</label>
-          <input id="open-long-strike" class="modal-input" type="number">
+          <input id="open-long-strike" class="modal-input" type="number" oninput="updateOpenBpPreview()">
+        </div>
+        <div class="modal-field full">
+          <div class="scan-wrap" id="scan-long-wrap"></div>
         </div>
         <div class="modal-field">
           <label class="modal-label">Contracts</label>
-          <input id="open-contracts" class="modal-input" type="number" min="1" step="1" value="1">
+          <input id="open-contracts" class="modal-input" type="number" min="1" step="1" value="1" oninput="updateOpenBpPreview()">
         </div>
         <div class="modal-field">
           <label class="modal-label">Actual Premium</label>
-          <input id="open-actual-premium" class="modal-input" type="number" step="0.01" oninput="updatePremiumDiff()">
+          <input id="open-actual-premium" class="modal-input" type="number" step="0.01" oninput="updatePremiumDiff(); updateOpenBpPreview()">
         </div>
         <div class="modal-field">
           <label class="modal-label">Model Premium</label>
-          <input id="open-model-premium" class="modal-input" type="number" step="0.01" oninput="updatePremiumDiff()">
+          <input id="open-model-premium" class="modal-input" type="number" step="0.01" oninput="updatePremiumDiff(); updateOpenBpPreview()">
         </div>
         <div class="modal-field">
           <label class="modal-label">Entry Note</label>
@@ -1069,11 +1327,23 @@ function openTradeModal(kind) {
           <label class="modal-label">Paper Trade</label>
           <label class="modal-check"><input id="open-paper-trade" type="checkbox"> Mark as paper trade</label>
         </div>
+        <div class="modal-field">
+          <label class="modal-label">Scan Rows</label>
+          <select id="open-scan-limit" class="modal-select" onchange="renderStrikeScan(CURRENT_OPEN_DRAFT)">
+            <option value="5" selected>Top 5</option>
+            <option value="10">Top 10</option>
+            <option value="15">Top 15</option>
+            <option value="all">All</option>
+          </select>
+        </div>
         <div class="modal-field full">
           <div class="modal-hint" id="open-legs-hint">Loading algorithm draft…</div>
         </div>
         <div class="modal-field full">
           <div class="modal-hint" id="open-premium-diff">Fill actual + model premium to see the variance.</div>
+        </div>
+        <div class="modal-field full">
+          <div class="modal-hint" id="open-bp-preview">Loading buying power estimate…</div>
         </div>
       </div>
       <div class="modal-cta">

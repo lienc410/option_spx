@@ -59,6 +59,7 @@ class VixSpikeAlert:
     vix_current: float
     spike_pct:   float    # positive = spike, negative = drop
     level:       SpikeLevel
+    realtime:    Optional[bool] = None
 
     def __str__(self) -> str:
         sign = "+" if self.spike_pct >= 0 else ""
@@ -76,6 +77,7 @@ class IntradayStopTrigger:
     spx_current: float
     drop_pct:    float    # negative = drop from open
     level:       StopLevel
+    realtime:    Optional[bool] = None
 
     def __str__(self) -> str:
         sign = "+" if self.drop_pct >= 0 else ""
@@ -128,6 +130,23 @@ def _intraday_period(interval: str) -> str:
     return "7d" if interval == "5m" else "60d"
 
 
+def _quote_float(quote: dict, key: str) -> float:
+    value = quote.get(key)
+    if value in (None, ""):
+        raise ValueError(f"Quote missing {key}")
+    return float(value)
+
+
+def _quote_timestamp(quote: dict) -> str:
+    raw = quote.get("quote_time")
+    if raw in (None, ""):
+        raise ValueError("Quote missing quote_time")
+    ts = pd.Timestamp(raw)
+    if ts.tzinfo is not None:
+        ts = ts.tz_convert("America/New_York")
+    return ts.strftime("%Y-%m-%d %H:%M")
+
+
 # ─── Public API ──────────────────────────────────────────────────────────────
 def get_vix_spike(
     df: Optional[pd.DataFrame] = None,
@@ -157,6 +176,20 @@ def get_vix_spike(
     )
 
 
+def get_vix_spike_from_quote(quote: dict) -> VixSpikeAlert:
+    vix_open = _quote_float(quote, "open")
+    vix_current = _quote_float(quote, "last")
+    spike_pct = (vix_current - vix_open) / vix_open if vix_open else 0.0
+    return VixSpikeAlert(
+        timestamp=_quote_timestamp(quote),
+        vix_open=vix_open,
+        vix_current=vix_current,
+        spike_pct=spike_pct,
+        level=_classify_spike(spike_pct),
+        realtime=quote.get("realtime"),
+    )
+
+
 def get_spx_stop(
     df: Optional[pd.DataFrame] = None,
     interval: str = "5m",
@@ -182,6 +215,20 @@ def get_spx_stop(
         spx_current=spx_current,
         drop_pct=drop_pct,
         level=_classify_stop(drop_pct),
+    )
+
+
+def get_spx_stop_from_quote(quote: dict) -> IntradayStopTrigger:
+    spx_open = _quote_float(quote, "open")
+    spx_current = _quote_float(quote, "last")
+    drop_pct = (spx_current - spx_open) / spx_open if spx_open else 0.0
+    return IntradayStopTrigger(
+        timestamp=_quote_timestamp(quote),
+        spx_open=spx_open,
+        spx_current=spx_current,
+        drop_pct=drop_pct,
+        level=_classify_stop(drop_pct),
+        realtime=quote.get("realtime"),
     )
 
 

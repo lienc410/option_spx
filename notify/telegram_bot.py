@@ -26,7 +26,7 @@ import asyncio
 import logging
 import os
 import sys
-from datetime import datetime, time as dtime
+from datetime import date, datetime, time as dtime
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
@@ -45,9 +45,10 @@ from strategy.state import (
 )
 from backtest.engine import run_backtest, compute_metrics
 from signals.intraday import (
-    get_vix_spike, get_spx_stop,
+    get_vix_spike, get_spx_stop, get_vix_spike_from_quote, get_spx_stop_from_quote,
     SpikeLevel, StopLevel, VixSpikeAlert, IntradayStopTrigger,
 )
+from schwab.client import get_spx_quote, get_vix_quote
 
 load_dotenv()
 
@@ -94,11 +95,13 @@ def is_market_open(dt: datetime | None = None) -> bool:
 
 _SPIKE_RANK = {SpikeLevel.NONE: 0, SpikeLevel.WARNING: 1, SpikeLevel.ALERT: 2}
 _STOP_RANK  = {StopLevel.NONE:  0, StopLevel.CAUTION:  1, StopLevel.TRIGGER: 2}
+_STALE_QUOTE_MINUTES = 10
 
 _intraday_state: dict = {
     "spike_level": SpikeLevel.NONE,
     "stop_level":  StopLevel.NONE,
 }
+_morning_snapshot: dict | None = None
 
 
 # ── Message formatting ─────────────────────────────────────────────────────────
@@ -185,8 +188,9 @@ def _format_spike_alert(spike: VixSpikeAlert) -> str:
         if spike.level == SpikeLevel.ALERT
         else "⚠️ VIX rising fast — monitor closely."
     )
+    timing = _alert_timing_label(spike.timestamp, spike.realtime)
     return (
-        f"{icon} <b>VIX Spike {spike.level.value}</b>  [{_h(spike.timestamp)}]\n"
+        f"{icon} <b>VIX Spike {spike.level.value}</b>  [{_h(spike.timestamp)}{timing}]\n"
         f"Open: <code>{spike.vix_open:.2f}</code> → Now: <code>{spike.vix_current:.2f}</code>  "
         f"(<code>{spike.spike_pct*100:+.1f}%</code>)\n"
         f"{advice}"
@@ -200,11 +204,108 @@ def _format_stop_alert(stop: IntradayStopTrigger) -> str:
         if stop.level == StopLevel.TRIGGER
         else "⚠️ -1% caution: tighten mental stops."
     )
+    timing = _alert_timing_label(stop.timestamp, stop.realtime)
     return (
-        f"{icon} <b>SPX Drop {stop.level.value}</b>  [{_h(stop.timestamp)}]\n"
+        f"{icon} <b>SPX Drop {stop.level.value}</b>  [{_h(stop.timestamp)}{timing}]\n"
         f"Open: <code>{stop.spx_open:,.0f}</code> → Now: <code>{stop.spx_current:,.0f}</code>  "
         f"(<code>{stop.drop_pct*100:+.1f}%</code>)\n"
         f"{advice}"
+    )
+
+
+def _alert_timing_label(timestamp: str, realtime: bool | None) -> str:
+    sent_at = datetime.now(ET).strftime("%Y-%m-%d %H:%M")
+    if realtime is False:
+        return f" | sent {_h(sent_at)} | delayed — non-realtime quote"
+    try:
+        bar_time = datetime.strptime(timestamp, "%Y-%m-%d %H:%M").replace(tzinfo=ET)
+        sent_dt = datetime.now(ET)
+        delay_minutes = max(int((sent_dt - bar_time).total_seconds() // 60), 0)
+    except ValueError:
+        return f" | sent {_h(sent_at)}"
+    if delay_minutes > _STALE_QUOTE_MINUTES:
+        return f" | sent {_h(sent_at)} | delayed {delay_minutes}m"
+    return f" | sent {_h(sent_at)}"
+
+
+def _days_held(state: dict | None) -> int | None:
+    if not state or not state.get("opened_at"):
+        return None
+    try:
+        return max((date.today() - date.fromisoformat(str(state["opened_at"]))).days, 0)
+    except ValueError:
+        return None
+
+
+def _position_tenor(state: dict | None) -> str | None:
+    if not state:
+        return None
+    if state.get("expiry"):
+        try:
+            return f"{max((date.fromisoformat(str(state['expiry'])) - date.today()).days, 0)} DTE remaining"
+        except ValueError:
+            pass
+    held = _days_held(state)
+    if held is not None:
+        return f"opened {held}d ago"
+    return None
+
+
+def _morning_label(morning: dict) -> str:
+    action = str(morning.get("position_action") or "").upper()
+    strategy_key = str(morning.get("strategy_key") or "").upper()
+    if action == "WAIT":
+        return strategy_key or action
+    return " ".join(part for part in (action, strategy_key) if part)
+
+
+def _format_eod_snapshot(
+    rec: Recommendation,
+    morning: dict | None,
+    state: dict | None,
+) -> str:
+    desc = strategy_descriptor(rec.strategy_key)
+    term_dir = "backwardation ⚠️" if rec.vix_snapshot.backwardation else "contango"
+    if morning is None:
+        comparison = "ℹ️ Morning snapshot unavailable (bot restarted today)."
+    elif (
+        morning.get("strategy_key") != rec.strategy_key
+        or morning.get("position_action") != rec.position_action
+    ):
+        comparison = (
+            "⚠️ Signal changed from morning:\n"
+            f"  Morning → {_h(_morning_label(morning))}  [VIX Trend {_h(morning.get('vix_trend', '?'))}]\n"
+            f"  EOD     → {_h(rec.position_action)} {_h(rec.strategy_key.upper())}  "
+            f"[VIX Trend {_h(rec.vix_snapshot.trend.value)}]\n"
+            "  Re-evaluate before tomorrow's open."
+        )
+    else:
+        comparison = "✅ Signal confirmed — same as morning push."
+
+    position_line = ""
+    if state:
+        bits = [state.get("strategy", "?"), state.get("underlying", "?")]
+        tenor = _position_tenor(state)
+        if tenor:
+            bits.append(tenor)
+        position_line = f"\n📋 Open Position: {' | '.join(_h(bit) for bit in bits if bit)}"
+
+    vix3m_value = "n/a" if rec.vix_snapshot.vix3m is None else f"{rec.vix_snapshot.vix3m:.2f}"
+    return (
+        f"🌙 <b>EOD Signal Snapshot — {_h(rec.vix_snapshot.date)}</b>\n"
+        f"{'─' * 32}\n"
+        f"VIX Close  <code>{rec.vix_snapshot.vix:.2f}</code> [{_h(rec.vix_snapshot.regime.value)}]  "
+        f"Trend: {_h(rec.vix_snapshot.trend.value)}\n"
+        f"IVR  <code>{rec.iv_snapshot.iv_rank:.0f}</code>  IVP  <code>{rec.iv_snapshot.iv_percentile:.0f}</code>\n"
+        f"SPX Trend  <code>{_h(rec.trend_snapshot.signal.value)}</code>  "
+        f"(<code>{rec.trend_snapshot.ma_gap_pct*100:+.1f}%</code> vs 50MA)\n"
+        f"Term struct  <code>{_h(term_dir)}</code>  (VIX3M <code>{vix3m_value}</code>)\n\n"
+        f"Recommendation:  <b>{_h(desc.name)}</b>\n"
+        f"Action:  <code>{_h(rec.position_action)}</code>\n\n"
+        f"{comparison}"
+        f"{position_line}\n"
+        f"{'─' * 32}\n"
+        "SPX options tradeable until 4:15pm ET"
     )
 
 
@@ -212,8 +313,10 @@ def _format_stop_alert(stop: IntradayStopTrigger) -> str:
 
 def _reset_intraday_state() -> None:
     """Reset per-session state at market open each day."""
+    global _morning_snapshot
     _intraday_state["spike_level"] = SpikeLevel.NONE
     _intraday_state["stop_level"]  = StopLevel.NONE
+    _morning_snapshot = None
     log.info("Intraday state reset for new session.")
 
 
@@ -227,8 +330,12 @@ async def intraday_monitor(bot: Bot, chat_id: str) -> None:
         return
 
     try:
-        spike = get_vix_spike(interval="5m")
-        stop  = get_spx_stop(interval="5m")
+        try:
+            spike = get_vix_spike_from_quote(get_vix_quote())
+            stop = get_spx_stop_from_quote(get_spx_quote())
+        except Exception:
+            spike = get_vix_spike(interval="5m")
+            stop = get_spx_stop(interval="5m")
     except Exception:
         log.exception("intraday_monitor: failed to fetch signals")
         return
@@ -617,6 +724,7 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 # ── Scheduled push ─────────────────────────────────────────────────────────────
 
 async def scheduled_push(bot: Bot, chat_id: str) -> None:
+    global _morning_snapshot
     if not is_trading_day():
         log.info("Not a trading day — skipping push.")
         return
@@ -628,9 +736,32 @@ async def scheduled_push(bot: Bot, chat_id: str) -> None:
             text=_format_recommendation(rec),
             parse_mode=ParseMode.HTML,
         )
+        _morning_snapshot = {
+            "strategy_key": rec.strategy_key,
+            "position_action": rec.position_action,
+            "date": rec.vix_snapshot.date,
+            "vix_trend": rec.vix_snapshot.trend.value,
+        }
         log.info("Daily recommendation sent.")
     except Exception:
         log.exception("Scheduled push failed")
+
+
+async def scheduled_eod_push(bot: Bot, chat_id: str) -> None:
+    if not is_trading_day():
+        log.info("Not a trading day — skipping EOD push.")
+        return
+    try:
+        rec = get_recommendation(use_intraday=False)
+        state = read_state()
+        await bot.send_message(
+            chat_id=chat_id,
+            text=_format_eod_snapshot(rec, _morning_snapshot, state),
+            parse_mode=ParseMode.HTML,
+        )
+        log.info("EOD snapshot sent.")
+    except Exception:
+        log.exception("EOD push failed")
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
@@ -680,6 +811,14 @@ def main() -> None:
             args=[application.bot, chat_id],
             id="daily_push",
             name="Daily recommendation push",
+        )
+
+        scheduler.add_job(
+            scheduled_eod_push,
+            CronTrigger(day_of_week="mon-fri", hour=16, minute=3, timezone=ET),
+            args=[application.bot, chat_id],
+            id="eod_push",
+            name="EOD signal snapshot push",
         )
 
         # 09:30 ET: reset intraday state for the new session

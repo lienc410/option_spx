@@ -102,8 +102,16 @@ class StateAndApiTests(unittest.TestCase):
         self.assertIn("shock_mode", data)
 
     @patch("web.server._is_market_hours", return_value=False)
+    @patch("web.server._bp_basis_snapshot", return_value={
+        "basis_dollars": 100000.0,
+        "basis_label": "Model Equity",
+        "basis_is_live": False,
+        "pct_basis_dollars": None,
+        "pct_basis_label": None,
+    })
+    @patch("schwab.auth.is_configured", return_value=False)
     @patch("strategy.selector.get_recommendation")
-    def test_api_position_open_draft_returns_prefill_fields(self, mock_get_recommendation, _mock_hours) -> None:
+    def test_api_position_open_draft_returns_prefill_fields(self, mock_get_recommendation, _mock_schwab_config, _mock_bp_basis, _mock_hours) -> None:
         from tests.test_strategy_unification import make_iv, make_trend, make_vix
         from signals.iv_rank import IVSignal
         from signals.trend import TrendSignal
@@ -123,7 +131,66 @@ class StateAndApiTests(unittest.TestCase):
         self.assertIn("long_strike", data)
         self.assertIn("model_premium", data)
         self.assertFalse(data["paper_trade"])
+        self.assertNotIn("strike_scan", data)
         self.assertTrue(data["legs"])
+        self.assertIn("bp_preview", data)
+        self.assertGreaterEqual(data["contracts"], 1)
+        self.assertEqual(data["bp_preview"]["bp_target_pct"], 10.0)
+
+    @patch("web.server._is_market_hours", return_value=False)
+    @patch("web.server._bp_basis_snapshot", return_value={
+        "basis_dollars": 50000.0,
+        "basis_label": "Schwab Option BP",
+        "basis_is_live": True,
+        "pct_basis_dollars": 50000.0,
+        "pct_basis_label": "Schwab Option BP",
+    })
+    @patch("schwab.auth.is_configured", return_value=True)
+    @patch("schwab.scanner.build_strike_scan")
+    @patch("strategy.selector.get_recommendation")
+    def test_api_position_open_draft_includes_strike_scan_when_schwab_ready(self, mock_get_recommendation, mock_build_strike_scan, _mock_schwab_config, _mock_bp_basis, _mock_hours) -> None:
+        from tests.test_strategy_unification import make_iv, make_trend, make_vix
+        from signals.iv_rank import IVSignal
+        from signals.trend import TrendSignal
+        from signals.vix_regime import Regime, Trend
+        from strategy.selector import select_strategy
+
+        mock_get_recommendation.return_value = select_strategy(
+            make_vix(vix=31.0, regime=Regime.HIGH_VOL, trend=Trend.FLAT),
+            make_iv(signal=IVSignal.HIGH, iv_rank=62.0, iv_percentile=45.0, vix=31.0),
+            make_trend(signal=TrendSignal.BEARISH),
+        )
+        mock_build_strike_scan.side_effect = [
+            {
+                "rows": [
+                    {"strike": 5510, "expiry": "2026-05-12", "bid": 1.2, "ask": 1.35, "mid": 1.275, "spread_pct": 0.118, "delta": 0.21, "open_interest": 1240, "volume": 85, "score": 0.31, "recommended": True}
+                ],
+                "scan_fallback": False,
+            },
+            {
+                "rows": [
+                    {"strike": 5560, "expiry": "2026-05-12", "bid": 0.45, "ask": 0.55, "mid": 0.50, "spread_pct": 0.2, "delta": 0.10, "open_interest": 620, "volume": 40, "score": 0.28, "recommended": True}
+                ],
+                "scan_fallback": False,
+            },
+        ]
+
+        res = self.client.get("/api/position/open-draft")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertIn("strike_scan", data)
+        self.assertEqual(data["short_strike"], 5510)
+        self.assertEqual(data["long_strike"], 5560)
+        self.assertEqual(data["expiry"], "2026-05-12")
+        self.assertFalse(data["strike_scan"]["scan_fallback"])
+        self.assertEqual(len(data["strike_scan"]["short_leg"]), 1)
+        self.assertIsInstance(mock_build_strike_scan.call_args_list[0].kwargs["center_strike"], float)
+        self.assertEqual(data["strike_scan"]["short_leg"][0]["target_delta"], 0.2)
+        self.assertEqual(data["strike_scan"]["short_leg"][0]["live_delta"], 0.21)
+        self.assertEqual(data["strike_scan"]["short_leg"][0]["delta_gap"], 0.01)
+        self.assertIn("bp_preview", data)
+        self.assertEqual(data["bp_preview"]["basis_label"], "Schwab Option BP")
+        self.assertIsNotNone(data["bp_preview"]["bp_usage_dollars"])
 
     @patch("web.server._save_stats_disk")
     @patch("web.server._load_stats_disk", return_value={})

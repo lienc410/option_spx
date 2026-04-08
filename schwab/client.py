@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, time as dtime
+from datetime import date, datetime, time as dtime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -37,6 +37,13 @@ def _headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {ensure_access_token()}"}
 
 
+def _marketdata_symbol(symbol: str) -> str:
+    raw = str(symbol or "").strip().upper()
+    if raw in {"SPX"} and not raw.startswith("$"):
+        return f"${raw}"
+    return raw
+
+
 def _account_number() -> str:
     token = load_token() or {}
     acct = token.get("account_number")
@@ -57,9 +64,73 @@ def _extract_quote_greeks(instrument: dict) -> dict:
     }
 
 
+def _quote_cache_key(symbol: str) -> str:
+    return f"quote:{symbol}"
+
+
+def _normalize_quote(symbol: str, payload: dict) -> dict:
+    quote = payload.get("quote") or {}
+    trade_time_raw = quote.get("tradeTime")
+    quote_time = None
+    if trade_time_raw not in (None, ""):
+        try:
+            quote_time = datetime.fromtimestamp(
+                float(trade_time_raw) / 1000.0,
+                tz=ZoneInfo("UTC"),
+            ).astimezone(_ET).isoformat(timespec="seconds")
+        except (TypeError, ValueError, OSError):
+            quote_time = None
+    return {
+        "symbol": payload.get("symbol") or symbol,
+        "last": quote.get("lastPrice"),
+        "open": quote.get("openPrice"),
+        "high": quote.get("highPrice"),
+        "low": quote.get("lowPrice"),
+        "close": quote.get("closePrice"),
+        "quote_time": quote_time,
+        "security_status": quote.get("securityStatus"),
+        "realtime": payload.get("realtime"),
+    }
+
+
+def get_index_quote(symbol: str) -> dict:
+    if not is_configured():
+        raise RuntimeError("not_configured")
+    normalized_symbol = str(symbol or "").strip().upper()
+    cache_key = _quote_cache_key(normalized_symbol)
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    res = requests.get(
+        f"{BASE_URL}/marketdata/v1/quotes",
+        params={"symbols": normalized_symbol, "fields": "quote"},
+        headers=_headers(),
+        timeout=20,
+    )
+    res.raise_for_status()
+    data = res.json()
+    if data.get("errors", {}).get("invalidSymbols"):
+        raise RuntimeError(f"invalid_symbol:{normalized_symbol}")
+    raw = data.get(normalized_symbol)
+    if not isinstance(raw, dict):
+        raise RuntimeError(f"quote_unavailable:{normalized_symbol}")
+    normalized = _normalize_quote(normalized_symbol, raw)
+    _cache_put(cache_key, normalized)
+    return normalized
+
+
+def get_vix_quote() -> dict:
+    return get_index_quote("$VIX")
+
+
+def get_spx_quote() -> dict:
+    return get_index_quote("$SPX")
+
+
 def get_account_positions() -> dict:
     if not is_configured():
-      return {"configured": False, "authenticated": False, "positions": []}
+        return {"configured": False, "authenticated": False, "positions": []}
     cached = _cache_get("positions")
     if cached is not None:
         return cached
@@ -130,6 +201,153 @@ def get_account_balances() -> dict:
     except Exception:
         status = token_status()
         return {"configured": status["configured"], "authenticated": status["authenticated"], "stale": True}
+
+
+def _chain_cache_key(
+    symbol: str,
+    option_type: str,
+    target_dte: int,
+    dte_range: int,
+    center_strike: float | None = None,
+    strike_window: int | None = None,
+) -> str:
+    if center_strike is None:
+        return f"chain:{symbol}:{option_type}:{target_dte}:{dte_range}"
+    center_key = int(round(float(center_strike)))
+    window_key = int(strike_window) if strike_window is not None else 0
+    return f"chain:{symbol}:{option_type}:{target_dte}:{dte_range}:{center_key}:{window_key}"
+
+
+def _parse_chain_response(payload: dict, option_type: str) -> list[dict]:
+    chain_key = "callExpDateMap" if option_type.upper() == "CALL" else "putExpDateMap"
+    exp_map = payload.get(chain_key) or {}
+    rows: list[dict] = []
+    for expiry_key, strike_map in exp_map.items():
+        expiry = str(expiry_key).split(":", 1)[0]
+        dte_raw = str(expiry_key).split(":", 1)[1] if ":" in str(expiry_key) else None
+        try:
+            dte = int(float(dte_raw)) if dte_raw is not None else None
+        except ValueError:
+            dte = None
+        for strike_key, contracts in (strike_map or {}).items():
+            for contract in contracts or []:
+                bid = contract.get("bid")
+                ask = contract.get("ask")
+                mark = contract.get("mark")
+                try:
+                    strike = float(strike_key)
+                except (TypeError, ValueError):
+                    strike = contract.get("strikePrice")
+                mid = mark
+                if mid in (None, "") and bid not in (None, "") and ask not in (None, ""):
+                    try:
+                        mid = (float(bid) + float(ask)) / 2.0
+                    except (TypeError, ValueError):
+                        mid = None
+                try:
+                    spread_pct = ((float(ask) - float(bid)) / float(mid)) if mid not in (None, 0, "0") else None
+                except (TypeError, ValueError, ZeroDivisionError):
+                    spread_pct = None
+                rows.append({
+                    "expiry": expiry,
+                    "strike": strike,
+                    "bid": bid,
+                    "ask": ask,
+                    "mid": round(float(mid), 4) if mid not in (None, "") else None,
+                    "spread_pct": round(float(spread_pct), 6) if spread_pct is not None else None,
+                    "delta": contract.get("delta"),
+                    "open_interest": contract.get("openInterest"),
+                    "volume": contract.get("totalVolume"),
+                    "dte": dte if dte is not None else contract.get("daysToExpiration"),
+                })
+    return rows
+
+
+def get_option_chain(
+    symbol: str,
+    option_type: str,
+    target_dte: int,
+    dte_range: int = 7,
+    center_strike: float | None = None,
+    strike_window: int = 10,
+) -> list[dict]:
+    if not is_configured():
+        return []
+    cache_key = _chain_cache_key(
+        symbol,
+        option_type.upper(),
+        int(target_dte),
+        int(dte_range),
+        center_strike=center_strike,
+        strike_window=int(strike_window),
+    )
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    target_date = date.today() + timedelta(days=int(target_dte))
+    from_date = (target_date - timedelta(days=int(dte_range))).isoformat()
+    to_date = (target_date + timedelta(days=int(dte_range))).isoformat()
+
+    requested_strike_count = 20 if center_strike is None else max(300, int(strike_window) * 20)
+    res = requests.get(
+        f"{BASE_URL}/marketdata/v1/chains",
+        params={
+            "symbol": _marketdata_symbol(symbol),
+            "contractType": option_type.upper(),
+            "strikeCount": requested_strike_count,
+            "includeQuotes": "TRUE",
+            "fromDate": from_date,
+            "toDate": to_date,
+        },
+        headers=_headers(),
+        timeout=20,
+    )
+    res.raise_for_status()
+    rows = _parse_chain_response(res.json(), option_type)
+    if not rows:
+        _cache_put(cache_key, [])
+        return []
+
+    expiry_totals: dict[str, float] = {}
+    for row in rows:
+        expiry = str(row.get("expiry") or "")
+        expiry_totals.setdefault(expiry, 0.0)
+        try:
+            expiry_totals[expiry] += float(row.get("open_interest") or 0)
+        except (TypeError, ValueError):
+            continue
+
+    best_expiry = max(expiry_totals.items(), key=lambda item: item[1])[0]
+    filtered = [row for row in rows if row.get("expiry") == best_expiry]
+    if filtered:
+        deduped_by_strike: dict[float, dict] = {}
+        for row in filtered:
+            try:
+                strike_key = float(row.get("strike"))
+            except (TypeError, ValueError):
+                continue
+            current = deduped_by_strike.get(strike_key)
+            if current is None:
+                deduped_by_strike[strike_key] = row
+                continue
+            current_oi = float(current.get("open_interest") or 0)
+            row_oi = float(row.get("open_interest") or 0)
+            current_spread = float(current.get("spread_pct") or 99)
+            row_spread = float(row.get("spread_pct") or 99)
+            current_bid = float(current.get("bid") or 0)
+            row_bid = float(row.get("bid") or 0)
+            if (row_oi, -row_spread, row_bid) > (current_oi, -current_spread, current_bid):
+                deduped_by_strike[strike_key] = row
+        filtered = list(deduped_by_strike.values())
+    if center_strike is not None and filtered:
+        filtered = sorted(
+            filtered,
+            key=lambda row: abs(float(row.get("strike") or 0) - float(center_strike)),
+        )[: max(int(strike_window), 1)]
+        filtered = sorted(filtered, key=lambda row: float(row.get("strike") or 0))
+    _cache_put(cache_key, filtered)
+    return filtered
 
 
 def _find_matching_position(positions: list[dict], state: dict | None) -> dict | None:
