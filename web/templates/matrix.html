@@ -277,7 +277,6 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   border-right: 1px solid var(--border);
 }
 .dp-row:nth-child(2n) { border-right: none; }
-.dp-row:nth-last-child(-n+2) { border-bottom: none; }
 .dp-row-full {
   padding: 13px 22px; border-bottom: 1px solid var(--border);
   grid-column: 1 / -1;
@@ -427,9 +426,11 @@ table.mt-tbl { width: 100%; border-collapse: collapse; min-width: 640px; }
       <div class="dp-row"><div class="dp-label">DTE Structure</div><div class="dp-val" id="dp-dte">—</div></div>
       <div class="dp-row"><div class="dp-label">Delta Targets</div><div class="dp-val" id="dp-delta">—</div></div>
       <div class="dp-row"><div class="dp-label">Trade Type</div><div class="dp-val" id="dp-type">—</div></div>
+      <div class="dp-row"><div class="dp-label">Recommended BP</div><div class="dp-val" id="dp-bp-target">—</div></div>
       <div class="dp-row-full"><div class="dp-label">When to Use</div><div class="dp-val-text" id="dp-when">—</div></div>
       <div class="dp-row-full"><div class="dp-label">Risk Profile</div><div class="dp-val-text" id="dp-risk">—</div></div>
       <div class="dp-row-full"><div class="dp-label">Roll / Exit Rule</div><div class="dp-val-text" id="dp-roll">—</div></div>
+      <div class="dp-row-full"><div class="dp-label">Schwab BP Formula</div><div class="dp-val-text" id="dp-bp-formula">—</div></div>
     </div>
   </div>
 
@@ -522,6 +523,37 @@ async function loadStrategyCatalog() {
 
 function strategyName(key) {
   return (STRAT[key] || {}).name || key || '—';
+}
+
+function bpMetaForStrategy(strategyKey) {
+  if (strategyKey === 'reduce_wait') {
+    return {
+      recommendedPct: '0%',
+      formula: 'No new position — BP usage remains flat while waiting for a valid setup.',
+    };
+  }
+  if (strategyKey === 'bull_call_diagonal') {
+    return {
+      recommendedPct: '10%',
+      formula: 'BP = net_debit_paid × $100 per contract',
+    };
+  }
+  if (strategyKey === 'iron_condor' || strategyKey === 'iron_condor_hv') {
+    return {
+      recommendedPct: strategyKey.endsWith('_hv') ? '7%' : '10%',
+      formula: 'BP = (max(call_wing_width, put_wing_width) − total_net_credit) × $100 per contract',
+    };
+  }
+  if (strategyKey === 'bull_put_spread' || strategyKey === 'bull_put_spread_hv' || strategyKey === 'bear_call_spread_hv') {
+    return {
+      recommendedPct: strategyKey.endsWith('_hv') ? '7%' : '10%',
+      formula: 'BP = (spread_width − net_credit_received) × $100 per contract',
+    };
+  }
+  return {
+    recommendedPct: '10%',
+    formula: 'Defined-risk spread BP = max_loss_per_contract under Schwab PM',
+  };
 }
 
 // ── Build matrix ───────────────────────────────────────────────────────────────
@@ -641,6 +673,7 @@ function selectCell(el, strat, regime, ivKey, trendKey) {
 function showDetail(strat) {
   const sd = STRAT[strat];
   if (!sd) return;
+  const bpMeta = bpMetaForStrategy(strat);
   const panel = document.getElementById('detail-panel');
   panel.classList.remove('empty');
 
@@ -656,9 +689,11 @@ function showDetail(strat) {
   document.getElementById('dp-dte').textContent   = sd.dte_text;
   document.getElementById('dp-delta').textContent = sd.delta_text;
   document.getElementById('dp-type').textContent  = sd.trade_type;
+  document.getElementById('dp-bp-target').textContent = bpMeta.recommendedPct;
   document.getElementById('dp-when').textContent  = sd.when_text;
   document.getElementById('dp-risk').textContent  = sd.risk_text;
   document.getElementById('dp-roll').textContent  = sd.detail_roll_text;
+  document.getElementById('dp-bp-formula').textContent = bpMeta.formula;
 }
 
 // ── Load current signals ───────────────────────────────────────────────────────
