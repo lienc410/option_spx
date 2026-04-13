@@ -3,11 +3,18 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-04-04（HC，从 research_notes 和 strategy_status delta 整理）
+最后更新：2026-04-12（Planner，修正 HC/MC blocker 口径并收缩 /ES 主线）
 
 ---
 
 ## 当前优先阻塞
+
+### Q009 — Schwab Developer Portal 批准等待中
+- **状态**：blocked
+- **内容**：该项保留为 **MC 侧系统状态**。HC 已成功连接 Schwab Developer Portal，因此它不是当前 HC planner 主线 blocker；但若 MC 侧环境仍未完成批准，则 SPEC-035 AC1/3/4/5 live Greeks 联调在 MC 侧仍受阻
+- **阻塞下游**：live position Greeks enrichment（SPEC-035）
+- **备注**：后续索引层若从 HC 视角总结 blocker，应避免直接把 Q009 写成 HC 当前 blocker
+- **来源**：MC Handoff 2026-04-10；HC 状态修正 2026-04-12
 
 ### Q001 — SPEC-020 RS-020-2 ablation 未完成
 - **状态**：blocked
@@ -27,21 +34,40 @@
 
 ## 策略设计待解决
 
+### Q012 — `/ES` short put 生产路径与共用 BP 管理
+- **状态**：open
+- **内容**：ES short put 的生产路径评估已有实质更新。`/ES` 账户权限已确认可用，实测 buying power effect 约为 `$20,529 / 合约`，`$500k` 账户可支持单槽 `1` 张、较高 VIX 下可提升至 `1–2` 张；相较之下，XSP 虽解决 lot size 问题，但 spread 成本更可能侵蚀统计显著性，因此 `/ES` 现已成为优先路径
+- **关键风险**：`/ES` 与 SPX Credit 共用同一 options buying power 池，而非独立池；同时 `/ES` 的 SPAN margin 会在高波动期动态扩张，可能形成“亏损扩大 + BP 占用上升”的双重压力
+- **当前状态补充**：`SPEC-061` 已完成最小 Layer 2 production cell，但该实现仍是无 Layer 1 缓冲、无 Layer 3 对冲的独立 `/ES` MVP
+- **下一决策**：shared-BP 口径是否需要进一步细化，以及 `/ES` 生产路径是否需要进入下一轮 follow-up Spec（见 `Q013`）
+- **当前归类**：post-SPEC-061 follow-up pending
+- **来源**：Claude 研究更新 2026-04-12
+
+### Q013 — `/ES` short put 运行时止损与持仓管理定义
+- **状态**：open
+- **内容**：`SPEC-061` 已完成 `/ES` minimal production cell 的入场路径，但 `-300%` stop 当前仍主要是 catalog / review 层面的文档化规则，生产中没有自动触发执行；同时，趋势转负后的现有持仓行为也未定义。PM 已明确：**不能接受纯人工盯仓止损**；最少要求是系统监控该 stop 条件，并在触发时由 bot 发出提醒
+- **依赖**：应收缩成一个新的 follow-up Spec，只补运行时风控与 post-entry 管理；最小可接受范围应至少覆盖 stop 监控与 bot alert，不把 Layer 1 / Layer 3 / leverage 一起带入
+- **当前归类**：ready for DRAFT Spec
+- **来源**：`SPEC-061` review + `/ES` 三层体系覆盖盘点，2026-04-12
+
 ### Q003 — L3 Hedge 实盘实现（v2）
 - **状态**：open
 - **内容**：当前 v1 中 L3 实际执行与 L2 相同（全平仓位）；真正的 long put spread hedge 待立新SPEC并验证
+- **当前归类**：waiting on dependency / priority decision
 - **建议**：ChatGPT review 推荐优先推进
 - **来源**：SPEC-026，research_notes §35
 
 ### Q004 — `vix_accel_1d` L4 fast-path（COVID类极速崩溃）
 - **状态**：open
 - **内容**：3日窗口在COVID类5日内极速崩溃中有滞后；`vix_accel_1d` fast-path 可提升响应，但需backtest验证避免日内噪声误触发
+- **当前归类**：research only
 - **来源**：SPEC-026，research_notes §35
 
 ### Q005 — 多仓 trim 精细化
 - **状态**：open（中期）
 - **内容**：当前 L2/L4 触发时全平所有仓位；多仓扩展后可改为按 shock 贡献排序优先关闭最高风险仓位，提高资本效率
 - **依赖**：多仓引擎
+- **当前归类**：waiting on dependency
 - **来源**：research_notes §35
 
 ---
@@ -66,6 +92,16 @@
 
 ---
 
+## DIAGONAL 样本追踪
+
+### Q011 — regime decay DIAGONAL 样本验证
+- **状态**：open
+- **内容**：DIAGONAL ivp252 ≥ 50 且 ivp63 < 50 区间（regime decay）：n=8，Sharpe +3.56；样本偏小，需真实交易验证后才能确认 SPEC-053 的 DIAGONAL size-up 有效性
+- **依赖**：真实交易数据积累
+- **来源**：MC Handoff 2026-04-10（新增）
+
+---
+
 ## 已解决（存档）
 
 | 编号 | 问题 | 结论 | 解决日期 |
@@ -74,3 +110,4 @@
 | — | Overlay L2 AND还是OR条件 | AND：防止VIX正常上升但组合风险可控时误触 | 2026-04-01 |
 | — | book_core_shock 信号路径（freeze触发后的缺陷）| 每日独立计算，不依赖入场路径 | 2026-04-01 |
 | — | ATR阈值选择（1.0 vs 其他）| 1.0，gap_sigma分布与原+1%band最接近 | 2026-04-02 |
+| Q010 | local_spike DIAGONAL 真实交易 n 计数 | `SPEC-055b` 已实施，`local_spike` 已进入 DIAGONAL full size-up；不再作为前置 open question 追踪 | 2026-04-10 |

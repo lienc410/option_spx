@@ -1,0 +1,2 @@
+strategy_key,cell,regime,iv_signal,trend,n,avg_pnl,win_rate,sharpe,max_consec_loss,avg_hold_days,low_n_flag,ci_lo,ci_hi,significant,block_size
+bull_put_spread,NORMAL|HIGH|BULLISH,NORMAL,HIGH,BULLISH,12,106.0,1.0,1.0,0,1.0,False,104.58,109.75,True,5

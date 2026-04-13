@@ -2362,12 +2362,20 @@ function renderSpxChart() {
 
   if (_spxOverlay === 'pnl') {
     let cum = 0;
-    const priorCloseEvents = events.filter(e => e.type === 'close' && e.date < visibleStartDate);
-    priorCloseEvents.forEach(ev => { cum += ev.trade.exit_pnl; });
-    const pnlData = visibleRows.length ? [{ x: visibleRows[0].date, y: cum }] : [];
-    visibleEvents
+    const closePnlByDate = new Map();
+    events
       .filter(e => e.type === 'close')
-      .forEach(ev => { cum += ev.trade.exit_pnl; pnlData.push({ x: ev.date, y: cum }); });
+      .forEach(ev => {
+        if (ev.date < visibleStartDate) {
+          cum += ev.trade.exit_pnl;
+          return;
+        }
+        closePnlByDate.set(ev.date, (closePnlByDate.get(ev.date) || 0) + ev.trade.exit_pnl);
+      });
+    const pnlData = visibleRows.map(r => {
+      cum += closePnlByDate.get(r.date) || 0;
+      return { x: r.date, y: cum };
+    });
     datasets.push({
       label: 'Cum. P&L',
       data: pnlData,
@@ -2376,7 +2384,8 @@ function renderSpxChart() {
       borderWidth: 1.5,
       pointRadius: 0,
       pointHitRadius: 0,
-      tension: 0.3,
+      tension: 0,
+      stepped: 'after',
       yAxisID: 'y2',
     });
   } else if (_spxOverlay === 'bp') {

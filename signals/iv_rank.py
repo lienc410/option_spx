@@ -32,6 +32,7 @@ from signals.vix_regime import fetch_vix_history  # noqa: E402 (run via python -
 IV_HIGH_THRESHOLD    = 50.0
 IV_LOW_THRESHOLD     = 30.0
 LOOKBACK_DAYS        = 252   # ~1 trading year
+IVP63_LOOKBACK       = 63
 
 
 class IVSignal(str, Enum):
@@ -49,6 +50,9 @@ class IVSnapshot:
     iv_signal:     IVSignal
     iv_52w_high:   float
     iv_52w_low:    float
+    ivp63:         float = 0.0
+    ivp252:        float = 0.0
+    regime_decay:  bool = False
 
     def __str__(self) -> str:
         return (
@@ -57,6 +61,7 @@ class IVSnapshot:
             f"IV Pct: {self.iv_percentile:.1f} | "
             f"Signal: {self.iv_signal.value}  "
             f"(52w range: {self.iv_52w_low:.1f}–{self.iv_52w_high:.1f})"
+            f" | ivp63={self.ivp63:.1f} ivp252={self.ivp252:.1f} regime_decay={self.regime_decay}"
         )
 
 
@@ -123,6 +128,15 @@ def get_current_iv_snapshot(
     vix          = float(window.iloc[-1])
     iv_rank      = round(compute_iv_rank(window), 1)
     iv_pct       = compute_iv_percentile(window)
+    window63     = df["vix"].iloc[-IVP63_LOOKBACK:].copy()
+    if current_vix is not None and len(window63):
+        window63.iloc[-1] = float(current_vix)
+    if len(window63) < IVP63_LOOKBACK:
+        ivp63 = iv_pct
+    else:
+        ivp63 = round((window63.iloc[:-1] < float(window63.iloc[-1])).mean() * 100.0, 1)
+    ivp252       = iv_pct
+    regime_decay = (ivp252 >= 50.0) and (ivp63 < 50.0)
     iv_52w_high  = float(window.max())
     iv_52w_low   = float(window.min())
     iv_signal    = _classify_iv_signal(iv_rank)
@@ -136,6 +150,9 @@ def get_current_iv_snapshot(
         iv_signal=iv_signal,
         iv_52w_high=iv_52w_high,
         iv_52w_low=iv_52w_low,
+        ivp63=ivp63,
+        ivp252=ivp252,
+        regime_decay=regime_decay,
     )
 
 

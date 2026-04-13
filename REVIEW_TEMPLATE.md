@@ -138,7 +138,7 @@
 
 ## 写回目标
 
-生成一个Claude Quant Researcher可读的,可直接下载的 {被review file name}_Review.md 文件：
+生成一个 Quant Researcher 可读、可直接下载的 `{被review file name}_Review.md` 文件：
 
 
 ```md
@@ -167,7 +167,7 @@ APPROVE / REVISE / REJECT
 {补充}
 
 ### What this is NOT
-- 防止 Claude 误建模（错误归因）
+- 防止 Quant Researcher 误建模（错误归因）
 
 Constraints:
 - Do NOT propose code-level or implementation-specific changes

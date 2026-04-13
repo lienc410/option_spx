@@ -1,6 +1,6 @@
 # SPEC-044: Delta Deviation Display In Open Modal
 
-Status: APPROVED
+Status: DONE
 
 ## 目标
 
@@ -110,6 +110,11 @@ Status: APPROVED
 5. **AC5**：未配置 Schwab 时页面行为不变
 
 ---
+
+## Review
+- 结论：PASS
+- AC1–AC5 全部通过，与 handoff 一致
+- server.py 在 strike_scan rows 注入三字段（lines 516–533）；index.html 表头扩列 + gap-mid/gap-high CSS 阈值判断（lines 562–565, 1162–1163, 1185）；原推荐逻辑未动
 
 ## 备注
 

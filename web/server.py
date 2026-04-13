@@ -39,6 +39,8 @@ _signals_cache: dict[str, tuple[float, dict]] = {}
 _CACHE_TTL = 300  # 5 minutes
 _SIGNALS_CACHE_TTL = 3600  # 1 hour
 _STATS_SCHEMA_VERSION = "v2"
+_ES_BP_PER_CONTRACT = 20_529.0
+_ES_BP_LIMIT_FRACTION = 0.20
 
 # ── Disk cache for backtest stats (survives restarts) ────────────────────────
 _STATS_DISK_CACHE = Path(__file__).parent.parent / "data" / "backtest_stats_cache.json"
@@ -186,6 +188,17 @@ def api_recommendation():
         return jsonify({"error": str(exc)}), 500
 
 
+@app.route("/api/es/recommendation")
+def api_es_recommendation():
+    from strategy.selector import get_es_recommendation
+
+    try:
+        rec = get_es_recommendation(use_intraday=_is_market_hours())
+        return _json_dc(rec)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
 @app.route("/api/strategy-catalog")
 def api_strategy_catalog():
     from strategy.catalog import strategy_catalog_payload
@@ -322,6 +335,55 @@ def _bp_preview_payload(strategy_key: str, regime_name: str | None, short_strike
         "basis_is_live": basis["basis_is_live"],
         "pct_basis_dollars": round(float(pct_basis), 2) if pct_basis else None,
         "pct_basis_label": basis.get("pct_basis_label"),
+    }
+
+
+def _is_es_option_position(position: dict) -> bool:
+    text = f"{position.get('symbol', '')} {position.get('description', '')}".upper()
+    quantity = _num(position.get("quantity")) or 0.0
+    return abs(quantity) > 0 and "/ES" in text and "PUT" in text
+
+
+def _live_es_bp_check() -> dict:
+    from schwab.client import get_account_balances, get_account_positions
+
+    balances = get_account_balances()
+    positions = get_account_positions()
+
+    if (
+        not balances.get("configured")
+        or not balances.get("authenticated")
+        or balances.get("stale")
+        or not positions.get("configured")
+        or not positions.get("authenticated")
+        or positions.get("stale")
+    ):
+        return {"ok": False, "reason": "Live Schwab balances/positions unavailable"}
+
+    nlv = _num(balances.get("net_liquidation"))
+    used_margin_candidates = [
+        _num(balances.get("initial_margin")),
+        _num(balances.get("maintenance_margin")),
+    ]
+    used_margin = max((value for value in used_margin_candidates if value is not None), default=None)
+    if nlv is None or nlv <= 0 or used_margin is None:
+        return {"ok": False, "reason": "Missing NLV or live margin usage"}
+
+    if any(_is_es_option_position(position) for position in positions.get("positions", [])):
+        return {"ok": False, "reason": "Existing /ES short-put slot detected"}
+
+    limit_dollars = round(nlv * _ES_BP_LIMIT_FRACTION, 2)
+    projected_bp = round(float(used_margin) + _ES_BP_PER_CONTRACT, 2)
+    bp_ok = projected_bp <= limit_dollars
+    return {
+        "ok": bp_ok,
+        "reason": None if bp_ok else "Projected /ES BP would exceed NLV 20% cap",
+        "nlv": round(float(nlv), 2),
+        "current_bp": round(float(used_margin), 2),
+        "projected_bp": projected_bp,
+        "bp_limit": limit_dollars,
+        "bp_check_passed": bp_ok,
+        "es_bp_per_contract": _ES_BP_PER_CONTRACT,
     }
 
 
@@ -535,6 +597,107 @@ def api_position_open_draft():
         }
         if strike_scan:
             payload["strike_scan"] = strike_scan
+        return jsonify(payload)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/es/position/open-draft")
+def api_es_position_open_draft():
+    from backtest.pricer import put_price, find_strike_for_delta
+    from schwab.scanner import build_strike_scan
+    from strategy.selector import get_es_recommendation
+
+    try:
+        rec = get_es_recommendation(use_intraday=_is_market_hours())
+        if rec.strategy_key == "reduce_wait" or not rec.legs:
+            return jsonify({"error": "Trend filter blocked /ES short put"}), 400
+
+        bp_gate = _live_es_bp_check()
+        if not bp_gate.get("ok"):
+            return jsonify({"error": bp_gate.get("reason"), "bp_gate": bp_gate}), 400
+
+        spx = float(rec.trend_snapshot.spx)
+        sigma = max(float(rec.vix_snapshot.vix) / 100.0, 0.01)
+        strike = find_strike_for_delta(spx, 45, sigma, 0.20, is_call=False)
+        strike = int(round(strike / 5.0) * 5)
+        scan = build_strike_scan(
+            symbol="/ES",
+            option_type="PUT",
+            target_delta=-0.20,
+            target_dte=45,
+            center_strike=float(strike),
+        )
+        rows = scan.get("rows") or []
+        recommended = next((row for row in rows if row.get("recommended")), None)
+        if scan.get("scan_fallback") or recommended is None:
+            return jsonify({"error": "Insufficient /ES chain data for 45 DTE / 20 delta selection"}), 400
+
+        live_delta = abs(float(recommended["delta"])) if recommended.get("delta") not in (None, "") else None
+        model_price = put_price(spx, strike, 45, sigma)
+        final_strike = int(round(float(recommended["strike"])))
+        final_price = round(float(recommended["mid"]), 2) if recommended.get("mid") not in (None, "") else round(model_price, 2)
+        expiry = str(recommended.get("expiry") or (datetime.now(_ET).date() + timedelta(days=45)).isoformat())
+        payload = {
+            "strategy_key": rec.strategy_key,
+            "strategy": rec.strategy.value,
+            "underlying": rec.underlying,
+            "expiry": expiry,
+            "dte_at_entry": 45,
+            "short_strike": final_strike,
+            "long_strike": None,
+            "contracts": 1,
+            "model_premium": final_price,
+            "entry_spx": round(rec.trend_snapshot.spx, 2),
+            "entry_vix": round(rec.vix_snapshot.vix, 2),
+            "regime": rec.vix_snapshot.regime.value,
+            "iv_signal": rec.iv_snapshot.iv_signal.value,
+            "trend_signal": rec.trend_snapshot.signal.value,
+            "roll_rule": rec.roll_rule,
+            "max_risk": rec.max_risk,
+            "target_return": rec.target_return,
+            "rationale": rec.rationale,
+            "paper_trade": False,
+            "trend_filter_passed": True,
+            "bp_check_passed": True,
+            "bp_gate": bp_gate,
+            "legs": [{
+                "action": "SELL",
+                "option": "PUT",
+                "dte": 45,
+                "delta": 0.20,
+                "strike": final_strike,
+                "price": final_price,
+                "note": "Single-slot /ES short put candidate",
+            }],
+            "legs_hint": f"SELL PUT {final_strike} (45D)",
+            "strike_scan": {
+                "scan_fallback": False,
+                "short_leg": [
+                    {
+                        **recommended,
+                        "target_delta": 0.20,
+                        "live_delta": round(live_delta, 3) if live_delta is not None else None,
+                        "delta_gap": round(abs(live_delta - 0.20), 3) if live_delta is not None else None,
+                    }
+                ],
+            },
+            "bp_preview": {
+                "bp_per_contract": bp_gate["es_bp_per_contract"],
+                "bp_usage_dollars": bp_gate["es_bp_per_contract"],
+                "bp_usage_pct": round((bp_gate["es_bp_per_contract"] / bp_gate["nlv"]) * 100.0, 2),
+                "bp_target_pct": round(_ES_BP_LIMIT_FRACTION * 100.0, 2),
+                "bp_target_dollars": bp_gate["bp_limit"],
+                "recommended_contracts": 1,
+                "basis_dollars": bp_gate["nlv"],
+                "basis_label": "Schwab Net Liquidation",
+                "basis_is_live": True,
+                "pct_basis_dollars": bp_gate["nlv"],
+                "pct_basis_label": "Schwab Net Liquidation",
+                "current_bp_dollars": bp_gate["current_bp"],
+                "projected_total_bp_dollars": bp_gate["projected_bp"],
+            },
+        }
         return jsonify(payload)
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500

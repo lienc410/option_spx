@@ -39,6 +39,7 @@ Exit rules:
   Debit positions:  close at 50% profit or 50% loss; close before 7 DTE
 """
 
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
@@ -114,6 +115,14 @@ class StrategyParams:
     # Trend signal controls (SPEC-020)
     use_atr_trend: bool = True    # ATR-normalized entry gate (RS-020-2 validated: OOS Sharpe +6bp, MaxDD -2.73pp)
     bearish_persistence_days: int = 1  # Persistence exit: 1 = legacy single-day (persistence filter rejected by RS-020-2)
+    # Research mode: bypass IVP entry gates for full-history matrix analysis.
+    # NEVER set to True in production. See SPEC-056.
+    disable_entry_gates: bool = False
+    # Research mode: force a specific strategy regardless of signal routing.
+    # When set, select_strategy() returns a recommendation for this strategy
+    # using its standard legs, bypassing all regime/IV/trend routing logic.
+    # NEVER set in production.
+    force_strategy: str | None = None
 
     def bp_ceiling_for_regime(self, regime: "Regime") -> float:
         """Return the total-portfolio BP ceiling for the given regime."""
@@ -148,8 +157,18 @@ from strategy.state      import get_position_action
 IVP_HIGH_THRESHOLD = 70.0
 IVP_LOW_THRESHOLD  = 40.0
 
+# IVP multi-horizon thresholds (SPEC-048~055)
+REGIME_DECAY_IVP63_MAX   = 50
+REGIME_DECAY_IVP252_MIN  = 50
+LOCAL_SPIKE_IVP63_MIN    = 50
+LOCAL_SPIKE_IVP252_MAX   = 50
+IVP63_BCS_BLOCK          = 70
+DIAGONAL_IVP252_GATE_LO  = 30
+DIAGONAL_IVP252_GATE_HI  = 50
+
 
 class StrategyName(str, Enum):
+    ES_SHORT_PUT        = "ES Short Put"
     BULL_PUT_SPREAD     = "Bull Put Spread"
     BULL_PUT_SPREAD_HV  = "Bull Put Spread (High Vol)"  # HIGH_VOL regime variant
     BEAR_CALL_SPREAD_HV = "Bear Call Spread (High Vol)"
@@ -196,6 +215,7 @@ class Recommendation:
     re_enable_hint: str = ""
     overlay_mode: str = "disabled"
     shock_mode: str = "disabled"
+    local_spike: bool = False
 
     def summary(self) -> str:
         """Single-line summary for quick reading."""
@@ -266,6 +286,24 @@ def _size_rule(vix: VixSnapshot, iv_s: IVSignal, t: TrendSignal) -> str:
     return "Half size — risk ≤ 1.5% of account (VIX rising or signals mixed)"
 
 
+def _compute_size_tier(
+    strategy_key: str,
+    iv: IVSnapshot,
+    vix: VixSnapshot,
+    iv_s: IVSignal,
+    t: TrendSignal,
+) -> str:
+    """
+    Two-tier sizing with regime decay and local spike overrides for DIAGONAL only (SPEC-053/055b).
+    """
+    if iv.regime_decay and strategy_key == StrategyName.BULL_CALL_DIAGONAL.value:
+        return "Full size — regime decay: vol cooling from elevated base (SPEC-053)"
+    local_spike = (iv.ivp63 >= LOCAL_SPIKE_IVP63_MIN and iv.ivp252 < LOCAL_SPIKE_IVP252_MAX)
+    if local_spike and strategy_key == StrategyName.BULL_CALL_DIAGONAL.value:
+        return "Full size — local spike: near-term vol elevated above calm long-term base (SPEC-055b)"
+    return _size_rule(vix, iv_s, t)
+
+
 def _build_recommendation(
     strategy: StrategyName,
     *,
@@ -282,6 +320,7 @@ def _build_recommendation(
     guardrail_label: str = "",
     canonical_strategy: str = "",
     re_enable_hint: str = "",
+    local_spike: bool = False,
 ) -> Recommendation:
     desc = strategy_descriptor(strategy.value)
     return Recommendation(
@@ -305,6 +344,92 @@ def _build_recommendation(
         re_enable_hint = re_enable_hint,
         overlay_mode = params.overlay_mode,
         shock_mode = params.shock_mode,
+        local_spike = local_spike,
+    )
+
+
+def _build_forced_recommendation(
+    strategy_key: str,
+    vix: VixSnapshot,
+    iv: IVSnapshot,
+    trend: TrendSnapshot,
+    params: StrategyParams,
+) -> Recommendation:
+    """
+    Build a valid Recommendation for the specified strategy using its standard legs,
+    regardless of current regime/IV/trend. Used only for matrix audit research (SPEC-057).
+    """
+    _FORCED_LEGS: dict[str, list[Leg]] = {
+        "es_short_put": [
+            Leg("SELL", "PUT", 45, 0.20, "Short put — minimal /ES production cell"),
+        ],
+        "bull_call_diagonal": [
+            Leg("BUY", "CALL", 90, 0.70, "Long leg — deep ITM, high delta"),
+            Leg("SELL", "CALL", 45, 0.30, "Short leg — OTM, collects theta"),
+        ],
+        "iron_condor": [
+            Leg("SELL", "CALL", 45, 0.16, "Short call wing"),
+            Leg("BUY", "CALL", 45, 0.08, "Long call wing"),
+            Leg("SELL", "PUT", 45, 0.16, "Short put wing"),
+            Leg("BUY", "PUT", 45, 0.08, "Long put wing"),
+        ],
+        "bull_put_spread": [
+            Leg("SELL", "PUT", 30, 0.30, "Short put"),
+            Leg("BUY", "PUT", 30, 0.15, "Long put"),
+        ],
+        "bull_put_spread_hv": [
+            Leg("SELL", "PUT", 35, 0.20, "Short put — HV params"),
+            Leg("BUY", "PUT", 35, 0.10, "Long put — HV params"),
+        ],
+        "bear_call_spread_hv": [
+            Leg("SELL", "CALL", 45, 0.20, "Short call — HV params"),
+            Leg("BUY", "CALL", 45, 0.10, "Long call — HV params"),
+        ],
+        "iron_condor_hv": [
+            Leg("SELL", "CALL", 45, 0.16, "Short call wing — HV"),
+            Leg("BUY", "CALL", 45, 0.08, "Long call wing — HV"),
+            Leg("SELL", "PUT", 45, 0.16, "Short put wing — HV"),
+            Leg("BUY", "PUT", 45, 0.08, "Long put wing — HV"),
+        ],
+    }
+    legs = _FORCED_LEGS.get(strategy_key)
+    if legs is None:
+        raise ValueError(f"_build_forced_recommendation: unknown strategy_key {strategy_key!r}")
+
+    forced_map: dict[str, StrategyName] = {
+        "es_short_put": StrategyName.ES_SHORT_PUT,
+        "bull_call_diagonal": StrategyName.BULL_CALL_DIAGONAL,
+        "iron_condor": StrategyName.IRON_CONDOR,
+        "bull_put_spread": StrategyName.BULL_PUT_SPREAD,
+        "bull_put_spread_hv": StrategyName.BULL_PUT_SPREAD_HV,
+        "bear_call_spread_hv": StrategyName.BEAR_CALL_SPREAD_HV,
+        "iron_condor_hv": StrategyName.IRON_CONDOR_HV,
+    }
+    strategy_enum = forced_map.get(strategy_key)
+    if strategy_enum is None:
+        raise ValueError(f"_build_forced_recommendation: cannot map {strategy_key!r} to StrategyName")
+
+    t = trend.signal
+    iv_s = _effective_iv_signal(iv)
+    size = _compute_size_tier(strategy_key, iv, vix, iv_s, t)
+    local_spike = (iv.ivp63 >= LOCAL_SPIKE_IVP63_MIN and iv.ivp252 < LOCAL_SPIKE_IVP252_MAX)
+    action = get_position_action(
+        strategy_enum.value,
+        is_wait=False,
+        strategy_key=strategy_key,
+    )
+
+    return _build_recommendation(
+        strategy_enum,
+        params=params,
+        vix=vix,
+        iv=iv,
+        trend=trend,
+        legs=legs,
+        size_rule=size,
+        rationale=f"[FORCED] matrix audit — standard {strategy_key} legs",
+        position_action=action,
+        local_spike=local_spike,
     )
 
 
@@ -316,7 +441,12 @@ def _guardrail_label(reason: str, backwardation: bool = False) -> str:
         return "BACKWARDATION"
     if "VIX RISING" in text:
         return "VIX RISING"
-    if "IVP=" in text or "IVP " in text:
+    if re.search(r'\bIVP', text):
+        # Extract the specific condition from the reason string (between "but " and "—")
+        m = re.search(r'but\s+([^—;(]+)', reason, re.IGNORECASE)
+        if m:
+            cond = m.group(1).strip().replace(">=", "≥").replace("<=", "≤")
+            return f"IVP FILTER — {cond}"
         return "IVP FILTER"
     if "LOW_VOL + BEARISH" in text:
         return "NO EDGE"
@@ -334,7 +464,24 @@ def _re_enable_hint(label: str, params: StrategyParams = DEFAULT_PARAMS) -> str:
         return "VIX trend turns FLAT or FALLING"
     if label == "MACRO DOWNTREND":
         return "SPX recovers above 200MA"
-    if label == "IVP FILTER":
+    if label.startswith("IVP FILTER"):
+        detail = label[len("IVP FILTER"):].lstrip(" —").strip()
+        if not detail:
+            return "IV percentile returns to the allowed band"
+        metric_m = re.match(r'(\w+)\s*=', detail, re.IGNORECASE)
+        metric = metric_m.group(1) if metric_m else "IVP"
+        if re.search(r'[≥>]=?\s*\d+', detail):
+            threshold = re.search(r'[≥>]=?\s*(\d+)', detail)
+            return f"{metric} drops below {threshold.group(1)}" if threshold else "IV percentile drops"
+        if re.search(r'<\s*\d+', detail):
+            threshold = re.search(r'<\s*(\d+)', detail)
+            return f"{metric} rises above {threshold.group(1)}" if threshold else "IV percentile rises"
+        if re.search(r'outside\s*\d+', detail, re.IGNORECASE):
+            band = re.search(r'outside\s*(\d+)[–\-](\d+)', detail, re.IGNORECASE)
+            return f"IVP returns to the {band.group(1)}–{band.group(2)} range" if band else "IV percentile returns to the allowed band"
+        if re.search(r'\bin\b.*\d+[–\-]\d+', detail, re.IGNORECASE):
+            band = re.search(r'(\d+)[–\-](\d+)', detail)
+            return f"{metric} moves outside the {band.group(1)}–{band.group(2)} range" if band else "IV percentile returns to the allowed band"
         return "IV percentile returns to the allowed band"
     if label == "PREMIUM FILTER":
         return "Premium widens back to an acceptable level"
@@ -382,6 +529,9 @@ def select_strategy(
                 Defaults to DEFAULT_PARAMS; pass a custom StrategyParams to run
                 parameter experiments via the backtest engine.
     """
+    if params.force_strategy:
+        return _build_forced_recommendation(params.force_strategy, vix, iv, trend, params)
+
     r    = vix.regime
     iv_s = _effective_iv_signal(iv)
     t    = trend.signal
@@ -409,6 +559,50 @@ def select_strategy(
                     vix, iv, trend, macro_warn,
                     canonical_strategy=StrategyName.BEAR_CALL_SPREAD_HV.value,
                     params=params,
+                )
+            if not params.disable_entry_gates and iv.ivp63 >= IVP63_BCS_BLOCK:
+                return _reduce_wait(
+                    f"HIGH_VOL + BEARISH but ivp63={iv.ivp63:.0f} >= {IVP63_BCS_BLOCK} — "
+                    "VIX at 63-day high; mean reversion risk too elevated for BCS_HV short call",
+                    vix, iv, trend, macro_warn,
+                    canonical_strategy=StrategyName.BEAR_CALL_SPREAD_HV.value,
+                    params=params,
+                )
+            # SPEC-060: HIGH_VOL + BEARISH + IV=HIGH → IC_HV
+            # Bootstrap matrix: IC_HV $937 ✓ vs BCS_HV $465 ✓ (n=33 vs n=50);
+            # double-sided premium dominates single-direction call spread in HIGH_IV stress.
+            if iv_s == IVSignal.HIGH:
+                action = get_position_action(
+                    StrategyName.IRON_CONDOR_HV.value,
+                    is_wait=False,
+                    strategy_key=catalog_strategy_key(StrategyName.IRON_CONDOR_HV.value),
+                )
+                return _build_recommendation(
+                    StrategyName.IRON_CONDOR_HV,
+                    vix=vix,
+                    iv=iv,
+                    trend=trend,
+                    legs=[
+                        Leg("SELL", "CALL", 45, 0.16,
+                            "Upper short wing — rich HIGH_VOL call premium"),
+                        Leg("BUY",  "CALL", 45, 0.08,
+                            "Upper long wing"),
+                        Leg("SELL", "PUT",  45, 0.16,
+                            "Lower short wing — rich HIGH_VOL put premium"),
+                        Leg("BUY",  "PUT",  45, 0.08,
+                            "Lower long wing"),
+                    ],
+                    size_rule=(
+                        f"{int(params.high_vol_size*100)}% size — risk ≤ "
+                        f"{1.5*params.high_vol_size:.1f}% of account "
+                        f"(HIGH_VOL, reduced exposure)"
+                    ),
+                    rationale=(
+                        "HIGH_VOL + BEARISH + IV HIGH + VIX stable — double-sided premium "
+                        "captures vol risk premium; IC_HV outperforms BCS_HV in this cell (SPEC-060)"
+                    ),
+                    position_action=action,
+                    macro_warning=macro_warn,
                 )
             action = get_position_action(
                 StrategyName.BEAR_CALL_SPREAD_HV.value,
@@ -502,6 +696,41 @@ def select_strategy(
                 canonical_strategy=StrategyName.BULL_PUT_SPREAD_HV.value,
                 params=params,
             )
+        # SPEC-060: HIGH_VOL + BULLISH + IV=NEUTRAL → IC_HV
+        # Bootstrap matrix: IC $1,837 ✓ (n=11) vs BPS_HV $100 not significant (n=13).
+        if iv_s == IVSignal.NEUTRAL:
+            action = get_position_action(
+                StrategyName.IRON_CONDOR_HV.value,
+                is_wait=False,
+                strategy_key=catalog_strategy_key(StrategyName.IRON_CONDOR_HV.value),
+            )
+            return _build_recommendation(
+                StrategyName.IRON_CONDOR_HV,
+                vix=vix,
+                iv=iv,
+                trend=trend,
+                legs=[
+                    Leg("SELL", "CALL", 45, 0.16,
+                        "Upper short wing — HIGH_VOL premium"),
+                    Leg("BUY",  "CALL", 45, 0.08,
+                        "Upper long wing"),
+                    Leg("SELL", "PUT",  45, 0.16,
+                        "Lower short wing — HIGH_VOL premium"),
+                    Leg("BUY",  "PUT",  45, 0.08,
+                        "Lower long wing"),
+                ],
+                size_rule=(
+                    f"{int(params.high_vol_size*100)}% size — risk ≤ "
+                    f"{1.5*params.high_vol_size:.1f}% of account "
+                    f"(HIGH_VOL, reduced exposure)"
+                ),
+                rationale=(
+                    "HIGH_VOL + BULLISH + IV NEUTRAL + VIX stable — IC_HV dominates BPS_HV "
+                    "in this cell; double-sided premium with no directional bet (SPEC-060)"
+                ),
+                position_action=action,
+                macro_warning=macro_warn,
+            )
         action = get_position_action(
             StrategyName.BULL_PUT_SPREAD_HV.value,
             is_wait=False,
@@ -573,11 +802,38 @@ def select_strategy(
             )
 
         if t == TrendSignal.BULLISH:
+            if not params.disable_entry_gates:
+                # ── Gate 1 (SPEC-049): ivp252 marginal zone ──────────────────
+                if DIAGONAL_IVP252_GATE_LO <= iv.ivp252 <= DIAGONAL_IVP252_GATE_HI:
+                    return _reduce_wait(
+                        f"LOW_VOL + BULLISH but ivp252={iv.ivp252:.0f} in {DIAGONAL_IVP252_GATE_LO}–{DIAGONAL_IVP252_GATE_HI} "
+                        "marginal zone — long-term vol environment transitional; DIAGONAL edge reduced",
+                        vix, iv, trend, macro_warn,
+                        canonical_strategy=StrategyName.BULL_CALL_DIAGONAL.value,
+                        params=params,
+                    )
+
+                # ── Gate 2 (SPEC-051): IV=HIGH in LOW_VOL ────────────────────
+                if iv_s == IVSignal.HIGH:
+                    return _reduce_wait(
+                        f"LOW_VOL + BULLISH but IV=HIGH (IVP={iv.iv_percentile:.0f}) — "
+                        "vol expansion signal in low-vol regime; DIAGONAL short leg exposed",
+                        vix, iv, trend, macro_warn,
+                        canonical_strategy=StrategyName.BULL_CALL_DIAGONAL.value,
+                        params=params,
+                    )
+
+                # Gate 3 (SPEC-054) removed by SPEC-056c:
+                # both-high (ivp63≥50 AND ivp252≥50) no longer blocked —
+                # F006 research had negative selection bias (n=8 was post-Gate-1/2 residual).
+                # Full-history event study (n=14) shows Sharpe +1.56, similar to double_low.
+
             action = get_position_action(
                 StrategyName.BULL_CALL_DIAGONAL.value,
                 is_wait=False,
                 strategy_key=catalog_strategy_key(StrategyName.BULL_CALL_DIAGONAL.value),
             )
+            local_spike = (iv.ivp63 >= LOCAL_SPIKE_IVP63_MIN and iv.ivp252 < LOCAL_SPIKE_IVP252_MAX)
             return _build_recommendation(
                 StrategyName.BULL_CALL_DIAGONAL,
                 vix=vix,
@@ -587,10 +843,13 @@ def select_strategy(
                     Leg("BUY",  "CALL", 90, 0.70, "Long leg — deep ITM, high delta"),
                     Leg("SELL", "CALL", 45, 0.30, "Short leg — OTM, collects theta"),
                 ],
-                size_rule=_size_rule(vix, iv_s, t),
+                size_rule=_compute_size_tier(
+                    StrategyName.BULL_CALL_DIAGONAL.value, iv, vix, iv_s, t
+                ),
                 rationale="LOW_VOL + BULLISH — theta is cheap; use 45 DTE short leg to widen collection window",
                 position_action=action,
                 macro_warning=macro_warn,
+                local_spike=local_spike,
             )
 
         # BEARISH in LOW_VOL → no edge; low-vol pullbacks are typically V-shaped
@@ -619,32 +878,15 @@ def select_strategy(
                     canonical_strategy=StrategyName.BULL_PUT_SPREAD.value,
                     params=params,
                 )
-            # P1: IVP ≥ 50 means market already stressed — tail risk outweighs extra premium
-            if iv.iv_percentile >= 50:
-                return _reduce_wait(
-                    f"NORMAL + IV HIGH + BULLISH but IVP={iv.iv_percentile:.0f} ≥ 50 — stressed vol environment, BPS tail risk too high",
-                    vix, iv, trend, macro_warn,
-                    canonical_strategy=StrategyName.BULL_PUT_SPREAD.value,
-                    params=params,
-                )
-            action = get_position_action(
-                StrategyName.BULL_PUT_SPREAD.value,
-                is_wait=False,
-                strategy_key=catalog_strategy_key(StrategyName.BULL_PUT_SPREAD.value),
-            )
-            return _build_recommendation(
-                StrategyName.BULL_PUT_SPREAD,
-                vix=vix,
-                iv=iv,
-                trend=trend,
-                legs=[
-                    Leg("SELL", "PUT", 30, 0.30, "Short put — OTM, collects premium"),
-                    Leg("BUY",  "PUT", 30, 0.15, "Long put  — further OTM, caps downside"),
-                ],
-                size_rule=_size_rule(vix, iv_s, t),
-                rationale="NORMAL + IV HIGH + BULLISH — calm vol (IVP<50) + uptrend: Bull Put Spread",
-                position_action=action,
-                macro_warning=macro_warn,
+            # SPEC-060 Change 3: NORMAL + IV_HIGH + BULLISH → REDUCE_WAIT
+            # Bootstrap matrix: BPS avg −$299 not significant (n=23);
+            # BCS_HV CI [$755,$1,044] is bootstrap-degenerate (n=10, block_size=5 ≈ 2 blocks).
+            # No strategy has statistically significant alpha in this cell.
+            return _reduce_wait(
+                "NORMAL + IV HIGH + BULLISH — no strategy has statistically significant alpha in this cell; REDUCE_WAIT (SPEC-060)",
+                vix, iv, trend, macro_warn,
+                canonical_strategy=StrategyName.BULL_PUT_SPREAD.value,
+                params=params,
             )
 
         if t == TrendSignal.BEARISH:
@@ -655,13 +897,9 @@ def select_strategy(
                     canonical_strategy=StrategyName.IRON_CONDOR.value,
                     params=params,
                 )
-            if iv.iv_percentile >= 50:
-                return _reduce_wait(
-                    f"NORMAL + IV HIGH + BEARISH but IVP={iv.iv_percentile:.0f} ≥ 50 — stressed vol; IC put side at risk",
-                    vix, iv, trend, macro_warn,
-                    canonical_strategy=StrategyName.IRON_CONDOR.value,
-                    params=params,
-                )
+            # IVP ≥ 50 gate removed by SPEC-058:
+            # SPEC-057 matrix shows IC avg $2,043 (n=13) in NORMAL|HIGH|BEARISH —
+            # rich premium outweighs put-side tail risk in this cell.
             action = get_position_action(
                 StrategyName.IRON_CONDOR.value,
                 is_wait=False,
@@ -696,14 +934,9 @@ def select_strategy(
                 canonical_strategy=StrategyName.IRON_CONDOR.value,
                 params=params,
             )
-        # P3: IVP > 50 means market already stressed — condor too likely to be breached
-        if iv.iv_percentile > 50:
-            return _reduce_wait(
-                f"NORMAL + IV HIGH + NEUTRAL but IVP={iv.iv_percentile:.0f} > 50 — tail risk too elevated for Iron Condor",
-                vix, iv, trend, macro_warn,
-                canonical_strategy=StrategyName.IRON_CONDOR.value,
-                params=params,
-            )
+        # IVP > 50 gate removed by SPEC-058:
+        # SPEC-057 matrix shows IC avg $1,017 (n=9) in NORMAL|HIGH|NEUTRAL —
+        # rich premium still favors IC even when IVP elevated in NORMAL regime.
         action = get_position_action(
             StrategyName.IRON_CONDOR.value,
             is_wait=False,
@@ -884,6 +1117,41 @@ def select_strategy(
     )
 
 
+def select_es_short_put(
+    vix: VixSnapshot,
+    iv: IVSnapshot,
+    trend: TrendSnapshot,
+    params: StrategyParams = DEFAULT_PARAMS,
+) -> Recommendation:
+    macro_warn = not trend.above_200
+
+    if trend.signal != TrendSignal.BULLISH:
+        return _reduce_wait(
+            "ES short put blocked — trend filter not bullish; no new /ES short put",
+            vix,
+            iv,
+            trend,
+            macro_warn,
+            canonical_strategy=StrategyName.ES_SHORT_PUT.value,
+            params=params,
+        )
+
+    return _build_recommendation(
+        StrategyName.ES_SHORT_PUT,
+        params=params,
+        vix=vix,
+        iv=iv,
+        trend=trend,
+        legs=[
+            Leg("SELL", "PUT", 45, 0.20, "Single-slot /ES short put candidate"),
+        ],
+        size_rule="1 contract max; single slot only; require projected /ES BP <= 20% of NLV",
+        rationale="Trend filter passed — minimal /ES short put production cell candidate",
+        position_action="OPEN",
+        macro_warning=macro_warn,
+    )
+
+
 def get_recommendation(
     vix_df=None,
     spx_df=None,
@@ -924,6 +1192,37 @@ def get_recommendation(
     trend_snap = get_current_trend(spx_data, current_spx=current_spx)
 
     return select_strategy(vix_snap, iv_snap, trend_snap)
+
+
+def get_es_recommendation(
+    vix_df=None,
+    spx_df=None,
+    use_intraday: bool = False,
+) -> Recommendation:
+    vix_data = fetch_vix_history(period="2y") if vix_df is None else vix_df
+    spx_data = fetch_spx_history(period="2y") if spx_df is None else spx_df
+
+    current_vix: Optional[float] = None
+    current_spx: Optional[float] = None
+
+    if use_intraday:
+        try:
+            vix_5m = fetch_vix_history(period="1d", interval="5m")
+            current_vix = float(vix_5m["vix"].iloc[-1])
+        except Exception:
+            pass
+
+        try:
+            spx_5m = fetch_spx_history(period="1d", interval="5m")
+            current_spx = float(spx_5m["close"].iloc[-1])
+        except Exception:
+            pass
+
+    vix_snap = get_current_snapshot(vix_data, current_vix=current_vix)
+    iv_snap = get_current_iv_snapshot(vix_data, current_vix=current_vix)
+    trend_snap = get_current_trend(spx_data, current_spx=current_spx)
+
+    return select_es_short_put(vix_snap, iv_snap, trend_snap)
 
 
 if __name__ == "__main__":

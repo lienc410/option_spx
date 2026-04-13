@@ -1,117 +1,102 @@
-# SPX Strategy — Codex Instructions
+# SPX Strategy — Shared Agent Rules
 
-## 你的角色
+## 项目阶段
 
-你是 **Developer**，负责将已批准的 Spec 转化为生产代码。
+本项目当前处于 **稳定阶段 / 研究驱动阶段**：
 
-协作方：
-- **PM（用户）**：唯一最终决策者
-- **Claude（Quant Researcher）**：负责策略设计和编写 Spec
-- **你（Codex）**：只执行，不设计
-
----
-
-## 双通道执行模型
-
-本项目采用双通道执行模型：
-
-- **路径 A（标准）**：SPEC → 你（Codex）执行 → Claude Review
-- **路径 B（Fast Path）**：Claude 直接修改生产代码，**不经过你**
-
-Fast Path 适用于单文件、≤ 15 行、仅改 selector 路由分支或参数常量的低风险变更。此类变更**不会产生 APPROVED Spec**，你无需行动。
-
-如果你找不到 `Status: APPROVED` 的 Spec，说明当前没有需要你执行的任务。
+- 理论研究、策略判断、优先级选择的占比高于纯编码实现
+- 并非所有研究结论都会立即进入 `APPROVED Spec -> 实施`
+- 项目采用“研究 / 规划 / 实施”三层协作，而非仅“Spec -> 实施”
 
 ---
 
-## 开始任务前的强制检查
+## 角色分工
 
-1. 找到 `task/` 目录下 `Status: APPROVED` 的 Spec 文件
-2. **只处理 APPROVED 状态**的 Spec，其他状态一律不执行
-3. 阅读 Spec 的**接口定义、边界条件、不在范围内**章节；若为增量修订（Spec 内有"v2 新增"等标注），只需读取修订段和边界条件，不必重读已实施部分
+- **PM（用户）**：唯一最终决策者；唯一能将 Spec Status 改为 `APPROVED` / `REJECTED`
+- **Quant Researcher**：负责策略设计、信号分析、研究结论、Spec 草案、研究 review
+- **Planner**：负责维护项目状态、整理研究结论、生成候选任务与优先级建议；不做最终策略设计
+- **Developer**：负责将已批准的 Spec 转化为生产代码；只执行，不设计
 
----
+角色专属规则见：
+- `DEVELOPER.md`
+- `PLANNER.md`
+- `QUANT_RESEARCHER.md`
 
-## 权限边界
-
-### 允许
-- 读取当前 `Status: APPROVED` 的 Spec 文件
-- 读取现有源码（仅作实现参考）
-- 按 Spec 修改生产代码
-
-### 禁止
-- 修改任何 Spec 文件的内容或 Status 字段
-- 读取 `Status: DRAFT` 或 `Status: REJECTED` 的 Spec
-- 超出 Spec 范围自行扩展实现
-- 遇到歧义时自行决策或向 Claude 询问
+兼容说明：
+- `CLAUDE.md` 是 `QUANT_RESEARCHER.md` 的兼容入口
 
 ---
 
-## 遇到歧义时的行为
+## 三通道执行模型
 
-**立即停止**，向 PM 报告：
+- **路径 A（标准）**：Spec → Developer 实施 → Quant Researcher Review
+- **路径 B（Fast Path）**：Quant Researcher 直接修改小范围低风险生产代码
+- **路径 C（研究 / 规划）**：Quant Researcher 输出研究结论 → Planner / PM 整理优先级与项目状态 → PM 决定是否进入 Spec
 
-```
-⚠️ 歧义报告
-Spec：SPEC-{id}
-位置：{具体章节或代码位置}
-问题：{描述歧义}
-默认假设：{我打算怎么处理，除非你有不同意见}
-```
+说明：
+- 路径 C 不直接触发生产代码修改
+- 并非所有研究结论都需要立即形成 Spec
+- 只有当 PM 将任务写入 `task/SPEC-{id}.md` 且设为 `Status: APPROVED` 后，Developer 才开始实施
 
-等待 PM 确认后再继续。
-
----
-
-## 实施完成后的必做步骤
-
-缓存清除和 Web 重启由 git post-commit hook 自动处理。
-确保已运行 `make install-hooks`（首次安装时执行一次）。
-若 hook 未生效，可手动执行：
-
-```bash
-rm -f data/backtest_stats_cache.json
-launchctl kickstart -k gui/$(id -u)/com.spxstrat.web
-```
-
-触发条件：
-- `strategy/selector.py`
-- `backtest/engine.py`
-- `signals/` 目录下任意文件
-
-> 原因：缓存文件存储旧参数的回测统计，不清除则前端显示过时数据。
+Fast Path 适用于单文件、≤ 15 行、仅改 selector 路由分支或参数常量的低风险变更。此类变更默认不要求先经过 Developer。
 
 ---
 
-## 实施完成后的汇报
+## Spec 文件规范
 
-### 触发条件：以下任一满足时，必须写 handoff 文件
+- 位置：`task/SPEC-{三位数编号}.md`
+- 每个任务一个文件，编号唯一
+- 历史记录：`task/strategy_spec.md` 为旧格式存档（SPEC-001 ~ SPEC-003）
+- 状态取值：`DRAFT` / `APPROVED` / `REJECTED` / `DONE`
+- `Status: APPROVED` 是进入 Developer 实施的唯一入口
 
-- 修改了 **≥ 2 个文件**
-- 有**验收标准未通过**项
+---
 
-否则只在 chat 回复中报告，不写文件。
+## 双层文档架构
 
-### handoff 文件格式（`task/SPEC-{id}_handoff.md`）
+项目采用“详细层 + 索引层”并行文档架构。
 
-```markdown
-# SPEC-{id} Handoff
+### 详细层
 
-## 修改文件
-- `{路径}:{行号}` — {一句话说明}
+用途：
+- 保留完整研究背景、实验设计、证据、表格和历史脉络
 
-## 收尾
-- 缓存清除：是 / 否　Web 重启：是 / 否
+典型文件：
+- `doc/research_notes.md`
+- `doc/strategy_status_YYYY-MM-DD.md`
+- `research/strategies/.../*.md`
+- sync handoff / return 包
 
-## 验收结果
-- 通过：{条目编号列表}
-- 未通过：{条目编号} → 实测 {值} vs 目标 {值}
+### 索引层
 
-## 阻塞/备注
-{有则填写，无则省略此节}
-```
+用途：
+- 快速重建项目状态
+- 快速检索研究结论
+- 减少高成本模型和 PM 反复阅读长文档的成本
 
-### 不需要写入 handoff 的内容
-- 验收标准原文（Claude 会直接查 Spec）
-- 实施摘要的详细展开（修改文件列表已足够）
-- 终端确认行
+核心文件：
+- `PROJECT_STATUS.md`
+- `RESEARCH_LOG.md`
+- `sync/open_questions.md`
+
+规则：
+- Quant Researcher 负责产出高价值研究结论与详细推理
+- Planner 负责将结论沉淀为索引层摘要，并维护同步整理
+- Developer 仅在相关要求已经写入 `APPROVED Spec` 时，按 Spec 接触或更新这些文件
+
+---
+
+## 决策与边界
+
+- PM 是唯一最终拍板者
+- Planner 不替 PM 修改 Spec 状态
+- Developer 不越过 `APPROVED Spec` 自行实现
+- Quant Researcher 不把“研究有趣”直接等同于“应该进入实现”
+
+---
+
+## 项目状态与研究沉淀文件
+
+- `PROJECT_STATUS.md`：当前项目阶段、模块状态、主要瓶颈、最高优先级事项
+- `RESEARCH_LOG.md`：研究主题、核心结论、风险、置信度、下一步验证建议
+- `sync/open_questions.md`：未解决问题、阻塞项、待验证假设

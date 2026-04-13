@@ -722,6 +722,17 @@ def run_backtest(
         iv_window.iloc[-1] = vix
         ivr      = compute_iv_rank(iv_window)
         ivp      = compute_iv_percentile(iv_window)
+        # SPEC-056 F1: ivp63 for IVP four-quadrant tagging
+        _w63 = (vix_window.iloc[-63:] if len(vix_window) >= 63 else vix_window).copy()
+        _w63.iloc[-1] = vix
+        if len(_w63) < 63:
+            ivp63_val: float = float(ivp)
+        else:
+            ivp63_val = round(
+                float((_w63.iloc[:-1] < float(_w63.iloc[-1])).mean()) * 100.0, 1
+            )
+        _regime_decay = (float(ivp) >= 50.0) and (ivp63_val < 50.0)
+        _local_spike = (ivp63_val >= 50.0) and (float(ivp) < 50.0)
 
         iv_eff   = IVSig.HIGH if ivp > 70 else (IVSig.LOW if ivp < 40 else IVSig.NEUTRAL)
 
@@ -762,6 +773,9 @@ def run_backtest(
             date=str(date.date()), vix=vix,
             iv_rank=ivr, iv_percentile=ivp, iv_signal=iv_eff,
             iv_52w_high=float(iv_window.max()), iv_52w_low=float(iv_window.min()),
+            ivp63=ivp63_val,
+            ivp252=float(ivp),
+            regime_decay=_regime_decay,
         )
         trend_snap = TrendSnapshot(
             date=str(date.date()), spx=spx,
@@ -789,6 +803,11 @@ def run_backtest(
             "strategy_key": rec_key,
             "hv_spell_age": spell_age if rec_key in HIGH_VOL_STRATEGY_KEYS or regime == Regime.HIGH_VOL else 0,
             "bearish_streak": bearish_streak,
+            "ivp63": round(ivp63_val, 1),
+            "ivp252": round(float(ivp), 1),
+            "regime_decay": _regime_decay,
+            "local_spike": _local_spike,
+            "iv_signal": iv_eff.value,
         })
 
         # ── Manage open positions ────────────────────────────────────
@@ -1120,6 +1139,17 @@ def run_signals_only(
         iv_window.iloc[-1] = vix
         ivr = compute_iv_rank(iv_window)
         ivp = compute_iv_percentile(iv_window)
+        # SPEC-056 F1: ivp63 for IVP four-quadrant tagging
+        _w63 = (vix_window.iloc[-63:] if len(vix_window) >= 63 else vix_window).copy()
+        _w63.iloc[-1] = vix
+        if len(_w63) < 63:
+            ivp63_val: float = float(ivp)
+        else:
+            ivp63_val = round(
+                float((_w63.iloc[:-1] < float(_w63.iloc[-1])).mean()) * 100.0, 1
+            )
+        _regime_decay = (float(ivp) >= 50.0) and (ivp63_val < 50.0)
+        _local_spike = (ivp63_val >= 50.0) and (float(ivp) < 50.0)
         iv_eff = IVSig.HIGH if ivp > 70 else (IVSig.LOW if ivp < 40 else IVSig.NEUTRAL)
 
         ma20_val = float(spx_window.rolling(20).mean().iloc[-1]) if len(spx_window) >= 20 else spx
@@ -1157,6 +1187,9 @@ def run_signals_only(
             date=str(date.date()), vix=vix,
             iv_rank=ivr, iv_percentile=ivp, iv_signal=iv_eff,
             iv_52w_high=float(iv_window.max()), iv_52w_low=float(iv_window.min()),
+            ivp63=ivp63_val,
+            ivp252=float(ivp),
+            regime_decay=_regime_decay,
         )
         trend_snap = TrendSnapshot(
             date=str(date.date()), spx=spx,
@@ -1181,6 +1214,11 @@ def run_signals_only(
             "strategy_key": rec_key,
             "hv_spell_age": spell_age if rec_key in HIGH_VOL_STRATEGY_KEYS or regime == Regime.HIGH_VOL else 0,
             "bearish_streak": bearish_streak,
+            "ivp63": round(ivp63_val, 1),
+            "ivp252": round(float(ivp), 1),
+            "regime_decay": _regime_decay,
+            "local_spike": _local_spike,
+            "iv_signal": iv_eff.value,
         })
 
     return signal_history

@@ -1,0 +1,11 @@
+bucket,description,n,avg_pnl,win_rate,sharpe,max_consec_loss,avg_hold_days,low_n_flag
+ivp_double_low,ivp252 < 50 AND ivp63 < 50,13,3.0,0.769,0.0,1,30.6,False
+ivp_regime_decay,ivp252 >= 50 AND ivp63 < 50,0,,,,0,,True
+ivp_local_spike,ivp63 >= 50 AND ivp252 < 50,21,1001.0,0.857,1.05,1,27.8,False
+ivp_both_high,ivp63 >= 50 AND ivp252 >= 50,0,,,,0,,True
+regime_low_vol,regime == LOW_VOL,19,866.0,0.842,1.01,1,29.5,False
+regime_normal,regime == NORMAL,15,308.0,0.8,0.22,2,28.0,False
+regime_high_vol,regime == HIGH_VOL,0,,,,0,,True
+trend_bullish,trend == BULLISH,0,,,,0,,True
+trend_neutral,trend == NEUTRAL,26,125.0,0.769,0.1,3,29.6,False
+trend_bearish,trend == BEARISH,8,2226.0,1.0,11.02,0,26.5,False

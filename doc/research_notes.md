@@ -1961,3 +1961,436 @@ for window in windows:
 
 **结论**：delta 单调性是期权链的结构性事实，利用它可以将扫描问题从"搜索"变为"插值"，显著减少 API 请求并提升精度。SPEC-043 已取消实施。
 
+---
+
+## 43. DIAGONAL Event Study — 入场信号 Alpha 验证（SPEC-050，2026-04-10）
+
+**Status：研究完成，工具已建立**
+
+### 研究方法
+
+Non-overlapping event study（`backtest/run_event_study.py`）：
+- 提取每个 DIAGONAL 入场信号触发日
+- 计算 fixed_hold 期内的收益，窗口不重叠
+- 排除 survivor bias 和 autocorrelation
+
+### 核心结论
+
+| 指标 | DIAGONAL (n=89) |
+|------|----------------|
+| 平均盈亏 | +$1,577 |
+| 胜率 | 72% |
+| fixed_hold 未触目标时均值 | +$1,062 |
+
+**DIAGONAL 是唯一有入场信号 alpha 的策略。** 入场信号本身（不依赖 exit timing）就产生正期望值。
+
+### Iron Condor 对照
+
+IC fixed_hold=21 天胜率 = 0%。这是设计行为：IC 的 alpha 完全来自 exit timing（50% profit + 21 DTE roll），与入场信号无关。IC 的盈利能力依赖精确的 exit 执行。
+
+### 设计影响
+
+- 验证了 DIAGONAL 入场门（SPEC-049/051/054）的研究基础：入场时机对 DIAGONAL 有统计意义
+- IC 的后续研究重点应放在 exit optimization，而非入场过滤
+
+---
+
+## 44. IVP 四象限全策略审计（SPEC-048/053，2026-04-10）
+
+**Status：研究完成，已部署**
+
+### 研究设计
+
+对每个策略，按 IVP 四象限（ivp63/ivp252 各 <50 / ≥50）拆分历史交易，计算各子集 Sharpe。
+
+工具：`backtest/run_ivp_regime_audit.py`
+
+### Regime Decay（ivp252 ≥ 50 AND ivp63 < 50）子集结果
+
+| 策略 | Sharpe（regime decay 区间）| 方向 |
+|------|--------------------------|------|
+| BULL_CALL_DIAGONAL | +3.56 | ✅ 正 |
+| BPS | −0.87 | ❌ 负 |
+| BPS_HV | −1.12 | ❌ 负 |
+| BCS_HV | −2.84 | ❌ 负 |
+
+**结论**：regime decay size-up 仅对 DIAGONAL 有效，对其他策略有害。
+
+**设计决策**：
+- SPEC-048 初版对所有策略启用 size-up（错误）
+- SPEC-053 修正：`_compute_size_tier()` 仅在 `strategy == BULL_CALL_DIAGONAL` 时触发 regime decay size-up
+
+### BCS_HV ivp63 高压区间（F007）
+
+BCS_HV 在 `ivp63 ≥ 70` 区间（n=14）均值 −$2,222，胜率 21%。
+
+经济逻辑：当 VIX 处于 63 天高位时，均值回归风险最高，BCS_HV short call 被持续上涨击穿概率大。
+
+**设计决策**：SPEC-052 新增 `ivp63 ≥ 70 → REDUCE_WAIT` 门（HIGH_VOL + BEARISH 分支）。
+
+---
+
+## 45. DIAGONAL IVP 四象限 Entry Gate 设计（SPEC-049/051/054，2026-04-10）
+
+**Status：研究完成，已部署**
+
+### Both-High 子条件（F006）
+
+ivp63 ≥ 50 AND ivp252 ≥ 50（n=8），平均 −$2,556，Sharpe −1.36。
+
+SPEC-049 + SPEC-051 无法完全拦截：6 笔穿透均值 −$2,624，最差单笔 −$14,973（2020-02-06 COVID 前期）。
+
+**设计决策**：SPEC-054 新增 both-high 专属门（串联在 SPEC-049/051 之后）。
+
+### 三道 Gate 串联设计
+
+```
+Gate 1 (SPEC-049): ivp252 ∈ [30, 50] → REDUCE_WAIT
+Gate 2 (SPEC-051): iv_s == HIGH     → REDUCE_WAIT
+Gate 3 (SPEC-054): ivp63 ≥ 50 AND ivp252 ≥ 50 → REDUCE_WAIT
+Pass all → DIAGONAL
+```
+
+**设计约束**：顺序不可颠倒；Gate 3 是对 Gate 1+2 漏网 case 的最终兜底。
+
+### ivp252 过渡区间（Gate 1）的经济逻辑
+
+当 252 日 IVP 在 30–50 时，长期 vol 环境处于过渡态（既非历史低位，也非压力高位）。DIAGONAL 作为 long-vega 策略，在 vol 方向不明时优势减弱，等待信号明确。
+
+---
+
+## 46. DIAGONAL local_spike 子条件（SPEC-055，2026-04-10）
+
+**Status：研究完成，降级为诊断 tag**
+
+### 数据（F005）
+
+local_spike 条件（ivp63 ≥ 50 AND ivp252 < 50）：n=12，平均 +$3,918，胜率 92%，Sharpe +4.12。
+
+### ChatGPT Review REVISE（采纳 2 条，驳回 3 条）
+
+**采纳**：
+- n=12 样本量不足以支持 sizing 决策
+- 需明确区分 local_spike（近期 spike，长期正常）vs regime decay（长期高压，近期降温）
+
+**驳回**：
+- "DIAGONAL 是 delta-driven 故 IV 信号无关"→ 与 F001–F006 研究结论矛盾
+- "两个发散方向都 size-up"→ 仅 regime decay 有充分证据（n 更大，F004）
+- "timing 不成熟"→ 降为 tag 已解决
+
+### 当前状态
+
+`local_spike` 作为 `Recommendation` 字段保留，诊断用途。SPEC-055b 评估条件：真实 DIAGONAL 交易中 local_spike=True 的笔数 n ≥ 25（当前 n=0，Q010 追踪）。
+
+---
+
+## 47. IVP 研究方法论总结（2026-04-10）
+
+**事后注记**：本轮（SPEC-048~055）是系统首次对 IVP 多时间窗口做全策略四象限审计。主要方法论教训：
+
+1. **IV 信号的策略异质性**：同一 IVP 条件对不同策略方向相反（regime decay 对 DIAGONAL +3.56 vs BPS −0.87）。IV 信号研究不能泛化到全策略。
+
+2. **入场 alpha 与 exit alpha 分离**：Event study 是分离两者的有效工具。结论：DIAGONAL 有入场 alpha，IC 无。
+
+3. **样本量约束**：n < 25 的研究结论不应驱动 sizing 决策。可以影响 REDUCE_WAIT 类的"拦截"决策（避免已知亏损场景），但不足以支持"加仓"。
+
+4. **保守性不对称**：用 n=8 的亏损数据拦截（SPEC-054）比用 n=12 的盈利数据加仓（SPEC-055 降级）更合理——拦截的成本是放弃少量 opportunity，加仓的风险是放大尾部损失。
+
+---
+
+## 48. 全历史强制入场矩阵回测（SPEC-056/057，2026-04-10）
+
+**Status：研究完成，已驱动 SPEC-056c/055b/058/060**
+
+### 研究动机
+
+SPEC-048~055 的所有 IVP 守护门都基于"已路由后的残余样本"——即已经被 Gate 1+2 过滤后的子集，存在负向选择偏差。SPEC-056/057 通过 `disable_entry_gates=True` 和 `force_strategy` 机制，对全历史样本做无偏的矩阵分析。
+
+### 核心发现与后续决策
+
+| Cell | 策略 | Bootstrap 结论 | 决策 |
+|------|------|--------------|------|
+| LOW_VOL\|BOTH_HIGH | DIAGONAL | avg +$1,579，Sharpe 1.56（禁门 n=14）| SPEC-056c：撤销 Gate 3（both_high 门）|
+| LOW_VOL\|LOCAL_SPIKE | DIAGONAL | avg +$3,516，Sharpe 3.07（禁门 n=13）| SPEC-055b：local_spike → Full size-up |
+| NORMAL\|HIGH\|BEARISH | IC | avg $2,043 ✓ n=13，是全矩阵最强 cell | SPEC-058：撤销 IVP≥50 门，允许 IC 入场 |
+| NORMAL\|HIGH\|NEUTRAL | IC | avg $1,017 n=9 | SPEC-058：同上 |
+| HIGH_VOL\|HIGH\|BEARISH | IC_HV vs BCS_HV | IC_HV $937 ✓ > BCS_HV $465 ✓ | SPEC-060 Change 1：改路由 IC_HV |
+| HIGH_VOL\|NEUTRAL\|BULLISH | IC_HV | IC $1,837 ✓（n=11），BPS_HV $100 不显著 | SPEC-060 Change 2：改路由 IC_HV |
+| NORMAL\|HIGH\|BULLISH | BPS | avg −$299 不显著；BCS_HV CI 退化伪信号 | SPEC-060 Change 3：全路径 REDUCE_WAIT |
+
+### 方法论教训
+
+**守护门的负向选择偏差**：SPEC-054 的 n=8（both_high DIAGONAL −$2,556）是已通过 Gate 1+2 过滤后的受损子集，禁门后全样本 n=14 avg +$1,579。早期的"保守性不对称"原则（§47）适用于真实路由后样本，但一旦存在 gate 过滤，样本本身已不可信。全历史禁门分析是后续任何守护门设计的必要前置步骤。
+
+---
+
+## 49. Block Bootstrap 置信区间工具（SPEC-059，2026-04-10）
+
+**Status：工具完成，持续使用**
+
+`backtest/run_bootstrap_ci.py`：非参数 block bootstrap，block_size = max(5, n//4)，n_boot=2000，95% CI。决策标准：`ci_lo > 0` 为统计显著。
+
+适用于矩阵 cell n ≥ 10 的点估计验证。n < 10 的 cell 标记 LOW_N，不解读显著性。
+
+---
+
+## 50. 三处路由修订（SPEC-060，2026-04-10）
+
+**Status：已部署**
+
+见 §48 表格。关键决策理由：
+
+- **Change 1（HIGH_VOL+BEARISH+IV=HIGH → IC_HV）**：双边 premium 环境，IC_HV 比单向 BCS_HV 多捕获 $472，且两者 bootstrap 均显著。
+- **Change 2（HIGH_VOL+BULLISH+IV=NEUTRAL → IC_HV）**：BPS_HV 在此 cell 不显著（avg $100），IC 是唯一有统计 alpha 的策略。
+- **Change 3（NORMAL+HIGH+BULLISH → REDUCE_WAIT）**：无任何策略在此 cell 有显著 alpha。BPS avg −$299；BCS_HV 的 [$755,$1,044] CI 是 block_size=5 ≈ 2 个 block 的 bootstrap 退化，不可信。
+
+### 当前系统回测基准（含全部 SPEC-048~060 修订，2000–2026）
+
+| 指标 | 数值 |
+|------|------|
+| 年化收益率 | **8.2%** |
+| 最大回撤 | -13.1% |
+| Sharpe | 1.33 |
+| Sortino | 1.05 |
+| Calmar | 0.63 |
+| 盈利月份 | 61.1% |
+| 总笔数 | 310 |
+| 胜率 | 70.3% |
+| 总 PnL (2000–2026) | $349,785 |
+
+---
+
+## 51. ES Puts 策略研究（2026-04-11）
+
+**Status：Phase 1–4 完成，研究阶段结束**
+
+> 详见 `research/strategies/ES_puts/spec.md` 和 `research/strategies/ES_puts/backtest.py`
+
+### 研究背景
+
+SPX Credit 策略（现有）在 2000–2026 年的回测已稳定（年化 8.2%，Sharpe 1.33）。为探索独立 alpha 来源，研究一个基于裸卖 SPX put 的做多 delta 策略，原始参照系为 /ES futures options 实盘体系（`research/strategies/ES_puts/spec_initial.md`）。适配为 SPX 期权 + Long SPY 版本。
+
+### 策略架构
+
+| 层 | 内容 | 占比 |
+|----|------|------|
+| Layer 1 | Long SPY（核心 beta） | 70% NLV |
+| Layer 2 | SPX Short Puts（theta 引擎）| 动态，受 VIX 杠杆表约束 |
+| Layer 3 | Black Swan Hedges（BSH）| ~3%/年 drag |
+
+**关键参数**：20-delta，DTE 梯度 21/28/35/42/49，-300% 硬止损，+90% 止盈，5 DTE gamma risk 平仓。
+
+**Buy Power（OCC Portfolio Margin 公式）**：
+- Method A = 15%×notional − OTM_amount + premium
+- Method B = 10%×strike + premium
+- 实际 BP ≈ notional 的 10.7%（20-delta put），较平常估计的 15% 少 ~29%，可多开约 40% 仓位
+
+### 四阶段回测结论（$500k 账户，2000–2026）
+
+#### Phase 1：单一 45-DTE slot，Trend Filter On vs Off
+
+| 指标 | baseline（无 filter）| filtered（需 BULLISH）|
+|------|---------------------|----------------------|
+| 年化 | 0.8% | 1.2% |
+| MaxDD | -44.9% | -28.5% |
+| Bootstrap | ✓ | ✓ |
+
+**Trend filter 结论**：显著降低 MaxDD（-16.4pp），bootstrap 双双显著，filter 有统计 alpha。
+
+#### Phase 2：DTE 梯度 21/28/35/42/49，5 并发仓位
+
+| 指标 | baseline | filtered |
+|------|---------|---------|
+| 年化 | 0.1% | 1.5% |
+| MaxDD | -48.3% | -40.7% |
+| Bootstrap | ✓ | ✓ |
+
+DTE 梯度对绝对回报改善有限，trend filter 价值继续显现。
+
+#### Phase 3：VIX 动态杠杆表 + BSH 成本拖累
+
+| 指标 | P2 filtered | P3 baseline（无 filter）| P3 filtered |
+|------|------------|------------------------|-------------|
+| 年化 | 1.5% | 0.0% | 0.0% |
+| MaxDD | -40.7% | **-71.5%** | -44.0% |
+| Bootstrap | ✓ | ✓ | ✓ |
+
+**关键发现**：VIX 杠杆表在无 trend filter 时导致 MaxDD -71.5%（高波动期增加敞口反而遇到 crash），trend filter 是杠杆表的必要伴侣。BSH 3%/年成本拖累在 Phase 3 中已计入。
+
+#### Phase 4：BSH 赔付建模 + 与 SPX Credit 相关性分析
+
+| 指标 | P3 cost-only | P4 BSH payoff |
+|------|-------------|--------------|
+| 年化 | 0.0% | 1.3% |
+| MaxDD | -44.0% | -93.1%* |
+| Sortino | 0.05 | **0.98** |
+| 最低净值/起始 | 57.3% | **64.0%** |
+| 最终净值 | $501k | **$699k** |
+
+*P4 MaxDD -93.1% 是从 BSH 赔付复利推升的 ~$9.2M 峰值计算的，并非起始资本损失。在任意历史日期，P4 净值均高于 P3。
+
+**BSH 赔付价值**：
+- 2008-11-20 危机期：P4 高于 P3 $41,938
+- 2020-03-23 COVID 底：P4 高于 P3 $102,472
+
+**与 SPX Credit 相关性（最关键结论）**：
+
+| 指标 | ES Puts P4 | SPX Credit | 50/50 Blend |
+|------|-----------|-----------|------------|
+| **Pearson r（日收益率）** | **−0.028** | — | — |
+| 年化 | 1.3%* | 13.2% | 34.3%* |
+| Sharpe | 0.33 | 0.92 | 0.41 |
+| MaxDD | -93.1%* | -39.8% | -51.3%* |
+
+*blend 的高收益/高 MaxDD 同为 BSH 复利效应导致，非真实路径表现。
+
+**Pearson 相关系数 = -0.028**：ES Puts 与 SPX Credit 的日收益率几乎零相关（26年，6,607个交易日），两个策略可以在同一组合中互相分散风险，是理想的 diversification 候选。
+
+### ES Puts 策略的根本局限
+
+单独看（不含 Long SPY Layer 1），ES Puts Layer 2 的年化收益率 ~1–1.5%，远低于 SPX Credit 的 8.2%。但这个比较不公平——ES Puts 的设计目的是在持有 70% SPY 敞口的前提下，用 collateral 做 theta，整体 portfolio 的 beta+theta 回报才是真实目标。回测仅模拟了 Layer 2，Layer 1（Long SPY 年化 ~6.1%）和 Layer 3 的完整组合效果未在此回测中体现。
+
+### 开放问题
+
+| 问题 | 状态 |
+|------|------|
+| Layer 1（Long SPY 70%）纳入后的全体系回测 | 未实施 |
+| 与 SPX Credit 合并持仓的资金约束（BP 共用）| **已解决**：SPEC-061 确认 shared pool，并建立 20% NLV 保守上限 |
+| 实盘中 trend filter 的可操作性（ATR 信号延迟）| 未测试 |
+| ES Puts 进入生产的 SPEC 流程 | **已落地**：SPEC-061 DONE |
+
+---
+
+## 52. /ES Short Put 最小生产 Cell 落地（SPEC-061，2026-04-12）
+
+**Status：已实施（SPEC-061 DONE）**
+
+### 生产路径决策
+
+从 Phase 1–4 研究收缩至最小可验证 cell：
+
+| 参数 | 值 | 依据 |
+|------|-----|------|
+| 标的 | `/ES` options | Phase 1–4 研究用 SPX proxy；生产路径迁移至 /ES |
+| 结构 | 裸卖 put | 保持研究设计一致性 |
+| DTE | 45 | Phase 1 基础设定，统计显著性最佳单槽位 |
+| Delta | 0.20 | 研究贯穿始终的目标 delta |
+| 仓位 | 单槽、1 张 | MVP 最小风险边界 |
+| 入场过滤 | Trend filter（仅 BULLISH）| NEUTRAL / BEARISH 均拒绝 |
+| 止损 | -300% credit（文档化规则）| 见下方局限性说明 |
+| BP 上限 | 当前总 margin + /ES ≤ NLV 20% | 见下方保守性说明 |
+
+### 关键实测确认（来自 Schwab Order Confirmation，2026-04-12）
+
+`/ES` short put 的实际 buying power effect = **$20,529 / 合约**（20 delta，6350 strike，5/29/26 到期）。
+
+OCC Portfolio Margin 理论公式（§51）给出 10.7% of notional，与实测数字吻合（6350 × 50 × 10.7% ≈ $33,900 notional 的 10.7% ≈ $22k 范围内）。
+
+$500k 账户在 VIX 正常水平下，单张 /ES put BP 约占 NLV 4.1%，位于 20% 上限的舒适范围内。
+
+### Shared BP Pool（重要约束）
+
+`/ES` options margin 与 SPX Credit positions 的 options buying power **共用同一池**（Schwab 账户截图确认：Order Confirmation 中"Resulting Buying Power for Options"下降 $20,529）。
+
+实现中的 BP 检查口径：`projected_bp = 当前总 margin + $20,529 ≤ NLV × 20%`。
+
+这比 Spec 字面（"/ES 本身不超 NLV 20%"）更保守：若 SPX Credit 仓位已占用 $90k margin，/ES 加入后总计 $110,529 > $100k (20% × $500k)，会被拒绝——即使 /ES 本身仅占 4.1% NLV。在 SPX Credit 活跃仓位较多时，/ES 开仓条件会比单独看更难满足。
+
+### -300% Stop 的局限性
+
+当前生产系统中 `-300% credit stop` 仅存在于 `strategy/catalog.py` 的文案字段（`roll_rule_text`）和 `/api/es/position/open-draft` 的返回 payload 中，**不是运行时自动触发逻辑**。
+
+后果：止损依赖人工监控和手动执行。这是 SPEC-061 MVP scope 的有意设计，但意味着：
+- 无法在市场急速下行时自动触发平仓
+- 开仓后的持仓管理完全依赖 PM 盯仓
+
+### SPAN 动态扩张风险（未建模）
+
+`_ES_BP_PER_CONTRACT = 20_529.0` 是静态常量，基于 VIX ~19 时的观测值。
+
+SPAN margin 随 VIX 动态扩张（估算：VIX 60 时约 $40,000）。当 VIX spike 发生时，现有 /ES 仓位的 margin 要求自动上升，同时 MTM 亏损——形成"亏损扩大 + BP 占用上升"双重压力。当前系统的开仓前 BP 检查不能预见这一动态变化。
+
+### SoMuchRanch 三层体系覆盖状态
+
+| 层 / 组件 | 研究状态 | 生产状态 |
+|-----------|---------|---------|
+| Layer 1（Long VTI/SPY 70%）| 作为外生变量建模 | ❌ 不存在 |
+| Layer 2（/ES short put，单槽）| ✅ Phase 1–4 | ✅ SPEC-061 |
+| Layer 2 DTE ladder | ✅ Phase 2 | ❌ 范围外 |
+| Layer 2 VIX 杠杆表 | ✅ Phase 3 | ❌ 范围外 |
+| Layer 3（BSH 成本）| ✅ Phase 3 | ❌ 不存在 |
+| Layer 3（BSH 赔付）| ✅ Phase 4 | ❌ 不存在 |
+| Strategy #3（long /ES calls）| ❌ 未研究 | ❌ 不存在 |
+| 趋势转负后持仓行为 | backtest 中持有至 stop | ❌ 生产中未定义 |
+
+Layer 1 / Layer 3 缺失是有意缩 scope，不是实现遗漏。Strategy #3 是仅在 SoMuchRanch 帖子中提及的实验性扩展，尚未进入研究 track。
+
+---
+
+## 53. Reddit 社区策略研究评估（PMTraders + ThetaGang，2026-04-12）
+
+**Status：研究评估完成，无 Spec 生成**
+
+### 信息源质量
+
+| 来源 | 信噪比 | 评估 |
+|------|--------|------|
+| PMTraders — 顶帖（含 SoMuchRanch）| High | 社区以组合层面风险管理为核心，不是 tips |
+| ThetaGang — 顶帖 | Low | 约 70% meme / 亏损截图；有效研究内容极少 |
+
+**ThetaGang 定性**：top 50 帖子中可提取的期权结构性知识（高 IV 卖 put spread、30-45 DTE、不滚仓逃跑）是教科书内容，不是 Reddit 特有洞察。作为信息源，边际价值接近零。不建议再花时间系统阅读该社区。
+
+**PMTraders 定性**：社区关注的核心问题（强制清算 vs 暂时亏损、PM 杠杆误用、tail risk 意识）与我们研究过的问题高度重合，可作为结论的外部验证来源，但不产生新策略研究方向。
+
+### 主要评估结论
+
+#### H1：Risk Reversal 作为 Vol Skew 收割工具
+
+**来源**：PMTraders 帖"I wish I had an edge"
+
+策略结构：卖 .15 delta put + 买 .15 delta call + short SPY 30 股（delta 中性化），30 DTE。声称 Sharpe 1.1、CAGR 9.6%、MaxDD 22%。
+
+**经济逻辑**：SPX put IV 系统性高于 call IV（负 skew），risk reversal 是对 skew 均值回归的系统性做空。逻辑有文献支撑，不依赖单一作者。
+
+**风险与反例**：
+- 单作者报告，无参数细节（滚动方式、管理规则、VIX 过滤条件均未披露）
+- 2022 年高通胀 / 加息环境中 put skew 持续扩张，strategy 可能 regime-sensitive
+- SPY 空仓有借券成本；三条腿月度展期执行成本不可忽视
+
+**Confidence**：假设方向 High；具体数字可复现性 Low
+
+**Next Tests**：用现有 `data/market_cache` 实现固定规则版本（.15 delta put 卖 / .15 delta call 买 / SPY delta hedge），2000–2026 全历史，bootstrap CI，分 VIX regime 分层。
+
+**Recommendation**：**hold**（进候选假设列表）
+
+#### H2：Blowup on 8/5/2024 — Vega 集中风险
+
+来源：PMTraders 帖"Blowup on 8/5/2024"，-103.5% YTD 爆仓案例，原因为 -19,000 vega 的 1-1-1 put ladder 在 VIX spike 时触发强制清算。
+
+**评估**：该机制（低 VIX → PM margin 低 → vega 集中 → spike 时 margin 倒推）已被我们现有系统覆盖：
+- SPEC-052：ivp63 ≥ 70 → REDUCE_WAIT（HIGH_VOL+BEARISH）
+- SPEC-049：ivp252 过渡区 → REDUCE_WAIT（DIAGONAL）
+
+**Recommendation**：**drop**（机制已覆盖，不产生新研究需求）
+
+#### H3：多策略独立性的外部验证
+
+SoMuchRanch 体系 + PMTraders 社区共识均强调"PM 账户至少需要 2 个低相关策略"作为生存条件。
+
+与我们自己的数据吻合：ES Puts vs SPX Credit 日收益 Pearson r = -0.028（§51）。
+
+需要补充的测试：**条件相关性**（r | VIX > 40）——历史全局 r = -0.028 不代表极端市场下两策略独立。2008 / 2020 这类 tail event 期间，两策略是否同时被击穿，是组合分散化论点的关键盲点。
+
+**Recommendation**：**hold（将条件相关性作为 Q012 DRAFT Spec 的 AC 之一）**
+
+### 同行评审：另一位 Quant 的 Reddit 笔记
+
+本轮还对 `research/strategies/PMTraders_ThetaGang/` 下的两份 Reddit 学习笔记做了 peer review。
+
+**核心判断**：两份笔记均为质量合格的**概念综述（survey）**，缺少假设层和项目坐标。主要问题：
+1. 没有区分"社区相信什么"和"哪些主张可被数据反驳"
+2. SoMuchRanch 体系中 Strategy #3（long calls）是唯一我们尚未研究的结构创新，但两份笔记均未单独标记
+3. 输出的三层框架（主策略 / 收益增强 / 保险）比我们现有系统还要简化，在团队内无增量价值
+
+这类笔记适合作为新成员入门材料，不适合作为研究决策依据。
+

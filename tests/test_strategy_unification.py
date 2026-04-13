@@ -118,14 +118,15 @@ class SelectorCatalogConsistencyTests(unittest.TestCase):
         self.assertEqual(rec.shock_mode, "shadow")
         self.assert_catalog_backed(rec)
 
-    def test_high_vol_bearish_stable_still_uses_bear_call_spread_hv(self) -> None:
+    def test_high_vol_bearish_iv_high_routes_iron_condor_hv(self) -> None:
+        # SPEC-060 Change 1: HIGH_VOL + BEARISH + IV=HIGH → IC_HV
         rec = select_strategy(
             make_vix(vix=28.0, regime=Regime.HIGH_VOL, trend=Trend.FLAT),
             make_iv(signal=IVSignal.HIGH, iv_rank=70.0, iv_percentile=80.0, vix=28.0),
             make_trend(signal=TrendSignal.BEARISH),
         )
-        self.assertEqual(rec.strategy, StrategyName.BEAR_CALL_SPREAD_HV)
-        self.assertEqual(rec.strategy_key, "bear_call_spread_hv")
+        self.assertEqual(rec.strategy, StrategyName.IRON_CONDOR_HV)
+        self.assertEqual(rec.strategy_key, "iron_condor_hv")
         self.assert_catalog_backed(rec)
 
 

@@ -27,6 +27,25 @@ class StrategyDescriptor:
 
 
 STRATEGIES_BY_KEY: dict[str, StrategyDescriptor] = {
+    "es_short_put": StrategyDescriptor(
+        key="es_short_put",
+        name="ES Short Put",
+        emoji="📉",
+        direction="bull",
+        underlying="/ES",
+        trade_type="Credit — Naked Put",
+        dte_text="45 DTE",
+        delta_text="Short put δ0.20",
+        when_text="Standalone /ES production cell. Only available when the trend filter is bullish and shared buying power stays inside the conservative NLV cap.",
+        risk_text="Undefined downside below the strike. This minimal production path is limited to one slot, one contract, and a hard pre-trade buying-power check.",
+        detail_roll_text="Close at 21 DTE if still open. Stop out at 3× credit; do not add size or ladder expiries inside this path.",
+        max_risk_text="Undefined downside; entry blocked by shared BP <= 20% NLV cap",
+        target_return_text="Single 1-lot income candidate; manage manually inside the existing position workflow",
+        roll_rule_text="Close at 21 DTE; stop at 3× credit",
+        short_gamma=True,
+        short_vega=True,
+        delta_sign="bull",
+    ),
     "bull_call_diagonal": StrategyDescriptor(
         key="bull_call_diagonal",
         name="Bull Call Diagonal",

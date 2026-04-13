@@ -1,16 +1,44 @@
-更新后的分工
-HC 工作期（你 + HC Claude）
-你做的唯一事情：触发指令。
+Sync 导航
 
-"生成 HC Return 包" → HC Claude 产出
-"这是 MC 扫描原文，请清洗" → HC Claude 清洗并整合
-MC 工作期（你 + MC Claude）
-你做的唯一事情：iPhone 扫描 + 拍板决策。
+本目录用于 HC 和 MC 两套环境之间的同步。
 
-MC Claude 负责写 handoff 包（scan-friendly 格式，它知道规范）
-你扫描后粘贴到 HC 对话
-APPROVED/REJECTED 这类决策你直接告诉 MC Claude，它会写进 handoff 包
+当前采用的规则分两层：
 
-首次完整同步周期跑通，协议运转正常。值得注意的一个 OCR 模式：SPEC 编号的数字 0 和 6 容易混淆（020 → 026），后续 MC Claude 写 handoff 包时，SPEC 编号最好单独占行并重复写一次作为校验。
+1. 正式协作协议
+- `AGENTS.md`
+- `DEVELOPER.md`
+- `PLANNER.md`
+- `QUANT_RESEARCHER.md`
+- `sync/hc_to_mc/MC_CLAUDE_INSTRUCTIONS.md`
 
-把task/SPEC-039至SPEC-047的内容写入HC Return 包，同时更新system_status, strategy_status and research_notes. 如果不适用，可以跳过对应更新。
+2. 双层文档架构
+- `PROJECT_STATUS.md`
+- `RESEARCH_LOG.md`
+- `sync/open_questions.md`
+- 详细证据仍保留在 `doc/` 和各类 sync 包中
+
+同步维护责任：
+
+- `Planner` 负责 HC / MC 同步流程的日常维护
+- `Quant Researcher` 负责提供研究内容与判断
+- `PM` 负责最终拍板与 canonical 决策
+- `Developer` 仅在同步结果形成 `APPROVED Spec` 后参与
+
+使用方式：
+
+- HC 工作期：
+  使用正式协议文件处理研究、Spec、review 和 return 包
+- MC 工作期：
+  使用 `sync/hc_to_mc/MC_CLAUDE_INSTRUCTIONS.md` 产出 scan-friendly handoff
+- 需要快速重建项目状态时：
+  先看 `PROJECT_STATUS.md`
+- 需要快速检索研究结论时：
+  先看 `RESEARCH_LOG.md`
+- 需要完整上下文、表格、案例和历史推导时：
+  看 `doc/research_notes.md`、`doc/strategy_status_YYYY-MM-DD.md` 和具体 sync 包
+
+说明：
+
+- 本文件现在是导航页，不再维护旧版分工说明正文
+- 若正式协议与旧 sync 习惯存在冲突，以正式协议文件为准
+- 若需要可直接复制的常用 prompt，请统一查看仓库根目录 `PROMPTS.md`
