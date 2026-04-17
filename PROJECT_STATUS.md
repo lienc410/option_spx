@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-04-12
+Last Updated: 2026-04-16
 Owner: Planner or PM
 
 ## Current Phase
@@ -11,7 +11,7 @@ Owner: Planner or PM
 ## Current System Snapshot
 
 - Recommended production posture: preserve current strategy matrix and add only research-backed, low-regret changes.
-- Latest full strategy status doc: `doc/strategy_status_2026-04-10.md`
+- Latest full strategy status doc: `doc/strategy_status_2026-04-16.md`
 - Latest system status doc: `doc/system_status_2026-04-07.md`
 
 ## Active APPROVED Specs
@@ -28,6 +28,7 @@ Owner: Planner or PM
 - `Q002` — Shock active mode still needs Phase B validation — `open`
 - `Q012` — `/ES` short put path is now the preferred production candidate; remaining question is shared-BP management with SPX Credit and how far to extend the MVP beyond Layer 2 — `open`
 - `Q013` — `/ES` short put runtime stop execution and post-entry management remain undefined in production — `open`
+- `Q015` — BPS `NORMAL + BULLISH` `IVP >= 50` gate has completed first-pass evaluation: gate stays, but IVP-only rationale is conceptually weak and redesign research is now the real next step — `research`
 - `Q011` — regime decay DIAGONAL sample is still small — `monitoring`
 - `Q003` — L3 Hedge v2 live implementation — `open`
 - `Q004` — `vix_accel_1d` L4 fast-path — `open`
@@ -36,11 +37,14 @@ Owner: Planner or PM
 ## Next Priorities
 
 - `P1` — open a narrow follow-up Spec for `/ES` runtime safeguards, with minimum scope of stop-condition monitoring plus bot alerting
-- `P2` — keep index-layer summaries aligned as new HC/MC status clarifications arrive
+- `P2` — keep `Q015` on the research track: investigate BPS gate redesign via `IVP + VIX` joint filters, VIX-trend conditioning, or slot-occupancy architecture changes rather than removing the current gate
 - `P3` — continue validating dependency-bound items before promoting more sizing logic into new Specs
 
 ## Recent Meaningful Changes
 
+- 2026-04-16 — Quant completed the first full BPS gate study (`Q015`): unlike DIAGONAL Gate 1, the `NORMAL + BULLISH` `IVP >= 50` gate shows a real Sharpe cliff and should be retained for now; the open research question has shifted from “remove or keep” to “how to redesign the filter’s concept basis beyond IVP alone” — `See: RESEARCH_LOG.md`, `sync/open_questions.md`, `doc/strategy_status_2026-04-16.md`
+- 2026-04-15 — Quant completed a Fast Path removal of DIAGONAL Gate 1 in `strategy/selector.py`; the former `SPEC-049` `ivp252` marginal-zone gate is no longer active production logic, and the next threshold study has shifted to the `NORMAL + BULLISH` `IVP >= 50` entry gate — `See: RESEARCH_LOG.md`, `sync/open_questions.md`
+- 2026-04-15 — Quant research on DIAGONAL Gate 1 (`SPEC-049`) concluded the gate is net harmful rather than protective; PM agreed to move toward a narrow follow-up Spec to remove it — `See: RESEARCH_LOG.md`, `sync/open_questions.md`
 - 2026-04-12 — `SPEC-044` has reached `DONE`; there are currently no remaining active approved Specs waiting for Developer implementation — `See: task/SPEC-044.md`
 - 2026-04-11 — ES short put phased research was indexed as a research-track idea; current recommendation is `hold` until scope is narrowed and proxy assumptions are revisited — `See: research/strategies/ES_puts/spec.md`
 - 2026-04-12 — ES short put production-path research was materially updated: `/ES` permissions and live BP were confirmed (`$20,529` per contract), XSP is no longer the preferred path, and the main remaining design question is shared-BP management versus SPX Credit rather than lot-size feasibility — `See: sync/open_questions.md`, `RESEARCH_LOG.md`

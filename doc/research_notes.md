@@ -2394,3 +2394,176 @@ SoMuchRanch 体系 + PMTraders 社区共识均强调"PM 账户至少需要 2 个
 
 这类笔记适合作为新成员入门材料，不适合作为研究决策依据。
 
+---
+
+## 54. DIAGONAL Gate 1 撤销（SPEC-049 ivp252 marginal zone，2026-04-15）
+
+**状态：✅ 已实施（Fast Path 删除）**
+
+### 研究背景
+
+SPEC-049 引入 DIAGONAL ivp252 ∈ [30, 50] 拦截门（Gate 1），原意是在 IV percentile 处于模糊区间时阻止 DIAGONAL 入场。本轮研究评估该门槛是否有净正价值。
+
+### Phase 1 — 敏感性分析
+
+Prototype: `backtest/prototype/gate1_sensitivity.py`
+
+对 Gate 1 上界 `DIAGONAL_IVP252_GATE_HI` 在 {40, 45, 50, 55, 60, 65} 上遍历，门下界固定 30：
+
+| Gate HI | DIAGONAL n | Avg PnL | Sharpe | Bootstrap CI |
+|---------|-----------|---------|--------|--------------|
+| 40 | 119 | +$2,626 | 0.43 | 显著为正 |
+| 45 | 119 | +$2,626 | 0.43 | 显著为正 |
+| 50 ◄ | 115 | +$2,662 | 0.41 | 显著为正 |
+| 55 | 115 | +$2,662 | 0.41 | 显著为正 |
+| 60 | 115 | +$2,662 | 0.41 | 显著为正 |
+| 65 | 115 | +$2,662 | 0.41 | 显著为正 |
+
+**结论**：敏感性完全平坦。门不在任何 cliff 附近，跨越 ±15 性能基本不变。
+
+### Phase 2 — 净价值分析
+
+Prototype: `backtest/prototype/gate1_net_value.py`
+
+| 维度 | 数值 |
+|------|------|
+| Gate OFF DIAGONAL trades | 119 |
+| Gate ON DIAGONAL trades | 115 |
+| 被拦交易 | 47 笔，Total PnL +$46,403，Avg +$987 |
+| 被拦交易 Bootstrap CI | **[+$574, +$1,751] — 显著为正** |
+| 系统净成本 | **-$11,146** |
+| 位移效应 | ~零（非 DIAGONAL 策略无变化）|
+
+**核心发现**：Gate 1 拦截的 47 笔交易是**显著盈利**的。这与 SPEC-056c（both-high gate 撤销）的模式完全一致——基于 IVP 子集构建的 entry gate 产生负向选择偏差。原始 gate 设计者观察到 ivp252 ∈ [30,50] 子集表现偏弱，但该子集本身是被上游 gate 过滤后的产物，不代表入场质量。
+
+### 执行
+
+PM 批准 Fast Path 删除。`strategy/selector.py` 中：
+- 移除常量 `DIAGONAL_IVP252_GATE_LO = 30`、`DIAGONAL_IVP252_GATE_HI = 50`
+- 移除 Gate 1 检查分支（原 ~line 806-814）
+- Gate 2（IV=HIGH, SPEC-051）保留不动
+
+### 方法论教训
+
+**负向选择偏差模式**：当 entry gate 基于 IVP 整数阈值构建，且该阈值并非基于独立的 OOS 验证，那么被 gate 拦截的交易子集往往是被上游条件"预选"过的，gate 的表观价值来自混杂因素而非真实风险隔离。本系统中已有三个案例：
+1. SPEC-054 → SPEC-056c（both-high gate → 撤销）
+2. SPEC-049 Gate 1（ivp252 marginal zone → 本次撤销）
+3. Q015（BPS IVP≥50 gate → 研究中，见 §55）
+
+---
+
+## 55. BPS NORMAL+BULLISH IVP≥50 Gate 深度分析（Q015，2026-04-16）
+
+**状态：🔬 研究完成 — 建议保留当前 gate，立 Q015 跟进 gate 重设计**
+
+### 研究背景
+
+在 Gate 1 被撤销后，下一个优先验证的"拍脑袋整数阈值"是 NORMAL + IV_NEUTRAL + BULLISH 路径下的 `iv.iv_percentile >= 50` 拦截门（P1 gate）。该门将 BPS 入场窗口限制在 IVP ∈ [43, 50) 的极窄区间内。
+
+### Phase 1 — 敏感性分析
+
+Prototype: `backtest/prototype/bps_ivp_gate_sensitivity.py`
+
+方法：将 hardcoded `50` 提取为 `sel.BPS_NNB_IVP_UPPER`，monkey-patch 后逐值回测。
+
+| IVP Upper | BPS n | Avg PnL | Sharpe | Bootstrap CI | 系统总 PnL |
+|-----------|-------|---------|--------|--------------|-----------|
+| 45 | 8 | +$1,924 | 0.92 | (n<5) | $347,699 |
+| **50 ◄** | **24** | **+$1,364** | **0.49** | **[+$149, +$2,135]** | **$361,125** |
+| 55 | 38 | +$1,370 | 0.53 | [+$356, +$1,954] | $379,232 |
+| 60 | 48 | +$751 | 0.23 | [+$142, +$1,241] | $361,635 |
+| 65 | 55 | +$666 | 0.20 | [-$53, +$1,587] | $362,228 |
+| 70 | 62 | +$681 | 0.22 | [+$51, +$1,400] | $367,816 |
+| DISABLED | 62 | +$681 | 0.22 | [+$51, +$1,400] | $367,816 |
+
+**与 Gate 1 的关键差异**：敏感性**不平坦**。IVP 55→60 之间有真实悬崖——每笔均值从 $1,370 降到 $751（-45%），Sharpe 从 0.53 降到 0.23（-57%）。当前值 50 在 cliff 上游，有质量保护意义。
+
+### Phase 2 — 净价值分析
+
+| 维度 | Gate 1（已删除）| BPS Gate（本次）|
+|------|----------------|----------------|
+| Blocked 笔数 | 47 | 44 |
+| Blocked avg PnL | **+$987** | **+$7** |
+| Blocked Bootstrap CI | [+$574, +$1,751] 显著正 | **[-$601, +$1,062] 非显著** |
+| 位移效应 | ~零 | **-$9,197（6 笔，avg -$1,533）** |
+| 系统净成本 | -$11,146 | -$6,690 |
+
+**结论**：被拦交易本身**不显著**（均值接近零），gate 成本主要来自位移效应。
+
+### Phase 3 — 位移机制诊断
+
+Prototype: `backtest/prototype/bps_gate_displacement_analysis.py`
+
+**机制**：backtest engine 有 `_already_open` 去重——同一时间只能持有一笔 BPS。当 gate-OFF 允许 IVP≥50 入场，该仓位占据 slot ~30 天，后续 IVP<50 的高质量入场被挡在门外。
+
+**验证**：6/6 displaced trade 全部被 gate-OFF 世界中一笔来自 blocked 日期的并发 BPS 占据了 slot。100% 通过 slot-occupancy 机制解释。
+
+**链式分析（8 条 blocked→captured 配对）**：
+
+| Blocked 原始 | 替代交易 | Δ |
+|---|---|---|
+| 2022-03-25 IVP 68 → -$386 | 2022-04-04 IVP 48 → **-$4,921** | **-$4,536** |
+| 2025-02-05 IVP 56 → +$2,203 | 2025-02-13 IVP 47 → **-$5,983** | **-$8,186** |
+
+多条链中，高 IVP 原始交易的结果**优于**低 IVP 替代交易。
+
+### Phase 4 — VIX 绝对水位 vs IVP 分析
+
+Prototype: `backtest/prototype/bps_gate_vix_vs_ivp.py`（PM 追问：VIX=18 就被拦不合理）
+
+**IVP 与 VIX 在 NNB regime 中几乎不相关**（Pearson r = -0.154）：
+
+- IVP≥50 的日子中 **68% VIX < 18**，89% VIX < 20
+- IVP 高只代表"比去年自己高"——去年 VIX 12-15 时，VIX=16 就能 IVP=65
+
+**IVP 分层仍有预测力，但 cliff 在 55 而非 50**：
+
+| IVP Band | n | Avg PnL | Sharpe | Avg VIX |
+|----------|---|---------|--------|---------|
+| [43, 50) | 20 | +$1,720 | 0.62 | **18.2** |
+| [50, 55) | 8 | +$1,494 | **0.66** | 17.9 |
+| [55, 60) | 14 | -$68 | **-0.02** | 17.5 |
+| [60, 65) | 7 | -$612 | -0.17 | **16.9** |
+| [65, 75) | 13 | +$111 | 0.04 | 17.0 |
+
+吊诡发现：IVP 低的组 VIX 反而更高（18.2），IVP 高的组 VIX 更低（16.9）。IVP 高 + VIX 低 = "过去一年 vol 极低 → VIX 从 12 涨到 17 就 IVP=65"，是 regime transition noise 而非真实危险。
+
+**真正的风险口袋在 cross-tab**：VIX [18,20) × IVP [55,65) 是灾难区（avg -$2,690 和 -$3,951）。VIX [16,18) 不管 IVP 多少都是正的。
+
+**Filter 对比（post-hoc，仅供参考，非推荐）**：
+
+| Filter | n | Avg | Sharpe | Total PnL |
+|--------|---|-----|--------|-----------|
+| IVP < 50（生产） | 20 | +$1,720 | **0.62** | $34,400 |
+| IVP < 55 | 28 | +$1,655 | 0.64 | $46,352 |
+| VIX < 18 OR IVP < 50 | 48 | +$1,131 | 0.44 | **$54,277** |
+| No gate | 62 | +$686 | 0.22 | $42,550 |
+
+### 综合评估
+
+**Gate 1 vs BPS Gate 对比**：
+
+| 指标 | Gate 1 | BPS Gate |
+|------|--------|---------|
+| 应删除？ | ✅ 是 | ❌ 不是 |
+| 敏感性 | 平坦 | **有 cliff** |
+| Blocked 质量 | 显著正 | **非显著（≈零）** |
+| 删除后 Sharpe 变化 | 轻微改善 | **从 0.49 降到 0.22** |
+| 删除后 MaxDD 变化 | 不变 | **从 -$8,578 恶化到 -$14,570** |
+
+**IVP 作为 filter 的根本局限**：IVP 在 NORMAL regime 里和 VIX 绝对水位负相关——高 IVP 对应低 VIX（regime transition noise），低 IVP 对应高 VIX（回到中位后的 put premium 环境）。IVP 单独作为 BPS gate 在概念上有偏差，但当前 threshold 恰好保护了一个真实的 Sharpe cliff，这是意外而非设计。
+
+### 建议
+
+1. **保留 gate=50**（短期）——Sharpe 保护真实，删除代价明确
+2. **Gate 重设计作为 Q015 研究方向**——核心问题是 IVP 单维不够，需联合 VIX 绝对水位或 VIX 趋势。但 `VIX < 18 OR IVP < 50` 等组合 filter 是 post-hoc 的，不做阈值优化
+3. **不推荐上调至 55**——越过敏感性→优化边界，且系统 PnL 在 55 恰好最高，疑似过拟合
+4. BPS slot-occupancy 位移机制应作为未来架构改进参考——`_already_open` 去重在 gate 存在时造成伪影
+
+### Prototypes
+
+- `backtest/prototype/bps_ivp_gate_sensitivity.py` — 阈值敏感性 + 净价值
+- `backtest/prototype/bps_gate_displacement_analysis.py` — slot-occupancy 位移机制
+- `backtest/prototype/bps_gate_blocked_context.py` — VIX 绝对水位 + IVP 分层
+- `backtest/prototype/bps_gate_vix_vs_ivp.py` — VIX vs IVP 对比 + filter comparison
+

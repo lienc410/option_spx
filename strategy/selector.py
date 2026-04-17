@@ -163,8 +163,10 @@ REGIME_DECAY_IVP252_MIN  = 50
 LOCAL_SPIKE_IVP63_MIN    = 50
 LOCAL_SPIKE_IVP252_MAX   = 50
 IVP63_BCS_BLOCK          = 70
-DIAGONAL_IVP252_GATE_LO  = 30
-DIAGONAL_IVP252_GATE_HI  = 50
+# DIAGONAL_IVP252_GATE_LO/HI removed — Gate 1 (SPEC-049) rescinded 2026-04-15
+# BPS NORMAL+NEUTRAL+BULLISH gate: IVP upper cap (monkey-patchable for sensitivity research)
+BPS_NNB_IVP_UPPER        = 50
+BPS_NNB_IVP_LOWER        = 43
 
 
 class StrategyName(str, Enum):
@@ -803,15 +805,11 @@ def select_strategy(
 
         if t == TrendSignal.BULLISH:
             if not params.disable_entry_gates:
-                # ── Gate 1 (SPEC-049): ivp252 marginal zone ──────────────────
-                if DIAGONAL_IVP252_GATE_LO <= iv.ivp252 <= DIAGONAL_IVP252_GATE_HI:
-                    return _reduce_wait(
-                        f"LOW_VOL + BULLISH but ivp252={iv.ivp252:.0f} in {DIAGONAL_IVP252_GATE_LO}–{DIAGONAL_IVP252_GATE_HI} "
-                        "marginal zone — long-term vol environment transitional; DIAGONAL edge reduced",
-                        vix, iv, trend, macro_warn,
-                        canonical_strategy=StrategyName.BULL_CALL_DIAGONAL.value,
-                        params=params,
-                    )
+                # Gate 1 (SPEC-049) removed by sensitivity analysis (2026-04-15):
+                # ivp252 ∈ [30,50] gate blocked significantly profitable trades
+                # (47 trades, avg +$987, bootstrap CI [+574, +1751]).
+                # Net system cost: -$11,146. Same negative-selection-bias pattern
+                # as Gate 3 (SPEC-054 → SPEC-056c).
 
                 # ── Gate 2 (SPEC-051): IV=HIGH in LOW_VOL ────────────────────
                 if iv_s == IVSignal.HIGH:
@@ -999,20 +997,20 @@ def select_strategy(
                 canonical_strategy=StrategyName.BULL_PUT_SPREAD.value,
                 params=params,
             )
-        # P1: IVP ≥ 50 — stressed vol; tail risk exceeds premium benefit
-        if iv.iv_percentile >= 50:
+        # P1: IVP ≥ BPS_NNB_IVP_UPPER — stressed vol; tail risk exceeds premium benefit
+        if iv.iv_percentile >= BPS_NNB_IVP_UPPER:
             return _reduce_wait(
-                f"NORMAL + IV NEUTRAL + BULLISH but IVP={iv.iv_percentile:.0f} ≥ 50 — stressed vol environment, BPS tail risk too high",
+                f"NORMAL + IV NEUTRAL + BULLISH but IVP={iv.iv_percentile:.0f} ≥ {BPS_NNB_IVP_UPPER} — stressed vol environment, BPS tail risk too high",
                 vix, iv, trend, macro_warn,
                 canonical_strategy=StrategyName.BULL_PUT_SPREAD.value,
                 params=params,
             )
-        # P2: IVP < 43 — insufficient premium for BPS risk/reward
+        # P2: IVP < BPS_NNB_IVP_LOWER — insufficient premium for BPS risk/reward
         # Analysis (2026-03-28): borderline entry at IVP=43 caused 2025-10-03 loss.
         # Raise minimum from 40→43 to filter marginal premium environments.
-        if iv.iv_percentile < 43:
+        if iv.iv_percentile < BPS_NNB_IVP_LOWER:
             return _reduce_wait(
-                f"NORMAL + IV NEUTRAL + BULLISH but IVP={iv.iv_percentile:.0f} < 43 — insufficient premium for BPS risk/reward",
+                f"NORMAL + IV NEUTRAL + BULLISH but IVP={iv.iv_percentile:.0f} < {BPS_NNB_IVP_LOWER} — insufficient premium for BPS risk/reward",
                 vix, iv, trend, macro_warn,
                 canonical_strategy=StrategyName.BULL_PUT_SPREAD.value,
                 params=params,

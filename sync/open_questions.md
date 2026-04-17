@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-04-12（Planner，修正 HC/MC blocker 口径并收缩 /ES 主线）
+最后更新：2026-04-16（Planner，同步 Q015 初轮结论并切换到 redesign 研究阶段）
 
 ---
 
@@ -49,6 +49,13 @@
 - **依赖**：应收缩成一个新的 follow-up Spec，只补运行时风控与 post-entry 管理；最小可接受范围应至少覆盖 stop 监控与 bot alert，不把 Layer 1 / Layer 3 / leverage 一起带入
 - **当前归类**：ready for DRAFT Spec
 - **来源**：`SPEC-061` review + `/ES` 三层体系覆盖盘点，2026-04-12
+
+### Q015 — BPS IVP gate 重设计：IVP 单维 filter 概念基础有偏差，需联合 VIX 绝对水位
+- **状态**：research（初轮分析完成，gate 保留，后续方向已确定）
+- **内容**：初轮研究结论（2026-04-16）—— **不是 Gate 1 同类问题，gate 应保留**。敏感性有真实 cliff（IVP 55→60，Sharpe 0.53→0.23）；blocked trades 非显著（avg +$7）；删除后 Sharpe 从 0.49 降到 0.22、MaxDD 恶化 70%。但诊断发现 IVP 在 NORMAL regime 和 VIX 弱负相关（r = -0.154），68% 的 IVP≥50 拦截发生在 VIX<18——gate 的概念基础（”stressed vol”）不成立。当前 threshold 恰好保护了真实 Sharpe cliff，但机制偶然。下一步方向：IVP + VIX 联合 filter、VIX 趋势条件化、BPS dual-slot 架构
+- **依赖**：研究方向已明确，不急于立 Spec；需积累更多 BPS 真实交易样本后验证 cross-tab 中 VIX×IVP 的风险口袋是否 OOS 稳定
+- **当前归类**：research only
+- **来源**：QR 阈值敏感性研究 2026-04-15~16；详见 `research_notes.md` §55、`strategy_status_2026-04-16.md`
 
 ### Q003 — L3 Hedge 实盘实现（v2）
 - **状态**：open
@@ -111,3 +118,4 @@
 | — | book_core_shock 信号路径（freeze触发后的缺陷）| 每日独立计算，不依赖入场路径 | 2026-04-01 |
 | — | ATR阈值选择（1.0 vs 其他）| 1.0，gap_sigma分布与原+1%band最接近 | 2026-04-02 |
 | Q010 | local_spike DIAGONAL 真实交易 n 计数 | `SPEC-055b` 已实施，`local_spike` 已进入 DIAGONAL full size-up；不再作为前置 open question 追踪 | 2026-04-10 |
+| Q014 | 撤销 DIAGONAL Gate 1（`SPEC-049` ivp252 marginal zone） | Quant 已通过 Fast Path 在 `strategy/selector.py` 删除 Gate 1 分支；当前生产逻辑仅保留 Gate 2（`IV=HIGH`）及其余 LOW_VOL + BULLISH 有效规则 | 2026-04-15 |
