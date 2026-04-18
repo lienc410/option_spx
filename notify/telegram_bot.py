@@ -23,9 +23,12 @@ Setup:
 """
 
 import asyncio
+import hashlib
+import json
 import logging
 import os
 import sys
+from dataclasses import asdict
 from datetime import date, datetime, time as dtime
 from zoneinfo import ZoneInfo
 
@@ -36,8 +39,9 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+from logs.recommendation_log_io import append_recommendation_event
 from strategy.selector import (
-    get_recommendation, StrategyName, Recommendation,
+    get_recommendation, StrategyName, Recommendation, StrategyParams,
 )
 from strategy.catalog import manual_entry_options, strategy_descriptor
 from strategy.state import (
@@ -118,6 +122,25 @@ _ACTION_EMOJI = {
 def _h(text: str) -> str:
     """Escape HTML special characters for Telegram HTML mode."""
     return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _params_hash() -> str:
+    payload = asdict(StrategyParams())
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(canonical.encode()).hexdigest()[:10]
+
+
+def _safe_append_recommendation_event(*, rec: Recommendation, source: str, mode: str) -> None:
+    try:
+        append_recommendation_event(
+            rec=rec,
+            source=source,
+            mode=mode,
+            timestamp=datetime.now(ET).isoformat(timespec="seconds"),
+            params_hash=_params_hash(),
+        )
+    except Exception:
+        log.exception("recommendation log append failed")
 
 
 def _format_recommendation(rec: Recommendation) -> str:
@@ -415,6 +438,7 @@ async def cmd_today(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Fetching signals…")
     try:
         rec = get_recommendation(use_intraday=True)
+        _safe_append_recommendation_event(rec=rec, source="telegram_today", mode="intraday")
         await update.message.reply_text(
             _format_recommendation(rec),
             parse_mode=ParseMode.HTML,
@@ -731,6 +755,7 @@ async def scheduled_push(bot: Bot, chat_id: str) -> None:
     log.info("Sending daily recommendation…")
     try:
         rec = get_recommendation(use_intraday=True)
+        _safe_append_recommendation_event(rec=rec, source="scheduled_push", mode="intraday")
         await bot.send_message(
             chat_id=chat_id,
             text=_format_recommendation(rec),
@@ -753,6 +778,7 @@ async def scheduled_eod_push(bot: Bot, chat_id: str) -> None:
         return
     try:
         rec = get_recommendation(use_intraday=False)
+        _safe_append_recommendation_event(rec=rec, source="scheduled_eod_push", mode="eod")
         state = read_state()
         await bot.send_message(
             chat_id=chat_id,
