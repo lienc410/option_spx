@@ -942,7 +942,7 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
     <!-- SPX Price chart -->
     <div class="chart-section">
       <div class="spx-chart-hd">
-        <div class="section-title" style="margin-bottom:0">SPX Price — Trade Entry / Exit</div>
+        <div class="section-title" id="spx-chart-title" style="margin-bottom:0">SPX Price — Trade Entry / Exit</div>
         <div class="overlay-bar">
           <span class="ctrl-label" style="margin-right:4px">Overlay:</span>
           <button class="overlay-btn active" id="ovr-none" onclick="setSpxOverlay('none', this)">None</button>
@@ -2018,6 +2018,63 @@ function currentTradeContext() {
   return { trades, metrics: computeSubsetMetrics(trades), sigMap: _productionSigMap };
 }
 
+function buildSpxChartData(trades, isResearch = false) {
+  const sortedByExit = [...trades].sort((a, b) => a.exit_date.localeCompare(b.exit_date));
+  const events = [];
+  sortedByExit.forEach(t => {
+    events.push({ date: t.entry_date, type: 'open',  trade: t });
+    events.push({ date: t.exit_date,  type: 'close', trade: t });
+  });
+  events.sort((a, b) => a.date.localeCompare(b.date) || (a.type === 'open' ? -1 : 1));
+
+  const entryColor = isResearch ? '#4888E8' : '#42CC7C';
+  const closeWinColor = isResearch ? '#4888E8' : '#42CC7C';
+  const closeLossColor = isResearch ? '#E08040' : '#E04862';
+  const ptColors = [];
+  const ptRotation = [];
+  const ptTrades = [];
+
+  events.forEach(ev => {
+    const isWin = (ev.trade.exit_pnl || 0) >= 0;
+    ptColors.push(ev.type === 'open' ? entryColor : (isWin ? closeWinColor : closeLossColor));
+    ptRotation.push(ev.type === 'open' ? 0 : 180);
+    ptTrades.push(ev.trade);
+  });
+
+  const maxPnl = Math.max(...sortedByExit.map(t => Math.abs(t.exit_pnl || 0)), 1);
+  const ptRadius = ptTrades.map(t => 4 + Math.round((Math.abs(t.exit_pnl || 0) / maxPnl) * 7));
+
+  const siblingIdx = new Array(events.length).fill(-1);
+  {
+    const tradeMap = new Map();
+    events.forEach((ev, i) => {
+      if (!tradeMap.has(ev.trade)) tradeMap.set(ev.trade, {});
+      tradeMap.get(ev.trade)[ev.type === 'open' ? 'openIdx' : 'closeIdx'] = i;
+    });
+    tradeMap.forEach(({openIdx, closeIdx}) => {
+      if (openIdx !== undefined && closeIdx !== undefined) {
+        siblingIdx[openIdx] = closeIdx;
+        siblingIdx[closeIdx] = openIdx;
+      }
+    });
+  }
+
+  return { events, ptRadius, ptColors, ptRotation, siblingIdx, isResearch };
+}
+
+function updateSpxChartForActiveView() {
+  const titleEl = document.getElementById('spx-chart-title');
+  if (_activeResearchView === 'production') {
+    titleEl.textContent = 'SPX Price — Trade Entry / Exit';
+    _spxChartData = buildSpxChartData(_productionTrades, false);
+  } else {
+    const view = _researchViews[_activeResearchView];
+    titleEl.textContent = `SPX Price — ${view?.label || 'Research View'} Entry / Exit`;
+    _spxChartData = buildSpxChartData(view?.trades || [], true);
+  }
+  renderSpxChart();
+}
+
 function renderActiveTradeView() {
   const { trades, metrics, sigMap } = currentTradeContext();
   applyMetricCards(metrics, trades, _activeResearchView);
@@ -2052,6 +2109,7 @@ function renderActiveTradeView() {
   document.getElementById('log-count').textContent = trades.length;
   renderTradeRows(trades, sigMap, trendLabel, trendColor);
   updateResearchBanner();
+  updateSpxChartForActiveView();
 }
 
 function setResearchView(viewKey, btn) {
@@ -2088,54 +2146,9 @@ function renderResults(data) {
       </tr>`;
   });
 
-  // Equity curve — rebuild with both open (▲) and close (▼) events
+  // Equity curve chart remains production-only; SPX marker set is handled separately.
   const sortedByExit = _productionTrades;
-
-  // Build interleaved event list sorted by date: {date, type:'open'|'close', trade}
-  const events = [];
-  sortedByExit.forEach(t => {
-    events.push({ date: t.entry_date, type: 'open',  trade: t });
-    events.push({ date: t.exit_date,  type: 'close', trade: t });
-  });
-  events.sort((a, b) => a.date.localeCompare(b.date) || (a.type === 'open' ? -1 : 1));
-
-  // Cumulative P&L advances only at close events
-  let cum = 0;
-  const labels = [], vals = [], ptColors = [], ptRotation = [], ptTrades = [], ptTypes = [];
-  events.forEach(ev => {
-    if (ev.type === 'close') cum += ev.trade.exit_pnl;
-    labels.push(ev.date);
-    vals.push(cum);
-    const col = ev.trade.exit_pnl >= 0 ? '#42CC7C' : '#E04862';
-    ptColors.push(col);
-    ptRotation.push(ev.type === 'open' ? 0 : 180);   // 0 = ▲, 180 = ▼
-    ptTrades.push(ev.trade);
-    ptTypes.push(ev.type);
-  });
-
-  // Scale point radius by |exit_pnl|, range [4, 11]
-  const maxPnl = Math.max(...sortedByExit.map(t => Math.abs(t.exit_pnl)), 1);
-  const ptRadius = ptTrades.map(t => 4 + Math.round((Math.abs(t.exit_pnl) / maxPnl) * 7));
-
-  // Build sibling index: for each event index, the index of its paired open/close
-  const siblingIdx = new Array(events.length).fill(-1);
-  {
-    const tradeMap = new Map(); // trade object → {openIdx, closeIdx}
-    events.forEach((ev, i) => {
-      if (!tradeMap.has(ev.trade)) tradeMap.set(ev.trade, {});
-      tradeMap.get(ev.trade)[ev.type === 'open' ? 'openIdx' : 'closeIdx'] = i;
-    });
-    tradeMap.forEach(({openIdx, closeIdx}) => {
-      if (openIdx !== undefined && closeIdx !== undefined) {
-        siblingIdx[openIdx] = closeIdx;
-        siblingIdx[closeIdx] = openIdx;
-      }
-    });
-  }
-
-  // Store data for SPX price chart (rendered separately, persists for overlay toggle)
-  _spxChartData = { events, ptRadius, ptColors, ptRotation, siblingIdx };
-  renderSpxChart();
+  updateSpxChartForActiveView();
   renderAnnualPnlChart(trades);
 
   // Plugin: draw connector + highlight ring on sibling point when hovering
@@ -2441,7 +2454,7 @@ function filterTradeLog(strat, allTrades, sigMap, trendLabel, trendColor) {
 // ── SPX Price Chart ─────────────────────────────────────────────────────
 function renderSpxChart() {
   if (!_spxChartData || !_spxFullSigData.length) return;
-  const { events, ptRadius, ptColors, ptRotation, siblingIdx } = _spxChartData;
+  const { events, ptRadius, ptColors, ptRotation, siblingIdx, isResearch } = _spxChartData;
   const startIdx = Math.min(_spxStartIdx, Math.max(_spxFullSigData.length - 1, 0));
   const visibleRows = _spxFullSigData.slice(startIdx);
   if (!visibleRows.length) return;
@@ -2780,7 +2793,9 @@ function renderSpxChart() {
               ];
             },
             labelColor: item => {
-              const c = visibleEvents[item.dataIndex].trade.exit_pnl >= 0 ? '#42CC7C' : '#E04862';
+              const c = isResearch
+                ? (visibleEvents[item.dataIndex].trade.exit_pnl >= 0 ? '#4888E8' : '#E08040')
+                : (visibleEvents[item.dataIndex].trade.exit_pnl >= 0 ? '#42CC7C' : '#E04862');
               return { backgroundColor: c, borderColor: c, borderRadius: 2 };
             },
           },
