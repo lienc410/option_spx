@@ -165,7 +165,8 @@ LOCAL_SPIKE_IVP252_MAX   = 50
 IVP63_BCS_BLOCK          = 70
 # DIAGONAL_IVP252_GATE_LO/HI removed — Gate 1 (SPEC-049) rescinded 2026-04-15
 # BPS NORMAL+NEUTRAL+BULLISH gate: IVP upper cap (monkey-patchable for sensitivity research)
-BPS_NNB_IVP_UPPER        = 50
+# Raised 50→55: Q015 OOS validation passed (Sharpe non-degrading in IS/OOS, Pareto improvement)
+BPS_NNB_IVP_UPPER        = 55
 BPS_NNB_IVP_LOWER        = 43
 
 

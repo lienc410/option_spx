@@ -1,75 +1,259 @@
-# SPEC-060: 三处路由修订（SPEC-059 Bootstrap 矩阵结论）
+# SPEC-060: Recommendation Event Log
 
 ## 目标
 
-**What**：基于 SPEC-059 bootstrap 矩阵结论，修订三处策略路由：
-1. `HIGH_VOL|HIGH|BEARISH`：BCS_HV → IC_HV
-2. `HIGH_VOL|NEUTRAL|BULLISH`：BPS_HV → IC_HV
-3. `NORMAL|HIGH|BULLISH`：BPS → REDUCE_WAIT
+**What**：新增 live recommendation 的结构化事件日志，记录 Telegram bot 在关键触发点生成的 recommendation 快照，写入 append-only 文件：
+
+```text
+logs/recommendation_log.jsonl
+```
 
 **Why**：
-- Change 1：IC_HV $937 ✓ vs BCS_HV $465 ✓，两者均显著，IC_HV 高出 $472；HIGH_VOL+HIGH_IV+BEARISH 时双边 premium 丰厚，IC_HV 优于单向 BCS_HV
-- Change 2：BPS_HV $100（不显著）vs IC_HV n=4（LOW_N）vs IC $1,837 ✓（n=11）；IC 是 HIGH_VOL|NEUTRAL|BULLISH 唯一有统计 alpha 的策略，路由改为 IC_HV（HIGH_VOL 制式）
-- Change 3：BPS avg −$299（不显著）；BCS_HV CI [$755, $1,044] 是 n=10/block=5 的 bootstrap 退化伪信号；无充分证据支持任何入场策略，选择拦截
-
-## 实施方式
-
-Fast Path（单文件 `strategy/selector.py`，三处独立修改，各 ≤ 10 行，无新函数）
+- 当前系统已有 `trade_log.jsonl`、live performance、backtest cache，但缺少 live recommendation 历史日志
+- Quant researcher 无法系统复盘 morning push / EOD push / `/today` 手动请求当时到底给了什么建议
+- 无法稳定对照 recommendation、实际交易和 backtest 结果三者之间的关系
+- 需要一个对 agent / pandas / jq 都友好的只追加日志源，供主力机只读分析
 
 ---
 
-## 变更 1：HIGH_VOL + BEARISH — 新增 IV=HIGH 子分支 → IC_HV
+## 功能定义
 
-在 HIGH_VOL + BEARISH 路径，现有 BCS_HV 入场之前（VIX_RISING 和 ivp63 门之后），新增：
+### F1 — 新增 recommendation log I/O 模块（`logs/recommendation_log_io.py`）
 
-```python
-# SPEC-060: HIGH_VOL + BEARISH + IV=HIGH → IC_HV
-# Bootstrap: IC_HV $937 ✓ vs BCS_HV $465 ✓; double-sided premium dominates
-if iv_s == IVSignal.HIGH:
-    action = get_position_action(...)  # IC_HV
-    return _build_recommendation(StrategyName.IRON_CONDOR_HV, ...)
+新增模块，职责：
+
+- 定义 recommendation log 文件路径
+- 提供 append helper
+- 创建 `logs/` 目录（若不存在）
+- 以 JSONL 格式追加写入 recommendation event
+
+**文件路径**：
+
+```text
+logs/recommendation_log.jsonl
 ```
 
-IV=HIGH 条件：保持原有 VIX_RISING 门和 ivp63 门在前，仅在通过这两道门后才做 IV 信号分支。
+**格式要求**：
 
-## 变更 2：HIGH_VOL + BULLISH — 新增 IV=NEUTRAL 子分支 → IC_HV
+- UTF-8
+- append-only
+- 每行一个完整 JSON object
+- 不覆盖、不改写历史记录
 
-在 HIGH_VOL + BULLISH（backwardation 和 VIX_RISING 门之后），现有 BPS_HV 入场之前，新增：
+---
 
-```python
-# SPEC-060: HIGH_VOL + BULLISH + IV=NEUTRAL → IC_HV
-# Bootstrap: IC $1,837 ✓ (n=11) vs BPS_HV $100 不显著
-if iv_s == IVSignal.NEUTRAL:
-    action = get_position_action(...)  # IC_HV
-    return _build_recommendation(StrategyName.IRON_CONDOR_HV, ...)
+### F2 — recommendation event schema
+
+每条记录代表一次“有业务意义的 recommendation 事件”，而不是一次页面轮询。
+
+每条记录至少包含以下字段：
+
+```json
+{
+  "timestamp": "2026-04-18T09:35:02-04:00",
+  "source": "scheduled_push",
+  "mode": "intraday",
+  "date": "2026-04-18",
+
+  "underlying": "SPX",
+  "position_action": "OPEN",
+  "strategy": "Bull Put Spread",
+  "strategy_key": "bull_put_spread",
+  "rationale": "Low vol, bullish trend, no backwardation",
+
+  "macro_warning": false,
+  "backwardation": false,
+
+  "vix": 17.4,
+  "regime": "LOW_VOL",
+  "vix3m": 19.1,
+
+  "iv_rank": 31.0,
+  "iv_percentile": 42.0,
+  "iv_signal": "NORMAL",
+
+  "spx": 5234.1,
+  "trend_signal": "BULLISH",
+
+  "legs": [
+    {
+      "action": "SELL",
+      "option": "PUT",
+      "dte": 30,
+      "delta": -0.30,
+      "note": "short put"
+    }
+  ],
+
+  "params_hash": "479998b833"
+}
 ```
 
-## 变更 3：NORMAL + IV_HIGH + BULLISH — 全路径改为 REDUCE_WAIT
+**字段规则**：
 
-将现有路径（守护门 → BPS 入场）完全替换为 REDUCE_WAIT：
-- 删除 BPS 入场代码块（约 20 行）
-- 替换为 REDUCE_WAIT（保留 backwardation 和 VIX_RISING 两道守护门的注释逻辑，但出口统一为 REDUCE_WAIT）
-- 理由：BPS avg −$299 不显著；无充分证据支持任何入场
+- `timestamp`：ET ISO 时间字符串
+- `source`：事件来源
+- `mode`：`intraday` / `eod`
+- `date`：recommendation 对应交易日
+- `strategy_key`：使用 canonical key
+- `legs`：永远存在；`Reduce / Wait` 时为 `[]`
+- `vix3m`：允许为 `null`
+- `params_hash`：`hashlib.sha256(json.dumps(StrategyParams().__dict__, sort_keys=True)).hexdigest()[:10]`；反映当前 live/default 参数版本，用于后续复盘
+
+---
+
+### F3 — 写入触发点（`notify/telegram_bot.py`）
+
+只在真正有业务意义的 live recommendation 触发点写日志：
+
+1. `scheduled_push()`
+2. `scheduled_eod_push()`
+3. Telegram `/today`
+
+**source 映射**：
+
+- `scheduled_push` → `source="scheduled_push"`，`mode="intraday"`
+- `scheduled_eod_push` → `source="scheduled_eod_push"`，`mode="eod"`
+- `/today` → `source="telegram_today"`，`mode="intraday"`（固定值）
+
+---
+
+### F4 — 不记录普通 dashboard recommendation 轮询
+
+`/api/recommendation` 当前会被 dashboard 周期性调用；该 endpoint 不应默认写 recommendation log。
+
+理由：
+
+- recommendation log 应是“业务事件日志”，不是“页面访问日志”
+- 若在 `/api/recommendation` 写日志，会造成重复和噪音
+- 该文件应保持小而高信噪比，便于 quant researcher 直接读取
+
+---
+
+### F5 — logging failure 不影响 bot 主流程
+
+recommendation log 属于 observability / research trace，不应影响 live delivery。
+
+要求：
+
+- append 失败时，Telegram 推送仍然照常发送
+- 失败仅写 warning / error log，不 crash bot
+- 每个触发点都采用 best-effort append
+
+---
+
+## 接口定义
+
+### `logs/recommendation_log_io.py`
+
+```python
+RECOMMENDATION_LOG_FILE: Path
+
+def append_recommendation_event(
+    *,
+    rec: Recommendation,
+    source: str,
+    mode: str,
+    timestamp: str,
+    params_hash: str,
+) -> None:
+    """Append one recommendation event to logs/recommendation_log.jsonl."""
+```
+
+### `notify/telegram_bot.py`
+
+在以下路径调用 append helper：
+
+- `scheduled_push()`
+- `scheduled_eod_push()`
+- `/today` handler
+
+---
+
+## 边界条件与约束
+
+- 不改动策略选择逻辑
+- 不改动 backtest engine
+- 不新增前端页面或 API endpoint
+- 不对 `/api/recommendation` 做日志写入
+- recommendation log 为 append-only，不做 update / dedupe / compaction
+- 若 recommendation 为 `Reduce / Wait`，仍必须落一条完整记录
+- 缺失的可选值写 `null`，不要省略字段
+- helper 实现应显式序列化稳定 schema，不直接盲目 dump 整个 dataclass
+
+---
+
+## 不在范围内
+
+- recommendation 历史查询 UI
+- recommendation log 的 HTTP 读取接口
+- 与 backtest 页面联动展示 recommendation history
+- 对旧 recommendation 事件做回填
+- 对 dashboard 自动刷新去重
+- 将 recommendation log 自动同步到主力机
+- `/ES` recommendation 记录（待 `/ES` 研究达到里程碑后再扩展）
+
+---
+
+## 修改文件
+
+| 文件 | 改动 |
+|------|------|
+| `logs/recommendation_log_io.py` | 新建：append-only JSONL helper |
+| `notify/telegram_bot.py` | 在 `scheduled_push()`、`scheduled_eod_push()`、`/today` handler 写 recommendation event |
 
 ---
 
 ## 验收标准
 
-- AC1. HIGH_VOL + BEARISH + IV=HIGH + VIX_FLAT → IRON_CONDOR_HV
-- AC2. HIGH_VOL + BEARISH + IV=HIGH + VIX_RISING → 仍返回 REDUCE_WAIT（VIX_RISING 门优先）
-- AC3. HIGH_VOL + BEARISH + IV=NEUTRAL + VIX_FLAT → 仍返回 BEAR_CALL_SPREAD_HV（原路由不变）
-- AC4. HIGH_VOL + BULLISH + IV=NEUTRAL + VIX_FLAT → IRON_CONDOR_HV
-- AC5. HIGH_VOL + BULLISH + IV=HIGH + VIX_FLAT → 仍返回 BULL_PUT_SPREAD_HV（IV=HIGH 不在 Change 2 范围）
-- AC6. NORMAL + IV_HIGH + BULLISH → REDUCE_WAIT（无论 IVP 高低）
-
-## Review
-- 结论：PASS
-- Change 1（HIGH_VOL+BEARISH+IV=HIGH→IC_HV）：`selector.py` HIGH_VOL+BEARISH 路径新增 `if iv_s == IVSignal.HIGH` 子分支，位于 VIX_RISING 门和 ivp63 门之后，BCS_HV 返回之前；AC1/AC2/AC3 ✓
-- Change 2（HIGH_VOL+BULLISH+IV=NEUTRAL→IC_HV）：同理在 backwardation 和 VIX_RISING 门之后，BPS_HV 返回之前插入 `if iv_s == IVSignal.NEUTRAL` 子分支；AC4/AC5 ✓
-- Change 3（NORMAL+HIGH+BULLISH→REDUCE_WAIT）：删除 IVP≥50 gate 和 BPS 入场代码块（共约25行），替换为单一 REDUCE_WAIT 返回，保留 backwardation/VIX_RISING 两道守护门；AC6 IVP=30 和 IVP=65 均返回 REDUCE_WAIT ✓
-- 受影响测试已更新：`test_t10_high_vol_bearish_ivp63_65_keeps_bcs_hv` → `test_t10_high_vol_bearish_iv_high_routes_ic_hv`（期望 IC_HV），`test_high_vol_bearish_stable_still_uses_bear_call_spread_hv` → `test_high_vol_bearish_iv_high_routes_iron_condor_hv`（期望 IC_HV）
-- 全套测试：91/91 通过（4 个 import error 为既有 flask/依赖缺失，与本 SPEC 无关）
+1. **AC1**：运行 `scheduled_push()` 时，`logs/recommendation_log.jsonl` 追加一条新记录
+2. **AC2**：运行 `scheduled_eod_push()` 时，追加一条 `source="scheduled_eod_push"` 且 `mode="eod"` 的记录
+3. **AC3**：触发 Telegram `/today` 时，追加一条 `source="telegram_today"` 的记录
+4. **AC4**：`Reduce / Wait` recommendation 仍生成合法记录，且 `legs=[]`
+5. **AC5**：append helper 异常不会阻断 Telegram 推送流程
+6. **AC6**：每行均为合法 JSON，能被逐行解析
+7. **AC7**：Section F2 中定义的字段在每条记录上都存在
+8. **AC8**：普通 `/api/recommendation` dashboard 轮询不会写入 recommendation log
 
 ---
+
+## 测试建议
+
+- append helper 生成合法 JSONL
+- `Reduce / Wait` 序列化测试
+- `scheduled_push()` 调用 append helper
+- `scheduled_eod_push()` 调用 append helper
+- `/today` 调用 append helper
+- append helper 抛异常时，bot 主流程仍继续
+- `/api/recommendation` 不触发写日志
+
+---
+
+## 依赖
+
+- 依赖现有 `Recommendation` 对象字段
+- `params_hash` 可复用现有 hashing 逻辑；若无合适 helper，可在实现时以最小方式新增
+
+---
+
+## Review
+
+### Spec 审阅（Quant Researcher，2026-04-17）
+- 结论：PASS
+  1. `params_hash` 明确为 `StrategyParams.__dict__` 的 SHA-256 前 10 位 — 已写入 F2 字段规则
+  2. `/ES` recommendation 不在范围内 — 已加入"不在范围内"
+  3. `/today` 的 `mode` 固定为 `"intraday"` — 已修改 F3
+
+### 实现 Review（Quant Researcher，2026-04-17）
+- 结论：PASS
+- 测试：6/6 通过
+- AC 覆盖：AC1–AC8 全部验证通过
+- 核查要点：
+  1. `recommendation_log_io.py` — schema 显式列举 21 个字段，`default=str` 兜底序列化，符合 F2
+  2. `_params_hash()` — 使用 `asdict(StrategyParams())` + `json.dumps(sort_keys=True)` + SHA-256[:10]，与 Spec 修订一致
+  3. `_safe_append_recommendation_event()` — try/except 包裹，失败仅 `log.exception`，不阻断推送，符合 F5
+  4. 三个触发点（`scheduled_push`、`scheduled_eod_push`、`cmd_today`）均在 `get_recommendation()` 之后、Telegram send 之前调用，source/mode 正确
+  5. `/api/recommendation` 无写入调用，符合 F4
+  6. `cmd_today` 中 `_safe_append_recommendation_event` 在外层 try 内部——若 append 内部异常已被 `_safe_` 吞掉不影响后续 `reply_text`；若 `get_recommendation()` 本身失败则整体走 except 分支，也不会写日志，行为正确
 
 Status: DONE

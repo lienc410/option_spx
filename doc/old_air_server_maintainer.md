@@ -43,6 +43,21 @@ It may also inspect:
 - project runtime files under `/Users/macbook/SPX_strat`
 - Cloudflare tunnel config under `/Users/macbook/.cloudflared`
 
+## Preferred Access
+
+Use SSH alias access whenever possible.
+
+Current known host paths:
+
+- LAN IPv4: `192.168.68.117`
+- Tailscale IPv4: `100.114.226.33`
+
+Practical rule:
+
+- On the same home/local network, LAN access is fine
+- Outside the home network, prefer Tailscale
+- Keep a stable local alias such as `ssh oldair` so runtime prompts do not need to repeat connection details
+
 Current runtime note:
 
 - `spx-strat` is a **locally configured tunnel**

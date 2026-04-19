@@ -10,17 +10,45 @@
 
 ---
 
+## Runtime Canonical Host
+
+当前 live runtime 已迁移到 **old Air**（Early 2015 MacBook Air, 8GB RAM）。
+
+这意味着：
+
+- `Telegram bot` 的 canonical running instance 在 old Air
+- `Flask web dashboard` 的 canonical running instance 在 old Air
+- `Cloudflare Tunnel` 的 canonical running instance 在 old Air
+- 主力机不再是 live runtime source of truth
+
+协作规则：
+
+- 需要查看 live recommendation、public web、bot health、runtime log 时，应优先读取 old Air
+- 主力机主要用于开发、研究、规划、重回测，不应假定其本地缓存等于 live 状态
+- 若 live 行为与主力机本地结果不一致，以 old Air 运行为准
+- 无需默认启动独立的 server maintainer agent；涉及 old Air 的任务，可由当前角色直接 SSH 到 old Air 执行
+- 所有涉及 old Air 的操作，都遵守 `SERVER_RUNTIME.md` 和 `doc/old_air_server_maintainer.md`
+
+相关文档：
+
+- `SERVER_RUNTIME.md`
+- `doc/old_air_server_maintainer.md`
+
+---
+
 ## 角色分工
 
 - **PM（用户）**：唯一最终决策者；唯一能将 Spec Status 改为 `APPROVED` / `REJECTED`
 - **Quant Researcher**：负责策略设计、信号分析、研究结论、Spec 草案、研究 review
 - **Planner**：负责维护项目状态、整理研究结论、生成候选任务与优先级建议；不做最终策略设计
 - **Developer**：负责将已批准的 Spec 转化为生产代码；只执行，不设计
+- **Server Maintainer（Codex on old Air）**：负责 old Air runtime 的健康检查、日志排查、服务重启与低风险运维；不做 quant 研究、不做产品设计、不自行修改 secrets 或策略逻辑
 
 角色专属规则见：
 - `DEVELOPER.md`
 - `PLANNER.md`
 - `QUANT_RESEARCHER.md`
+- `doc/old_air_server_maintainer.md`
 
 兼容说明：
 - `CLAUDE.md` 是 `QUANT_RESEARCHER.md` 的兼容入口

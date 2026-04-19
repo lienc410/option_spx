@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dead Zone A — Recovery Trade Visualization</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b0f1b;
+      --panel: #12182a;
+      --panel-2: #171f34;
+      --grid: #1d2740;
+      --text: #c4ceec;
+      --muted: #7f8bb0;
+      --blue: #4888e8;
+      --gold: #c9a840;
+      --green: #42cc7c;
+      --red: #e04862;
+      --white: #f5f7ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "DM Sans", system-ui, sans-serif;
+      background: linear-gradient(180deg, #0a0f1a 0%, #101728 100%);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 1220px;
+      margin: 0 auto;
+      padding: 28px 20px 48px;
+    }
+    h1 {
+      margin: 0 0 6px;
+      font-size: 28px;
+      color: var(--white);
+      letter-spacing: -0.02em;
+    }
+    .sub {
+      color: var(--muted);
+      margin-bottom: 22px;
+      line-height: 1.5;
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+      border: 1px solid rgba(124, 143, 190, 0.18);
+      border-radius: 14px;
+      padding: 14px 16px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+    }
+    .label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+    .value {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--white);
+    }
+    .value.green { color: var(--green); }
+    .value.red { color: var(--red); }
+    .panel {
+      background: rgba(18, 24, 42, 0.92);
+      border: 1px solid rgba(124, 143, 190, 0.16);
+      border-radius: 16px;
+      padding: 16px 16px 12px;
+      margin-bottom: 16px;
+    }
+    .panel h2 {
+      margin: 0 0 12px;
+      font-size: 16px;
+      color: var(--white);
+    }
+    .chart-wrap {
+      position: relative;
+      height: 290px;
+    }
+    .chart-wrap.short {
+      height: 220px;
+    }
+    .note {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 12px;
+    }
+    th, td {
+      padding: 9px 8px;
+      border-bottom: 1px solid rgba(124, 143, 190, 0.12);
+      text-align: left;
+      white-space: nowrap;
+    }
+    th {
+      color: var(--muted);
+      font-weight: 600;
+    }
+    td.pnl-pos { color: var(--green); }
+    td.pnl-neg { color: var(--red); }
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(201,168,64,0.12);
+      color: #f0d790;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    @media (max-width: 900px) {
+      .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 640px) {
+      .cards { grid-template-columns: 1fr; }
+      .chart-wrap, .chart-wrap.short { height: 240px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Dead Zone A — Recovery Context Test Trades</h1>
+    <div class="sub">
+      Counterfactual review of <code>NORMAL + HIGH + BULLISH</code> days that were patched from
+      <code>REDUCE_WAIT</code> to <code>BPS</code> inside the recovery-context study. This is the
+      trade-level view behind the conclusion that Dead Zone A does not have reliable conditional alpha.
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="label">Recovery Trades</div>
+        <div class="value">12</div>
+      </div>
+      <div class="card">
+        <div class="label">Total P&amp;L</div>
+        <div class="value green">+$2,643</div>
+      </div>
+      <div class="card">
+        <div class="label">Avg P&amp;L</div>
+        <div class="value">+$220</div>
+      </div>
+      <div class="card">
+        <div class="label">Bootstrap 95% CI</div>
+        <div class="value">[-$1,690, +$1,609]</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>SPX Entry / Exit Map</h2>
+      <div class="chart-wrap"><canvas id="spxChart"></canvas></div>
+      <div class="note">
+        Triangles show entry and exit SPX levels for each patched BPS trade. Green connectors ended profitable;
+        red connectors ended negative. This mirrors the backtest page’s “SPX Price — Trade Entry / Exit” style,
+        but compresses the view to just the 12 recovery trades.
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Trade P&amp;L by Entry Date</h2>
+      <div class="chart-wrap short"><canvas id="pnlChart"></canvas></div>
+      <div class="note">
+        The problem is visible immediately: outcomes are mixed, with several winners but also large tail losses
+        like <code>2014-12-22</code> and <code>2021-12-07</code>. That is why the recovery-context alpha
+        never became statistically significant.
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Entry Conditions — VIX and IVP</h2>
+      <div class="chart-wrap short"><canvas id="signalChart"></canvas></div>
+      <div class="note">
+        Entry VIX clusters mostly in the mid-to-high teens and low 20s, while IVP stays persistently high.
+        Visually this supports the research intuition that these were genuine “rich premium” environments,
+        but the trade outcomes still failed to form a reliable alpha pocket.
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Recovery Trades Table</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Entry</th>
+            <th>Exit</th>
+            <th>SPX In</th>
+            <th>SPX Out</th>
+            <th>VIX In</th>
+            <th>IVP</th>
+            <th>P&amp;L</th>
+            <th>Exit Reason</th>
+          </tr>
+        </thead>
+        <tbody id="tradeBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const trades = [
+      { entry: '2007-09-18', exit: '2007-10-01', entrySpx: 1519.78, exitSpx: 1547.04, entryVix: 20.35, ivp: 85.3, pnl: 2754.80, reason: 'roll_21dte' },
+      { entry: '2007-10-25', exit: '2007-11-07', entrySpx: 1514.40, exitSpx: 1475.62, entryVix: 21.17, ivp: 85.7, pnl: -2694.62, reason: 'roll_21dte' },
+      { entry: '2014-12-22', exit: '2015-01-06', entrySpx: 2078.54, exitSpx: 2002.61, entryVix: 15.25, ivp: 77.3, pnl: -5292.03, reason: 'roll_21dte' },
+      { entry: '2015-10-08', exit: '2015-10-21', entrySpx: 2013.43, exitSpx: 2018.94, entryVix: 17.42, ivp: 71.3, pnl: 1148.60, reason: 'roll_21dte' },
+      { entry: '2021-12-07', exit: '2021-12-20', entrySpx: 4686.75, exitSpx: 4568.02, entryVix: 21.89, ivp: 74.1, pnl: -2043.81, reason: 'roll_21dte' },
+      { entry: '2022-03-24', exit: '2022-04-06', entrySpx: 4520.16, exitSpx: 4481.15, entryVix: 21.67, ivp: 73.7, pnl: -196.73, reason: 'roll_21dte' },
+      { entry: '2022-04-07', exit: '2022-04-21', entrySpx: 4500.21, exitSpx: 4393.66, entryVix: 21.55, ivp: 71.7, pnl: -1920.30, reason: 'roll_21dte' },
+      { entry: '2024-09-11', exit: '2024-09-24', entrySpx: 5554.13, exitSpx: 5732.93, entryVix: 17.69, ivp: 83.7, pnl: 3696.78, reason: 'roll_21dte' },
+      { entry: '2024-10-10', exit: '2024-10-23', entrySpx: 5780.05, exitSpx: 5797.42, entryVix: 20.93, ivp: 95.2, pnl: 1373.64, reason: 'roll_21dte' },
+      { entry: '2024-11-05', exit: '2024-11-07', entrySpx: 5782.76, exitSpx: 5973.10, entryVix: 20.49, ivp: 92.8, pnl: 3690.62, reason: 'roll_up' },
+      { entry: '2024-12-23', exit: '2025-01-07', entrySpx: 5974.07, exitSpx: 5909.03, entryVix: 16.78, ivp: 74.5, pnl: -940.22, reason: 'roll_21dte' },
+      { entry: '2025-05-09', exit: '2025-05-12', entrySpx: 5659.91, exitSpx: 5844.19, entryVix: 21.90, ivp: 81.7, pnl: 3065.97, reason: 'roll_up' },
+    ];
+
+    const gridColor = '#1d2740';
+    const textColor = '#7f8bb0';
+
+    const tradeConnectorPlugin = {
+      id: 'tradeConnectorPlugin',
+      afterDatasetsDraw(chart) {
+        const { ctx } = chart;
+        const entryMeta = chart.getDatasetMeta(0);
+        const exitMeta = chart.getDatasetMeta(1);
+        ctx.save();
+        trades.forEach((trade, i) => {
+          const p0 = entryMeta.data[i];
+          const p1 = exitMeta.data[i];
+          if (!p0 || !p1) return;
+          ctx.beginPath();
+          ctx.moveTo(p0.x, p0.y);
+          ctx.lineTo(p1.x, p1.y);
+          ctx.strokeStyle = trade.pnl >= 0 ? 'rgba(66,204,124,0.55)' : 'rgba(224,72,98,0.55)';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([5, 5]);
+          ctx.stroke();
+        });
+        ctx.restore();
+      },
+    };
+
+    new Chart(document.getElementById('spxChart').getContext('2d'), {
+      type: 'scatter',
+      plugins: [tradeConnectorPlugin],
+      data: {
+        datasets: [
+          {
+            label: 'Entry',
+            data: trades.map(t => ({ x: t.entry, y: t.entrySpx })),
+            pointStyle: 'triangle',
+            rotation: 0,
+            pointRadius: 7,
+            pointHoverRadius: 9,
+            pointBackgroundColor: trades.map(t => t.pnl >= 0 ? '#42cc7c' : '#e04862'),
+            pointBorderColor: trades.map(t => t.pnl >= 0 ? '#42cc7c' : '#e04862'),
+          },
+          {
+            label: 'Exit',
+            data: trades.map(t => ({ x: t.exit, y: t.exitSpx })),
+            pointStyle: 'triangle',
+            rotation: 180,
+            pointRadius: 7,
+            pointHoverRadius: 9,
+            pointBackgroundColor: trades.map(t => t.pnl >= 0 ? '#42cc7c' : '#e04862'),
+            pointBorderColor: trades.map(t => t.pnl >= 0 ? '#42cc7c' : '#e04862'),
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { intersect: false, mode: 'nearest' },
+        plugins: {
+          legend: {
+            labels: { color: textColor }
+          },
+          tooltip: {
+            backgroundColor: '#0d1020',
+            borderColor: '#2a3350',
+            borderWidth: 1,
+            titleColor: '#c4ceec',
+            bodyColor: '#c4ceec',
+            callbacks: {
+              title(items) {
+                const i = items[0].dataIndex;
+                const t = trades[i];
+                return `${t.entry} → ${t.exit}`;
+              },
+              label(item) {
+                const t = trades[item.dataIndex];
+                if (item.datasetIndex === 0) return `Entry SPX: ${t.entrySpx.toFixed(0)}  |  P&L: ${t.pnl >= 0 ? '+' : ''}$${Math.round(t.pnl).toLocaleString()}`;
+                return `Exit SPX: ${t.exitSpx.toFixed(0)}  |  Exit: ${t.reason}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            type: 'time',
+            time: { tooltipFormat: 'yyyy-MM-dd', displayFormats: { month: 'yyyy-MM', day: 'yyyy-MM-dd' } },
+            grid: { color: gridColor },
+            ticks: { color: textColor, maxTicksLimit: 10 }
+          },
+          y: {
+            grid: { color: gridColor },
+            ticks: {
+              color: textColor,
+              callback: v => Number(v).toLocaleString('en-US', { maximumFractionDigits: 0 })
+            }
+          }
+        }
+      }
+    });
+
+    new Chart(document.getElementById('pnlChart').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: trades.map(t => t.entry),
+        datasets: [{
+          label: 'Exit P&L',
+          data: trades.map(t => t.pnl),
+          backgroundColor: trades.map(t => t.pnl >= 0 ? 'rgba(66,204,124,0.72)' : 'rgba(224,72,98,0.72)'),
+          borderColor: trades.map(t => t.pnl >= 0 ? '#42cc7c' : '#e04862'),
+          borderWidth: 1,
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#0d1020',
+            borderColor: '#2a3350',
+            borderWidth: 1,
+            titleColor: '#c4ceec',
+            bodyColor: '#c4ceec',
+            callbacks: {
+              label(ctx) {
+                const v = ctx.raw;
+                return `P&L: ${v >= 0 ? '+' : '-'}$${Math.abs(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: textColor, maxRotation: 0, minRotation: 0 }
+          },
+          y: {
+            grid: { color: gridColor },
+            ticks: {
+              color: textColor,
+              callback: v => `${v >= 0 ? '+' : '-'}$${Math.abs(v/1000).toFixed(0)}k`
+            }
+          }
+        }
+      }
+    });
+
+    new Chart(document.getElementById('signalChart').getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: trades.map(t => t.entry),
+        datasets: [
+          {
+            label: 'VIX In',
+            data: trades.map(t => t.entryVix),
+            borderColor: '#e04862',
+            backgroundColor: 'transparent',
+            borderWidth: 2,
+            pointRadius: 3,
+            tension: 0.25,
+            yAxisID: 'y'
+          },
+          {
+            label: 'IVP In',
+            data: trades.map(t => t.ivp),
+            borderColor: '#4888e8',
+            backgroundColor: 'transparent',
+            borderWidth: 2,
+            pointRadius: 3,
+            tension: 0.25,
+            yAxisID: 'y2'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: textColor } }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: textColor, maxRotation: 0, minRotation: 0 }
+          },
+          y: {
+            position: 'left',
+            grid: { color: gridColor },
+            ticks: { color: textColor }
+          },
+          y2: {
+            position: 'right',
+            grid: { drawOnChartArea: false },
+            min: 0,
+            max: 100,
+            ticks: { color: textColor }
+          }
+        }
+      }
+    });
+
+    const body = document.getElementById('tradeBody');
+    trades.forEach(t => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${t.entry}</td>
+        <td>${t.exit}</td>
+        <td>${t.entrySpx.toFixed(0)}</td>
+        <td>${t.exitSpx.toFixed(0)}</td>
+        <td>${t.entryVix.toFixed(2)}</td>
+        <td><span class="pill">${t.ivp.toFixed(1)}</span></td>
+        <td class="${t.pnl >= 0 ? 'pnl-pos' : 'pnl-neg'}">${t.pnl >= 0 ? '+' : '-'}$${Math.abs(t.pnl).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+        <td>${t.reason}</td>
+      `;
+      body.appendChild(tr);
+    });
+  </script>
+</body>
+</html>

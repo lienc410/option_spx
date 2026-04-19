@@ -89,6 +89,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 }
 .period-btn:hover { color: var(--text); border-color: var(--text-muted); background: var(--surface-hi); }
 .period-btn.active { color: var(--gold); background: var(--gold-bg); border-color: var(--gold-border); }
+.period-btn.research-active { color: var(--blue); background: var(--blue-bg); border-color: var(--blue); }
 .ctrl-input {
   font-family: var(--f-mono); font-size: 0.78rem;
   background: var(--surface-hi); border: 1px solid var(--border-2);
@@ -186,6 +187,36 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .m-value.pos { color: var(--green); }
 .m-value.neg { color: var(--red); }
 .m-sub { font-size: 0.68rem; color: var(--text-2); }
+
+.research-view-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.research-view-label {
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.11em;
+  text-transform: uppercase; color: var(--text-muted);
+}
+.research-pill-bar { display: flex; gap: 4px; flex-wrap: wrap; }
+.research-pill {
+  font-family: var(--f-mono); font-size: 0.68rem; font-weight: 600;
+  padding: 5px 10px; border-radius: 999px;
+  border: 1px solid var(--border-2); background: transparent; color: var(--text-2);
+  cursor: pointer; transition: all .15s;
+}
+.research-pill:hover { color: var(--text); border-color: var(--text-muted); background: var(--surface-hi); }
+.research-pill.active-production { color: var(--gold); background: var(--gold-bg); border-color: var(--gold-border); }
+.research-pill.active-research { color: var(--blue); background: var(--blue-bg); border-color: rgba(72,136,232,0.36); }
+.research-banner {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 10px; padding: 10px 14px;
+  border-radius: 8px; border: 1px solid rgba(72,136,232,0.28);
+  background: rgba(72,136,232,0.09); color: #A9C7F7;
+  font-size: 0.74rem;
+}
+.research-banner strong {
+  font-family: var(--f-mono); font-size: 0.68rem; letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 
 /* ── Chart section ── */
 .chart-section {
@@ -877,34 +908,34 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
     <!-- Metric cards -->
     <div class="metric-grid">
       <div class="m-card">
-        <div class="m-label">Total Trades</div>
+        <div class="m-label" id="m-label-trades">Total Trades</div>
         <div class="m-value" id="m-trades">—</div>
         <div class="m-sub" id="m-period">—</div>
       </div>
       <div class="m-card">
-        <div class="m-label">Win Rate</div>
+        <div class="m-label" id="m-label-winrate">Win Rate</div>
         <div class="m-value" id="m-winrate">—</div>
         <div class="m-sub" id="m-winloss">—</div>
       </div>
       <div class="m-card">
-        <div class="m-label">Expectancy</div>
+        <div class="m-label" id="m-label-exp">Expectancy</div>
         <div class="m-value" id="m-exp">—</div>
-        <div class="m-sub">per trade</div>
+        <div class="m-sub" id="m-sub-exp">per trade</div>
       </div>
-      <div class="m-card">
-        <div class="m-label">Total P&amp;L</div>
+      <div class="m-card" id="m-card-pnl">
+        <div class="m-label" id="m-label-pnl">Total P&amp;L</div>
         <div class="m-value" id="m-pnl">—</div>
-        <div class="m-sub">net realized</div>
+        <div class="m-sub" id="m-sub-pnl">net realized</div>
       </div>
-      <div class="m-card">
-        <div class="m-label">Max Drawdown</div>
+      <div class="m-card" id="m-card-dd">
+        <div class="m-label" id="m-label-dd">Max Drawdown</div>
         <div class="m-value" id="m-dd">—</div>
-        <div class="m-sub">peak-to-trough</div>
+        <div class="m-sub" id="m-sub-dd">peak-to-trough</div>
       </div>
-      <div class="m-card">
-        <div class="m-label">Sharpe Ratio</div>
+      <div class="m-card" id="m-card-sharpe">
+        <div class="m-label" id="m-label-sharpe">Sharpe Ratio</div>
         <div class="m-value" id="m-sharpe">—</div>
-        <div class="m-sub">annualized</div>
+        <div class="m-sub" id="m-sub-sharpe">annualized</div>
       </div>
     </div>
 
@@ -1027,6 +1058,18 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
     </div>
 
     <!-- Trade log -->
+    <div class="research-view-bar">
+      <span class="research-view-label">View</span>
+      <div class="research-pill-bar" id="research-pill-bar">
+        <button class="research-pill active-production" data-view="production" onclick="setResearchView('production', this)">Production</button>
+        <button class="research-pill" data-view="q015_ivp55_marginal" onclick="setResearchView('q015_ivp55_marginal', this)">Q015 IVP 50-55</button>
+        <button class="research-pill" data-view="q016_dza_recovery_bps" onclick="setResearchView('q016_dza_recovery_bps', this)">Q016 DZ-A</button>
+      </div>
+    </div>
+    <div class="research-banner hidden" id="research-banner">
+      <strong id="research-banner-title">Research View</strong>
+      <span id="research-banner-copy">—</span>
+    </div>
     <div class="trade-log-wrap">
       <div class="log-toggle" onclick="toggleLog()">
         <span class="log-toggle-label">Trade Log (<span id="log-count">0</span> trades)</span>
@@ -1091,6 +1134,10 @@ let _spxWindowFetchTimer = null;
 let _allTrades = [];
 let _activeStratFilter = 'All';
 let _displayedResultMeta = null;
+let _productionTrades = [];
+let _productionSigMap = {};
+let _researchViews = {};
+let _activeResearchView = 'production';
 
 // ── Auto-search grid config ─────────────────────────────────────────────────
 const AUTO_PARAMS = [
@@ -1791,6 +1838,15 @@ async function loadSignalHistory() {
   renderSignalMatrix();
   renderSpxChart();
 }
+async function loadResearchViews() {
+  const res = await fetch('/api/research/views');
+  const data = await res.json();
+  if (data.error || data.empty) {
+    _researchViews = {};
+    return;
+  }
+  _researchViews = data.views || {};
+}
 async function loadCachedResult() {
   const res = await fetch('/api/backtest/latest-cached');
   const data = await res.json();
@@ -1878,6 +1934,136 @@ function reasonTag(r) {
   return `<span class="reason-tag ${cls}">${r}</span>`;
 }
 
+function computeSubsetMetrics(trades) {
+  const pnls = trades.map(t => t.exit_pnl || 0);
+  const total = trades.length;
+  const totalPnl = pnls.reduce((sum, pnl) => sum + pnl, 0);
+  const wins = pnls.filter(p => p > 0).length;
+  return {
+    total_trades: total,
+    total_pnl: totalPnl,
+    expectancy: total ? totalPnl / total : 0,
+    win_rate: total ? wins / total : 0,
+  };
+}
+
+function applyMetricCards(metrics, trades, mode = 'production') {
+  const isResearch = mode !== 'production';
+  const setText = (id, value) => { document.getElementById(id).textContent = value; };
+
+  setText('m-label-trades', isResearch ? 'Trades (Research)' : 'Total Trades');
+  setText('m-label-winrate', isResearch ? 'Win Rate (Research)' : 'Win Rate');
+  setText('m-label-exp', isResearch ? 'Avg P&L (Research)' : 'Expectancy');
+  setText('m-label-pnl', isResearch ? 'Total P&L (Research)' : 'Total P&L');
+  setText('m-label-dd', 'Max Drawdown');
+  setText('m-label-sharpe', 'Sharpe Ratio');
+
+  setText('m-trades', metrics.total_trades || 0);
+  setText('m-period', trades.length ? `${trades[0].entry_date} → ${trades[trades.length - 1].exit_date}` : '—');
+
+  const winRate = ((metrics.win_rate || 0) * 100).toFixed(1);
+  const wrEl = document.getElementById('m-winrate');
+  wrEl.textContent = `${winRate}%`;
+  wrEl.className = 'm-value ' + ((metrics.win_rate || 0) >= 0.5 ? 'pos' : 'neg');
+  setText('m-winloss', isResearch ? `${metrics.total_trades || 0} trade subset` : `Avg win ${fmtDollarFull(metrics.avg_win || 0)} / loss ${fmtDollarFull(metrics.avg_loss || 0)}`);
+
+  const expEl = document.getElementById('m-exp');
+  expEl.textContent = fmtDollarFull(metrics.expectancy || 0);
+  expEl.className = 'm-value ' + pnlClass(metrics.expectancy || 0);
+  setText('m-sub-exp', isResearch ? 'mean realized pnl' : 'per trade');
+
+  const pnlEl = document.getElementById('m-pnl');
+  pnlEl.textContent = fmtDollarFull(metrics.total_pnl || 0);
+  pnlEl.className = 'm-value ' + pnlClass(metrics.total_pnl || 0);
+  setText('m-sub-pnl', isResearch ? 'research subset' : 'net realized');
+
+  document.getElementById('m-card-dd').classList.toggle('hidden', isResearch);
+  document.getElementById('m-card-sharpe').classList.toggle('hidden', isResearch);
+
+  if (!isResearch) {
+    const ddEl = document.getElementById('m-dd');
+    ddEl.textContent = fmtDollarFull(metrics.max_drawdown || 0);
+    ddEl.className = 'm-value ' + pnlClass(metrics.max_drawdown || 0);
+    setText('m-sub-dd', 'peak-to-trough');
+
+    const shEl = document.getElementById('m-sharpe');
+    shEl.textContent = (metrics.sharpe || 0).toFixed(2);
+    shEl.className = 'm-value ' + pnlClass(metrics.sharpe || 0);
+    setText('m-sub-sharpe', 'annualized');
+  }
+}
+
+function updateResearchBanner() {
+  const banner = document.getElementById('research-banner');
+  if (_activeResearchView === 'production') {
+    banner.classList.add('hidden');
+    return;
+  }
+  const view = _researchViews[_activeResearchView];
+  if (!view) {
+    banner.classList.add('hidden');
+    return;
+  }
+  document.getElementById('research-banner-title').textContent = `Research View · ${view.label}`;
+  document.getElementById('research-banner-copy').textContent = view.description;
+  banner.classList.remove('hidden');
+}
+
+function currentTradeContext() {
+  if (_activeResearchView === 'production') {
+    return { trades: _productionTrades, metrics: _displayedResultMeta?.metrics || {}, sigMap: _productionSigMap };
+  }
+  const view = _researchViews[_activeResearchView];
+  const trades = [...(view?.trades || [])].sort((a, b) => a.exit_date.localeCompare(b.exit_date));
+  return { trades, metrics: computeSubsetMetrics(trades), sigMap: _productionSigMap };
+}
+
+function renderActiveTradeView() {
+  const { trades, metrics, sigMap } = currentTradeContext();
+  applyMetricCards(metrics, trades, _activeResearchView);
+
+  function trendLabel(sig) {
+    if (!sig) return '—';
+    const t = sig.trend;
+    if (!t) {
+      const g = sig.trend_gap;
+      return g > 0.005 ? '↑' : g < -0.005 ? '↓' : '→';
+    }
+    return t === 'BULLISH' ? '↑' : t === 'BEARISH' ? '↓' : '→';
+  }
+  function trendColor(sig) {
+    const t = sig?.trend || '';
+    return t === 'BULLISH' ? 'var(--green)' : t === 'BEARISH' ? 'var(--red)' : 'var(--text-2)';
+  }
+
+  const filterBar = document.getElementById('log-filter-bar');
+  const strategies = ['All', ...new Set(trades.map(t => t.strategy))];
+  filterBar.innerHTML = '<span class="ctrl-label" style="margin-right:4px">Filter:</span>';
+  strategies.forEach(s => {
+    const btn = document.createElement('button');
+    btn.className = 'log-filter-btn' + (s === 'All' ? ' active' : '');
+    btn.textContent = s;
+    btn.onclick = () => filterTradeLog(s, trades, sigMap, trendLabel, trendColor);
+    filterBar.appendChild(btn);
+  });
+
+  _allTrades = trades;
+  _activeStratFilter = 'All';
+  document.getElementById('log-count').textContent = trades.length;
+  renderTradeRows(trades, sigMap, trendLabel, trendColor);
+  updateResearchBanner();
+}
+
+function setResearchView(viewKey, btn) {
+  _activeResearchView = viewKey;
+  document.querySelectorAll('.research-pill').forEach(pill => {
+    const active = pill.dataset.view === viewKey;
+    pill.classList.toggle('active-production', active && viewKey === 'production');
+    pill.classList.toggle('active-research', active && viewKey !== 'production');
+  });
+  renderActiveTradeView();
+}
+
 // ── Render results ─────────────────────────────────────────────────────
 function renderResults(data) {
   const {metrics: m, trades} = data;
@@ -1886,34 +2072,7 @@ function renderResults(data) {
   _sigData = _spxFullSigData || [];
   renderSignalCharts(_granularity);
 
-  // Metric cards
-  document.getElementById('m-trades').textContent = m.total_trades;
-  document.getElementById('m-period').textContent = trades.length
-    ? `${trades[0].entry_date} → ${trades[trades.length-1].exit_date}`
-    : '—';
-
-  const wr = (m.win_rate * 100).toFixed(1);
-  const wrEl = document.getElementById('m-winrate');
-  wrEl.textContent = wr + '%';
-  wrEl.className = 'm-value ' + (m.win_rate >= 0.5 ? 'pos' : 'neg');
-  document.getElementById('m-winloss').textContent =
-    `Avg win ${fmtDollarFull(m.avg_win || 0)} / loss ${fmtDollarFull(m.avg_loss || 0)}`;
-
-  const expEl = document.getElementById('m-exp');
-  expEl.textContent = fmtDollarFull(m.expectancy);
-  expEl.className = 'm-value ' + pnlClass(m.expectancy);
-
-  const pnlEl = document.getElementById('m-pnl');
-  pnlEl.textContent = fmtDollarFull(m.total_pnl);
-  pnlEl.className = 'm-value ' + pnlClass(m.total_pnl);
-
-  const ddEl = document.getElementById('m-dd');
-  ddEl.textContent = fmtDollarFull(m.max_drawdown);
-  ddEl.className = 'm-value ' + pnlClass(m.max_drawdown);
-
-  const shEl = document.getElementById('m-sharpe');
-  shEl.textContent = (m.sharpe || 0).toFixed(2);
-  shEl.className = 'm-value ' + pnlClass(m.sharpe || 0);
+  _productionTrades = [...trades].sort((a,b) => a.exit_date.localeCompare(b.exit_date));
 
   // By-strategy table
   const sb = document.getElementById('strat-body');
@@ -1930,7 +2089,7 @@ function renderResults(data) {
   });
 
   // Equity curve — rebuild with both open (▲) and close (▼) events
-  const sortedByExit = [...trades].sort((a,b) => a.exit_date.localeCompare(b.exit_date));
+  const sortedByExit = _productionTrades;
 
   // Build interleaved event list sorted by date: {date, type:'open'|'close', trade}
   const events = [];
@@ -2146,25 +2305,9 @@ function renderResults(data) {
     return t === 'BULLISH' ? 'var(--green)' : t === 'BEARISH' ? 'var(--red)' : 'var(--text-2)';
   }
 
-  // Store all trades globally for filter
-  _allTrades = sortedByExit.map((t, i) => ({ ...t, _idx: i + 1, _sig: sigMap }));
-  _activeStratFilter = 'All';
-
-  // Build strategy filter buttons
-  const filterBar = document.getElementById('log-filter-bar');
-  const strategies = ['All', ...new Set(sortedByExit.map(t => t.strategy))];
-  filterBar.innerHTML = '<span class="ctrl-label" style="margin-right:4px">Filter:</span>';
-  strategies.forEach(s => {
-    const btn = document.createElement('button');
-    btn.className = 'log-filter-btn' + (s === 'All' ? ' active' : '');
-    btn.textContent = s;
-    btn.onclick = () => filterTradeLog(s, sortedByExit, sigMap, trendLabel, trendColor);
-    filterBar.appendChild(btn);
-  });
-
-  // Trade log
-  document.getElementById('log-count').textContent = sortedByExit.length;
-  renderTradeRows(sortedByExit, sigMap, trendLabel, trendColor);
+  _productionSigMap = sigMap;
+  applyMetricCards(m, sortedByExit, 'production');
+  renderActiveTradeView();
 
   document.getElementById('results').classList.remove('hidden');
   document.getElementById('results').classList.add('fade-in');
@@ -2721,6 +2864,7 @@ document.querySelectorAll('.param-input').forEach(el => {
 (async function initBacktestPage() {
   try {
     await loadSignalHistory();
+    await loadResearchViews();
     await loadCachedResult();
   } catch (e) {
     document.getElementById('run-status').textContent = e.message || 'Init failed';

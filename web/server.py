@@ -45,6 +45,7 @@ _ES_BP_LIMIT_FRACTION = 0.20
 # ── Disk cache for backtest stats (survives restarts) ────────────────────────
 _STATS_DISK_CACHE = Path(__file__).parent.parent / "data" / "backtest_stats_cache.json"
 _RESULTS_DISK_CACHE = Path(__file__).parent.parent / "data" / "backtest_results_cache.json"
+_RESEARCH_VIEWS_FILE = Path(__file__).parent.parent / "data" / "research_views.json"
 
 
 def _params_hash() -> str:
@@ -1108,6 +1109,16 @@ def api_backtest_latest_cached():
         "start_date": latest.get("start_date"),
         "params_hash": latest.get("params_hash"),
     })
+
+
+@app.route("/api/research/views")
+def api_research_views():
+    if not _RESEARCH_VIEWS_FILE.exists():
+        return jsonify({"empty": True, "message": "Run: python -m backtest.research_views generate"})
+    try:
+        return jsonify(json.loads(_RESEARCH_VIEWS_FILE.read_text()))
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 def _iv_level(ivp: float) -> str:

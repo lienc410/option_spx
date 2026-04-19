@@ -62,6 +62,23 @@ Verified on 2026-04-18:
 
 - `ssh -G oldair` resolves to `hostname 192.168.68.117`
 - `ifconfig` on old Air reports `inet 192.168.68.117`
+- `tailscale ip -4` on old Air reports `100.114.226.33`
+
+Recommended access model:
+
+- When on the same local network, using the LAN IP is fine:
+  - `192.168.68.117`
+- When away from home or when LAN routing is inconvenient, prefer the Tailscale IPv4:
+  - `100.114.226.33`
+- Keep using the `oldair` SSH alias as the human-friendly entry point; update the alias target as needed for the current network path
+
+Optional SSH config variant for Tailscale access:
+
+```sshconfig
+Host oldair
+  HostName 100.114.226.33
+  User macbook
+```
 
 After this is set, use:
 
