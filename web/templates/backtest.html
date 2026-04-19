@@ -2148,6 +2148,33 @@ function renderResults(data) {
 
   // Equity curve chart remains production-only; SPX marker set is handled separately.
   const sortedByExit = _productionTrades;
+
+  // Build production-only event series for the equity chart.
+  const events = [];
+  sortedByExit.forEach(t => {
+    events.push({ date: t.entry_date, type: 'open',  trade: t });
+    events.push({ date: t.exit_date,  type: 'close', trade: t });
+  });
+  events.sort((a, b) => a.date.localeCompare(b.date) || (a.type === 'open' ? -1 : 1));
+
+  // Cumulative P&L advances only when the trade closes.
+  let cum = 0;
+  const labels = [];
+  const vals = [];
+  const ptColors = [];
+  const ptRotation = [];
+  const ptTrades = [];
+  events.forEach(ev => {
+    if (ev.type === 'close') cum += ev.trade.exit_pnl;
+    labels.push(ev.date);
+    vals.push(cum);
+    ptColors.push(ev.trade.exit_pnl >= 0 ? '#42CC7C' : '#E04862');
+    ptRotation.push(ev.type === 'open' ? 0 : 180);
+    ptTrades.push(ev.trade);
+  });
+
+  const maxPnl = Math.max(...sortedByExit.map(t => Math.abs(t.exit_pnl || 0)), 1);
+  const ptRadius = ptTrades.map(t => 4 + Math.round((Math.abs(t.exit_pnl || 0) / maxPnl) * 7));
   updateSpxChartForActiveView();
   renderAnnualPnlChart(trades);
 
