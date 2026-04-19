@@ -24,6 +24,27 @@ The main machine is **not** the live runtime source of truth. It is primarily us
 
 If live behavior differs from local behavior on the main machine, trust old Air first.
 
+## Compute vs Runtime
+
+Default rule:
+
+- old Air is the canonical live runtime host
+- the main machine is the default compute host for heavy jobs
+
+Heavy jobs include:
+
+- full backtests
+- research view generation
+- matrix / audit / bootstrap style runs
+- long-running research artifact generation
+
+Operational policy:
+
+- heavy compute should run on the main machine
+- generated artifacts should then be copied or deployed to old Air if needed by live web
+- old Air should not be the default machine for heavy backtest or research artifact generation unless explicitly required
+- if a live page depends on a heavy generated artifact, the artifact should be refreshed on the main machine first, then published to old Air
+
 ## Managed Services
 
 Old Air runs these `launchd` services:
@@ -31,12 +52,14 @@ Old Air runs these `launchd` services:
 - `com.spxstrat.bot`
 - `com.spxstrat.web`
 - `com.spxstrat.cloudflared`
+- `com.spxstrat.cloudflared-b`
 
 Expected responsibilities:
 
 - `bot`: Telegram polling, scheduled push, intraday monitoring
 - `web`: local Flask dashboard on `127.0.0.1:5050`
-- `cloudflared`: public ingress from Cloudflare to local web
+- `cloudflared`: primary public ingress connector from Cloudflare to local web
+- `cloudflared-b`: secondary connector for the same tunnel on the same host
 
 ## Key Paths On Old Air
 
@@ -45,6 +68,7 @@ Expected responsibilities:
 - Bot/Web logs: `/Users/macbook/Library/Logs/spx-strat`
 - Cloudflared logs: `/Users/macbook/Library/Logs/cloudflared`
 - Cloudflare config: `/Users/macbook/.cloudflared/config.yml`
+- Secondary connector config: `/Users/macbook/.cloudflared/config-connector-b.yml`
 
 ## Access
 
@@ -120,6 +144,7 @@ Use these when an agent or researcher needs live state from old Air:
 launchctl print gui/$(id -u)/com.spxstrat.bot | sed -n '1,40p'
 launchctl print gui/$(id -u)/com.spxstrat.web | sed -n '1,40p'
 launchctl print gui/$(id -u)/com.spxstrat.cloudflared | sed -n '1,60p'
+launchctl print gui/$(id -u)/com.spxstrat.cloudflared-b | sed -n '1,60p'
 ```
 
 ### Restart
@@ -128,6 +153,7 @@ launchctl print gui/$(id -u)/com.spxstrat.cloudflared | sed -n '1,60p'
 launchctl kickstart -k gui/$(id -u)/com.spxstrat.bot
 launchctl kickstart -k gui/$(id -u)/com.spxstrat.web
 launchctl kickstart -k gui/$(id -u)/com.spxstrat.cloudflared
+launchctl kickstart -k gui/$(id -u)/com.spxstrat.cloudflared-b
 ```
 
 ### Logs
@@ -136,6 +162,7 @@ launchctl kickstart -k gui/$(id -u)/com.spxstrat.cloudflared
 tail -f /Users/macbook/Library/Logs/spx-strat/bot.err.log
 tail -f /Users/macbook/Library/Logs/spx-strat/web.err.log
 tail -f /Users/macbook/Library/Logs/cloudflared/err.log
+tail -f /Users/macbook/Library/Logs/cloudflared/err-b.log
 ```
 
 ### Local Health
@@ -152,14 +179,29 @@ ps aux | grep cloudflared
 - Tunnel config currently lives on old Air at `/Users/macbook/.cloudflared/config.yml`
 - Current ingress target is `http://127.0.0.1:5050`
 - `spx-strat` is currently a **locally configured tunnel**; do not click dashboard migration casually because it is irreversible
+- Current mitigation for intermittent `502` is a same-host dual-connector layout:
+  - primary connector: `com.spxstrat.cloudflared`
+  - secondary connector: `com.spxstrat.cloudflared-b`
+- Current connector tuning on old Air:
+  - `protocol: http2`
+  - dedicated metrics endpoints
+    - primary: `127.0.0.1:60123`
+    - secondary: `127.0.0.1:60124`
+- This improves connector-level redundancy, but it is **not** full host-level HA because both connectors still share the same old Air host
 
 If public web fails with `502`:
 
 1. check local Flask health
-2. check `com.spxstrat.cloudflared`
+2. check both `com.spxstrat.cloudflared` and `com.spxstrat.cloudflared-b`
 3. inspect `cloudflared` logs
 4. verify `/Users/macbook/.cloudflared/config.yml` still points `www.portimperialventures.com` to `http://127.0.0.1:5050`
 5. if local Flask and local tunnel metrics are healthy but Access login still ends in `502`, suspect Cloudflare-side Access / tunnel edge behavior before changing old Air again
+6. use the local-first health script before restarting connectors:
+
+```bash
+bash scripts/check_oldair_cloudflared.sh
+bash scripts/check_oldair_cloudflared.sh --heal
+```
 
 ## Coordination Rules
 

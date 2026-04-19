@@ -36,6 +36,7 @@ The maintainer is responsible for this host-level service set:
 - `com.spxstrat.bot`
 - `com.spxstrat.web`
 - `com.spxstrat.cloudflared`
+- `com.spxstrat.cloudflared-b`
 
 It may also inspect:
 
@@ -64,6 +65,11 @@ Current runtime note:
 - current ingress file is `/Users/macbook/.cloudflared/config.yml`
 - current origin target is `http://127.0.0.1:5050`
 - dashboard migration is irreversible and should not be used as a casual debugging step
+- current mitigation for intermittent public `502` is a same-host secondary connector:
+  - config: `/Users/macbook/.cloudflared/config-connector-b.yml`
+  - service: `com.spxstrat.cloudflared-b`
+  - metrics: `127.0.0.1:60124`
+- both current connectors are pinned to `protocol: http2`
 
 ## What It Is Allowed To Do
 
@@ -77,6 +83,7 @@ The maintainer may:
 - run non-destructive diagnostics such as `ps`, `launchctl print`, `tail`, `grep`, `rg`, `ls`, `pwd`
 - perform safe code refresh tasks such as `git pull` and `pip install -e .`
 - verify that Cloudflare Tunnel points to the expected local endpoint
+- inspect both connector metrics endpoints and compare them
 - report precise failure modes with logs and timestamps
 
 ## What It Must Not Do By Default
@@ -166,8 +173,14 @@ Use this when something breaks.
 For `502` after Cloudflare Access login:
 
 - first confirm `web` is healthy on `127.0.0.1:5050`
-- then confirm `cloudflared` has active HA connections and zero local origin request errors
+- then confirm both connectors have active HA connections and zero local origin request errors
 - if the request never reaches old Air, treat it as likely Cloudflare-side until proven otherwise
+- prefer using the local-first checker before restarting connectors:
+
+```bash
+bash scripts/check_oldair_cloudflared.sh
+bash scripts/check_oldair_cloudflared.sh --heal
+```
 
 ### 3. Routine Update
 
@@ -187,6 +200,7 @@ After any change, confirm:
 - `com.spxstrat.bot` is running
 - `com.spxstrat.web` is running
 - `com.spxstrat.cloudflared` is running
+- `com.spxstrat.cloudflared-b` is running when dual-connector mitigation is enabled
 - Telegram bot can poll successfully
 - local `127.0.0.1:5050` responds
 - public page works if tunnel was involved
@@ -199,6 +213,7 @@ After any change, confirm:
 launchctl print gui/$(id -u)/com.spxstrat.bot | sed -n '1,40p'
 launchctl print gui/$(id -u)/com.spxstrat.web | sed -n '1,40p'
 launchctl print gui/$(id -u)/com.spxstrat.cloudflared | sed -n '1,60p'
+launchctl print gui/$(id -u)/com.spxstrat.cloudflared-b | sed -n '1,60p'
 ```
 
 ### Restart
@@ -207,6 +222,7 @@ launchctl print gui/$(id -u)/com.spxstrat.cloudflared | sed -n '1,60p'
 launchctl kickstart -k gui/$(id -u)/com.spxstrat.bot
 launchctl kickstart -k gui/$(id -u)/com.spxstrat.web
 launchctl kickstart -k gui/$(id -u)/com.spxstrat.cloudflared
+launchctl kickstart -k gui/$(id -u)/com.spxstrat.cloudflared-b
 ```
 
 ### Logs
@@ -215,6 +231,7 @@ launchctl kickstart -k gui/$(id -u)/com.spxstrat.cloudflared
 tail -f /Users/macbook/Library/Logs/spx-strat/bot.err.log
 tail -f /Users/macbook/Library/Logs/spx-strat/web.err.log
 tail -f /Users/macbook/Library/Logs/cloudflared/err.log
+tail -f /Users/macbook/Library/Logs/cloudflared/err-b.log
 ```
 
 ### Local Health
