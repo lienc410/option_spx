@@ -43,6 +43,13 @@ It may also inspect:
 - project runtime files under `/Users/macbook/SPX_strat`
 - Cloudflare tunnel config under `/Users/macbook/.cloudflared`
 
+Current runtime note:
+
+- `spx-strat` is a **locally configured tunnel**
+- current ingress file is `/Users/macbook/.cloudflared/config.yml`
+- current origin target is `http://127.0.0.1:5050`
+- dashboard migration is irreversible and should not be used as a casual debugging step
+
 ## What It Is Allowed To Do
 
 The maintainer may:
@@ -90,6 +97,7 @@ Examples:
 - Prefer reading a config file before editing it
 - Prefer fixing a wrong path before reinstalling software
 - Prefer confirming local service health before blaming Cloudflare
+- Prefer verifying local tunnel metrics and local ingress target before touching Cloudflare dashboard state
 
 ## Escalation Rules
 
@@ -139,6 +147,12 @@ Use this when something breaks.
 - gather only the logs needed for the current fault
 - apply the smallest safe fix
 - verify recovery
+
+For `502` after Cloudflare Access login:
+
+- first confirm `web` is healthy on `127.0.0.1:5050`
+- then confirm `cloudflared` has active HA connections and zero local origin request errors
+- if the request never reaches old Air, treat it as likely Cloudflare-side until proven otherwise
 
 ### 3. Routine Update
 
