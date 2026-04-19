@@ -939,6 +939,19 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
       </div>
     </div>
 
+    <div class="research-view-bar">
+      <span class="research-view-label">View</span>
+      <div class="research-pill-bar" id="research-pill-bar">
+        <button class="research-pill active-production" data-view="production" onclick="setResearchView('production', this)">Production</button>
+        <button class="research-pill" data-view="q015_ivp55_marginal" onclick="setResearchView('q015_ivp55_marginal', this)">Q015 IVP 50-55</button>
+        <button class="research-pill" data-view="q016_dza_recovery_bps" onclick="setResearchView('q016_dza_recovery_bps', this)">Q016 DZ-A</button>
+      </div>
+    </div>
+    <div class="research-banner hidden" id="research-banner">
+      <strong id="research-banner-title">Research View</strong>
+      <span id="research-banner-copy">—</span>
+    </div>
+
     <!-- SPX Price chart -->
     <div class="chart-section">
       <div class="spx-chart-hd">
@@ -1058,18 +1071,6 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
     </div>
 
     <!-- Trade log -->
-    <div class="research-view-bar">
-      <span class="research-view-label">View</span>
-      <div class="research-pill-bar" id="research-pill-bar">
-        <button class="research-pill active-production" data-view="production" onclick="setResearchView('production', this)">Production</button>
-        <button class="research-pill" data-view="q015_ivp55_marginal" onclick="setResearchView('q015_ivp55_marginal', this)">Q015 IVP 50-55</button>
-        <button class="research-pill" data-view="q016_dza_recovery_bps" onclick="setResearchView('q016_dza_recovery_bps', this)">Q016 DZ-A</button>
-      </div>
-    </div>
-    <div class="research-banner hidden" id="research-banner">
-      <strong id="research-banner-title">Research View</strong>
-      <span id="research-banner-copy">—</span>
-    </div>
     <div class="trade-log-wrap">
       <div class="log-toggle" onclick="toggleLog()">
         <span class="log-toggle-label">Trade Log (<span id="log-count">0</span> trades)</span>
