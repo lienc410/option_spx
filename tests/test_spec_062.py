@@ -86,12 +86,25 @@ class Spec062ResearchViewsTests(unittest.TestCase):
             exit_date="2026-03-27",
             exit_pnl=150.0,
         )
+        spec064_trade = make_trade(
+            strategy=StrategyName.IRON_CONDOR_HV,
+            entry_date="2026-04-09",
+            exit_date="2026-04-24",
+            exit_pnl=2410.64,
+        )
+        spec064_disabled_overlap = make_trade(
+            strategy=StrategyName.IRON_CONDOR_HV,
+            entry_date="2026-04-24",
+            exit_date="2026-05-29",
+            exit_pnl=1855.14,
+        )
 
         baseline_result = BacktestResult(
-            trades=[baseline_trade, open_trade],
+            trades=[baseline_trade, open_trade, q015_trade, q015_out_of_band, spec064_trade, spec064_disabled_overlap],
             metrics={},
             signals=[
-                {"date": "2026-02-03", "regime": "NORMAL", "iv_signal": "NEUTRAL", "trend": "BULLISH"},
+                {"date": "2026-02-03", "regime": "NORMAL", "iv_signal": "NEUTRAL", "trend": "BULLISH", "ivp": 53.0},
+                {"date": "2026-02-10", "regime": "NORMAL", "iv_signal": "NEUTRAL", "trend": "BULLISH", "ivp": 56.0},
                 {"date": "2026-03-01", "regime": "HIGH_VOL", "iv_signal": "HIGH", "trend": "NEUTRAL"},
                 {"date": "2026-03-02", "regime": "NORMAL", "iv_signal": "HIGH", "trend": "BULLISH"},
                 {"date": "2026-03-03", "regime": "NORMAL", "iv_signal": "NEUTRAL", "trend": "NEUTRAL"},
@@ -103,7 +116,7 @@ class Spec062ResearchViewsTests(unittest.TestCase):
             ],
         )
         ivp55_result = BacktestResult(
-            trades=[baseline_trade, q015_trade, q015_out_of_band],
+            trades=[baseline_trade, q015_out_of_band],
             metrics={},
             signals=[
                 {"date": "2026-02-03", "ivp": 53.0},
@@ -115,11 +128,17 @@ class Spec062ResearchViewsTests(unittest.TestCase):
             metrics={},
             signals=[],
         )
+        no_aftermath_result = BacktestResult(
+            trades=[baseline_trade, spec064_disabled_overlap],
+            metrics={},
+            signals=[],
+        )
 
         with (
             patch.object(research_views_mod, "run_backtest", return_value=baseline_result),
             patch.object(research_views_mod, "_run_with_bps_upper", return_value=ivp55_result),
             patch.object(research_views_mod, "_run_dead_zone_a_variant", return_value=dza_result),
+            patch.object(research_views_mod, "_run_with_aftermath_disabled", return_value=no_aftermath_result),
             patch.object(research_views_mod, "_params_hash", return_value="abc123def0"),
         ):
             payload = research_views_mod.build_research_views()
@@ -127,13 +146,16 @@ class Spec062ResearchViewsTests(unittest.TestCase):
         self.assertEqual(payload["params_hash"], "abc123def0")
         self.assertEqual(
             set(payload["views"].keys()),
-            {"baseline", "q015_ivp55_marginal", "q016_dza_recovery_bps"},
+            {"baseline", "q015_ivp55_marginal", "q016_dza_recovery_bps", "spec064_aftermath_ic_hv"},
         )
 
         baseline_trades = payload["views"]["baseline"]["trades"]
-        self.assertEqual(len(baseline_trades), 1)
-        self.assertEqual(baseline_trades[0]["entry_date"], "2026-01-05")
-        self.assertEqual(baseline_trades[0]["source_view"], "baseline")
+        self.assertEqual(len(baseline_trades), 5)
+        self.assertEqual(
+            {t["entry_date"] for t in baseline_trades},
+            {"2026-01-05", "2026-02-03", "2026-02-10", "2026-04-09", "2026-04-24"},
+        )
+        self.assertTrue(all(t["source_view"] == "baseline" for t in baseline_trades))
 
         q015_trades = payload["views"]["q015_ivp55_marginal"]["trades"]
         self.assertEqual(len(q015_trades), 1)
@@ -145,6 +167,12 @@ class Spec062ResearchViewsTests(unittest.TestCase):
         self.assertEqual(q016_trades[0]["entry_date"], "2026-03-02")
         self.assertEqual(q016_trades[0]["source_view"], "q016_dza_recovery_bps")
 
+        spec064_trades = payload["views"]["spec064_aftermath_ic_hv"]["trades"]
+        self.assertEqual(len(spec064_trades), 1)
+        self.assertEqual(spec064_trades[0]["entry_date"], "2026-04-09")
+        self.assertEqual(spec064_trades[0]["strategy"], StrategyName.IRON_CONDOR_HV.value)
+        self.assertEqual(spec064_trades[0]["source_view"], "spec064_aftermath_ic_hv")
+
     def test_generate_research_views_writes_json_file(self) -> None:
         output = Path(self.tmpdir.name) / "research_views.json"
         payload = {
@@ -154,6 +182,7 @@ class Spec062ResearchViewsTests(unittest.TestCase):
                 "baseline": {"label": "Baseline (Production)", "description": "prod", "trades": []},
                 "q015_ivp55_marginal": {"label": "Q015", "description": "ivp55", "trades": []},
                 "q016_dza_recovery_bps": {"label": "Q016", "description": "dza", "trades": []},
+                "spec064_aftermath_ic_hv": {"label": "SPEC-064", "description": "aftermath", "trades": []},
             },
         }
         with patch.object(research_views_mod, "build_research_views", return_value=payload):
@@ -191,6 +220,7 @@ class Spec062ApiTests(unittest.TestCase):
                 "baseline": {"label": "Baseline (Production)", "description": "prod", "trades": []},
                 "q015_ivp55_marginal": {"label": "Q015", "description": "ivp55", "trades": []},
                 "q016_dza_recovery_bps": {"label": "Q016", "description": "dza", "trades": []},
+                "spec064_aftermath_ic_hv": {"label": "SPEC-064", "description": "aftermath", "trades": []},
             },
         }
         target = Path(self.tmpdir.name) / "research_views.json"

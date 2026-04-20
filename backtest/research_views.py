@@ -122,6 +122,15 @@ def _run_dead_zone_a_variant() -> BacktestResult:
         engine_mod.select_strategy = saved
 
 
+def _run_with_aftermath_disabled() -> BacktestResult:
+    orig_peak = sel.AFTERMATH_PEAK_VIX_10D_MIN
+    try:
+        sel.AFTERMATH_PEAK_VIX_10D_MIN = 999.0
+        return run_backtest(start_date=START_DATE, verbose=False)
+    finally:
+        sel.AFTERMATH_PEAK_VIX_10D_MIN = orig_peak
+
+
 def _recovery_dates(signals: list[dict]) -> set[str]:
     by_date = {row["date"]: idx for idx, row in enumerate(signals)}
     recovery: set[str] = set()
@@ -169,6 +178,15 @@ def build_research_views() -> dict:
         and t.entry_date in recovery_dates
     ]
 
+    bt_no_aftermath = _run_with_aftermath_disabled()
+    no_aftermath_ids = {_trade_identity(t) for t in _closed_trades(bt_no_aftermath.trades)}
+    spec064_trades = [
+        t
+        for t in baseline_closed
+        if _trade_identity(t) not in no_aftermath_ids
+        and t.strategy.value == StrategyName.IRON_CONDOR_HV.value
+    ]
+
     return {
         "generated_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
         "params_hash": _params_hash(),
@@ -190,6 +208,12 @@ def build_research_views() -> dict:
                 label="Q016: Dead Zone A Recovery BPS",
                 description="NORMAL+HIGH+BULLISH 恢复窗口 BPS（已否决，仅留存参考）",
                 trades=q016_trades,
+            ),
+            "spec064_aftermath_ic_hv": _view_payload(
+                key="spec064_aftermath_ic_hv",
+                label="SPEC-064: Aftermath IC_HV",
+                description="HIGH_VOL aftermath (10d peak VIX ≥ 28, ≥5% off peak, VIX < 40) 窗口 IC_HV bypass 触发的边际交易",
+                trades=spec064_trades,
             ),
         },
     }
