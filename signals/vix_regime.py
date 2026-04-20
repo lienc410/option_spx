@@ -47,6 +47,7 @@ class VixSnapshot:
     transition_warning: bool  # True if near a threshold (within 1 point)
     vix3m: Optional[float]   # 3-month VIX (^VIX3M); None if unavailable
     backwardation: bool       # True if spot VIX > VIX3M (elevated near-term panic)
+    vix_peak_10d: Optional[float] = None  # trailing 10-trading-day peak VIX, inclusive of current day
 
     def __str__(self) -> str:
         warn = " ⚠ near threshold" if self.transition_warning else ""
@@ -179,6 +180,7 @@ def get_current_snapshot(
     # 5-day rolling average: last 5 days vs prior 5 days
     vix_5d_avg  = float(df["vix"].iloc[-5:].mean())
     vix_5d_ago  = float(df["vix"].iloc[-10:-5].mean()) if len(df) >= 10 else vix_5d_avg
+    vix_peak_10d = float(df["vix"].iloc[-10:].max()) if len(df) >= 10 else None
 
     regime  = _classify_regime(vix)
     trend   = _classify_trend(vix_5d_avg, vix_5d_ago)
@@ -196,6 +198,7 @@ def get_current_snapshot(
         transition_warning=warning,
         vix3m=vix3m,
         backwardation=backwardation,
+        vix_peak_10d=vix_peak_10d,
     )
 
 

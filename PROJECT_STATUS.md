@@ -18,6 +18,7 @@ Owner: Planner or PM
   - `com.spxstrat.bot`
   - `com.spxstrat.web`
   - `com.spxstrat.cloudflared`
+- Default compute host for heavy jobs remains the main machine; old Air is runtime-first, not compute-first
 - New operational role exists: Codex `Server Maintainer` on old Air, responsible for runtime health, logs, and low-risk service recovery
 - Fast runtime reference: `SERVER_RUNTIME.md`
 - Reference: `doc/old_air_server_maintainer.md`
@@ -36,6 +37,7 @@ Owner: Planner or PM
 - `Q002` — Shock active mode still needs Phase B validation — `open`
 - `Q012` — `/ES` short put path is now the preferred production candidate; remaining question is shared-BP management with SPX Credit and how far to extend the MVP beyond Layer 2 — `open`
 - `Q013` — `/ES` short put runtime stop execution and post-entry management remain undefined in production — `open`
+- `Q017` — HIGH_VOL aftermath windows have now passed both the real-PnL test and the ex-ante recognizability test for the narrow `IC_HV` path; this is now a `ready for DRAFT Spec` candidate rather than open-ended research — `ready for DRAFT`
 - `Q011` — regime decay DIAGONAL sample is still small — `monitoring`
 - `Q003` — L3 Hedge v2 live implementation — `open`
 - `Q004` — `vix_accel_1d` L4 fast-path — `open`
@@ -44,11 +46,17 @@ Owner: Planner or PM
 ## Next Priorities
 
 - `P1` — open a narrow follow-up Spec for `/ES` runtime safeguards, with minimum scope of stop-condition monitoring plus bot alerting
-- `P2` — keep the next strategy-change queue narrow after `Q015` Fast Path landed; the remaining front-of-queue research work is `/ES` runtime safeguards plus dependency-bound legacy items, not another broad IVP redesign
-- `P3` — continue validating dependency-bound items before promoting more sizing logic into new Specs
+- `P2` — decide whether to convert `Q017` into a narrow DRAFT Spec: the proposed minimum unit is a `HIGH_VOL aftermath IC_HV bypass` that preserves `EXTREME_VOL` protection and does not touch `BPS_HV` / `BCS_HV`
+- `P3` — continue validating dependency-bound items before promoting broader sizing logic or additional HIGH_VOL changes into new Specs
 
 ## Recent Meaningful Changes
 
+- 2026-04-19 — Quant completed `Q017 Phase 2` and closed the ex-ante recognition question: the live-usable signal is simply the aftermath condition itself, while `peak_drop_pct` and `vix_3d_roc` add no value. Evidence is now strong enough to support a narrow DRAFT candidate focused only on `HIGH_VOL aftermath IC_HV bypass`, with `EXTREME_VOL` preserved as the hard protection layer — `See: RESEARCH_LOG.md`, `sync/open_questions.md`
+- 2026-04-19 — Quant completed `Q017 Phase 1` and materially upgraded the evidence level: replacing SPX proxies with real strategy PnL produced significantly positive aftermath-window results, and removing the recent `2020-03 / 2025-04 / 2026-04` V-shaped events barely changed the conclusion. The alpha appears concentrated in `IC_HV`, and `Q017` now deserves Phase 2 ex-ante recognition work rather than continued `hold` status — `See: RESEARCH_LOG.md`, `sync/open_questions.md`
+- 2026-04-19 — Planner formalized `Q017` sequencing: Tier 1 is mandatory first (`real strategy PnL` + `remove 2020/2025/2026 V-shaped events`), Tier 2 only runs if Tier 1 still shows positive evidence, and Tier 3 gate-specific work is explicitly last — `See: RESEARCH_LOG.md`, `sync/open_questions.md`
+- 2026-04-19 — Quant opened a new research track `Q017` around early post-peak VIX-reversal windows: the phenomenon is structurally real and concentrated in HIGH_VOL filters, but current evidence still relies on SPX forward-return proxies and is dominated by a few modern V-shaped reversals, so the result is `hold`, not Spec — `See: RESEARCH_LOG.md`, `sync/open_questions.md`
+- 2026-04-19 — Quant shipped the backtest research view (`SPEC-062`) and SPX-chart linkage (`SPEC-063`): historical Q015 marginal trades and Q016 Dead Zone A trades are now persistently viewable on the backtest page. The rollout also exposed and fixed a generator semantic trap where “baseline == current production” collapses marginal-trade diffs once a Fast Path change is already live — `See: RESEARCH_LOG.md`
+- 2026-04-19 — Runtime/compute split was clarified as a project rule: old Air remains the canonical live runtime host, but heavy backtests, research view generation, and similar long-running artifact generation should default back to the main machine, with generated artifacts published to old Air only when needed by live web — `See: SERVER_RUNTIME.md`
 - 2026-04-19 — Quant completed a Fast Path implementation for `Q015`: `BPS_NNB_IVP_UPPER` in `strategy/selector.py` was raised from `50` to `55` with a code comment pointing back to the OOS evidence. This closes the narrow BPS gate-relaxation candidate and leaves broader IVP / IC redesign questions for future research — `See: RESEARCH_LOG.md`, `sync/open_questions.md`
 - 2026-04-19 — Quant completed the OOS validation for the narrow BPS gate relaxation from `IVP < 50` to `IVP < 55`: full-history, IS, and OOS slices all showed non-degrading system Sharpe and positive PnL deltas, so `Q015` is no longer just exploratory research and now qualifies as a near-spec / Fast Path candidate — `See: RESEARCH_LOG.md`, `sync/open_questions.md`
 - 2026-04-18 — Quant completed the Dead Zone B follow-up study inside VIX recovery windows: recovery itself is not a useful conditioning variable, VIX-only / joint filters are not ready, and the only near-spec candidate is a narrow BPS gate relaxation from `IVP < 50` to `IVP < 55` pending out-of-sample confirmation — `See: RESEARCH_LOG.md`, `sync/open_questions.md`

@@ -7,6 +7,62 @@ Owner: Planner or PM
 
 ## Entries
 
+### R-20260419-07 — Q017 Phase 2 closes the ex-ante question and makes `HIGH_VOL aftermath IC_HV bypass` a credible DRAFT candidate
+
+- Topic: Whether Q017 has a live-usable, non-hindsight recognition rule that is strong enough to support a narrow HIGH_VOL bypass design
+- Findings: Phase 2 shows that the ex-ante signal is simply the aftermath condition itself: trailing-10d VIX peak `>= 28`, current VIX at least `5%` below that peak, and still below `EXTREME_VOL`. Additional filters do not help. Across the `22` `IC_HV` aftermath trades identified in Phase 1, performance is positive in every decade bucket, with only one losing trade (`2002-08-23`). Threshold scans for `peak_drop_pct` remain broadly flat and significant, which means the feature is redundant rather than discriminative. `vix_3d_roc` also fails as a better recognizer; like the current `vix_rising_5d` logic, it ends up filtering out some of the best aftermath trades. The existing `EXTREME_VOL` threshold (`VIX >= 40`) is what keeps the core `2008-10` disaster regime out of sample, so the proposed path does not need to defeat that protection to capture the observed edge
+- Risks / Counterarguments: the sample is still small (`22` trades over `25` years), and the evidence is specific to `IC_HV`; it should not be generalized to `BPS_HV` or `BCS_HV`. The proposed bypass also still needs one last system-level sanity check if PM wants extra rigor, especially around the single `2002-08-23` loser and around ensuring the protection story remains intact under full selector behavior
+- Confidence: medium-high
+- Next Tests: if PM wants a final pre-Spec check, do a focused fast-path-style prototype that only opens the `IC_HV` path under the aftermath condition while preserving `EXTREME_VOL`, then confirm system Sharpe / PnL / drawdown stay aligned with the Phase 1 broad-gate results. Otherwise, the next step is to draft the narrow Spec
+- Recommendation: enter Spec
+- Related Question: `Q017`
+- See: `doc/research_notes.md`
+
+### R-20260419-06 — Q017 Phase 1 confirms the aftermath-window leak is real in strategy PnL, with `IC_HV` carrying most of the edge
+
+- Topic: Re-testing `Q017` with real strategy PnL and event-removal robustness instead of SPX forward-return proxies
+- Findings: Phase 1 materially strengthens the case for `Q017`. Three gate-lift variants all produced significantly positive aftermath-window trades using real strategy PnL: `ivp63` gate off (`n=16`, avg about `+$1,477`, CI positive), `VIX_RISING` off (`n=10`, avg about `+$2,080`, CI positive), and both gates off (`n=24`, avg about `+$1,772`, CI positive). Removing the recent `2020-03 / 2025-04 / 2026-04` V-shaped events barely changed the result because those episodes only contributed `1/24` of the relevant trade sample. The edge is overwhelmingly carried by `IC_HV` (`22/24` trades, about `+$1,841` average, `95.5%` win rate). System-level Sharpe in the broad “both gates off” variant stayed flat at about `0.41` while total PnL rose materially, so this is no longer just a proxy-level suspicion
+- Risks / Counterarguments: this is still not ready for implementation. The sample is small (`24` trades over `26` years), and the strongest evidence sits in `IC_HV`, not across all HIGH_VOL structures. Ex-ante recognition is still unresolved, and `2008`-style disaster continuation has not yet been explicitly separated from the positive aftermath trades. So the result upgrades confidence that the leak is real, but not confidence that we already know the safe live rule
+- Confidence: medium-high
+- Next Tests: proceed to Phase 2 rather than jumping to Spec. The two most useful next steps are ex-ante recognition work (`peak_drop_pct` / faster VIX-ROC logic) and narrower gate-specific tests that preserve the finding that `IC_HV` is the main alpha carrier
+- Recommendation: continue research (upgrade confidence)
+- Related Question: `Q017`
+- See: `doc/research_notes.md`
+
+### R-20260419-04 — Early post-peak VIX-reversal windows are a real HIGH_VOL phenomenon, but still too ambiguous for action
+
+- Topic: Whether the system structurally misses opportunities in the first post-peak VIX pullback window while trend is still not `BULLISH`
+- Findings: Quant identified `73` aftermath windows from `2000–2026` where VIX had peaked at `>= 28` within the prior `10` days and had already retraced by at least `5%`, producing `458` wait-days with non-`BULLISH` trend. The blockade is overwhelmingly a `HIGH_VOL` problem (`441/458`, about `96%`), dominated by two filters: `HIGH_VOL + VIX_RISING` (`208` days) and `HIGH_VOL + BEARISH + ivp63>=70` (`162` days). Forward SPX returns after these blocked days are directionally positive versus baseline wait-days, but all bootstrap confidence intervals still cross zero. The event split is highly bimodal: `2008-10` strongly supports current caution, while `2020-03`, `2025-04`, and `2026-04` look like meaningful missed rebounds
+- Risks / Counterarguments: this result is still too proxy-driven for implementation decisions. SPX forward return is not strategy PnL, especially under `HIGH_VOL` where vega and path matter. The averages are also heavily influenced by a few modern V-shaped reversal episodes, while `2008` remains a strong counterexample showing the current filters can be genuinely protective. Live-identifiable peak logic is also unresolved, so the apparent “post-peak” state is not yet an ex-ante trading signal
+- Confidence: medium
+- Next Tests: prioritize real strategy-PnL tests inside the aftermath window (`BPS_HV` / `IC_HV` / `BCS_HV`) and test whether a live-usable peak-drop metric can separate `2008`-style continuation from `2020`-style reversal. Until then, no HIGH_VOL gate change should advance toward Spec
+- Recommendation: hold
+- Related Question: `Q017`
+- See: `doc/research_notes.md`
+
+### R-20260419-05 — Q017 should be advanced in strict phases, not as a parallel three-tier bundle
+
+- Topic: Planning order for the `Q017` aftermath-window research stack
+- Findings: the three proposed tiers do not have equal value. `Tier 1` is the gating phase because it answers whether the apparent opportunity survives replacement of the SPX proxy with real strategy PnL and whether the result still exists after removing the recent V-shaped reversals (`2020-03`, `2025-04`, `2026-04`). Only if that phase remains directionally positive should `Tier 2` search for ex-ante recognition features such as `peak_drop_pct` or faster VIX-ROC logic. `Tier 3` is explicitly downstream because it starts asking which concrete HIGH_VOL gate to alter, which would be premature before the alpha itself is established
+- Risks / Counterarguments: this sequencing may feel slower, but it is the cleanest way to avoid optimizing a gate-level fix around a proxy-driven effect. Running all tiers in parallel would create pressure to explain or patch filters before the underlying edge is confirmed
+- Confidence: high
+- Next Tests: Phase 1 only for now — `T1.1` real strategy PnL, then `T1.2` event-removal robustness. Reassess after that phase before authorizing Tier 2 or Tier 3
+- Recommendation: hold / phase-gate
+- Related Question: `Q017`
+- See: `PROJECT_STATUS.md`, `sync/open_questions.md`
+
+### R-20260419-03 — Research view tooling shipped; exposed a generator semantic trap for future Fast Path visualizations
+
+- Topic: Making completed research artifacts (`Q015` IVP<55 marginal trades, `Q016` Dead Zone A recovery BPS trades) persistently viewable on the backtest page
+- Findings: `SPEC-062` and `SPEC-063` are now effectively complete from the research-tooling side. The resulting views reproduce the known study outputs closely enough for PM review: `Q015` shows `17` marginal trades (near the original `18`; one-trade difference comes from `_trade_identity` dedupe boundary), and `Q016` shows the expected `12` recovery-context BPS trades with total `+$2,643`. During rollout, Quant found and fixed a semantic bug in the generator: using “baseline == current production” as the only comparison reference causes any already-landed Fast Path change to collapse its own marginal diff to zero. The corrected logic explicitly compares current production against the old behavior snapshot
+- Risks / Counterarguments: this is an engineering / observability lesson, not a new strategy conclusion. It should not be turned into a new open question by itself. The broader rule is simply that future Fast Path visualizations need an explicit two-snapshot baseline definition when the researched behavior is already live
+- Confidence: high
+- Next Tests: no immediate strategy-side follow-up is required. PM may still visually inspect the SPX-timeline distribution for `Q016`, and browser-level AC checks for `SPEC-063` remain useful, but neither should block current project-state conclusions
+- Recommendation: tooling complete
+- Related Spec: `SPEC-062`, `SPEC-063`
+- Related Question: `Q015`, `Q016`
+- See: `doc/dead_zone_a_trade_visualization.html`, `doc/research_notes.md`
+
 ### R-20260419-01 — `IVP < 55` passed the key OOS check and is now a credible narrow BPS improvement candidate
 
 - Topic: Out-of-sample validation of relaxing the BPS `NORMAL + BULLISH` upper IVP gate from `IVP < 50` to `IVP < 55`

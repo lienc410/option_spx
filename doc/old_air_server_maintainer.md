@@ -57,7 +57,8 @@ Practical rule:
 
 - On the same home/local network, LAN access is fine
 - Outside the home network, prefer Tailscale
-- Keep a stable local alias such as `ssh oldair` so runtime prompts do not need to repeat connection details
+- Keep `ssh oldair` pointed at the Tailscale IPv4 as the stable default
+- Keep a separate `ssh oldair-lan` alias for same-LAN access when lower latency is useful
 
 Current runtime note:
 

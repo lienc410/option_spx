@@ -169,6 +169,10 @@ IVP63_BCS_BLOCK          = 70
 BPS_NNB_IVP_UPPER        = 55
 BPS_NNB_IVP_LOWER        = 43
 
+AFTERMATH_PEAK_VIX_10D_MIN = 28.0
+AFTERMATH_LOOKBACK_DAYS = 10
+AFTERMATH_OFF_PEAK_PCT = 0.05
+
 
 class StrategyName(str, Enum):
     ES_SHORT_PUT        = "ES Short Put"
@@ -273,6 +277,23 @@ def _effective_iv_signal(iv: IVSnapshot) -> IVSignal:
     elif iv.iv_percentile < IVP_LOW_THRESHOLD:
         return IVSignal.LOW
     return IVSignal.NEUTRAL
+
+
+def is_aftermath(vix: VixSnapshot) -> bool:
+    """
+    HIGH_VOL aftermath window:
+    - trailing 10-day peak VIX >= 28
+    - current VIX at least 5% off that peak
+    - current VIX remains below the EXTREME_VOL hard boundary (40)
+    """
+    peak = vix.vix_peak_10d
+    if peak is None:
+        return False
+    if peak < AFTERMATH_PEAK_VIX_10D_MIN:
+        return False
+    if vix.vix >= 40.0:
+        return False
+    return vix.vix <= peak * (1.0 - AFTERMATH_OFF_PEAK_PCT)
 
 
 def _size_rule(vix: VixSnapshot, iv_s: IVSignal, t: TrendSignal) -> str:
@@ -556,6 +577,41 @@ def select_strategy(
     # ── HIGH_VOL: trade with tighter params ──────────────────────────
     if r == Regime.HIGH_VOL:
         if t == TrendSignal.BEARISH:
+            if iv_s == IVSignal.HIGH and is_aftermath(vix):
+                peak = vix.vix_peak_10d or vix.vix
+                drop_pct = max(0.0, (1.0 - (vix.vix / peak)) * 100.0) if peak else 0.0
+                action = get_position_action(
+                    StrategyName.IRON_CONDOR_HV.value,
+                    is_wait=False,
+                    strategy_key=catalog_strategy_key(StrategyName.IRON_CONDOR_HV.value),
+                )
+                return _build_recommendation(
+                    StrategyName.IRON_CONDOR_HV,
+                    vix=vix,
+                    iv=iv,
+                    trend=trend,
+                    legs=[
+                        Leg("SELL", "CALL", 45, 0.16,
+                            "Upper short wing — rich HIGH_VOL call premium"),
+                        Leg("BUY",  "CALL", 45, 0.08,
+                            "Upper long wing"),
+                        Leg("SELL", "PUT",  45, 0.16,
+                            "Lower short wing — rich HIGH_VOL put premium"),
+                        Leg("BUY",  "PUT",  45, 0.08,
+                            "Lower long wing"),
+                    ],
+                    size_rule=(
+                        f"{int(params.high_vol_size*100)}% size — risk ≤ "
+                        f"{1.5*params.high_vol_size:.1f}% of account "
+                        f"(HIGH_VOL, reduced exposure)"
+                    ),
+                    rationale=(
+                        f"HIGH_VOL + BEARISH + IV HIGH + aftermath (VIX peak={peak:.1f} → now={vix.vix:.1f}, "
+                        f"-{drop_pct:.1f}% off peak) — bypass VIX_RISING / ivp63 gates per SPEC-064"
+                    ),
+                    position_action=action,
+                    macro_warning=macro_warn,
+                )
             if vix.trend == Trend.RISING:
                 return _reduce_wait(
                     "HIGH_VOL + BEARISH + VIX RISING — panic escalating; wait for VIX to stabilise before selling calls",
@@ -637,6 +693,48 @@ def select_strategy(
             )
 
         if t == TrendSignal.NEUTRAL:
+            if iv_s == IVSignal.HIGH and is_aftermath(vix):
+                if vix.backwardation:
+                    return _reduce_wait(
+                        "HIGH_VOL + NEUTRAL + BACKWARDATION — near-term put panic elevated; skip IC HV",
+                        vix, iv, trend, macro_warn, backwardation=True,
+                        canonical_strategy=StrategyName.IRON_CONDOR_HV.value,
+                        params=params,
+                    )
+                peak = vix.vix_peak_10d or vix.vix
+                drop_pct = max(0.0, (1.0 - (vix.vix / peak)) * 100.0) if peak else 0.0
+                action = get_position_action(
+                    StrategyName.IRON_CONDOR_HV.value,
+                    is_wait=False,
+                    strategy_key=catalog_strategy_key(StrategyName.IRON_CONDOR_HV.value),
+                )
+                return _build_recommendation(
+                    StrategyName.IRON_CONDOR_HV,
+                    vix=vix,
+                    iv=iv,
+                    trend=trend,
+                    legs=[
+                        Leg("SELL", "CALL", 45, 0.16,
+                            "Upper short wing — inflated HIGH_VOL call premium"),
+                        Leg("BUY",  "CALL", 45, 0.08,
+                            "Upper long wing"),
+                        Leg("SELL", "PUT",  45, 0.16,
+                            "Lower short wing — inflated HIGH_VOL put premium"),
+                        Leg("BUY",  "PUT",  45, 0.08,
+                            "Lower long wing"),
+                    ],
+                    size_rule=(
+                        f"{int(params.high_vol_size*100)}% size — risk ≤ "
+                        f"{1.5*params.high_vol_size:.1f}% of account "
+                        f"(HIGH_VOL, reduced exposure)"
+                    ),
+                    rationale=(
+                        f"HIGH_VOL + NEUTRAL + IV HIGH + aftermath (VIX peak={peak:.1f} → now={vix.vix:.1f}, "
+                        f"-{drop_pct:.1f}% off peak) — bypass VIX_RISING / ivp63 gates per SPEC-064"
+                    ),
+                    position_action=action,
+                    macro_warning=macro_warn,
+                )
             if vix.trend == Trend.RISING:
                 return _reduce_wait(
                     "HIGH_VOL + NEUTRAL + VIX RISING — vol escalating; wait for VIX to stabilise",

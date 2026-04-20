@@ -69,6 +69,7 @@ run "ifconfig (192.168.68.x)" /bin/sh -lc "ifconfig | grep 'inet 192.168.68.'"
 section "launchd Status"
 run "launchctl print web" /bin/sh -lc "launchctl print gui/\$(id -u)/com.spxstrat.web | sed -n '1,80p'"
 run "launchctl print cloudflared" /bin/sh -lc "launchctl print gui/\$(id -u)/com.spxstrat.cloudflared | sed -n '1,100p'"
+run "launchctl print cloudflared-b" /bin/sh -lc "launchctl print gui/\$(id -u)/com.spxstrat.cloudflared-b | sed -n '1,100p'"
 
 section "Local Origin Health"
 run "curl root via 127.0.0.1" /bin/sh -lc "curl -sS -o /dev/null -D - http://127.0.0.1:5050/ | sed -n '1,20p'"
@@ -77,7 +78,8 @@ run "curl performance via 127.0.0.1" /bin/sh -lc "curl -sS -o /dev/null -D - htt
 run "curl root via localhost" /bin/sh -lc "curl -sS -o /dev/null -D - http://localhost:5050/ | sed -n '1,20p'"
 
 section "Cloudflared Metrics"
-run "cloudflared metrics summary" /bin/sh -lc "curl -sS http://127.0.0.1:20241/metrics | egrep 'cloudflared_(tunnel_(total_requests|request_errors|ha_connections|response_by_code)|proxy_connect_streams_errors)' | sort"
+run "cloudflared metrics summary (primary :60123)" /bin/sh -lc "curl -sS http://127.0.0.1:60123/metrics | egrep 'cloudflared_(tunnel_(total_requests|request_errors|ha_connections|response_by_code)|proxy_connect_streams_errors)' | sort"
+run "cloudflared metrics summary (secondary :60124)" /bin/sh -lc "curl -sS http://127.0.0.1:60124/metrics | egrep 'cloudflared_(tunnel_(total_requests|request_errors|ha_connections|response_by_code)|proxy_connect_streams_errors)' | sort"
 
 section "Process Snapshot"
 run "ps cloudflared" /bin/sh -lc "ps aux | grep cloudflared | grep -v grep"
@@ -85,9 +87,11 @@ run "listening 5050" /bin/sh -lc "lsof -nP -iTCP:5050 -sTCP:LISTEN"
 
 section "Cloudflare Tunnel Config"
 run "config.yml" sed -n "1,120p" /Users/macbook/.cloudflared/config.yml
+run "config-connector-b.yml" sed -n "1,120p" /Users/macbook/.cloudflared/config-connector-b.yml
 
 section "Recent Logs"
 run "tail cloudflared err" tail -n 120 /Users/macbook/Library/Logs/cloudflared/err.log
+run "tail cloudflared err-b" tail -n 120 /Users/macbook/Library/Logs/cloudflared/err-b.log
 run "tail web err" tail -n 120 /Users/macbook/Library/Logs/spx-strat/web.err.log
 EOF
 

@@ -146,14 +146,17 @@ def build_research_views() -> dict:
     baseline_closed = _closed_trades(baseline_result.trades)
     baseline_ids = {_trade_identity(t) for t in baseline_closed}
 
-    bt_ivp55 = _run_with_bps_upper(55)
-    sig55_by_date = {row["date"]: row for row in bt_ivp55.signals}
+    # Baseline 已是 IVP<55（Q015 fast-path 入生产后）；对比 IVP<50 旧行为，
+    # 展示 baseline 相对旧 gate 多出的 IVP [50,55) 边际交易。
+    bt_ivp50 = _run_with_bps_upper(50)
+    ivp50_ids = {_trade_identity(t) for t in _closed_trades(bt_ivp50.trades)}
+    sig_by_date = {row["date"]: row for row in baseline_result.signals}
     q015_trades = [
         t
-        for t in _closed_trades(bt_ivp55.trades)
-        if _trade_identity(t) not in baseline_ids
+        for t in baseline_closed
+        if _trade_identity(t) not in ivp50_ids
         and t.strategy.value == StrategyName.BULL_PUT_SPREAD.value
-        and 50 <= float(sig55_by_date.get(t.entry_date, {}).get("ivp", -1)) < 55
+        and 50 <= float(sig_by_date.get(t.entry_date, {}).get("ivp", -1)) < 55
     ]
 
     bt_dza = _run_dead_zone_a_variant()

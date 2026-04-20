@@ -171,6 +171,46 @@ doc/old_air_server_maintainer.md
    - sync/open_questions.md
 ```
 
+### 默认入口路由（L3-lite / 推荐）
+
+```text
+请作为 Planner 工作，并作为默认入口做任务路由。
+
+先读取：
+PLANNER.md
+PROJECT_STATUS.md
+RESEARCH_LOG.md
+sync/open_questions.md
+
+如事项涉及 live runtime、线上 recommendation、bot/web/tunnel 或 old Air 运维，再补读：
+SERVER_RUNTIME.md
+doc/old_air_server_maintainer.md
+
+然后：
+1. 判断该问题属于：
+   - research only
+   - ready for DRAFT Spec
+   - ready for implementation
+   - runtime maintenance
+2. 指定唯一下一棒：
+   - Quant Researcher
+   - Developer
+   - Planner
+   - 当前角色 SSH old Air 执行
+3. 输出固定格式：
+   - Task Type
+   - Next Owner
+   - Why This Route
+   - Required Files
+   - PM Context To Preserve
+   - Forward Prompt
+4. 如果下一棒是 Quant Researcher：
+   - 不要为了极简而删除 PM 的关键研究背景、例子、反例、边界或风险偏好
+   - 只压缩无关噪音和重复状态说明
+5. 如果下一棒是 Developer：
+   - 可以适度压缩，但要保留实现边界、必读文件和验收目标
+```
+
 ### review 后同步索引层（短版 / 最低 token）
 
 ```text
@@ -298,25 +338,10 @@ sync/open_questions.md
 
 ## 5. 使用建议
 
+- 默认先给 Planner，再由 Planner 路由到 Quant / Developer / runtime maintenance
 - 研究判断后，如果决定推进实现，优先先形成 `DRAFT Spec`
 - 实施完成后，不要手动转贴长 review；优先让 Quant Researcher 直接写回 Spec，再让 Planner 按 Spec 同步索引层
 - 若只想快速触发某个固定动作，优先用一行版 prompt
-
-
----
-
-Step 1：先给 Planner
-你可以把下面这段发给 Planner：
-
-请作为 Planner 工作。
-
-问题：我需要quant研究：我们回到“2026-04-08 Iron Condor 回测交易” 你提到 “这类窗口极短——只有 1 天是 NORMAL+HIGH+NEUTRAL” 可其实那一天之后，spx一直一路上涨，不应该只有一天的入场机会。 我理解你从现在的路由出发，确实有规则限制了之后的入场，但请用更开阔的研究视角审视这个问题。
-quant回答：现在整个图景清楚了。让我整理这个系统性问题。
-
-研究发现：VIX 均值回归窗口中的"IVP 死区"
-你的直觉完全正确。4/08 之后 SPX 从 6783 涨到 7126（+5%），VIX 从 21 降到 17.5——这是教科书级的 premium selling 机会。但系统连续 9 天推 Reduce/Wait。
-
-逐日拆解为什么每天都被拦：
 
 
 ## 6. Planner As Default Entry

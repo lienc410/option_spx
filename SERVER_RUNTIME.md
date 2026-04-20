@@ -78,6 +78,10 @@ Recommended local SSH config on the main machine:
 
 ```sshconfig
 Host oldair
+  HostName 100.114.226.33
+  User macbook
+
+Host oldair-lan
   HostName 192.168.68.117
   User macbook
 ```
@@ -90,17 +94,22 @@ Verified on 2026-04-18:
 
 Recommended access model:
 
-- When on the same local network, using the LAN IP is fine:
-  - `192.168.68.117`
-- When away from home or when LAN routing is inconvenient, prefer the Tailscale IPv4:
+- When away from home or when LAN routing is inconvenient, use the default `oldair` alias over the Tailscale IPv4:
   - `100.114.226.33`
-- Keep using the `oldair` SSH alias as the human-friendly entry point; update the alias target as needed for the current network path
+- When on the same local network, use the explicit LAN alias:
+  - `ssh oldair-lan`
+  - `192.168.68.117`
+- Keep `oldair` as the human-friendly remote/default entry point and reserve `oldair-lan` for same-LAN access
 
-Optional SSH config variant for Tailscale access:
+Recommended split-alias model:
 
 ```sshconfig
 Host oldair
   HostName 100.114.226.33
+  User macbook
+
+Host oldair-lan
+  HostName 192.168.68.117
   User macbook
 ```
 

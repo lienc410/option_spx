@@ -760,6 +760,7 @@ def run_backtest(
         vix_5d_avg = float(vix_window.iloc[-5:].mean()) if len(vix_window) >= 5 else vix
         vix_5d_ago = float(vix_window.iloc[-10:-5].mean()) if len(vix_window) >= 10 else vix_5d_avg
         vix_trend  = _vix_classify_trend(vix_5d_avg, vix_5d_ago)
+        vix_peak_10d = float(vix_window.iloc[-10:].max()) if len(vix_window) >= 10 else None
 
         # Assemble snapshot objects for selector
         vix_snap   = VixSnapshot(
@@ -768,6 +769,7 @@ def run_backtest(
             transition_warning=False,
             vix3m=vix3m,
             backwardation=(vix3m is not None and vix > vix3m),
+            vix_peak_10d=vix_peak_10d,
         )
         iv_snap    = IVSnapshot(
             date=str(date.date()), vix=vix,
@@ -1176,12 +1178,14 @@ def run_signals_only(
         vix_5d_avg = float(vix_window.iloc[-5:].mean()) if len(vix_window) >= 5 else vix
         vix_5d_ago = float(vix_window.iloc[-10:-5].mean()) if len(vix_window) >= 10 else vix_5d_avg
         vix_trend = _vix_classify_trend(vix_5d_avg, vix_5d_ago)
+        vix_peak_10d = float(vix_window.iloc[-10:].max()) if len(vix_window) >= 10 else None
 
         vix_snap = VixSnapshot(
             date=str(date.date()), vix=vix, regime=regime,
             trend=vix_trend, vix_5d_avg=vix_5d_avg, vix_5d_ago=vix_5d_ago,
             transition_warning=False, vix3m=vix3m,
             backwardation=(vix3m is not None and vix > vix3m),
+            vix_peak_10d=vix_peak_10d,
         )
         iv_snap = IVSnapshot(
             date=str(date.date()), vix=vix,
