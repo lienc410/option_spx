@@ -37,7 +37,8 @@ Owner: Planner or PM
 - `Q002` — Shock active mode still needs Phase B validation — `open`
 - `Q012` — `/ES` short put path is now the preferred production candidate; remaining question is shared-BP management with SPX Credit and how far to extend the MVP beyond Layer 2 — `open`
 - `Q013` — `/ES` short put runtime stop execution and post-entry management remain undefined in production — `open`
-- `Q017` — HIGH_VOL aftermath windows have now passed both the real-PnL test and the ex-ante recognizability test for the narrow `IC_HV` path; this is now a `ready for DRAFT Spec` candidate rather than open-ended research — `ready for DRAFT`
+- `Q018` — Phase 1 is now done: multi-slot replay and tighter-aftermath-threshold both look attractive, but neither has won decisively enough to justify a Spec. The question is now which Phase 2 branch to prioritize — `research`
+- `Q019` — backtests currently use end-of-day VIX series, while live recommendation decisions are made off the opening / early-session VIX context; this time-basis mismatch may materially affect routing, gate triggers, and aftermath detection — `research`
 - `Q011` — regime decay DIAGONAL sample is still small — `monitoring`
 - `Q003` — L3 Hedge v2 live implementation — `open`
 - `Q004` — `vix_accel_1d` L4 fast-path — `open`
@@ -46,11 +47,14 @@ Owner: Planner or PM
 ## Next Priorities
 
 - `P1` — open a narrow follow-up Spec for `/ES` runtime safeguards, with minimum scope of stop-condition monitoring plus bot alerting
-- `P2` — decide whether to convert `Q017` into a narrow DRAFT Spec: the proposed minimum unit is a `HIGH_VOL aftermath IC_HV bypass` that preserves `EXTREME_VOL` protection and does not touch `BPS_HV` / `BCS_HV`
+- `P2` — choose whether `Q018` should enter Phase 2, and if so on which branch: (A) multi-slot realism with BP / overlay / shock constraints, (B) multi-slot plus tighter aftermath threshold, or (C) threshold-tightening sensitivity first. `Q019` remains behind this until the open-vs-close VIX timing effect is measured
 - `P3` — continue validating dependency-bound items before promoting broader sizing logic or additional HIGH_VOL changes into new Specs
 
 ## Recent Meaningful Changes
 
+- 2026-04-19 — Quant completed `Q018 Phase 1`: the single-slot aftermath question now has two credible but unresolved directions. Variant A (aftermath multi-slot replay) produced about `+$47,735` across `36` replayed trades with concentrated tail risk in `2008-09`, while Variant B (`AFTERMATH_OFF_PEAK_PCT 0.05 -> 0.10`) improved max drawdown by about `36%` at very low implementation cost. This is still research, not Spec, because the key realism gaps (BP ceiling, shock / overlay interaction, and significance hardening) remain open — `See: RESEARCH_LOG.md`, `sync/open_questions.md`
+- 2026-04-19 — PM opened a new research track `Q019` around time-basis mismatch: backtests use end-of-day VIX, while live recommendation uses opening / early-session VIX context. This may affect HIGH_VOL / NORMAL routing, `VIX_RISING`, `ivp63`-style gates, and aftermath detection, so it should be studied before any production reinterpretation of recent live behavior — `See: RESEARCH_LOG.md`, `sync/open_questions.md`
+- 2026-04-19 — `SPEC-064` (`HIGH_VOL Aftermath IC_HV Bypass`) shipped to production and passed review, and `SPEC-065` (`Research View Pill for SPEC-064`) also shipped and passed review. PM review of the real 2026-03 double-VIX-spike case surfaced a new research track `Q018`: the single-slot engine constraint appears to have blocked the second peak’s aftermath opportunity, but that is still a research question rather than a new Spec candidate — `See: RESEARCH_LOG.md`, `sync/open_questions.md`
 - 2026-04-19 — Quant completed `Q017 Phase 2` and closed the ex-ante recognition question: the live-usable signal is simply the aftermath condition itself, while `peak_drop_pct` and `vix_3d_roc` add no value. Evidence is now strong enough to support a narrow DRAFT candidate focused only on `HIGH_VOL aftermath IC_HV bypass`, with `EXTREME_VOL` preserved as the hard protection layer — `See: RESEARCH_LOG.md`, `sync/open_questions.md`
 - 2026-04-19 — Quant completed `Q017 Phase 1` and materially upgraded the evidence level: replacing SPX proxies with real strategy PnL produced significantly positive aftermath-window results, and removing the recent `2020-03 / 2025-04 / 2026-04` V-shaped events barely changed the conclusion. The alpha appears concentrated in `IC_HV`, and `Q017` now deserves Phase 2 ex-ante recognition work rather than continued `hold` status — `See: RESEARCH_LOG.md`, `sync/open_questions.md`
 - 2026-04-19 — Planner formalized `Q017` sequencing: Tier 1 is mandatory first (`real strategy PnL` + `remove 2020/2025/2026 V-shaped events`), Tier 2 only runs if Tier 1 still shows positive evidence, and Tier 3 gate-specific work is explicitly last — `See: RESEARCH_LOG.md`, `sync/open_questions.md`

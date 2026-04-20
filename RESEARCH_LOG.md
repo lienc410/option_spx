@@ -7,6 +7,39 @@ Owner: Planner or PM
 
 ## Entries
 
+### R-20260419-10 — Q018 Phase 1 produced two credible directions, but not a decisive remedy
+
+- Topic: Phase 1 prototype for the `Q018` aftermath single-slot question
+- Findings: Quant completed the first real prototype round and the result is more interesting than a simple “allow two slots” answer. Variant A (multi-slot aftermath replay) identified `36` blocked clusters and, under ex-post trade replay, produced about `+$47,735` total PnL with `86.1%` win rate. The gains were stronger than the earlier rough approximation suggested because `IC_HV` often reaches `50%` profit quickly in high-VIX aftermath environments. Tail losses were real but concentrated, especially `2008-09` (`-$7,968` single-trade worst case), while `2020-03` was only mildly negative and `2025-04` was actually profitable. Variant B (tightening `AFTERMATH_OFF_PEAK_PCT` from `0.05` to `0.10`) looked attractive for a different reason: it cut max drawdown by about `36%` (`-$20,464` to `-$13,187`) and improved `IC_HV` Sharpe with almost no engineering cost, while only dropping two trades. This means the two directions are not obvious substitutes: A captures more missed alpha, B reduces risk cheaply, and the best answer may even be a combination
+- Risks / Counterarguments: Variant A is still materially approximate. The big missing pieces are BP ceiling, shock-engine / overlay interactions, and the fact that only one day per blocked cluster was replayed. Any of those could reduce the apparent `+$47,735`. Variant B’s drawdown improvement may also be partly path luck because the specific removed trades have not yet been stress-tested by year or bootstrap. Phase 1 therefore upgrades Q018 from a “single anecdote” to a real research branch, but it does not yet justify a DRAFT Spec
+- Confidence: medium
+- Next Tests: the most valuable next step is Phase 2-A — re-run the multi-slot path with BP ceiling, shock engine, and overlay constraints so the core `+$47,735` claim gets a more realistic answer. If PM prefers a cheaper / safer path, Phase 2-C can instead scan tighter aftermath thresholds first. The “multi-slot + tighter threshold” combo is also plausible, but only after the realism gap in A is narrowed
+- Recommendation: continue research
+- Related Question: `Q018`
+- See: `sync/open_questions.md`, `doc/research_notes.md`
+
+### R-20260419-09 — Q019 opened: the project may have a material VIX time-basis mismatch between backtest and live recommendation
+
+- Topic: Whether using end-of-day VIX in backtests while making live recommendation decisions from opening / early-session VIX materially changes routing and gate behavior
+- Findings: PM identified a structural modeling mismatch worth separate study: historical backtests and much of the research stack rely on daily close-based VIX time series, while live recommendation decisions are taken near the open, when VIX is often materially above its later close and may even mark the intraday high. If this mismatch is large enough, it could alter regime classification (`HIGH_VOL` vs `NORMAL`), `VIX_RISING` logic, IVP-like high-vol gates, and the aftermath condition used in `SPEC-064` / `Q017`. This is not yet a strategy conclusion; it is a new measurement problem
+- Risks / Counterarguments: not every intraday-open/close difference matters strategically. The relevant question is not whether VIX opens above its close in general, but whether using open-based VIX would have changed actual selector outputs, blocked trades, or realized backtest path decisions in a non-trivial number of cases. Without that quantification, the issue could be either a real blind spot or just a plausible-sounding source of noise
+- Confidence: medium on the importance of the question; low on the size or direction of the effect
+- Next Tests: compare close-based versus open-based (or earliest available live-time) VIX inputs on historical recommendation paths, starting with high-volatility and post-spike windows; quantify how often route, gate, or aftermath outcomes would have changed
+- Recommendation: research
+- Related Question: `Q019`
+- See: `PROJECT_STATUS.md`, `sync/open_questions.md`
+
+### R-20260419-08 — `SPEC-064` shipped; the first real double-spike review surfaces a new single-slot aftermath question (`Q018`)
+
+- Topic: Post-ship review of the first real-world double-VIX-spike case after `SPEC-064` / `SPEC-065`
+- Findings: `SPEC-064` (`HIGH_VOL Aftermath IC_HV Bypass`) shipped to production and passed review, and `SPEC-065` added a durable research-view pill for the same path. The shipped artifact matches the backtest trigger set exactly enough for audit use. PM review of the real `2026-03` double-spike sequence then surfaced a new phenomenon: the first peak opened an `IC_HV` aftermath trade, but the second peak’s aftermath dates (`2026-03-31`, `2026-04-01`, `2026-04-02`) were blocked by the engine’s `_already_open` single-slot constraint even though offline selector replay says they otherwise would have routed to `IC_HV` again. This does not prove that multi-slot opening is the right remedy, but it does establish a concrete research trigger for a new question about single-slot aftermath misses
+- Risks / Counterarguments: the current evidence is still only a trigger case. The missing second-peak trade could mean “allow two aftermath slots,” but it could also mean “tighten the first aftermath trigger so the slot is preserved for the later, better peak.” The historical gap between the `73` research aftermath windows and the `32` shipped `IC_HV` aftermath entries likely contains multiple causes, not just `_already_open`, and none of that has been quantified yet. Any multi-slot idea would also be a risk-structure change, not a mere routing tweak
+- Confidence: medium on the phenomenon; low on the remedy
+- Next Tests: if PM wants to advance `Q018`, start with a strict Phase 1 prototype comparing (A) `IC_HV` aftermath with two concurrent slots versus (B) a tighter aftermath threshold such as `off_peak >= 10%`, then compare incremental trade count, PnL / CI, Sharpe, drawdown in `2008-10` and `2020-03`, and BP utilization
+- Recommendation: research
+- Related Question: `Q018`
+- See: `task/SPEC-064.md`, `doc/research_notes.md`
+
 ### R-20260419-07 — Q017 Phase 2 closes the ex-ante question and makes `HIGH_VOL aftermath IC_HV bypass` a credible DRAFT candidate
 
 - Topic: Whether Q017 has a live-usable, non-hindsight recognition rule that is strong enough to support a narrow HIGH_VOL bypass design

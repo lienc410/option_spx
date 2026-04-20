@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-04-19（Planner，Q017 通过 Phase 2，进入 DRAFT 候选）
+最后更新：2026-04-19（Quant，Q018 Phase 1 完成：变体 A 逐笔重放 +$47,735 / 变体 B MaxDD -36%；等待 PM 选择 Phase 2 子路径）
 
 ---
 
@@ -51,14 +51,83 @@
 - **来源**：`SPEC-061` review + `/ES` 三层体系覆盖盘点，2026-04-12
 
 ### Q017 — VIX 顶峰回落早期窗口：HIGH_VOL 分支是否结构性错过机会
-- **状态**：research
+- **状态**：resolved
 - **内容**：Quant 新研究显示，这不是偶发案例：`2000–2026` 共识别出 `73` 个 `aftermath` 窗口（过去 `10` 日内 VIX 峰值 `>=28`，当前已回落 `>=5%`），对应 `458` 个 trend 非 `BULLISH` 的 wait 日。阻挡几乎全部发生在 `HIGH_VOL` 路由内部（`441/458 = 96%`），其中最大来源是 `HIGH_VOL + VIX_RISING` (`208` 日) 和 `HIGH_VOL + BEARISH + ivp63>=70` (`162` 日)。问题定位因此不在 `Q015/Q016` 覆盖的 `NORMAL` cells，而在 `HIGH_VOL` 早期回落阶段
 - **Phase 1 更新**：真实策略 PnL 已显著增强了证据。三种 gate-lift 变体在 aftermath 窗口里的新增交易 CI 全部显著为正；其中最关键的双 gate-off 版本给出 `24` 笔新增交易、avg 约 `+$1,772`、win rate 约 `95.8%`，且系统级 Sharpe 严格不退化。去掉 `2020-03 / 2025-04 / 2026-04` 三个现代 V 型反转事件后，结论几乎不变，说明现象并不依赖最近几次事件。alpha 主要集中在 `IC_HV`，而不是 `BPS_HV / BCS_HV`
 - **Phase 2 更新**：ex-ante 识别问题已基本收束。`aftermath` 条件本身就是 live 可计算、非后见之明的规则；`peak_drop_pct` 和 `vix_3d_roc` 都没有额外判别力，反而会削弱信号。真正的灾难保护来自现有 `EXTREME_VOL (VIX >= 40)` 硬门槛，因此当前最小实现单元无需推翻 `2008` 保护结构
 - **当前最小候选**：只在 `HIGH_VOL`、`trend ∈ {BEARISH, NEUTRAL}`、`IV = HIGH` 且满足 aftermath 条件时，为 `IC_HV` 路径跳过 `VIX_RISING` 与 `ivp63>=70` 两个 gate；`BPS_HV` / `BCS_HV` 不在范围内，`EXTREME_VOL` 继续完整保留
 - **依赖**：PM 可直接决定是否进入 DRAFT Spec；若希望再严谨一步，可先做一个更窄的 Phase 3 sanity check，但这已不再是进入 DRAFT 的硬前置
-- **当前归类**：ready for DRAFT Spec
-- **来源**：Q017 研究输出，2026-04-19
+- **当前归类**：implemented via `SPEC-064`
+- **来源**：Q017 研究输出，2026-04-19；`SPEC-064` shipped 2026-04-19
+
+### Q018 — HIGH_VOL aftermath 单槽位约束在 double-spike 事件中是否错过第二峰
+- **状态**：Phase 1 done（2026-04-19），等待 PM 决策是否进入 Phase 2
+- **内容**：`SPEC-064` 上线后的第一次真实 `double VIX spike` 复盘（`2026-03`）显示，第一峰触发了 `2026-03-09` 的 `IC_HV` aftermath 开仓，但第二峰回落期间的 `2026-03-31 / 2026-04-01 / 2026-04-02` 三天，selector 离线重跑本应再次路由到 `IC_HV aftermath`，却被 engine `_already_open` 的单槽位约束阻挡。第一笔仓位直到 `2026-04-08` 才以 `50pct_profit` 平仓，届时 regime 已回 `NORMAL`，第二峰窗口整体错过
+- **关键不确定性**：这不自动等于"应放开多槽位"。替代解释同样成立：也许应收紧第一次 aftermath 开仓条件（例如 `off_peak >= 10%`），为第二峰保留 slot，而不是允许并发两笔 `IC_HV`
+
+#### Phase 1 Prototype 结果（2026-04-19）
+
+Prototype 文件：
+- [backtest/prototype/q018_phase1_multi_slot.py](backtest/prototype/q018_phase1_multi_slot.py) — 变体 A blocked-cluster 扫描 + 变体 B 全回测
+- [backtest/prototype/q018_phase1_cluster_replay.py](backtest/prototype/q018_phase1_cluster_replay.py) — 变体 A ex-post 逐笔模拟（替换原 `$1,023` 近似）
+
+**变体 A（多槽位，post-hoc approximation + ex-post replay）**
+- `27` 年历史中识别出 `36` 个 blocked clusters（每年约 `1.33` 次），其中 `4` 个落在灾难窗口（`2008` GFC / `2020` COVID / `2025` 关税 ×2）
+- Sanity check：`2026-03-10..2026-04-07` 的 cluster 准确复现 PM 原始观察
+- ex-post 用 `_build_legs / _current_value` 重放全部 `36` 次"假想第二槽位"进场（同样的 `IC_HV` 腿、`50pct_profit / -2× stop / 21 DTE roll`）：
+  - 总净 PnL = **+$47,735**（胜率 `31/36 = 86.1%`，远高于 baseline `71.5%`）
+  - 盈利总和 +$68,014，亏损总和 -$20,279
+  - 非灾难 `32` 笔净 +$52,790
+  - 灾难 `4` 笔净 -$5,055（`2008-09 -$7,968` 最重、`2020-03 -$2,259`、`2025-04 ×2 +$3,260 / +$1,912`）
+- 尾部风险集中在 `2008-09` 单笔，`2020-03` 仅轻微负，`2025` 关税两笔都盈利——说明灾难不全等于亏损
+
+**变体 B（`AFTERMATH_OFF_PEAK_PCT 0.05 → 0.10`，full backtest）**
+- 系统级：n `-2`、total `+$8,142`、Sharpe `+0.01`（基本中性）
+- `IC_HV` 子集：n `-2`、total `+$6,912`、Sharpe `0.40 → 0.50`（`+0.10`）
+- **最大回撤：`-$20,464 → -$13,187`（减少 `36%`）**
+
+**关键发现对比**
+| 维度 | 变体 A（多槽位） | 变体 B（收紧阈值） |
+|---|---|---|
+| 实现成本 | 改 engine `_already_open` 逻辑 | 改一个常数 |
+| PnL | 逐笔模拟 `+$47,735` | `+$8,142` |
+| 尾部风险 | `2008-09 -$7,968` 单笔、灾难净 `-$5,055` | `MaxDD -36%` |
+| 胜率 | `86.1%` | 与 baseline 相近 |
+
+**Phase 1 approximation 限制**（变体 A）
+- 未建模 BP ceiling（第二槽位可能被 BP 限额阻止）
+- 未建模 shock engine / overlay（`2008-09` 深跌里 overlay 可能先触发强平）
+- 未建模 regime 中途切换的 re-routing
+- 每 cluster 仅用首日进场；真实 engine 可能在 cluster 内任一天进场
+- 样本稀疏：`2008` 级尾部事件 `27` 年内仅 `1` 次
+
+**研究结果反转初步直觉**
+- Phase 1a 基于 `$1,023/cluster` 近似时，数据偏向变体 B（多开在灾难窗口"必然放大亏损"）
+- Phase 1b 精确重放后，变体 A 的实际净值 `+$47,735` 明显超过近似上限 `$36,828`，灾难窗口 `2/4` 仍赚钱，单一毁灭性案例仅 `2008-09`
+- 结论：两条路径都有可取之处，**不能仅凭 Phase 1 做最终决策**
+
+- **建议下一步 / Phase 2 候选**：
+  - A. 把 BP ceiling + shock_engine + overlay 加入变体 A 模拟，看 `2008-09` 那笔是否真会被强平或根本无法开仓
+  - B. 变体 A 与变体 B 的组合（多槽 + 收紧阈值双保险）是否进一步优化 Sharpe / MaxDD
+  - C. 变体 B 内部 sensitivity（OFF_PEAK 从 `0.05` 扫到 `0.15`，`stop_mult` 扫描）
+  - D. ex-ante significance（bootstrap CI）补齐
+- **当前归类**：research only — 等待 PM 指示进入 Phase 2 具体子路径
+- **来源**：`SPEC-064` post-ship real-world review，2026-04-19
+
+### Q019 — backtest 的收盘口径 VIX 与 live recommendation 的开盘 / 早盘 VIX 口径是否存在系统性偏差
+- **状态**：open
+- **内容**：当前大量研究与回测默认使用按交易日收盘口径构建的 VIX 时间序列，但 live recommendation 的真实决策发生在开盘附近；而 VIX 在很多波动事件日会在开盘前或刚开盘时达到当日高点，随后回落。这意味着 backtest 使用 close-based VIX，可能低估 live 决策时实际面对的恐慌水位，进而影响：
+  - `HIGH_VOL` vs `NORMAL` regime 切换
+  - `VIX_RISING` 判定
+  - `ivp63` / 其他高波 gate 的触发频率
+  - `Q017 / SPEC-064` aftermath 条件是否在 live 中更早或更晚触发
+- **关键问题**：需要研究的不是“VIX 开盘通常高于收盘”这一一般事实，而是：如果历史推荐与回测改用 open-based（或最接近 live 决策时点的）VIX 口径，selector 的实际输出会有多少次发生变化？这些变化集中在什么 regime / filter / strategy 上？是否足以改变我们对某些研究结论或 live miss 的解释？
+- **建议下一步**：如 PM 批准，先做一个窄研究原型
+  - baseline：现有 close-based VIX 口径
+  - variant：open-based 或 earliest-available live-time VIX 口径
+  - 输出：route 变化次数、gate 变化次数、aftermath 变化次数、受影响 trade 数、主要集中在哪些日期 / regime / strategy
+- **当前归类**：research only
+- **来源**：PM 新增研究问题，2026-04-19
 
 ### Q003 — L3 Hedge 实盘实现（v2）
 - **状态**：open
