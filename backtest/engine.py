@@ -48,6 +48,7 @@ from strategy.selector import (
     StrategyParams, DEFAULT_PARAMS,
     VixSnapshot, IVSnapshot, TrendSnapshot,
     IVSignal as IVSig,
+    IC_HV_MAX_CONCURRENT,
 )
 from backtest.metrics_portfolio import compute_portfolio_metrics
 from backtest.portfolio import DailyPortfolioRow, PortfolioTracker
@@ -927,7 +928,11 @@ def run_backtest(
         # ── Open new position (if BP ceiling and dedup allow) ───────────────────
         _new_bp_target = params.bp_target_for_regime(regime)
         _ceiling = params.bp_ceiling_for_regime(regime)
-        _already_open = any(p.strategy == rec.strategy for p in positions)
+        _already_open = (
+            sum(1 for p in positions if p.strategy == rec.strategy) >= IC_HV_MAX_CONCURRENT
+            if rec.strategy == StrategyName.IRON_CONDOR_HV
+            else any(p.strategy == rec.strategy for p in positions)
+        )
         _existing_keys = {catalog_key(p.strategy.value) for p in positions}
         _synthetic_block = _block_synthetic_ic(_existing_keys, rec_key)
         _sg_block = _block_short_gamma_limit(_existing_keys, rec_key, params.max_short_gamma_positions)

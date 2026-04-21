@@ -58,7 +58,7 @@ class Spec064AftermathTests(unittest.TestCase):
     def test_ac1_is_aftermath_true_when_peak_and_off_peak_thresholds_met(self) -> None:
         self.assertTrue(
             is_aftermath(
-                make_vix(vix=28.0, regime=Regime.HIGH_VOL, trend=Trend.FLAT, vix_peak_10d=30.0)
+                make_vix(vix=27.0, regime=Regime.HIGH_VOL, trend=Trend.FLAT, vix_peak_10d=30.0)
             )
         )
 
@@ -69,10 +69,10 @@ class Spec064AftermathTests(unittest.TestCase):
             )
         )
 
-    def test_ac1_is_aftermath_false_when_not_five_percent_off_peak(self) -> None:
+    def test_ac1_is_aftermath_false_when_not_ten_percent_off_peak(self) -> None:
         self.assertFalse(
             is_aftermath(
-                make_vix(vix=28.6, regime=Regime.HIGH_VOL, trend=Trend.FLAT, vix_peak_10d=30.0)
+                make_vix(vix=27.1, regime=Regime.HIGH_VOL, trend=Trend.FLAT, vix_peak_10d=30.0)
             )
         )
 
@@ -85,7 +85,7 @@ class Spec064AftermathTests(unittest.TestCase):
 
     def test_ac2_bearish_high_iv_aftermath_bypasses_rising_and_ivp63_gates(self) -> None:
         rec = select_strategy(
-            make_vix(vix=28.0, regime=Regime.HIGH_VOL, trend=Trend.RISING, vix_peak_10d=30.0),
+            make_vix(vix=27.0, regime=Regime.HIGH_VOL, trend=Trend.RISING, vix_peak_10d=30.0),
             make_iv(signal=IVSignal.HIGH, iv_rank=78.0, iv_percentile=82.0),
             make_trend(TrendSignal.BEARISH),
         )
@@ -94,7 +94,7 @@ class Spec064AftermathTests(unittest.TestCase):
 
     def test_ac3_neutral_high_iv_aftermath_non_backwardation_bypasses_rising_gate(self) -> None:
         rec = select_strategy(
-            make_vix(vix=28.0, regime=Regime.HIGH_VOL, trend=Trend.RISING, vix_peak_10d=30.0),
+            make_vix(vix=27.0, regime=Regime.HIGH_VOL, trend=Trend.RISING, vix_peak_10d=30.0),
             make_iv(signal=IVSignal.HIGH, iv_rank=78.0, iv_percentile=82.0),
             make_trend(TrendSignal.NEUTRAL),
         )
@@ -104,7 +104,7 @@ class Spec064AftermathTests(unittest.TestCase):
     def test_ac4_neutral_high_iv_aftermath_backwardation_still_waits(self) -> None:
         rec = select_strategy(
             make_vix(
-                vix=28.0,
+                vix=27.0,
                 regime=Regime.HIGH_VOL,
                 trend=Trend.RISING,
                 backwardation=True,
