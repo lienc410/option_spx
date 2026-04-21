@@ -1827,14 +1827,14 @@ function collectBacktestQuery() {
   Object.entries(params).forEach(([key, value]) => query.set(key, String(value)));
   return query.toString();
 }
-async function loadSignalHistory() {
-  const res = await fetch('/api/signals/history?start=2000-01-01');
+async function loadSignalHistory(start = '') {
+  const queryStart = start || elValue('inp-start', '') || '2000-01-01';
+  const res = await fetch(`/api/signals/history?start=${encodeURIComponent(queryStart)}`);
   const data = await res.json();
   if (data.error) throw new Error(data.error);
   _spxFullSigData = data.signals || [];
   _sigData = _spxFullSigData;
-  const start = elValue('inp-start', '');
-  const startIdx = _spxFullSigData.findIndex(r => r.date >= start);
+  const startIdx = _spxFullSigData.findIndex(r => r.date >= queryStart);
   _spxStartIdx = startIdx >= 0 ? startIdx : Math.max(_spxFullSigData.length - 1, 0);
   syncSpxWindowSlider();
   renderSignalMatrix();
@@ -1860,7 +1860,7 @@ async function loadCachedResult() {
     document.getElementById('results').classList.add('hidden');
     document.getElementById('bt-meta-bar').classList.add('hidden');
     document.getElementById('bt-stale-bar').classList.add('hidden');
-    return;
+    return null;
   }
   showEmptyCta(false);
   _displayedResultMeta = data;
@@ -1869,6 +1869,7 @@ async function loadCachedResult() {
   renderResults(data);
   setRunButtonLabel('Re-run');
   await refreshResultBadges();
+  return data;
 }
 const today = new Date();
 setElValue('inp-end', toISO(today));
@@ -2907,9 +2908,9 @@ document.querySelectorAll('.param-input').forEach(el => {
 
 (async function initBacktestPage() {
   try {
-    await loadSignalHistory();
     await loadResearchViews();
-    await loadCachedResult();
+    const cached = await loadCachedResult();
+    await loadSignalHistory(cached?.start_date || '');
   } catch (e) {
     document.getElementById('run-status').textContent = e.message || 'Init failed';
   }
