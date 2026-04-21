@@ -1,11 +1,45 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-04-19
+Last Updated: 2026-04-20
 Owner: Planner or PM
 
 ---
 
 ## Entries
+
+### R-20260420-03 — Q020 opened: the real follow-up to Q018 may be peak-separation semantics, not slot count alone
+
+- Topic: Whether `Q018 / SPEC-066` captured the right phenomenon or accidentally monetized semantically wrong back-to-back `IC_HV` re-entry
+- Findings: PM clarified that the desired behavior in a double-spike sequence is not “take two `IC_HV` trades in quick succession after the first peak,” but “take one trade after the first peak fails to complete the opportunity, then re-arm and capture the second peak’s subsequent mean reversion.” This creates a new research problem that is adjacent to, but not the same as, `Q018`: the historical `cap=2 + B` result may mix together two very different sources of alpha — true second-peak capture versus immediate back-to-back re-entry after the first peak. Until that decomposition is measured, it would be premature to treat the existing `SPEC-066` economics as the final semantic answer for double-spike handling
+- Risks / Counterarguments: this does **not** yet prove `SPEC-066` is wrong or should be rolled back. The current shipped rule may still be profitable and robust enough in aggregate, and the observed `2026-03-09 / 2026-03-10` pair may simply expose that the research objective was framed too loosely. The key open question is attribution: how much of the measured gain disappears if the second slot is constrained to require a distinct new peak or minimum re-arm distance
+- Confidence: medium
+- Next Tests: quantify the `SPEC-066` trade set in three buckets: (1) immediate back-to-back re-entries after the same peak, (2) true distinct-second-peak aftermath trades, and (3) all other multi-slot aftermath cases; then compare PnL, Sharpe, drawdown, and historical trigger count. A useful control variant is “single-slot + re-arm only after new peak,” which should be compared directly against current `cap=2 + B`
+- Recommendation: research
+- Related Question: `Q020`
+- See: `sync/open_questions.md`, `task/SPEC-066.md`
+
+### R-20260420-02 — `SPEC-066` passed review with spec adjustment and is now DONE
+
+- Topic: Final review outcome for `SPEC-066` after Developer implementation
+- Findings: Quant completed the final review and closed `SPEC-066` as **PASS with spec adjustment**. No additional code changes were required. The implementation itself already met the strategy intent: `IC_HV_MAX_CONCURRENT = 2`, `AFTERMATH_OFF_PEAK_PCT = 0.10`, the `2026-03-09 / 2026-03-10` double-spike pair is captured, `2008-09` remains filtered, and system-level PnL / Sharpe / MaxDD all land within the intended target band. The two apparent failures were both specification issues rather than implementation defects. `AC4` had been written too strictly by requiring non-`IC_HV` trade-set identity; Quant revised it to the correct logic-level invariant that non-`IC_HV` strategies still use the original single-slot `_already_open` branch, while accepting natural trade-date cascade under shared BP and serial engine behavior. `AC10`’s old expected artifact-count range `[33,40]` was also corrected to `[45,55]`, after confirming the observed count `49` is fully consistent with the actual `IC_HV` delta and that all trades remain `Iron Condor (High Vol)`
+- Risks / Counterarguments: this is a clean closure, but it also clarifies an important review lesson: for specs that modify shared-capital or shared-timeline behavior, trade-set identity can be the wrong acceptance criterion even when branch-local logic is correct. Similar future specs should prefer logic invariants and targeted regression tests over global trade-set equality when cascade effects are expected
+- Confidence: high
+- Next Tests: no immediate research follow-up is required for `Q018`; if PM wants to push the HIGH_VOL line further, the next open problem is `Q019`, not more rework on `SPEC-066`
+- Recommendation: done
+- Related Spec: `SPEC-066`
+- Related Question: `Q018`
+- See: `task/SPEC-066.md`, `task/SPEC-066_handoff.md`
+
+### R-20260420-01 — Q018 Phase 2 closes the branch-selection question and makes `cap=2 + B` a credible DRAFT candidate
+
+- Topic: Final Phase 2 results for the `Q018` aftermath single-slot question
+- Findings: Quant completed the full Phase 2 sweep and the answer is no longer “which research branch should we test next,” but “is the selected combination narrow enough for a Spec.” The decisive result is `cap=2 + B`: allow up to `2` concurrent `IC_HV` aftermath positions and tighten `AFTERMATH_OFF_PEAK_PCT` from `0.05` to `0.10`. This combined shape clearly beats either component alone. Variant A by itself (`cap=2`) still adds real alpha but worsens max drawdown materially (`-43%`); Variant B by itself lowers drawdown sharply but leaves much of the second-peak alpha uncaptured. The combination delivers the full practical point of the research: about `+$47K` additional system PnL, Sharpe about `+0.02`, and max drawdown only about `+4%` worse than baseline. It also fully resolves the original `2026-03` double-spike trigger case with two captured aftermath entries (`2026-03-09` and `2026-03-10`). Cap sweep results further show that `cap=3` is strictly unattractive on a risk-adjusted basis, while higher caps do not add enough certainty to justify losing the “small and controlled” character of `cap=2`
+- Risks / Counterarguments: this is still not “no-risk alpha.” The `+$47K` is backtest-driven over a sparse historical sample, and Phase 2 did not add a bootstrap CI. The chosen `0.10` threshold was selected by PM rather than by a full sensitivity grid, so it should be treated as a pragmatic rule choice rather than a proven global optimum. Engine-level changes are also more sensitive than the prior SPEC-064 selector-only bypass, because the implementation touches concurrency behavior in `backtest/engine.py` and therefore needs explicit regression protection to guarantee non-`IC_HV` strategies remain single-slot
+- Confidence: medium-high
+- Next Tests: the natural next step is no longer another research branch, but a narrow DRAFT Spec (`SPEC-066`) with strong acceptance criteria: `IC_HV` concurrent cap default `2`, `AFTERMATH_OFF_PEAK_PCT = 0.10`, expected PnL uplift around `+$47K` within tolerance, max drawdown no worse than about `+10%`, explicit reproduction of the `2026-03-09 / 2026-03-10` double-spike case, and explicit regression checks that non-`IC_HV` strategies remain single-slot. Optional hardening such as bootstrap CI can be added in Spec review if PM wants extra rigor
+- Recommendation: ready for DRAFT Spec
+- Related Question: `Q018`
+- See: `sync/open_questions.md`, `doc/research_notes.md`
 
 ### R-20260419-10 — Q018 Phase 1 produced two credible directions, but not a decisive remedy
 

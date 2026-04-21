@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-04-19（Quant，Q018 Phase 1 完成：变体 A 逐笔重放 +$47,735 / 变体 B MaxDD -36%；等待 PM 选择 Phase 2 子路径）
+最后更新：2026-04-20（Planner，SPEC-066 review 通过并 DONE；新增 Q020）
 
 ---
 
@@ -61,7 +61,7 @@
 - **来源**：Q017 研究输出，2026-04-19；`SPEC-064` shipped 2026-04-19
 
 ### Q018 — HIGH_VOL aftermath 单槽位约束在 double-spike 事件中是否错过第二峰
-- **状态**：Phase 1 done（2026-04-19），等待 PM 决策是否进入 Phase 2
+- **状态**：resolved into `SPEC-066`（2026-04-20，DONE）
 - **内容**：`SPEC-064` 上线后的第一次真实 `double VIX spike` 复盘（`2026-03`）显示，第一峰触发了 `2026-03-09` 的 `IC_HV` aftermath 开仓，但第二峰回落期间的 `2026-03-31 / 2026-04-01 / 2026-04-02` 三天，selector 离线重跑本应再次路由到 `IC_HV aftermath`，却被 engine `_already_open` 的单槽位约束阻挡。第一笔仓位直到 `2026-04-08` 才以 `50pct_profit` 平仓，届时 regime 已回 `NORMAL`，第二峰窗口整体错过
 - **关键不确定性**：这不自动等于"应放开多槽位"。替代解释同样成立：也许应收紧第一次 aftermath 开仓条件（例如 `off_peak >= 10%`），为第二峰保留 slot，而不是允许并发两笔 `IC_HV`
 
@@ -106,13 +106,70 @@ Prototype 文件：
 - Phase 1b 精确重放后，变体 A 的实际净值 `+$47,735` 明显超过近似上限 `$36,828`，灾难窗口 `2/4` 仍赚钱，单一毁灭性案例仅 `2008-09`
 - 结论：两条路径都有可取之处，**不能仅凭 Phase 1 做最终决策**
 
-- **建议下一步 / Phase 2 候选**：
-  - A. 把 BP ceiling + shock_engine + overlay 加入变体 A 模拟，看 `2008-09` 那笔是否真会被强平或根本无法开仓
-  - B. 变体 A 与变体 B 的组合（多槽 + 收紧阈值双保险）是否进一步优化 Sharpe / MaxDD
-  - C. 变体 B 内部 sensitivity（OFF_PEAK 从 `0.05` 扫到 `0.15`，`stop_mult` 扫描）
-  - D. ex-ante significance（bootstrap CI）补齐
-- **当前归类**：research only — 等待 PM 指示进入 Phase 2 具体子路径
-- **来源**：`SPEC-064` post-ship real-world review，2026-04-19
+#### Phase 2 Prototype 结果（2026-04-20）
+
+Prototype 文件：
+- [backtest/prototype/q018_phase2a_full_engine.py](backtest/prototype/q018_phase2a_full_engine.py) — 变体 A 全 engine（BP + shock + overlay 全部就位，IC_HV `cap=2`）
+- [backtest/prototype/q018_phase2b_combo.py](backtest/prototype/q018_phase2b_combo.py) — A + B 组合对比（cap=2 + OFF_PEAK 0.10）
+- [backtest/prototype/q018_phase2c_unlimited.py](backtest/prototype/q018_phase2c_unlimited.py) — IC_HV 完全不限个数、仅 BP gate
+- [backtest/prototype/q018_phase2d_cap_sweep.py](backtest/prototype/q018_phase2d_cap_sweep.py) — cap 扫描 `{1, 2, 3, 4, 5, 7}` × B filter
+
+**Phase 2-A — 变体 A 全 engine 复核（`cap=2`，无 B）**
+- 系统级：n `+34`、total `+$24,676`、Sharpe `-0.02`
+- **MaxDD：`-$20,464 → -$29,356`（恶化 `43%`）**
+- Phase 1b 的 `+$47,735` 上限下调到现实的 `+$24,676`：`36` 个 cluster 中实际仅 `24` 个开仓（BP 挡了 `12` 个），另 `2` 笔 baseline IC_HV 被多槽位挤掉
+- 灾难窗口：`2008-09` 第二槽 `-$7,574` stop，与 Phase 1b 预测几乎一致，shock / overlay 未能救场
+- **2026-03 trigger case 开仓 `+$2,839`**，PM 原始问题解决
+
+**Phase 2-B — 四象限对比（baseline / A / B / A+B，`cap=2`）**
+| Variant | n | Total PnL | Sharpe | MaxDD |
+|---|---|---|---|---|
+| baseline | 347 | +$393K | 0.40 | -$20,464 |
+| A (`cap=2`) | 381 | +$418K | 0.38 | -$29,356 |
+| B (`0.10`) | 345 | +$402K | 0.41 | **-$13,187（-36%）** |
+| **A+B (`cap=2`)** | 378 | **+$440K** | **0.42** | -$19,706（+4%）|
+
+A+B 同时拿到 `+$47K`、Sharpe `+0.02`、MaxDD 几乎持平——**远优于单 A 或单 B**。A+B 在灾难窗口只剩 `5` 笔（`2020 COVID ×2`、`2025 Tariff ×3`），`2008-09` 被 B 彻底过滤。
+
+**Phase 2-C — IC_HV 无上限（只靠 BP）**
+- 数学上限：`bp_target 7%` / ceiling `50%` → 最多 `7` 槽
+- 无 B 的无限制版本：`+$54K`、MaxDD **`-$40,723`（恶化 `99%`）**，`2008-09` 开了 `3` 笔全部 stop，合计 `-$22K`
+- 加 B 的无限制版本：`+$81K`、Sharpe `0.43`、MaxDD `-$25K`（恶化 `24%`）
+- 关键观察：加 B 后 `2008` 全部被过滤，BP 约束仍然有意义，但 slot 集中度风险显性化
+
+**Phase 2-D — cap sweep {1, 2, 3, 4, 5, 7} + B**
+| Cap | n | Total PnL | Sharpe | MaxDD | PnL/$DD |
+|---|---|---|---|---|---|
+| 1+B | 345 | +$401.6K | 0.41 | **-$13.2K** | **30.46** |
+| **2+B** | **378** | **+$440.1K** | **0.42** | **-$19.7K** | **22.33** |
+| 3+B | 391 | +$445.3K | 0.41 | -$27.3K | 16.33（严格支配）|
+| 4+B | 398 | +$458.3K | 0.42 | -$27.8K | 16.51 |
+| 5+B | 402 | +$467.2K | 0.43 | -$25.4K | 18.38 |
+| 7+B | 406 | +$474.6K | 0.43 | -$25.4K | 18.67 |
+
+**边际分析**：
+- `1→2`: `+$38.5K` PnL for `+$6.5K` DD → **$5.91 per $DD**（值得）
+- `2→3`: `+$5.2K` PnL for `+$7.6K` DD → **$0.69 per $DD**（非常不值）
+- `3→4`: `+$13K` PnL for `+$487` DD → `$26.67`（反弹）
+- `4→5` / `5→7`: DD 持平或改善，$earned/$DD 趋于无穷
+
+**2026-03 double-spike**：cap=2 就完整捕捉 `2026-03-09` + `2026-03-10` 两笔（`+$5,858`），更高 cap 对此场景零增益
+
+**灾难窗口**：所有 cap ≥ 2 的灾难交易数 / PnL **完全一致**（`5` 笔、`-$4,720`）——额外 slot 从未被灾难触发
+
+#### PM 选定最终方案（2026-04-20）
+
+**`cap=2 + B`** = IC_HV 最多 `2` 笔并发 + `AFTERMATH_OFF_PEAK_PCT = 0.10`
+
+选择理由：
+1. 2026-03 PM 原触发 case 完整解决
+2. `+$47K` 系统 PnL、Sharpe `+0.02`，MaxDD 几乎持平（`+4%`）
+3. `cap=3` 被严格支配，`cap≥3` 的边际收益（共 `+$34K`）需承受 `+$6K` 以上 MaxDD 恶化，历史样本稀疏、泛化性存疑
+4. `cap=2` 的集中度上限明确（最多 `14%` BP 锁在同策略），operational risk 可控
+
+- **当前归类**：done via `SPEC-066`
+- **收口说明**：最终 review 结论为 `PASS with spec adjustment -> DONE`。Developer 无需补改代码；`AC4` 被修正为逻辑级约束，`AC10` 的 artifact count 预期区间从 `[33,40]` 校正为 `[45,55]`，实测 `49` 正确
+- **来源**：`SPEC-064` post-ship real-world review，2026-04-19 → 2026-04-20 Phase 2 完成；`SPEC-066` 于 2026-04-20 review 通过并 DONE
 
 ### Q019 — backtest 的收盘口径 VIX 与 live recommendation 的开盘 / 早盘 VIX 口径是否存在系统性偏差
 - **状态**：open
@@ -128,6 +185,27 @@ Prototype 文件：
   - 输出：route 变化次数、gate 变化次数、aftermath 变化次数、受影响 trade 数、主要集中在哪些日期 / regime / strategy
 - **当前归类**：research only
 - **来源**：PM 新增研究问题，2026-04-19
+
+### Q020 — `Q018 / SPEC-066` 的 aftermath 多槽位语义是否设错：应抓第二峰回落，而不是 back-to-back 连抓两次
+- **状态**：open
+- **内容**：PM 在复盘 `2026-03` 的 double-spike 真实案例时指出，当前 `SPEC-066` 的 `cap=2 + B` 逻辑虽然成功捕捉了两笔 `IC_HV`（`2026-03-09` 与 `2026-03-10`），但这两笔是紧邻的 back-to-back 开仓，而不是“第一峰后的机会未完成、第二个峰值形成后再抓第二次回落”。若策略设计的真正意图是后者，那么 `Q018` 研究与 `SPEC-066` 的收益中，可能混入了语义错误的 alpha
+- **关键问题**：需要区分三件事：
+  1. `cap=2 + B` 的增量收益里，有多少来自同一峰后的紧邻 back-to-back `IC_HV`
+  2. 有多少来自真正的 distinct-second-peak aftermath 机会
+  3. 如果要求“第二笔必须对应新峰或至少满足 re-arm 语义”，当前 `SPEC-066` 的 `+$47K / Sharpe +0.02` 还剩多少
+- **为什么这不是直接回滚**：目前这只是语义与归因问题，不是已证实的实现错误。`SPEC-066` 仍可能在总量上有效，只是研究目标可能定义得过宽。应先做归因研究，再决定是：
+  - 保留 `SPEC-066`
+  - 收紧为“distinct-second-peak only”
+  - 或推翻并重做 aftermath 多槽位逻辑
+- **建议最小 Phase 1**：
+  - 将 `SPEC-066` 新增的 `IC_HV` 交易拆成：
+    - 同峰 back-to-back
+    - distinct-second-peak
+    - 其他
+  - 对比各自的 trade count / total PnL / avg / Sharpe / MaxDD 贡献
+  - 同时构造一个对照变体：`single-slot + re-arm only after new peak`
+- **当前归类**：research only
+- **来源**：PM 对 `2026-03` 真实 double-spike case 的语义复盘，2026-04-20
 
 ### Q003 — L3 Hedge 实盘实现（v2）
 - **状态**：open

@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-04-19
+Last Updated: 2026-04-20
 Owner: Planner or PM
 
 ## Current Phase
@@ -11,8 +11,8 @@ Owner: Planner or PM
 ## Current System Snapshot
 
 - Recommended production posture: preserve current strategy matrix and add only research-backed, low-regret changes.
-- Latest full strategy status doc: `doc/strategy_status_2026-04-16.md`
-- Latest system status doc: `doc/system_status_2026-04-07.md`
+- Latest full strategy status doc: `doc/strategy_status_2026-04-20.md`
+- Latest system status doc: `doc/system_status_2026-04-20.md`
 - Live runtime host has moved to `old Air`; canonical running services now live there, not on the main machine
 - Canonical runtime services on old Air:
   - `com.spxstrat.bot`
@@ -37,7 +37,7 @@ Owner: Planner or PM
 - `Q002` — Shock active mode still needs Phase B validation — `open`
 - `Q012` — `/ES` short put path is now the preferred production candidate; remaining question is shared-BP management with SPX Credit and how far to extend the MVP beyond Layer 2 — `open`
 - `Q013` — `/ES` short put runtime stop execution and post-entry management remain undefined in production — `open`
-- `Q018` — Phase 1 is now done: multi-slot replay and tighter-aftermath-threshold both look attractive, but neither has won decisively enough to justify a Spec. The question is now which Phase 2 branch to prioritize — `research`
+- `Q020` — `Q018 / SPEC-066` may have optimized the wrong aftermath semantic: the second `IC_HV` should likely target a distinct second VIX peak, not a back-to-back re-entry immediately after the first peak — `research`
 - `Q019` — backtests currently use end-of-day VIX series, while live recommendation decisions are made off the opening / early-session VIX context; this time-basis mismatch may materially affect routing, gate triggers, and aftermath detection — `research`
 - `Q011` — regime decay DIAGONAL sample is still small — `monitoring`
 - `Q003` — L3 Hedge v2 live implementation — `open`
@@ -47,11 +47,17 @@ Owner: Planner or PM
 ## Next Priorities
 
 - `P1` — open a narrow follow-up Spec for `/ES` runtime safeguards, with minimum scope of stop-condition monitoring plus bot alerting
-- `P2` — choose whether `Q018` should enter Phase 2, and if so on which branch: (A) multi-slot realism with BP / overlay / shock constraints, (B) multi-slot plus tighter aftermath threshold, or (C) threshold-tightening sensitivity first. `Q019` remains behind this until the open-vs-close VIX timing effect is measured
-- `P3` — continue validating dependency-bound items before promoting broader sizing logic or additional HIGH_VOL changes into new Specs
+- `P2` — before extending the HIGH_VOL line further, test `Q020`: whether `SPEC-066` alpha is materially driven by semantically wrong back-to-back `IC_HV` entries rather than true second-peak aftermath capture
+- `P3` — after `Q020`, continue `Q019` and measure how much open-based / early-session VIX would change `SPEC-064` and adjacent HIGH_VOL cells
+- `P4` — continue validating dependency-bound items before promoting broader sizing logic or additional HIGH_VOL changes into new Specs
 
 ## Recent Meaningful Changes
 
+- 2026-04-20 — PM surfaced a new follow-up concern on the `Q018 / SPEC-066` line: the intended behavior in a double-spike pattern is not “allow two back-to-back `IC_HV` entries,” but “allow a second `IC_HV` only after a distinct second VIX peak begins to mean-revert.” This raises the possibility that part of the `cap=2 + B` alpha was earned under the wrong semantic, so a new research item `Q020` has been opened to measure how much of the result depends on back-to-back re-entry versus genuine second-peak capture — `See: RESEARCH_LOG.md`, `sync/open_questions.md`
+- 2026-04-20 — `SPEC-066` review is now closed with **PASS with spec adjustment**, and the spec has been moved to `DONE`. No code changes were needed after Developer handoff: Quant concluded `AC4` was over-constrained at the trade-set level and correctly rewrote it as a logic-level invariant, and `AC10`’s original `[33,40]` artifact-count expectation was simply miscalculated and has been corrected to `[45,55]`. Core implementation stands: `IC_HV_MAX_CONCURRENT = 2`, `AFTERMATH_OFF_PEAK_PCT = 0.10`, the `2026-03-09 / 2026-03-10` double-spike pair is captured, and `2008-09` remains filtered — `See: task/SPEC-066.md`
+- 2026-04-20 — Developer implemented `SPEC-066`, regenerated local artifacts, and wrote handoff. Core intent is working: `IC_HV_MAX_CONCURRENT = 2`, `AFTERMATH_OFF_PEAK_PCT = 0.10`, the `2026-03-09 / 2026-03-10` double-spike pair is captured, `2008-09` remains filtered, and system-level PnL / Sharpe / MaxDD all land near target. However, two acceptance criteria remain open: `AC4` (non-`IC_HV` trade-set drift) and `AC10` (research-view count now `49`, above the old expected range). This means `SPEC-066` is implemented but not yet closed — `See: task/SPEC-066_handoff.md`
+- 2026-04-20 — `SPEC-066` has been moved to `APPROVED`. The selected `Q018` landing shape is now fixed as `cap=2 + B` (`IC_HV` max concurrent = 2 plus `AFTERMATH_OFF_PEAK_PCT 0.10`), and the next step is standard Developer implementation rather than further Planner-side branch selection — `See: task/SPEC-066.md`, `RESEARCH_LOG.md`
+- 2026-04-20 — Quant completed `Q018 Phase 2` and PM selected the final research outcome: `cap=2 + B` (`IC_HV` max concurrent = 2 plus `AFTERMATH_OFF_PEAK_PCT 0.10`). The combined shape materially outperformed either component alone, with expected system improvement around `+$47K`, Sharpe about `+0.02`, and max drawdown nearly flat. This is now strong enough to justify a narrow DRAFT candidate, though it still sits behind `/ES` runtime safeguards in queue priority — `See: RESEARCH_LOG.md`, `sync/open_questions.md`
 - 2026-04-19 — Quant completed `Q018 Phase 1`: the single-slot aftermath question now has two credible but unresolved directions. Variant A (aftermath multi-slot replay) produced about `+$47,735` across `36` replayed trades with concentrated tail risk in `2008-09`, while Variant B (`AFTERMATH_OFF_PEAK_PCT 0.05 -> 0.10`) improved max drawdown by about `36%` at very low implementation cost. This is still research, not Spec, because the key realism gaps (BP ceiling, shock / overlay interaction, and significance hardening) remain open — `See: RESEARCH_LOG.md`, `sync/open_questions.md`
 - 2026-04-19 — PM opened a new research track `Q019` around time-basis mismatch: backtests use end-of-day VIX, while live recommendation uses opening / early-session VIX context. This may affect HIGH_VOL / NORMAL routing, `VIX_RISING`, `ivp63`-style gates, and aftermath detection, so it should be studied before any production reinterpretation of recent live behavior — `See: RESEARCH_LOG.md`, `sync/open_questions.md`
 - 2026-04-19 — `SPEC-064` (`HIGH_VOL Aftermath IC_HV Bypass`) shipped to production and passed review, and `SPEC-065` (`Research View Pill for SPEC-064`) also shipped and passed review. PM review of the real 2026-03 double-VIX-spike case surfaced a new research track `Q018`: the single-slot engine constraint appears to have blocked the second peak’s aftermath opportunity, but that is still a research question rather than a new Spec candidate — `See: RESEARCH_LOG.md`, `sync/open_questions.md`
