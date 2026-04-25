@@ -315,8 +315,9 @@
   - `2A-lite retrospective` 显示
   - `EXTREME_VOL` hard stop 已经 mitigate 2008 GFC 假设 tail
   - Phase 1 Variant A 预期的 `2008-09 -7968` 单笔损失，在整合 stack 下不再 materialize
-- 依据：
-  - `2A-lite`
+- 依据： 
+  - Q018 R8 retrospective
+  - `2A-lite` 
   - `2C-lite`
 - 相关 SPEC：`SPEC-066`
 
@@ -623,7 +624,7 @@
 - 未来所有涉及：
   - `PnL`
   - `worst`
-  - `SegMaxDD`
+  - `SeqMaxDD`
   - `BP`
   - handoff / SPEC / RDD
 - 必须同时含：
@@ -660,7 +661,7 @@
 
 ### 计划 1：等待 PM 决定 `Q019` 走 `A / B / C`
 
-- 若 `A`：写 `RDD-0019 CLOSE`
+- 若 `A`：写 `RDD-Q019 CLOSE`
 - 若 `B`：Phase 2 重跑 `SPEC-066` 和 `SPEC-071` 关键 sample 的 open-based reproduction
 - 若 `C`：给 `CLAUDE.md` 增加 aftermath 双口径 sensitivity 规则
 
