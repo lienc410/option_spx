@@ -473,15 +473,15 @@ def _update_hv_spell_state(
     vix: float,
     date: pd.Timestamp,
     hv_spell_start: Optional[pd.Timestamp],
-    hv_spell_trade_count: int,
+    hv_spell_trade_count: dict[str, int],
     extreme_vix: float,
-) -> tuple[Optional[pd.Timestamp], int]:
+) -> tuple[Optional[pd.Timestamp], dict[str, int]]:
     in_high_vol_spell = regime == Regime.HIGH_VOL and vix < extreme_vix
     if in_high_vol_spell:
         if hv_spell_start is None:
             hv_spell_start = date
         return hv_spell_start, hv_spell_trade_count
-    return None, 0
+    return None, {}
 
 
 def _block_hv_spell_entry(
@@ -489,7 +489,7 @@ def _block_hv_spell_entry(
     vix: float,
     new_key: str | None,
     hv_spell_start: Optional[pd.Timestamp],
-    hv_spell_trade_count: int,
+    hv_spell_trade_count: dict[str, int],
     params: StrategyParams,
     date: pd.Timestamp,
 ) -> bool:
@@ -500,7 +500,7 @@ def _block_hv_spell_entry(
     spell_age = (date - hv_spell_start).days if hv_spell_start is not None else 0
     if spell_age > params.spell_age_cap:
         return True
-    if hv_spell_trade_count >= params.max_trades_per_spell:
+    if hv_spell_trade_count.get(new_key, 0) >= params.max_trades_per_spell:
         return True
     return False
 
@@ -673,7 +673,7 @@ def run_backtest(
         account_size=account_size,
     )
     hv_spell_start: Optional[pd.Timestamp] = None
-    hv_spell_trade_count = 0
+    hv_spell_trade_count: dict[str, int] = {}
     bearish_streak = 0
 
     for i, (date, row) in enumerate(df.iterrows()):
@@ -1001,7 +1001,7 @@ def run_backtest(
                         print(f"  ENTER {date.date()}  {rec.strategy.value:<25}  "
                               f"value: {ev:+.2f}  VIX:{vix:.1f}")
                     if rec_key in HIGH_VOL_STRATEGY_KEYS:
-                        hv_spell_trade_count += 1
+                        hv_spell_trade_count[rec_key] = hv_spell_trade_count.get(rec_key, 0) + 1
 
         open_marks = {
             _position_id(position): _position_unrealized_pnl(position, spx, sigma, account_size)
@@ -1103,7 +1103,7 @@ def run_signals_only(
 
     signal_history: list[dict] = []
     hv_spell_start: Optional[pd.Timestamp] = None
-    hv_spell_trade_count = 0
+    hv_spell_trade_count: dict[str, int] = {}
     bearish_streak = 0
 
     for date, row in df.iterrows():

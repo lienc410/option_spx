@@ -1,6 +1,6 @@
 # SPEC-068: HV Spell Throttle → Per-Strategy Dict
 
-Status: APPROVED
+Status: DONE
 
 ## 目标
 
@@ -166,3 +166,19 @@ if rec_key in HIGH_VOL_STRATEGY_KEYS:
 |---|---|---|
 | 2026-04-24 | 初稿 — MC v3 handoff 同步项；HC 防御性复现（per audit doc D2 PM 决策 (a)）| DRAFT |
 | 2026-04-24 | PM 批量预批（070/068/069/071/072 一起），交 Developer 实施 | APPROVED |
+| 2026-04-24 | Developer 实施完成；全回测释放出 1 笔此前被 aggregate HV spell counter 错挡的 `BPS_HV` 交易（2025-05-02），其余结构保持稳定；Status 置为 DONE | DONE |
+
+## Review
+
+- **结论：PASS -> DONE**
+- AC1 / AC2 / AC3 / AC4 / AC5 / AC7 / AC8 通过
+- AC6 的“与 SPEC-070 v2 baseline 一致或仅 HV cascade”按第二种情况通过：本次不是零影响，而是释放出 1 笔真实 HV 交易
+  - 新增交易：`Bull Put Spread (High Vol)`，`2025-05-02 -> 2025-05-13`
+  - PnL：`+1,727.97`
+  - 其余所有既有策略的 trade count 保持不变
+- 基线对照结果：
+  - system trade count `59 -> 60`
+  - total PnL `79,736.85 -> 81,464.82` (`+1,727.97`)
+  - Sharpe `2.09 -> 2.13` (`+0.04`)
+  - MaxDD 不变
+- 结论上，这个 SPEC 不是纯 no-op，但它修复的是正确方向的限制：aggregate HV spell budget 曾错误阻挡了其他 HV 策略，per-strategy dict 释放出一笔独立 `BPS_HV` 交易，且未引起广泛 drift

@@ -37,27 +37,39 @@ class Spec017And015Tests(unittest.TestCase):
 
     def test_hv_spell_state_tracks_and_resets(self) -> None:
         day = pd.Timestamp("2022-04-01")
-        start, count = _update_hv_spell_state(Regime.HIGH_VOL, 26.0, day, None, 0, 35.0)
+        start, count = _update_hv_spell_state(Regime.HIGH_VOL, 26.0, day, None, {}, 35.0)
         self.assertEqual(start, day)
-        self.assertEqual(count, 0)
+        self.assertEqual(count, {})
 
-        start2, count2 = _update_hv_spell_state(Regime.NORMAL, 19.0, day + pd.Timedelta(days=1), start, 2, 35.0)
+        start2, count2 = _update_hv_spell_state(
+            Regime.NORMAL, 19.0, day + pd.Timedelta(days=1), start, {"iron_condor_hv": 2}, 35.0
+        )
         self.assertIsNone(start2)
-        self.assertEqual(count2, 0)
+        self.assertEqual(count2, {})
 
-        start3, count3 = _update_hv_spell_state(Regime.HIGH_VOL, 36.0, day + pd.Timedelta(days=2), start, 2, 35.0)
+        start3, count3 = _update_hv_spell_state(
+            Regime.HIGH_VOL, 36.0, day + pd.Timedelta(days=2), start, {"iron_condor_hv": 2}, 35.0
+        )
         self.assertIsNone(start3)
-        self.assertEqual(count3, 0)
+        self.assertEqual(count3, {})
 
     def test_hv_spell_entry_block_and_noop_config(self) -> None:
         params = StrategyParams()
         start = pd.Timestamp("2022-04-01")
         late_day = start + pd.Timedelta(days=31)
         self.assertTrue(
-            _block_hv_spell_entry(Regime.HIGH_VOL, 27.0, "bull_put_spread_hv", start, 0, params, late_day)
+            _block_hv_spell_entry(Regime.HIGH_VOL, 27.0, "bull_put_spread_hv", start, {}, params, late_day)
         )
         self.assertTrue(
-            _block_hv_spell_entry(Regime.HIGH_VOL, 27.0, "iron_condor_hv", start, 2, params, start + pd.Timedelta(days=5))
+            _block_hv_spell_entry(
+                Regime.HIGH_VOL,
+                27.0,
+                "iron_condor_hv",
+                start,
+                {"iron_condor_hv": 2},
+                params,
+                start + pd.Timedelta(days=5),
+            )
         )
 
         noop = StrategyParams(
@@ -66,7 +78,15 @@ class Spec017And015Tests(unittest.TestCase):
             max_short_gamma_positions=999,
         )
         self.assertFalse(
-            _block_hv_spell_entry(Regime.HIGH_VOL, 27.0, "bull_put_spread_hv", start, 2, noop, late_day)
+            _block_hv_spell_entry(
+                Regime.HIGH_VOL,
+                27.0,
+                "bull_put_spread_hv",
+                start,
+                {"iron_condor_hv": 2},
+                noop,
+                late_day,
+            )
         )
         self.assertFalse(_block_short_gamma_limit({"bull_put_spread", "iron_condor"}, "bear_call_spread_hv", noop.max_short_gamma_positions))
 
