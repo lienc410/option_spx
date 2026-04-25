@@ -592,14 +592,14 @@ def select_strategy(
                     iv=iv,
                     trend=trend,
                     legs=[
-                        Leg("SELL", "CALL", 45, 0.16,
-                            "Upper short wing — rich HIGH_VOL call premium"),
-                        Leg("BUY",  "CALL", 45, 0.08,
-                            "Upper long wing"),
-                        Leg("SELL", "PUT",  45, 0.16,
-                            "Lower short wing — rich HIGH_VOL put premium"),
+                        Leg("SELL", "CALL", 45, 0.12,
+                            "Upper short wing — aftermath (broken-wing V3-A)"),
+                        Leg("BUY",  "CALL", 45, 0.04,
+                            "Upper long wing — broken-wing tighter (V3-A)"),
+                        Leg("SELL", "PUT",  45, 0.12,
+                            "Lower short wing — aftermath (broken-wing V3-A)"),
                         Leg("BUY",  "PUT",  45, 0.08,
-                            "Lower long wing"),
+                            "Lower long wing — symmetric (V3-A)"),
                     ],
                     size_rule=(
                         f"{int(params.high_vol_size*100)}% size — risk ≤ "
@@ -715,14 +715,14 @@ def select_strategy(
                     iv=iv,
                     trend=trend,
                     legs=[
-                        Leg("SELL", "CALL", 45, 0.16,
-                            "Upper short wing — inflated HIGH_VOL call premium"),
-                        Leg("BUY",  "CALL", 45, 0.08,
-                            "Upper long wing"),
-                        Leg("SELL", "PUT",  45, 0.16,
-                            "Lower short wing — inflated HIGH_VOL put premium"),
+                        Leg("SELL", "CALL", 45, 0.12,
+                            "Upper short wing — aftermath (broken-wing V3-A)"),
+                        Leg("BUY",  "CALL", 45, 0.04,
+                            "Upper long wing — broken-wing tighter (V3-A)"),
+                        Leg("SELL", "PUT",  45, 0.12,
+                            "Lower short wing — aftermath (broken-wing V3-A)"),
                         Leg("BUY",  "PUT",  45, 0.08,
-                            "Lower long wing"),
+                            "Lower long wing — symmetric (V3-A)"),
                     ],
                     size_rule=(
                         f"{int(params.high_vol_size*100)}% size — risk ≤ "

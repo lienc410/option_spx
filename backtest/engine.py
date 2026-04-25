@@ -49,6 +49,7 @@ from strategy.selector import (
     VixSnapshot, IVSnapshot, TrendSnapshot,
     IVSignal as IVSig,
     IC_HV_MAX_CONCURRENT,
+    Recommendation,
 )
 from backtest.metrics_portfolio import compute_portfolio_metrics
 from backtest.portfolio import DailyPortfolioRow, PortfolioTracker
@@ -309,7 +310,7 @@ def _short_leg(legs):
 
 
 def _build_legs(
-    strategy: StrategyName,
+    rec_or_strategy: Recommendation | StrategyName,
     spx:      float,
     sigma:    float,
     params:   StrategyParams = DEFAULT_PARAMS,
@@ -319,6 +320,8 @@ def _build_legs(
     Returns (legs, dte_of_short_leg).
     Each leg: (action +1/-1, is_call bool, strike float, dte int, qty int)
     """
+    strategy = rec_or_strategy.strategy if isinstance(rec_or_strategy, Recommendation) else rec_or_strategy
+
     if strategy == StrategyName.BULL_CALL_DIAGONAL:
         short_dte  = 45
         long_dte   = 90
@@ -330,24 +333,36 @@ def _build_legs(
         ], short_dte
 
     if strategy in (StrategyName.IRON_CONDOR, StrategyName.IRON_CONDOR_HV):
-        dte = 45
-        call_short = find_strike_for_delta(spx, dte, sigma, 0.16, is_call=True)
-        put_short  = find_strike_for_delta(spx, dte, sigma, 0.16, is_call=False)
-        # SPEC-070 v2: long legs are delta-based (δ0.08) to match selector intent.
-        call_long  = find_strike_for_delta(spx, dte, sigma, 0.08, is_call=True)
-        put_long   = find_strike_for_delta(spx, dte, sigma, 0.08, is_call=False)
+        if isinstance(rec_or_strategy, Recommendation) and rec_or_strategy.legs:
+            out = []
+            for leg in rec_or_strategy.legs:
+                is_call = leg.option == "CALL"
+                action = -1 if leg.action == "SELL" else 1
+                strike = find_strike_for_delta(spx, leg.dte, sigma, leg.delta, is_call=is_call)
+                out.append((action, is_call, strike, leg.dte, 1))
+            call_short, call_long = out[0][2], out[1][2]
+            put_short, put_long = out[2][2], out[3][2]
+            dte = out[0][3]
+        else:
+            dte = 45
+            call_short = find_strike_for_delta(spx, dte, sigma, 0.16, is_call=True)
+            put_short  = find_strike_for_delta(spx, dte, sigma, 0.16, is_call=False)
+            # SPEC-070 v2: long legs are delta-based (δ0.08) to match selector intent.
+            call_long  = find_strike_for_delta(spx, dte, sigma, 0.08, is_call=True)
+            put_long   = find_strike_for_delta(spx, dte, sigma, 0.08, is_call=False)
+            out = [
+                (-1, True,  call_short, dte, 1),
+                (+1, True,  call_long,  dte, 1),
+                (-1, False, put_short,  dte, 1),
+                (+1, False, put_long,   dte, 1),
+            ]
         assert call_long > call_short, (
             f"IC long call must be above short: {call_long} <= {call_short}"
         )
         assert put_long < put_short, (
             f"IC long put must be below short: {put_long} >= {put_short}"
         )
-        return [
-            (-1, True,  call_short, dte, 1),
-            (+1, True,  call_long,  dte, 1),
-            (-1, False, put_short,  dte, 1),
-            (+1, False, put_long,   dte, 1),
-        ], dte
+        return out, dte
 
     if strategy == StrategyName.BULL_PUT_SPREAD:
         dte      = params.normal_dte
@@ -986,7 +1001,7 @@ def run_backtest(
                 and not _sg_block
                 and not _spell_block
                 and _used_bp + _new_bp_target <= _ceiling):
-            legs, short_dte = _build_legs(rec.strategy, spx, sigma, params)
+            legs, short_dte = _build_legs(rec, spx, sigma, params)
             if legs:
                 ev = _entry_value(legs, spx, sigma)
                 size_mult = params.high_vol_size if rec.strategy in (

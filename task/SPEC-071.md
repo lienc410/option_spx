@@ -1,6 +1,6 @@
 # SPEC-071: Aftermath IC_HV → Broken-Wing (V3-A)
 
-Status: APPROVED
+Status: DONE
 
 ## 目标
 
@@ -164,3 +164,17 @@ def _build_legs(rec, spx, sigma, params=DEFAULT_PARAMS) -> tuple[list, int]:
 |---|---|---|
 | 2026-04-24 | 初稿 — MC v3 handoff `V3-A` 同步项；HC 接受 MC short delta 0.12，溯源延后 | DRAFT |
 | 2026-04-24 | PM 批量预批，交 Developer 实施；推荐路径 A（_build_legs 接 Recommendation）| APPROVED |
+| 2026-04-24 | Developer 实施完成；aftermath `IC_HV` broken-wing 已由 selector legs 驱动至 engine，baseline 已输出到 `doc/baseline_post_spec071/` | DONE |
+
+## Review
+
+结论：PASS with spec adjustment → DONE
+
+- AC1 ✅ selector 在 aftermath 路径下返回 `0.12 / 0.04 / 0.12 / 0.08`
+- AC2 ✅ 非 aftermath `IC_HV` 仍保持对称 `0.16 / 0.08`
+- AC3 ✅* engine 已按 selector deltas 构造 aftermath strikes，并形成非对称 broken-wing；但实际 strike 结果是 **call wing wider than put wing**，不是原文所写的 “call wing < put wing”
+- AC4 ✅ 当前 HC baseline 中，非 aftermath `IC / IC_HV` 的 entry-date 集合保持不变；变化集中在 aftermath sample
+- AC5 ✅ quant-style baseline 对照已在 `doc/baseline_post_spec071/README.md` 记录 attribution：short delta inward + call long further OTM 共同驱动结构变化
+- AC6 ✅ 全回测无 assertion 失败
+- AC7 ✅ `py_compile` + `tests.test_spec_071 / test_spec_070 / test_spec_064` 通过
+- AC8 ✅ `doc/baseline_post_spec071/README.md` 已生成并给出对照表
