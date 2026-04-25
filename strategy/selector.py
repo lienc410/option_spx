@@ -181,7 +181,7 @@ class StrategyName(str, Enum):
     BULL_PUT_SPREAD_HV  = "Bull Put Spread (High Vol)"  # HIGH_VOL regime variant
     BEAR_CALL_SPREAD_HV = "Bear Call Spread (High Vol)"
     BULL_CALL_DIAGONAL  = "Bull Call Diagonal"
-    BEAR_CALL_DIAGONAL  = "Bear Call Diagonal"
+    BEAR_CALL_DIAGONAL  = "Bear Call Diagonal"   # DEPRECATED (SPEC-073) — selector never returns this; retained for prototype script string-compat
     IRON_CONDOR         = "Iron Condor"
     IRON_CONDOR_HV      = "Iron Condor (High Vol)"
     BULL_CALL_SPREAD    = "Bull Call Spread"

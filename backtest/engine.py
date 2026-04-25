@@ -360,18 +360,6 @@ def _build_legs(
             (+1, True, long_k,  dte, 1),
         ], dte
 
-    if strategy == StrategyName.BEAR_CALL_DIAGONAL:
-        # Bearish put diagonal: long deep-ITM put (90 DTE) + short OTM put (45 DTE)
-        # Mirrors BULL_CALL_DIAGONAL but with puts for a bearish directional bias.
-        short_dte = 45
-        long_dte  = 90
-        short_k   = find_strike_for_delta(spx, short_dte, sigma, 0.30, is_call=False)
-        long_k    = find_strike_for_delta(spx, long_dte,  sigma, 0.70, is_call=False)
-        return [
-            (+1, False, long_k,  long_dte,  1),
-            (-1, False, short_k, short_dte, 1),
-        ], short_dte
-
     return [], 30   # REDUCE_WAIT or unrecognised — no legs
 
 
@@ -440,11 +428,6 @@ def _compute_bp(
         # Debit trade: long deep-ITM back-month call + short OTM front-month call.
         # PM treats the long back-month as collateral; max loss ≈ net debit paid.
         bp = entry_value * 100      # entry_value > 0 for debit trades
-        return 0.0, max(bp, 0.0)
-
-    if strategy == StrategyName.BEAR_CALL_DIAGONAL:
-        # Debit trade (mirror of Bull Call Diagonal with puts).
-        bp = entry_value * 100
         return 0.0, max(bp, 0.0)
 
     if strategy == StrategyName.BULL_CALL_SPREAD:

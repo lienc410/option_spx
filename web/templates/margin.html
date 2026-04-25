@@ -379,24 +379,6 @@ BP = net_debit_paid × $100<br>
       </div>
     </div>
 
-    <!-- Bear Call Diagonal -->
-    <div class="strat-card">
-      <div class="strat-card-hd">
-        <span class="strat-card-name">Bear Call Diagonal</span>
-        <span class="badge blue">Debit · directional</span>
-      </div>
-      <div class="strat-card-body">
-        <div class="strat-formula">
-BP = net_debit_paid × $100
-        </div>
-        <div class="strat-example">
-          Mirror of Bull Call Diagonal but with puts for bearish bias.<br>
-          Long 90-DTE put at δ0.70 (deep ITM) + Short 45-DTE put at δ0.30 (OTM).<br>
-          Same logic: BP = debit paid = risk budget → <span class="hi green">BP% = risk_pct = 2.0%</span>.
-        </div>
-      </div>
-    </div>
-
   </div>
 
   <!-- ── Account Summary ──────────────────────────────────────────── -->
@@ -443,12 +425,6 @@ BP = net_debit_paid × $100
           <td><span class="mono">$13,000 – $22,000</span></td>
         </tr>
         <tr>
-          <td>Bear Call Diagonal</td>
-          <td><span class="badge green">2.0%</span></td>
-          <td>Same as Bull Call Diagonal.</td>
-          <td><span class="mono">$20,000 – $28,000</span></td>
-        </tr>
-        <tr>
           <td>Bull Put Spread</td>
           <td><span class="badge gold">6.4%</span></td>
           <td>spread_width (~150 pts) >> credit (~35 pts) → 3× leverage on premium</td>
@@ -477,7 +453,7 @@ BP = net_debit_paid × $100
     <div style="background:var(--surface); border:1px solid var(--border-2); border-radius:10px; padding:18px;">
       <div style="margin-bottom:14px">
         <div class="bp-bar-label">
-          <span>Bull Call Diagonal &amp; Bear Call Diagonal</span>
+          <span>Bull Call Diagonal</span>
           <span style="color:var(--green); font-family:var(--f-mono)">2.0%</span>
         </div>
         <div class="bp-bar-track"><div class="bp-bar-fill" style="width:2.86%; background:var(--green)"></div></div>
