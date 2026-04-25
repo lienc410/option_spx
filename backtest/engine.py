@@ -296,9 +296,15 @@ def _build_legs(
         dte = 45
         call_short = find_strike_for_delta(spx, dte, sigma, 0.16, is_call=True)
         put_short  = find_strike_for_delta(spx, dte, sigma, 0.16, is_call=False)
-        wing       = max(50, round(spx * 0.015 / 50) * 50)   # ~1.5% width, rounded to $50
-        call_long  = call_short + wing
-        put_long   = put_short  - wing
+        # SPEC-070 v2: long legs are delta-based (δ0.08) to match selector intent.
+        call_long  = find_strike_for_delta(spx, dte, sigma, 0.08, is_call=True)
+        put_long   = find_strike_for_delta(spx, dte, sigma, 0.08, is_call=False)
+        assert call_long > call_short, (
+            f"IC long call must be above short: {call_long} <= {call_short}"
+        )
+        assert put_long < put_short, (
+            f"IC long put must be below short: {put_long} >= {put_short}"
+        )
         return [
             (-1, True,  call_short, dte, 1),
             (+1, True,  call_long,  dte, 1),

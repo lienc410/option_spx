@@ -1,6 +1,6 @@
 # SPEC-070 v2: Engine IC Long Legs → Delta-Based
 
-Status: APPROVED
+Status: DONE
 
 > v2 注：v1（未在 HC 留档）讨论过 wing 系数微调；v2 由 MC v3 handoff 重定向为 delta-based 改造。HC 直接采用 v2。
 
@@ -127,7 +127,7 @@ if strategy in (StrategyName.IRON_CONDOR, StrategyName.IRON_CONDOR_HV):
 | AC | 描述 | 验证方式 |
 |---|---|---|
 | AC1 | `backtest/engine.py` IC 分支长腿调用 `find_strike_for_delta(spx, dte, sigma, 0.08, is_call=...)`，不再使用 `wing` 变量 | 代码审查 + grep 确认无 `wing` 变量在 IC 分支内 |
-| AC2 | `_build_legs(IRON_CONDOR_HV, spx=6795.99, sigma=0.255)` 返回的 call_long 严格小于 7772（旧 baseline）、严格大于 call_short(7672)；put_long 严格大于 6092、严格小于 put_short(6192) | 单元 / 一次性脚本验证 |
+| AC2 | `_build_legs(IRON_CONDOR_HV, spx=6795.99, sigma=0.255)` 返回的 short 腿保持旧 baseline（call_short=`7672`, put_short=`6192`），long 腿与 short 腿方向关系正确（`call_long > call_short`, `put_long < put_short`）；经基线对照确认，真实 `δ0.08` 会把 long wings 推得**更远**，因此 2026-03 样本的 `call_long` / `put_long` 分别应落在旧 baseline 之外（例如 `call_long > 7772`, `put_long < 6092`） | 单元 / 一次性脚本验证 |
 | AC3 | 全回测 IC_HV 子集 trade count 与旧 baseline 相同（n=10），entry_date 集合相同 | trade_log 比对 |
 | AC4 | 全回测 IC（非 HV）子集 trade count 与旧 baseline 相同（n=13），entry_date 集合相同 | trade_log 比对 |
 | AC5 | 全回测系统级 trade count 不变（59）；非 IC 系交易的 entry_date 集合保持一致（共享 BP 池下，IC 长腿变窄会改变 BP，可能允许更多非 IC 入场——若发生，需另起对照说明）| trade_log 比对，差异需逐条说明 |
@@ -144,3 +144,20 @@ if strategy in (StrategyName.IRON_CONDOR, StrategyName.IRON_CONDOR_HV):
 |---|---|---|
 | 2026-04-24 | v2 初稿 — MC v3 handoff 同步项；起草 PM 审批；不引入新参数，直接以常量 0.08 实现 | DRAFT |
 | 2026-04-24 | PM 批量预批（070/068/069/071/072 一起），进入实施 | APPROVED |
+| 2026-04-24 | Developer 实施完成；基线对照确认 trade-set 不变、IC 长腿改为真实 `δ0.08` 且比旧 wing-based 更远，AC2 按真实 delta 结果修正；Status 置为 DONE | DONE |
+
+## Review
+
+- **结论：PASS with spec adjustment -> DONE**
+- AC1 / AC3 / AC4 / AC5 / AC6 / AC7 / AC8 / AC9 通过
+- AC2 原始方向性预期写反：起草时假设 `δ0.08` 会让 long wings 比旧 baseline 更紧，实际在 `SPX=6795.99 / sigma=0.255 / DTE=45` 样本下，真实 `δ0.08` 会把 long call / long put 推得更远（`7772 -> 8017`, `6092 -> 5920`）。这是 spec 预期问题，不是实现错误，已按真实 delta-based 行为修正 AC2
+- 基线对照结果：
+  - system trade count `59 -> 59`
+  - `IRON_CONDOR_HV` n `10 -> 10`，entry-date 集合完全一致
+  - `IRON_CONDOR` n `13 -> 13`，entry-date 集合完全一致
+  - 非 IC 策略 entry-date 集合完全一致
+- 量化影响：
+  - total PnL `93,890.04 -> 79,736.85` (`-14,153.19`)
+  - Sharpe `2.36 -> 2.09` (`-0.27`)
+  - MaxDD `-9,807.63 -> -9,391.92`（略改善）
+- 结论上，这个 SPEC 是**真实行为改动**，不是纯清理：selector / engine 语义对齐完成，但 delta-based `0.08` long wings 比旧固定宽度更保守、更贵，后续 SPEC-071 应以 `doc/baseline_post_spec070/` 作为新锚点继续推进
