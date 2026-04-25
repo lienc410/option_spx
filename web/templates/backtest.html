@@ -456,6 +456,7 @@ table.log-tbl { width: 100%; border-collapse: collapse; min-width: 980px; }
 .reason-profit  { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
 .reason-stop    { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red-border); }
 .reason-roll    { background: var(--gold-bg);  color: var(--gold);  border: 1px solid var(--gold-border); }
+.reason-open    { background: rgba(224,128,64,.10); color: var(--orange); border: 1px solid rgba(224,128,64,.28); }
 .reason-default { background: rgba(96,104,128,.07); color: var(--text-2); border: 1px solid rgba(96,104,128,.2); }
 
 /* ── Trade log filter bar ── */
@@ -1930,6 +1931,7 @@ function pnlClass(n) { return n >= 0 ? 'pos' : 'neg'; }
 
 function reasonTag(r) {
   if (!r) return `<span class="reason-tag reason-default">—</span>`;
+  if (r === 'open_at_end') return `<span class="reason-tag reason-open">OPEN</span>`;
   const cls = r.includes('profit') ? 'reason-profit'
             : r.includes('stop')   ? 'reason-stop'
             : r.includes('roll')   ? 'reason-roll'
@@ -2098,6 +2100,9 @@ function renderActiveTradeView() {
 
   const filterBar = document.getElementById('log-filter-bar');
   const strategies = ['All', ...new Set(trades.map(t => t.strategy))];
+  if (trades.some(t => t.open_at_end)) {
+    strategies.push('OPEN');
+  }
   filterBar.innerHTML = '<span class="ctrl-label" style="margin-right:4px">Filter:</span>';
   strategies.forEach(s => {
     const btn = document.createElement('button');
@@ -2476,7 +2481,11 @@ function filterTradeLog(strat, allTrades, sigMap, trendLabel, trendColor) {
   document.querySelectorAll('.log-filter-btn').forEach(b => {
     b.classList.toggle('active', b.textContent === strat);
   });
-  const filtered = strat === 'All' ? allTrades : allTrades.filter(t => t.strategy === strat);
+  const filtered = strat === 'All'
+    ? allTrades
+    : strat === 'OPEN'
+      ? allTrades.filter(t => t.open_at_end)
+      : allTrades.filter(t => t.strategy === strat);
   document.getElementById('log-count').textContent = filtered.length;
   renderTradeRows(filtered, sigMap, trendLabel, trendColor);
 }

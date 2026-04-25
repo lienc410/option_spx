@@ -20,6 +20,7 @@ def make_trade(
     exit_date: str,
     exit_pnl: float,
     exit_reason: str = "roll_21dte",
+    open_at_end: bool = False,
 ) -> Trade:
     return Trade(
         strategy=strategy,
@@ -40,6 +41,7 @@ def make_trade(
         contracts=1.0,
         total_bp=4680.0,
         bp_pct_account=3.12,
+        open_at_end=open_at_end,
     )
 
 
@@ -60,7 +62,8 @@ class Spec062ResearchViewsTests(unittest.TestCase):
             entry_date="2026-01-20",
             exit_date="2026-02-28",
             exit_pnl=0.0,
-            exit_reason="end_of_backtest",
+            exit_reason="open_at_end",
+            open_at_end=True,
         )
         q015_trade = make_trade(
             strategy=StrategyName.BULL_PUT_SPREAD,
@@ -156,6 +159,7 @@ class Spec062ResearchViewsTests(unittest.TestCase):
             {"2026-01-05", "2026-02-03", "2026-02-10", "2026-04-09", "2026-04-24"},
         )
         self.assertTrue(all(t["source_view"] == "baseline" for t in baseline_trades))
+        self.assertTrue(all("open_at_end" in t for t in baseline_trades))
 
         q015_trades = payload["views"]["q015_ivp55_marginal"]["trades"]
         self.assertEqual(len(q015_trades), 1)
@@ -172,6 +176,7 @@ class Spec062ResearchViewsTests(unittest.TestCase):
         self.assertEqual(spec064_trades[0]["entry_date"], "2026-04-09")
         self.assertEqual(spec064_trades[0]["strategy"], StrategyName.IRON_CONDOR_HV.value)
         self.assertEqual(spec064_trades[0]["source_view"], "spec064_aftermath_ic_hv")
+        self.assertFalse(spec064_trades[0]["open_at_end"])
 
     def test_generate_research_views_writes_json_file(self) -> None:
         output = Path(self.tmpdir.name) / "research_views.json"

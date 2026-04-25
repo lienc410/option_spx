@@ -27,7 +27,7 @@ def _trade_identity(trade: Trade) -> tuple[str, str, str]:
 
 
 def _closed_trades(trades: list[Trade]) -> list[Trade]:
-    return [t for t in trades if t.exit_reason != "end_of_backtest"]
+    return [t for t in trades if not t.open_at_end and t.exit_reason != "end_of_backtest"]
 
 
 def _serialize_trade(trade: Trade, *, source_view: str) -> dict:
@@ -51,6 +51,7 @@ def _serialize_trade(trade: Trade, *, source_view: str) -> dict:
         "contracts": round(trade.contracts, 4),
         "total_bp": round(trade.total_bp, 2),
         "bp_pct_account": round(trade.bp_pct_account, 2),
+        "open_at_end": bool(trade.open_at_end),
         "source_view": source_view,
     }
 

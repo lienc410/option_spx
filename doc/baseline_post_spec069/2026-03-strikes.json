@@ -1,0 +1,84 @@
+{
+  "2026-03-09": {
+    "strategy_chosen": "Iron Condor (High Vol)",
+    "spx": 6795.99,
+    "vix": 25.5,
+    "build_legs_call": {
+      "strategy": "Iron Condor (High Vol)",
+      "spx": 6795.9902,
+      "sigma": 0.255,
+      "dte": 45,
+      "legs": [
+        {
+          "action": -1,
+          "is_call": true,
+          "strike": 7672.0,
+          "dte": 45,
+          "qty": 1
+        },
+        {
+          "action": 1,
+          "is_call": true,
+          "strike": 8017.0,
+          "dte": 45,
+          "qty": 1
+        },
+        {
+          "action": -1,
+          "is_call": false,
+          "strike": 6192.0,
+          "dte": 45,
+          "qty": 1
+        },
+        {
+          "action": 1,
+          "is_call": false,
+          "strike": 5920.0,
+          "dte": 45,
+          "qty": 1
+        }
+      ]
+    }
+  },
+  "2026-03-10": {
+    "strategy_chosen": "Iron Condor (High Vol)",
+    "spx": 6781.48,
+    "vix": 24.93,
+    "build_legs_call": {
+      "strategy": "Iron Condor (High Vol)",
+      "spx": 6781.48,
+      "sigma": 0.2493,
+      "dte": 45,
+      "legs": [
+        {
+          "action": -1,
+          "is_call": true,
+          "strike": 7636.0,
+          "dte": 45,
+          "qty": 1
+        },
+        {
+          "action": 1,
+          "is_call": true,
+          "strike": 7974.0,
+          "dte": 45,
+          "qty": 1
+        },
+        {
+          "action": -1,
+          "is_call": false,
+          "strike": 6192.0,
+          "dte": 45,
+          "qty": 1
+        },
+        {
+          "action": 1,
+          "is_call": false,
+          "strike": 5927.0,
+          "dte": 45,
+          "qty": 1
+        }
+      ]
+    }
+  }
+}

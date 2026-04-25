@@ -1,0 +1,23 @@
+{
+  "date": "2026-03-09",
+  "vix": 25.5,
+  "regime": "HIGH_VOL",
+  "ivr": 31.0,
+  "ivp": 92.4,
+  "spx": 6795.99,
+  "trend": "BEARISH",
+  "trend_gap": -1.51,
+  "vix_5d_avg": 24.69,
+  "strategy": "Iron Condor (High Vol)",
+  "strategy_key": "iron_condor_hv",
+  "hv_spell_age": 4,
+  "bearish_streak": 3,
+  "ivp63": 98.4,
+  "ivp252": 92.4,
+  "regime_decay": false,
+  "local_spike": false,
+  "iv_signal": "HIGH",
+  "overlay_level": 0,
+  "overlay_reason": "overlay disabled",
+  "book_core_shock": 0.0
+}

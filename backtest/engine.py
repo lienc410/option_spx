@@ -104,6 +104,7 @@ class Trade:
     contracts:       float = 0.0  # number of contracts traded (may be fractional in simulation)
     total_bp:        float = 0.0  # total BP consumed = contracts × bp_per_contract
     bp_pct_account:  float = 0.0  # total_bp as % of account_size
+    open_at_end:     bool = False
 
     @property
     def pnl_pct(self) -> float:
@@ -260,6 +261,42 @@ def _close_position(
         contracts=round(contracts, 4),
         total_bp=round(total_bp, 2),
         bp_pct_account=round(total_bp / account_size * 100, 2) if account_size else 0.0,
+    )
+
+
+def _virtual_open_at_end_trade(
+    *,
+    position: Position,
+    date: pd.Timestamp,
+    spx: float,
+    sigma: float,
+    account_size: float,
+) -> Trade:
+    current_val = _current_value(position.legs, spx, sigma, position.days_held)
+    pnl = current_val - position.entry_value
+    contracts = _position_contracts(position, account_size)
+    total_bp = contracts * position.bp_per_contract
+    short_leg = _short_leg(position.legs)
+    return Trade(
+        strategy=position.strategy,
+        underlying=position.underlying,
+        entry_date=position.entry_date,
+        exit_date=str(date.date()),
+        entry_spx=position.entry_spx,
+        exit_spx=spx,
+        entry_vix=position.entry_vix,
+        entry_credit=position.entry_value,
+        exit_pnl=pnl * contracts * 100,
+        exit_reason="open_at_end",
+        dte_at_entry=short_leg[3],
+        dte_at_exit=max(short_leg[3] - position.days_held, 0),
+        spread_width=position.spread_width,
+        option_premium=abs(position.entry_value) * 100,
+        bp_per_contract=position.bp_per_contract,
+        contracts=round(contracts, 4),
+        total_bp=round(total_bp, 2),
+        bp_pct_account=round(total_bp / account_size * 100, 2) if account_size else 0.0,
+        open_at_end=True,
     )
 
 
@@ -508,10 +545,13 @@ def _block_hv_spell_entry(
 # ─── Metrics ─────────────────────────────────────────────────────────────────
 
 def compute_metrics(trades: list[Trade]) -> dict:
-    if not trades:
+    closed = [t for t in trades if not t.open_at_end]
+
+    if not closed:
         return {
             "error": "no trades",
             "total_trades": 0,
+            "n_open_at_end": len(trades),
             "win_rate": 0.0,
             "avg_win": 0.0,
             "avg_loss": 0.0,
@@ -527,7 +567,7 @@ def compute_metrics(trades: list[Trade]) -> dict:
             "by_strategy": {},
         }
 
-    pnls  = [t.exit_pnl for t in trades]
+    pnls  = [t.exit_pnl for t in closed]
     wins  = [p for p in pnls if p > 0]
     total = len(pnls)
     pnls_arr = np.array(pnls, dtype=float)
@@ -541,7 +581,7 @@ def compute_metrics(trades: list[Trade]) -> dict:
     # Sharpe (annualised, using actual average holding period)
     mean_pnl   = np.mean(pnls)
     std_pnl    = np.std(pnls, ddof=1) if len(pnls) > 1 else 1e-9
-    avg_hold   = sum(t.dte_at_entry - t.dte_at_exit for t in trades) / len(trades) if trades else 30
+    avg_hold   = sum(t.dte_at_entry - t.dte_at_exit for t in closed) / len(closed) if closed else 30
     sharpe     = (mean_pnl / std_pnl) * math.sqrt(252 / max(avg_hold, 1)) if std_pnl > 0 else 0.0
     total_pnl  = float(pnls_arr.sum())
     calmar     = total_pnl / abs(max_dd) if max_dd != 0 else 0.0
@@ -554,13 +594,14 @@ def compute_metrics(trades: list[Trade]) -> dict:
 
     by_strategy = {}
     strategy_trades = {}
-    for t in trades:
+    for t in closed:
         s = t.strategy.value
         by_strategy.setdefault(s, []).append(t.exit_pnl)
         strategy_trades.setdefault(s, []).append(t)
 
     return {
         "total_trades":   total,
+        "n_open_at_end":  len(trades) - len(closed),
         "win_rate":       len(wins) / total,
         "avg_win":        float(np.mean(wins)) if wins else 0.0,
         "avg_loss":       float(np.mean([p for p in pnls if p <= 0])) if any(p <= 0 for p in pnls) else 0.0,
@@ -1020,16 +1061,15 @@ def run_backtest(
             vix=vix,
         )
 
-    # Close all still-open positions at last price
+    # Per SPEC-069: synthesize virtual trade rows for positions still open at end.
     for position in positions:
         trades.append(
-            _close_position(
+            _virtual_open_at_end_trade(
                 position=position,
                 date=df.index[-1],
                 spx=float(df["spx"].iloc[-1]),
-                sigma=sigma,
+                sigma=float(df["vix"].iloc[-1]) / 100.0,
                 account_size=account_size,
-                exit_reason="end_of_backtest",
             )
         )
 

@@ -1,0 +1,60 @@
+{
+  "total_trades": 58,
+  "n_open_at_end": 2,
+  "win_rate": 0.7413793103448276,
+  "avg_win": 2550.891615982501,
+  "avg_loss": -1928.175386735413,
+  "expectancy": 1392.5122187278685,
+  "total_pnl": 80765.70868621637,
+  "max_drawdown": -9391.917240747534,
+  "sharpe": 2.14,
+  "calmar": 8.6,
+  "cvar5": -4750.653748264588,
+  "cvar10": -3384.9837404104824,
+  "skew": 0.078,
+  "kurt": 1.077,
+  "by_strategy": {
+    "Bear Call Spread (High Vol)": {
+      "n": 1,
+      "win_rate": 0.0,
+      "avg_pnl": -2166.832661567795,
+      "avg_rom": -3.138,
+      "median_rom": -3.138
+    },
+    "Iron Condor (High Vol)": {
+      "n": 10,
+      "win_rate": 1.0,
+      "avg_pnl": 1620.4166357801196,
+      "avg_rom": 4.218,
+      "median_rom": 4.134
+    },
+    "Bull Call Diagonal": {
+      "n": 21,
+      "win_rate": 0.6190476190476191,
+      "avg_pnl": 1795.9183885020057,
+      "avg_rom": -0.55,
+      "median_rom": 1.855
+    },
+    "Iron Condor": {
+      "n": 12,
+      "win_rate": 0.8333333333333334,
+      "avg_pnl": 1336.316909620905,
+      "avg_rom": 2.344,
+      "median_rom": 2.485
+    },
+    "Bull Put Spread": {
+      "n": 13,
+      "win_rate": 0.6923076923076923,
+      "avg_pnl": 865.4088781659483,
+      "avg_rom": 2.34,
+      "median_rom": 3.597
+    },
+    "Bull Put Spread (High Vol)": {
+      "n": 1,
+      "win_rate": 1.0,
+      "avg_pnl": 1727.9704998326497,
+      "avg_rom": 8.581,
+      "median_rom": 8.581
+    }
+  }
+}

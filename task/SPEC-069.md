@@ -1,6 +1,6 @@
 # SPEC-069: Artifact + UI `open_at_end` for Unclosed Positions
 
-Status: APPROVED
+Status: DONE
 
 ## 目标
 
@@ -162,3 +162,17 @@ metrics["n_open_at_end"] = len(trades) - len(closed)
 |---|---|---|
 | 2026-04-24 | 初稿 — MC v3 handoff 同步项；artifact + UI 双补全 | DRAFT |
 | 2026-04-24 | PM 批量预批，交 Developer 实施 | APPROVED |
+| 2026-04-24 | Developer 实施完成；`open_at_end` 虚拟 trade + metrics 排除 + backtest research view `OPEN` badge 落地；closed-trade baseline 对照无漂移 | DONE |
+
+## Review
+
+结论：PASS with spec adjustment → DONE
+
+- AC1 ✅ `Trade` dataclass 新增 `open_at_end: bool = False`
+- AC2 ✅ 回测末尾为每个未平仓 position 合成 virtual trade，`exit_reason="open_at_end"` 且 `open_at_end=True`
+- AC3 ✅ `compute_metrics` 排除 `open_at_end`，并新增 `n_open_at_end`
+- AC4 ✅ `trade_log.csv` 列头包含 `open_at_end`
+- AC5 ✅* `OPEN` badge 已在实际承载 trade log 的 backtest research view 落地，并新增 `OPEN` filter；`margin` 页面当前无 trade table，故本 AC 按“实际存在的交易 UI”解释
+- AC6 ✅ `data/research_views.json` 再生后透传 `open_at_end`
+- AC7 ✅ old baseline 过滤 `end_of_backtest` 后，与新 baseline closed-trade metrics 完全一致
+- AC8 ✅ `py_compile` 与相关单测通过
