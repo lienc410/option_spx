@@ -39,7 +39,8 @@ Owner: Planner or PM
 - `Q012` — `/ES` short put path is now the preferred production candidate; remaining question is shared-BP management with SPX Credit and how far to extend the MVP beyond Layer 2 — `open`
 - `Q013` — `/ES` short put runtime stop execution and post-entry management remain undefined in production — `open`
 - `Q029` — MC found one material research/live parity issue: backtest engine hardcodes `qty = 1` and ignores selector `SizeTier`; HC now needs to reproduce the audit and decide whether to adopt the `research_1spx + live_scaled_est` reporting convention before any engine rewrite — `open`
-- `Q020` — `Q018 / SPEC-066` may have optimized the wrong aftermath semantic: the second `IC_HV` should likely target a distinct second VIX peak, not a back-to-back re-entry immediately after the first peak — `research`
+- `Q020` — MC `backtest_select` simplification produced a low aftermath artifact count for `SPEC-064 AC10`; HC artifact count `49` is canonical, this entry tracks MC-side housekeeping only — `MC-side housekeeping`
+- `Q021` — `Q018 / SPEC-066` may have optimized the wrong aftermath semantic: the second `IC_HV` should likely target a distinct second VIX peak, not a back-to-back re-entry immediately after the first peak (HC originally tracked this as `Q020`; renumbered to `Q021` 2026-04-25 to align with MC convention) — `research`
 - `Q019` — MC Phase 1 now reports non-trivial close/open VIX drift (`aftermath 4.63%`, `regime 9.71%`, `trend 31.54%` flips), but PM has not yet chosen between the proposed follow-up paths `A / B / C`; HC should not silently reinterpret existing specs until that decision is made — `research`
 - `Q032` — after MC selected aftermath broken-wing `V3-A` (`LC 0.04 / LP 0.08`), `V3-C` (`LC 0.03`) stays as a monitor-only revisit candidate after `5–10` live aftermath trades — `monitoring`
 - `Q011` — regime decay DIAGONAL sample is still small — `monitoring`
@@ -52,7 +53,7 @@ Owner: Planner or PM
 - `P1` — reproduce the accepted MC 2026-04-24 stack on HC in a narrow, ordered way: `SPEC-068` (per-strategy spell throttle), `SPEC-069` (open-at-end artifact/UI field), `SPEC-070 v2` (delta-based long-leg alignment), `SPEC-071` (aftermath broken-wing IC), `SPEC-072` (frontend deploy), and `SPEC-073` (dead-code cleanup)
 - `P2` — ask PM to choose whether `Q019` stays deferred or advances via one of MC’s proposed paths `A / B / C`; until then, keep the new close/open VIX evidence indexed but non-binding
 - `P3` — open a narrow follow-up Spec for `/ES` runtime safeguards, with minimum scope of stop-condition monitoring plus bot alerting
-- `P4` — after the HC reproduction pass, revisit `Q020`: whether `SPEC-066` alpha is materially driven by semantically wrong back-to-back `IC_HV` entries rather than true second-peak aftermath capture
+- `P4` — after the HC reproduction pass, revisit `Q021`: whether `SPEC-066` alpha is materially driven by semantically wrong back-to-back `IC_HV` entries rather than true second-peak aftermath capture
 - `P5` — continue validating dependency-bound items before promoting broader sizing logic or additional HIGH_VOL changes into new Specs
 
 ## Recent Meaningful Changes

@@ -92,8 +92,8 @@ Cascade attribution (vs `baseline_post_spec069`):
 - Total PnL `-7,017.67`, fully concentrated in IC_HV: avg_pnl `1620.42 → 918.65`.
 - All 10 IC_HV entry dates identical pre/post — the loss is per-trade structural, not cascade.
 - IC_HV win-rate stays 100% but average win shrinks: broken-wing collects less premium per spread (short delta moved from 0.16 to 0.12, away from ATM), and the wider call wing raises hedging cost.
-- IC_HV n=10 spans 5 distinct vol-spike windows (Feb 2023 / Aug 2024 / Apr 2025 / Nov 2025 / Mar 2026); SPEC-071's aftermath classifier captures most/all of them at runtime, which is why the avg_pnl shift is broad rather than isolated to the documented 2026-03 sample.
-- Short-delta governance gap (0.16 → 0.12 origin in MC) remains queued for next MC sync.
+- **PnL drop concentration** (corrected 2026-04-25 after MC response v2): the -$7,017.67 hit is concentrated in the **2 aftermath trades only** (2026-03-09 + 2026-03-10), each losing ~$3,509. The other 8 IC_HV trades are non-aftermath and their selector legs remain `0.16/0.08`, identical to the SPEC-070 v2 baseline. Earlier wording "broad shift across 5 vol-spike windows" was wrong — the avg-PnL drop is an arithmetic artifact of dividing a 2-trade hit across n=10. Verification: `(2 × -3509) / 10 = -702 ≈ avg_pnl change 1620 → 919`.
+- **HC vs MC short-delta divergence**: HC selector has had `IC_HV short=0.16 / long=0.08` hardcoded since file-creation commit `f119e99` (no `IRON_CONDOR_TARGETS` dict in HC). MC response v2 §3 asserts MC-side has `HIGH_VOL short=0.12 / long=0.06` as long-term convention. This is a real codebase divergence, not an HC anchor error. Aftermath path now agrees post-SPEC-071 (`0.12/0.04/0.12/0.08` on both sides); non-aftermath HIGH_VOL IC_HV remains divergent (HC `0.16/0.08`, MC `0.12/0.06`). PM directive 2026-04-25: do not open alignment SPEC until MC supplies historical evidence for the `0.12` convention claim.
 
 ## Errata corrected this round
 
@@ -104,6 +104,6 @@ Cascade attribution (vs `baseline_post_spec069`):
 
 ## Outstanding items
 
-- **SPEC-072** still BLOCKED_BY_HANDOFF — needs MC to resend `task/SPEC-072_deploy_handoff.md` with HTML diff + 5 smoke scenarios + scaling factor confirmation.
-- **Aftermath short-delta drift (0.16 → 0.12)** — HC accepted for this round; governance trace still owed by MC at next sync.
-- Working tree still has local-only diffs (PROJECT_STATUS.md, RESEARCH_LOG.md, market cache pkls, sync/open_questions.md, deleted stale MC handoffs, new audit doc, new HC reproduction queue/prereq notes). None of these affect the baseline anchor; PM to decide what to commit and what to drop.
+- **SPEC-072** unblocked 2026-04-25 by MC response v2 §2.1 (F1–F7 + 5 smoke scenarios + AC1–AC10 + live-scale rules). HC will draft `SPEC-072` from this content; target file mapping (`web/templates/backtest.html`) is HC self-decided.
+- **HC ↔ MC IC_HV non-aftermath delta divergence** — open. PM has chosen NOT to open an alignment SPEC until MC provides historical evidence for the claimed `HIGH_VOL 0.12/0.06` long-term convention.
+- **Q020 / Q021 numbering reconciliation** — adopt MC convention: `Q020` = MC backtest_select simplification; `Q021` = SPEC-066 second-trade semantics (formerly HC's `Q020`). HC indexes to be updated.

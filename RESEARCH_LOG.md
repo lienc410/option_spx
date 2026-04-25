@@ -40,7 +40,7 @@ Owner: Planner or PM
 - Related Question: `Q019`
 - See: `sync/mc_to_hc/MC_Handoff_2026-04-24_v3.md`, `sync/open_questions.md`
 
-### R-20260420-03 — Q020 opened: the real follow-up to Q018 may be peak-separation semantics, not slot count alone
+### R-20260420-03 — Q021 opened (originally `Q020` in HC; renumbered 2026-04-25 to align with MC convention, since MC's `Q020` covers the `backtest_select` simplification): the real follow-up to Q018 may be peak-separation semantics, not slot count alone
 
 - Topic: Whether `Q018 / SPEC-066` captured the right phenomenon or accidentally monetized semantically wrong back-to-back `IC_HV` re-entry
 - Findings: PM clarified that the desired behavior in a double-spike sequence is not “take two `IC_HV` trades in quick succession after the first peak,” but “take one trade after the first peak fails to complete the opportunity, then re-arm and capture the second peak’s subsequent mean reversion.” This creates a new research problem that is adjacent to, but not the same as, `Q018`: the historical `cap=2 + B` result may mix together two very different sources of alpha — true second-peak capture versus immediate back-to-back re-entry after the first peak. Until that decomposition is measured, it would be premature to treat the existing `SPEC-066` economics as the final semantic answer for double-spike handling
@@ -48,7 +48,7 @@ Owner: Planner or PM
 - Confidence: medium
 - Next Tests: quantify the `SPEC-066` trade set in three buckets: (1) immediate back-to-back re-entries after the same peak, (2) true distinct-second-peak aftermath trades, and (3) all other multi-slot aftermath cases; then compare PnL, Sharpe, drawdown, and historical trigger count. A useful control variant is “single-slot + re-arm only after new peak,” which should be compared directly against current `cap=2 + B`
 - Recommendation: research
-- Related Question: `Q020`
+- Related Question: `Q021` (HC originally `Q020`)
 - See: `sync/open_questions.md`, `task/SPEC-066.md`
 
 ### R-20260420-02 — `SPEC-066` passed review with spec adjustment and is now DONE
