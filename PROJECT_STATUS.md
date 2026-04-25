@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-04-20
+Last Updated: 2026-04-24
 Owner: Planner or PM
 
 ## Current Phase
@@ -30,15 +30,18 @@ Owner: Planner or PM
 ## Top Blockers
 
 - `B1` — `/ES` minimal production cell (`SPEC-061`) is now done, but its production safety boundary is still below PM requirements: pure manual stop monitoring is not acceptable; the minimum acceptable next step is system monitoring plus bot alerting for the stop condition — owner: PM/Planner — next action: open a narrow follow-up Spec for runtime safeguards
-- `B2` — dependency-bound legacy items (`Q001`, `Q002`, `Q003`) are still unresolved and can compete for attention if not kept explicitly ordered — owner: PM/Planner — next action: preserve `/ES` as the current front-of-queue decision item unless a dependency clears
+- `B2` — HC has now accepted `MC_Handoff_2026-04-24_v3` as the authoritative MC sync package, but HC has not yet reproduced the new aftermath stack and related tooling findings in its own environment. Until `SPEC-068 / SPEC-069 / SPEC-070 v2 / SPEC-071 / SPEC-072 / SPEC-073` are checked or replayed on HC, PARAM/master-doc drift risk remains high — owner: PM/Planner — next action: treat HC reproduction as the immediate sync-track priority rather than assuming MC-side DONE equals HC-side canonical
+- `B3` — dependency-bound legacy items (`Q001`, `Q002`, `Q003`) are still unresolved and can compete for attention if not kept explicitly ordered — owner: PM/Planner — next action: preserve `/ES` as the current front-of-queue decision item unless a dependency clears
 
 ## Open Questions Summary
 
 - `Q002` — Shock active mode still needs Phase B validation — `open`
 - `Q012` — `/ES` short put path is now the preferred production candidate; remaining question is shared-BP management with SPX Credit and how far to extend the MVP beyond Layer 2 — `open`
 - `Q013` — `/ES` short put runtime stop execution and post-entry management remain undefined in production — `open`
+- `Q029` — MC found one material research/live parity issue: backtest engine hardcodes `qty = 1` and ignores selector `SizeTier`; HC now needs to reproduce the audit and decide whether to adopt the `research_1spx + live_scaled_est` reporting convention before any engine rewrite — `open`
 - `Q020` — `Q018 / SPEC-066` may have optimized the wrong aftermath semantic: the second `IC_HV` should likely target a distinct second VIX peak, not a back-to-back re-entry immediately after the first peak — `research`
-- `Q019` — backtests currently use end-of-day VIX series, while live recommendation decisions are made off the opening / early-session VIX context; this time-basis mismatch may materially affect routing, gate triggers, and aftermath detection — `research`
+- `Q019` — MC Phase 1 now reports non-trivial close/open VIX drift (`aftermath 4.63%`, `regime 9.71%`, `trend 31.54%` flips), but PM has not yet chosen between the proposed follow-up paths `A / B / C`; HC should not silently reinterpret existing specs until that decision is made — `research`
+- `Q032` — after MC selected aftermath broken-wing `V3-A` (`LC 0.04 / LP 0.08`), `V3-C` (`LC 0.03`) stays as a monitor-only revisit candidate after `5–10` live aftermath trades — `monitoring`
 - `Q011` — regime decay DIAGONAL sample is still small — `monitoring`
 - `Q003` — L3 Hedge v2 live implementation — `open`
 - `Q004` — `vix_accel_1d` L4 fast-path — `open`
@@ -46,13 +49,16 @@ Owner: Planner or PM
 
 ## Next Priorities
 
-- `P1` — open a narrow follow-up Spec for `/ES` runtime safeguards, with minimum scope of stop-condition monitoring plus bot alerting
-- `P2` — before extending the HIGH_VOL line further, test `Q020`: whether `SPEC-066` alpha is materially driven by semantically wrong back-to-back `IC_HV` entries rather than true second-peak aftermath capture
-- `P3` — after `Q020`, continue `Q019` and measure how much open-based / early-session VIX would change `SPEC-064` and adjacent HIGH_VOL cells
-- `P4` — continue validating dependency-bound items before promoting broader sizing logic or additional HIGH_VOL changes into new Specs
+- `P1` — reproduce the accepted MC 2026-04-24 stack on HC in a narrow, ordered way: `SPEC-068` (per-strategy spell throttle), `SPEC-069` (open-at-end artifact/UI field), `SPEC-070 v2` (delta-based long-leg alignment), `SPEC-071` (aftermath broken-wing IC), `SPEC-072` (frontend deploy), and `SPEC-073` (dead-code cleanup)
+- `P2` — ask PM to choose whether `Q019` stays deferred or advances via one of MC’s proposed paths `A / B / C`; until then, keep the new close/open VIX evidence indexed but non-binding
+- `P3` — open a narrow follow-up Spec for `/ES` runtime safeguards, with minimum scope of stop-condition monitoring plus bot alerting
+- `P4` — after the HC reproduction pass, revisit `Q020`: whether `SPEC-066` alpha is materially driven by semantically wrong back-to-back `IC_HV` entries rather than true second-peak aftermath capture
+- `P5` — continue validating dependency-bound items before promoting broader sizing logic or additional HIGH_VOL changes into new Specs
 
 ## Recent Meaningful Changes
 
+- 2026-04-24 — `MC_Handoff_2026-04-24_v3.md` has now been accepted as the authoritative MC sync package. It materially extends the aftermath stack beyond HC’s current indexed state: MC reports `SPEC-068 DONE` (per-strategy spell throttle), `SPEC-069 DONE` (`open_at_end` artifact/UI support), `SPEC-070 v2 DONE` (delta-based long-leg alignment), `SPEC-071 DONE` (aftermath broken-wing IC, `LC 0.04 / LP 0.08`, `DTE 45` unchanged), `SPEC-072 MC-side DONE` (frontend dual-scale display, still pending HC deploy), and `SPEC-073 DONE` (dead-code cleanup). These should be treated as HC reproduction targets, not yet HC-canonical facts — `See: sync/mc_to_hc/MC_Handoff_2026-04-24_v3.md`
+- 2026-04-24 — MC also surfaced two planning-relevant research governance findings that HC had not yet indexed. First, `Q029` found one material parity issue: the engine hardcodes `qty = 1` and therefore overstates live aftermath notional relative to `SizeTier`; MC’s chosen interim resolution is reporting-layer dual columns (`research_1spx` + `live_scaled_est`), not immediate engine rewrite. Second, `Q019 Phase 1` measured a non-trivial close/open VIX mismatch (`aftermath 4.63%`, `regime 9.71%`, `trend 31.54%` flips), but PM has not yet chosen whether to close, reproduce, or codify that evidence — `See: RESEARCH_LOG.md`, `sync/open_questions.md`
 - 2026-04-20 — PM surfaced a new follow-up concern on the `Q018 / SPEC-066` line: the intended behavior in a double-spike pattern is not “allow two back-to-back `IC_HV` entries,” but “allow a second `IC_HV` only after a distinct second VIX peak begins to mean-revert.” This raises the possibility that part of the `cap=2 + B` alpha was earned under the wrong semantic, so a new research item `Q020` has been opened to measure how much of the result depends on back-to-back re-entry versus genuine second-peak capture — `See: RESEARCH_LOG.md`, `sync/open_questions.md`
 - 2026-04-20 — `SPEC-066` review is now closed with **PASS with spec adjustment**, and the spec has been moved to `DONE`. No code changes were needed after Developer handoff: Quant concluded `AC4` was over-constrained at the trade-set level and correctly rewrote it as a logic-level invariant, and `AC10`’s original `[33,40]` artifact-count expectation was simply miscalculated and has been corrected to `[45,55]`. Core implementation stands: `IC_HV_MAX_CONCURRENT = 2`, `AFTERMATH_OFF_PEAK_PCT = 0.10`, the `2026-03-09 / 2026-03-10` double-spike pair is captured, and `2008-09` remains filtered — `See: task/SPEC-066.md`
 - 2026-04-20 — Developer implemented `SPEC-066`, regenerated local artifacts, and wrote handoff. Core intent is working: `IC_HV_MAX_CONCURRENT = 2`, `AFTERMATH_OFF_PEAK_PCT = 0.10`, the `2026-03-09 / 2026-03-10` double-spike pair is captured, `2008-09` remains filtered, and system-level PnL / Sharpe / MaxDD all land near target. However, two acceptance criteria remain open: `AC4` (non-`IC_HV` trade-set drift) and `AC10` (research-view count now `49`, above the old expected range). This means `SPEC-066` is implemented but not yet closed — `See: task/SPEC-066_handoff.md`

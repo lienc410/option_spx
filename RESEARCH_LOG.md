@@ -1,11 +1,44 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-04-20
+Last Updated: 2026-04-24
 Owner: Planner or PM
 
 ---
 
 ## Entries
+
+### R-20260424-03 — MC aftermath stack converged on broken-wing `IC_HV`, but HC still needs its own reproduction pass
+
+- Topic: Accepted MC sync result for the post-`SPEC-066` aftermath line
+- Findings: `MC_Handoff_2026-04-24_v3.md` reports that MC has carried the aftermath stack beyond HC’s current indexed state: `SPEC-068` closes the spell-throttle gap by moving `hv_spell_trade_count` from a scalar to a per-strategy dict; `SPEC-070 v2` resolves the legacy selector/engine long-leg convention mismatch by aligning engine long legs to delta-based lookup; and `SPEC-071` lands on a broken-wing aftermath `IC_HV` shape (`LC 0.04 / LP 0.08`, `DTE 45` unchanged) after rejecting the richer-wing / tail-put alternatives and the `DTE = 60` branch. `SPEC-072` is frontend-only and still pending HC deploy, while `SPEC-073` is a dead-code cleanup. This is enough to define a clean HC reproduction queue, but not enough to treat the whole MC stack as already canonical on HC
+- Risks / Counterarguments: this is a sync-planning conclusion, not a direct strategy endorsement by itself. MC-side `DONE` does not automatically mean HC-side code, artifacts, and live runtime are aligned. The most fragile items are the production-affecting ones (`SPEC-068`, `SPEC-070 v2`, `SPEC-071`) because they change aftermath routing semantics or leg construction rather than just display or cleanup
+- Confidence: medium-high
+- Next Tests: reproduce the stack on HC in order of strategy impact: `SPEC-068`, `SPEC-069`, `SPEC-070 v2`, `SPEC-071`, then `SPEC-072` deploy and `SPEC-073`; verify selector output, artifacts, and old Air runtime separately rather than assuming a single bulk sync is sufficient
+- Recommendation: reproduce on HC
+- Related Spec: `SPEC-068`, `SPEC-069`, `SPEC-070`, `SPEC-071`, `SPEC-072`, `SPEC-073`
+- See: `sync/mc_to_hc/MC_Handoff_2026-04-24_v3.md`
+
+### R-20260424-02 — Q029 identifies one material research/live parity gap, but MC chose reporting-layer containment rather than engine rewrite
+
+- Topic: MC 5-dimension parity audit on aftermath research versus live-scale execution
+- Findings: MC reports that most parity dimensions came back as `no issue / minor drift`, but one material gap remained: the backtest engine hardcodes `qty = 1` and therefore ignores selector `SizeTier`. For HIGH_VOL aftermath work, this means research PnL is expressed as `1 SPX` while live implementation may be `1 XSP`, roughly a `10x` notional mismatch in some cases. MC did **not** resolve this by rewriting the engine. Instead, `Q033` chose an interim governance path (`Option B+E`): keep engine outputs in `research_1spx` terms, and require `live_scaled_est` alongside `PnL / worst / SegMaxDD / BP` in handoffs, specs, and RDD-style outputs, with aftermath HIGH_VOL defaulting to the agreed scale factors
+- Risks / Counterarguments: this is a pragmatic reporting fix, not a true model unification. It lowers the risk of over-reading research magnitudes, but it does not eliminate the architectural mismatch. A future live-scale engine (`Q035`) remains a separate long-term design problem and should not be smuggled in as a “small cleanup”
+- Confidence: high on the existence of the mismatch; medium on the durability of the reporting-only mitigation
+- Next Tests: first reproduce the parity audit and reporting convention on HC; only after that should PM decide whether the reporting-layer answer is sufficient or whether the project needs a deeper engine/RDD branch
+- Recommendation: reproduce in HC, no engine rewrite yet
+- Related Question: `Q029`, `Q033`, `Q035`
+- See: `sync/mc_to_hc/MC_Handoff_2026-04-24_v3.md`, `sync/open_questions.md`
+
+### R-20260424-01 — Q019 Phase 1 materially upgrades the close/open VIX mismatch from intuition to measured drift, but PM decision remains deferred
+
+- Topic: MC Phase 1 measurement of close-based versus open-based VIX semantics
+- Findings: MC reports a full-period Bloomberg OHLC study over `27` years and finds the mismatch is real enough to matter: `aftermath` flips on about `4.63%` of days, regime classification on about `9.71%`, and trend-layer outcomes on about `31.54%`. Inside the aftermath subset, MC reports `319` flips, split roughly `179` cases of `close=False / open=True` versus `140` in the opposite direction. This means HC can no longer treat the VIX time-basis issue as a vague modeling concern; it now has measured drift large enough to affect the interpretation of `SPEC-064 / SPEC-066 / SPEC-068 / SPEC-070 v2 / SPEC-071`
+- Risks / Counterarguments: Phase 1 still does not answer the PM question of what to do with the new evidence. A measured mismatch is not yet a mandate to reinterpret historical backtests, ship open-based logic, or retroactively discredit close-based specs. MC explicitly leaves that as a PM choice among follow-up paths `A / B / C`
+- Confidence: medium-high on the measurement; low on the policy conclusion
+- Next Tests: wait for PM direction before escalating implementation. If PM wants action, the most disciplined HC next step is to reproduce the measurement on HC and then choose between closing the question, re-running key aftermath samples open-based, or codifying a future dual-sensitivity rule
+- Recommendation: defer decision, keep evidence indexed
+- Related Question: `Q019`
+- See: `sync/mc_to_hc/MC_Handoff_2026-04-24_v3.md`, `sync/open_questions.md`
 
 ### R-20260420-03 — Q020 opened: the real follow-up to Q018 may be peak-separation semantics, not slot count alone
 
