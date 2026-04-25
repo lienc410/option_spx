@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<script src="{{ url_for('static', filename='spec072_helpers.js') }}"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -210,6 +211,11 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   margin-top: 6px;
 }
 .live-box-row strong { color: var(--text); font-family: var(--f-mono); font-weight: 600; }
+.live-box-row .dual-est {
+  color: #B79CFF;
+  font-size: 0.74rem;
+  margin-left: 6px;
+}
 
 /* ── Footer ── */
 .footer {
@@ -641,8 +647,12 @@ BP = net_debit_paid × $100<br>
 async function loadLiveBp() {
   const box = document.getElementById('live-bp-box');
   try {
-    const res = await fetch('/api/schwab/balances');
-    const data = await res.json();
+    const [balancesRes, positionRes] = await Promise.all([
+      fetch('/api/schwab/balances'),
+      fetch('/api/position'),
+    ]);
+    const data = await balancesRes.json();
+    const position = await positionRes.json();
     if (!data.configured) {
       box.style.display = 'block';
       box.innerHTML = '<div class="card-title">Live BP (Schwab)</div><div class="card-note">Schwab not configured — create a Schwab Developer app, set client_id / client_secret, then run <code>venv/bin/python -m schwab.setup</code>.</div>';
@@ -656,13 +666,21 @@ async function loadLiveBp() {
     const used = Math.max(0, Number(data.initial_margin || 0));
     const total = Number(data.buying_power || 0) + used;
     const pct = total > 0 ? (used / total) * 100 : 0;
+    const isHighVolPosition = Boolean(position?.open) && SPEC072.isHighVolRegime(position?.regime);
+    const bpLabel = isHighVolPosition
+      ? `<span>Buying Power Used</span><strong><span class="dual-primary">${pct.toFixed(1)}%</span><span class="dual-est">+ ${(pct * liveScaleFactor('HIGH_VOL')).toFixed(1)}% est</span></strong>`
+      : `<span>Buying Power Used</span><strong>$${used.toLocaleString()} / $${total.toLocaleString()} (${pct.toFixed(1)}%)</strong>`;
+    const highVolNote = isHighVolPosition
+      ? `<div class="card-note" style="margin-top:8px">Current position regime is HIGH_VOL — dual-scale text shows research account BP plus live estimated scale.</div>`
+      : '';
     box.style.display = 'block';
     box.innerHTML = `
       <div class="card-title">Live BP (Schwab) ${data.stale ? '· stale' : ''}</div>
-      <div class="live-box-row"><span>Buying Power Used</span><strong>$${used.toLocaleString()} / $${total.toLocaleString()} (${pct.toFixed(1)}%)</strong></div>
+      <div class="live-box-row">${bpLabel}</div>
       <div class="live-box-row"><span>Remaining BP</span><strong>$${Number(data.buying_power || 0).toLocaleString()}</strong></div>
       <div class="live-box-row"><span>Net Liquidation</span><strong>$${Number(data.net_liquidation || 0).toLocaleString()}</strong></div>
       <div class="live-box-row"><span>Maintenance Margin</span><strong>$${Number(data.maintenance_margin || 0).toLocaleString()}</strong></div>
+      ${highVolNote}
       <div class="card-note" style="margin-top:8px">Last updated: ${(data.updated_at || '').replace('T', ' ')}</div>`;
   } catch (_) {}
 }

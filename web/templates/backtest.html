@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='spec072_helpers.js') }}"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -216,6 +217,32 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .research-banner strong {
   font-family: var(--f-mono); font-size: 0.68rem; letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+.research-scale-disclaimer {
+  margin-bottom: 14px;
+  color: #B79CFF;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.dual-stack {
+  display: grid;
+  gap: 2px;
+}
+.dual-stack .dual-primary {
+  color: inherit;
+}
+.dual-stack .dual-est {
+  color: #B79CFF;
+  font-size: 0.72rem;
+}
+.legend-note {
+  margin-top: 12px;
+  font-size: 0.72rem;
+  color: #B79CFF;
+}
+.legend-note a {
+  color: #B79CFF;
+  text-decoration: underline;
 }
 
 /* ── Chart section ── */
@@ -953,6 +980,7 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
       <strong id="research-banner-title">Research View</strong>
       <span id="research-banner-copy">—</span>
     </div>
+    <div class="research-scale-disclaimer hidden" id="research-scale-disclaimer">Research scale (1×SPX); live shown as scaled estimate</div>
 
     <!-- SPX Price chart -->
     <div class="chart-section">
@@ -1111,6 +1139,7 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
     </div>
 
     <div class="precision-note">
+      <div class="legend-note">Aftermath broken-wing IC follows <a href="/task/SPEC-071.md" target="_blank" rel="noopener noreferrer">SPEC-071 addendum</a> (LC δ0.04 / LP δ0.08).</div>
       Precision B — Black-Scholes simulation, no bid/ask spread or slippage. Actual results may differ.
     </div>
 
@@ -2000,18 +2029,22 @@ function applyMetricCards(metrics, trades, mode = 'production') {
 
 function updateResearchBanner() {
   const banner = document.getElementById('research-banner');
+  const disclaimer = document.getElementById('research-scale-disclaimer');
   if (_activeResearchView === 'production') {
     banner.classList.add('hidden');
+    disclaimer.classList.add('hidden');
     return;
   }
   const view = _researchViews[_activeResearchView];
   if (!view) {
     banner.classList.add('hidden');
+    disclaimer.classList.add('hidden');
     return;
   }
   document.getElementById('research-banner-title').textContent = `Research View · ${view.label}`;
   document.getElementById('research-banner-copy').textContent = view.description;
   banner.classList.remove('hidden');
+  disclaimer.classList.toggle('hidden', _activeResearchView !== 'spec064_aftermath_ic_hv');
 }
 
 function currentTradeContext() {
@@ -2454,6 +2487,17 @@ function renderTradeRows(trades, sigMap, trendLabel, trendColor) {
     const tOut   = trendLabel(sigOut);
     const tClrIn = trendColor(sigIn);
     const tClrOut= trendColor(sigOut);
+    const regime = String(sigIn.regime || '');
+    const dualScale = _activeResearchView === 'spec064_aftermath_ic_hv' && SPEC072.isHighVolRegime(regime);
+    const pnlCell = dualScale
+      ? `<div class="dual-stack">${SPEC072.renderDualMetricHtml(t.exit_pnl, regime, 'currency')}</div>`
+      : fmtDollarFull(t.exit_pnl);
+    const premiumCell = dualScale
+      ? `<div class="dual-stack">${SPEC072.renderDualMetricHtml(t.option_premium, regime, 'currency')}</div>`
+      : (t.option_premium ? '$'+t.option_premium.toLocaleString('en-US',{maximumFractionDigits:0}) : '—');
+    const bpPctCell = dualScale
+      ? `<div class="dual-stack">${SPEC072.renderDualMetricHtml(t.bp_pct_account, regime, 'bp')}</div>`
+      : (t.bp_pct_account != null ? t.bp_pct_account.toFixed(1)+'%' : '—');
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="num" style="color:var(--text-muted)">${i+1}</td>
@@ -2466,12 +2510,12 @@ function renderTradeRows(trades, sigMap, trendLabel, trendColor) {
       <td class="num">${exitVix}</td>
       <td class="num"><span style="color:${tClrIn}">${tIn}</span><span style="color:var(--text-muted)">→</span><span style="color:${tClrOut}">${tOut}</span></td>
       <td class="num">${ivpIn}<span style="color:var(--text-muted)">→</span>${ivpOut}</td>
-      <td class="num ${pnlClass(t.exit_pnl)}">${fmtDollarFull(t.exit_pnl)}</td>
+      <td class="num ${pnlClass(t.exit_pnl)}">${pnlCell}</td>
       <td>${reasonTag(t.exit_reason)}</td>
       <td class="num" style="color:var(--text-2)">${t.spread_width ? t.spread_width.toFixed(0)+'pt' : '—'}</td>
-      <td class="num" style="color:var(--text-2)">${t.option_premium ? '$'+t.option_premium.toLocaleString('en-US',{maximumFractionDigits:0}) : '—'}</td>
+      <td class="num" style="color:var(--text-2)">${premiumCell}</td>
       <td class="num" style="color:var(--text-2)">${t.bp_per_contract ? '$'+t.bp_per_contract.toLocaleString('en-US',{maximumFractionDigits:0}) : '—'}</td>
-      <td class="num" style="color:${(t.bp_pct_account||0)>7?'var(--orange)':(t.bp_pct_account||0)>4?'var(--gold)':'var(--text-2)'}">${t.bp_pct_account != null ? t.bp_pct_account.toFixed(1)+'%' : '—'}</td>`;
+      <td class="num" style="color:${(t.bp_pct_account||0)>7?'var(--orange)':(t.bp_pct_account||0)>4?'var(--gold)':'var(--text-2)'}">${bpPctCell}</td>`;
     lb.appendChild(tr);
   });
 }

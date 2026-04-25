@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<script src="{{ url_for('static', filename='spec072_helpers.js') }}"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -258,6 +259,36 @@ body {
 .leg-dte  { color: var(--text-2); width: 68px; }
 .leg-delta{ color: var(--gold);   width: 60px; }
 .leg-note { color: var(--text-muted); font-style: italic; font-size: 0.7rem; }
+.broken-wing-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  margin-bottom: 12px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #B79CFF;
+  background: rgba(132, 96, 224, 0.12);
+  border: 1px solid rgba(132, 96, 224, 0.32);
+}
+.leg-delta-broken {
+  color: #B79CFF;
+  font-weight: 700;
+}
+.dual-metric {
+  display: grid;
+  gap: 2px;
+}
+.dual-primary {
+  color: inherit;
+}
+.dual-est {
+  color: #B79CFF;
+  font-size: 0.74rem;
+}
 
 /* Metrics */
 .metrics {
@@ -870,6 +901,7 @@ function updateSignals(d) {
 }
 
 function buildLegs(legs) {
+  const brokenWing = isBrokenWingIc(legs);
   if (!legs || legs.length === 0)
     return `<tr><td colspan="5" class="no-pos">No new position</td></tr>`;
   return legs.map(l => `
@@ -877,7 +909,7 @@ function buildLegs(legs) {
       <td class="leg-${l.action.toLowerCase()}">${l.action}</td>
       <td class="leg-${l.option.toLowerCase()}">${l.option}</td>
       <td class="leg-dte">${l.dte} DTE</td>
-      <td class="leg-delta">δ ${l.delta.toFixed(2)}</td>
+      <td class="leg-delta ${brokenWing && l.action === 'BUY' ? 'leg-delta-broken' : ''}">δ ${l.delta.toFixed(2)}</td>
       <td class="leg-note">${l.note}</td>
     </tr>`).join('');
 }
@@ -900,6 +932,16 @@ function buildCard(d) {
     : '';
   const edge3 = ((STRAT_STATS['3y'] || {})[d.strategy_key]) || null;
   const edgeAll = ((STRAT_STATS['all'] || {})[d.strategy_key]) || null;
+  const isAftermathHighVol = String(d.strategy_key || '') === 'iron_condor_hv'
+    && String(d.vix_snapshot?.regime || '').toUpperCase() === 'HIGH_VOL'
+    && isBrokenWingIc(d.legs || []);
+  const recommendedPct = Number.parseFloat(String(bpMeta.recommendedPct || '').replace('%', ''));
+  const bpDisplay = Number.isFinite(recommendedPct) && isAftermathHighVol
+    ? `<div class="dual-metric">${SPEC072.renderDualMetricHtml(recommendedPct, 'HIGH_VOL', 'bp')}</div>`
+    : bpMeta.recommendedPct;
+  const brokenWingBadge = isAftermathHighVol
+    ? `<div class="broken-wing-badge">Broken-wing IC</div>`
+    : '';
   const edgeText = s => {
     if (!s) return '—';
     if ((s.n || 0) < 5) return 'n too small';
@@ -917,6 +959,7 @@ function buildCard(d) {
 
     <div class="rec-sec">
       <div class="sec-label">Position Legs</div>
+      ${brokenWingBadge}
       <table class="legs">${buildLegs(d.legs)}</table>
     </div>
 
@@ -939,7 +982,7 @@ function buildCard(d) {
       </div>
       <div class="metric">
         <div class="metric-label">Recommended BP</div>
-        <div class="metric-val">${bpMeta.recommendedPct}</div>
+        <div class="metric-val">${bpDisplay}</div>
       </div>
     </div>
 
