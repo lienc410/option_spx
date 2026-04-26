@@ -1962,6 +1962,17 @@ function fmtPctSigned(n) {
   const numeric = Number(n || 0);
   return `${numeric >= 0 ? '+' : ''}${numeric.toFixed(1)}%`;
 }
+function impliedAnnualizedRoe(totalPnl, trades, baselineEquity = BACKTEST_BASELINE_EQUITY) {
+  if (!baselineEquity || baselineEquity <= 0 || !trades || !trades.length) return 0;
+  const start = new Date(`${trades[0].entry_date}T00:00:00`);
+  const end = new Date(`${trades[trades.length - 1].exit_date}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+  const days = Math.max((end - start) / (1000 * 60 * 60 * 24), 1);
+  const years = days / 365.25;
+  const finalEquity = baselineEquity + Number(totalPnl || 0);
+  if (years <= 0 || finalEquity <= 0) return 0;
+  return (Math.pow(finalEquity / baselineEquity, 1 / years) - 1) * 100;
+}
 
 function reasonTag(r) {
   if (!r) return `<span class="reason-tag reason-default">—</span>`;
@@ -2014,14 +2025,12 @@ function applyMetricCards(metrics, trades, mode = 'production') {
   const pnlEl = document.getElementById('m-pnl');
   pnlEl.textContent = fmtDollarFull(metrics.total_pnl || 0);
   pnlEl.className = 'm-value ' + pnlClass(metrics.total_pnl || 0);
-  const impliedRoe = BACKTEST_BASELINE_EQUITY > 0
-    ? ((metrics.total_pnl || 0) / BACKTEST_BASELINE_EQUITY) * 100
-    : 0;
+  const impliedRoe = impliedAnnualizedRoe(metrics.total_pnl || 0, trades);
   setText(
     'm-sub-pnl',
     isResearch
-      ? `research subset · implied ROE ${fmtPctSigned(impliedRoe)} on $100k baseline`
-      : `net realized · ROE ${fmtPctSigned(impliedRoe)} on $100k baseline`
+      ? `research subset · implied annualized ROE ${fmtPctSigned(impliedRoe)} on $100k baseline`
+      : `net realized · annualized ROE ${fmtPctSigned(impliedRoe)} on $100k baseline`
   );
 
   document.getElementById('m-card-dd').classList.toggle('hidden', isResearch);
