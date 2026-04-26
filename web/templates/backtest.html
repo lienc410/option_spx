@@ -1162,6 +1162,7 @@ let _spxOverlay    = 'none';
 let _spxChartData  = null;        // { events, ptRadius, ptColors, ptRotation, siblingIdx }
 let _spxStartIdx   = 0;
 let _spxFullSigData = [];         // full signal timeline for SPX chart + matrix
+const BACKTEST_BASELINE_EQUITY = 100000;
 let _spxWindowFetchTimer = null;
 let _allTrades = [];
 let _activeStratFilter = 'All';
@@ -1957,6 +1958,10 @@ function fmtDollarFull(n) {
   return (n >= 0 ? '+' : '-') + '$' + Math.abs(n).toLocaleString('en-US', {maximumFractionDigits:0});
 }
 function pnlClass(n) { return n >= 0 ? 'pos' : 'neg'; }
+function fmtPctSigned(n) {
+  const numeric = Number(n || 0);
+  return `${numeric >= 0 ? '+' : ''}${numeric.toFixed(1)}%`;
+}
 
 function reasonTag(r) {
   if (!r) return `<span class="reason-tag reason-default">—</span>`;
@@ -2009,7 +2014,15 @@ function applyMetricCards(metrics, trades, mode = 'production') {
   const pnlEl = document.getElementById('m-pnl');
   pnlEl.textContent = fmtDollarFull(metrics.total_pnl || 0);
   pnlEl.className = 'm-value ' + pnlClass(metrics.total_pnl || 0);
-  setText('m-sub-pnl', isResearch ? 'research subset' : 'net realized');
+  const impliedRoe = BACKTEST_BASELINE_EQUITY > 0
+    ? ((metrics.total_pnl || 0) / BACKTEST_BASELINE_EQUITY) * 100
+    : 0;
+  setText(
+    'm-sub-pnl',
+    isResearch
+      ? `research subset · implied ROE ${fmtPctSigned(impliedRoe)} on $100k baseline`
+      : `net realized · ROE ${fmtPctSigned(impliedRoe)} on $100k baseline`
+  );
 
   document.getElementById('m-card-dd').classList.toggle('hidden', isResearch);
   document.getElementById('m-card-sharpe').classList.toggle('hidden', isResearch);
