@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-04-24
+Last Updated: 2026-04-26
 Owner: Planner or PM
 
 ## Current Phase
@@ -10,6 +10,8 @@ Owner: Planner or PM
 
 ## Current System Snapshot
 
+- Primary project objective has now been reset at the PM level: **reasonably maximize account-level ROE**, not merely maximize `PnL / Sharpe / MaxDD` or `PnL/BP-day` in isolation
+- “Reasonably” currently means: preserve explicit attention to drawdown control, margin stress / forced-liquidation risk, hidden concentration, and the opportunity cost of deploying scarce BP
 - Recommended production posture: preserve current strategy matrix and add only research-backed, low-regret changes.
 - Latest full strategy status doc: `doc/strategy_status_2026-04-20.md`
 - Latest system status doc: `doc/system_status_2026-04-20.md`
@@ -20,6 +22,7 @@ Owner: Planner or PM
   - `com.spxstrat.cloudflared`
 - Default compute host for heavy jobs remains the main machine; old Air is runtime-first, not compute-first
 - New operational role exists: Codex `Server Maintainer` on old Air, responsible for runtime health, logs, and low-risk service recovery
+- New standing research-review rule (PM, 2026-04-25): all future strategy / spec / variant / prototype comparisons must include the full metrics pack, not just `PnL / Sharpe / MaxDD`. Minimum pack now includes `PnL/BP-day`, `marginal $/BP-day`, `worst trade`, `disaster window`, `max BP%`, `concurrent 2x days`, and `CVaR 5%`
 - Fast runtime reference: `SERVER_RUNTIME.md`
 - Reference: `doc/old_air_server_maintainer.md`
 
@@ -30,7 +33,7 @@ Owner: Planner or PM
 ## Top Blockers
 
 - `B1` — `/ES` minimal production cell (`SPEC-061`) is now done, but its production safety boundary is still below PM requirements: pure manual stop monitoring is not acceptable; the minimum acceptable next step is system monitoring plus bot alerting for the stop condition — owner: PM/Planner — next action: open a narrow follow-up Spec for runtime safeguards
-- `B2` — HC has now accepted `MC_Handoff_2026-04-24_v3` as the authoritative MC sync package, but HC has not yet reproduced the new aftermath stack and related tooling findings in its own environment. Until `SPEC-068 / SPEC-069 / SPEC-070 v2 / SPEC-071 / SPEC-072 / SPEC-073` are checked or replayed on HC, PARAM/master-doc drift risk remains high — owner: PM/Planner — next action: treat HC reproduction as the immediate sync-track priority rather than assuming MC-side DONE equals HC-side canonical
+- `B2` — the project has now promoted a higher-level capital-allocation question above `Q021`: how to deploy persistently idle BP to improve account-level ROE without introducing unacceptable drawdown, margin, or concentration risk. This is not yet a Spec or implementation task; it needs a new research framing and account-level evidence first — owner: PM/Planner/Quant — next action: open a dedicated research track and keep `Q021` as supporting evidence rather than as the parent container
 - `B3` — dependency-bound legacy items (`Q001`, `Q002`, `Q003`) are still unresolved and can compete for attention if not kept explicitly ordered — owner: PM/Planner — next action: preserve `/ES` as the current front-of-queue decision item unless a dependency clears
 
 ## Open Questions Summary
@@ -38,9 +41,10 @@ Owner: Planner or PM
 - `Q002` — Shock active mode still needs Phase B validation — `open`
 - `Q012` — `/ES` short put path is now the preferred production candidate; remaining question is shared-BP management with SPX Credit and how far to extend the MVP beyond Layer 2 — `open`
 - `Q013` — `/ES` short put runtime stop execution and post-entry management remain undefined in production — `open`
-- `Q029` — MC found one material research/live parity issue: backtest engine hardcodes `qty = 1` and ignores selector `SizeTier`; HC now needs to reproduce the audit and decide whether to adopt the `research_1spx + live_scaled_est` reporting convention before any engine rewrite — `open`
+- `Q029` — research/live parity remains open at the engine level (`qty = 1` vs `SizeTier`), but the reporting-layer mitigation is now shipped: `SPEC-072` completed the dual-scale frontend so HC can display `research_1spx + live_scaled_est` without touching backend logic — `open`
 - `Q020` — MC `backtest_select` simplification produced a low aftermath artifact count for `SPEC-064 AC10`; HC artifact count `49` is canonical, this entry tracks MC-side housekeeping only — `MC-side housekeeping`
-- `Q021` — `Q018 / SPEC-066` may have optimized the wrong aftermath semantic: the second `IC_HV` should likely target a distinct second VIX peak, not a back-to-back re-entry immediately after the first peak (HC originally tracked this as `Q020`; renumbered to `Q021` 2026-04-25 to align with MC convention) — `research`
+- `Q021` — `Q018 / SPEC-066` semantic follow-up is now at `ready to close pending PM final approval`: Phase 4 sizing-curve review found no smart-edge in any sizing-up variant, so current recommendation is to keep `SPEC-066` unchanged and close the question unless PM wants more work (HC originally tracked this as `Q020`; renumbered to `Q021` 2026-04-25 to align with MC convention) — `ready to close`
+- `Q036` — new system-level research track: **Idle BP Deployment / Capital Allocation**. Under the updated objective, the question is no longer “should `V_D` replace `V_A`?” but “if baseline rule + baseline size leave meaningful BP idle, should some of that BP be deployed through a controlled overlay to improve account-level ROE without unacceptable tail risk?” The modeling standard should be combination-level BP pool first, with `IC_HV aftermath` allowed as the pilot use case and `Q021` reused as an evidence base rather than as the governing container — `research`
 - `Q019` — MC Phase 1 now reports non-trivial close/open VIX drift (`aftermath 4.63%`, `regime 9.71%`, `trend 31.54%` flips), but PM has not yet chosen between the proposed follow-up paths `A / B / C`; HC should not silently reinterpret existing specs until that decision is made — `research`
 - `Q032` — after MC selected aftermath broken-wing `V3-A` (`LC 0.04 / LP 0.08`), `V3-C` (`LC 0.03`) stays as a monitor-only revisit candidate after `5–10` live aftermath trades — `monitoring`
 - `Q011` — regime decay DIAGONAL sample is still small — `monitoring`
@@ -50,14 +54,18 @@ Owner: Planner or PM
 
 ## Next Priorities
 
-- `P1` — reproduce the accepted MC 2026-04-24 stack on HC in a narrow, ordered way: `SPEC-068` (per-strategy spell throttle), `SPEC-069` (open-at-end artifact/UI field), `SPEC-070 v2` (delta-based long-leg alignment), `SPEC-071` (aftermath broken-wing IC), `SPEC-072` (frontend deploy), and `SPEC-073` (dead-code cleanup)
-- `P2` — ask PM to choose whether `Q019` stays deferred or advances via one of MC’s proposed paths `A / B / C`; until then, keep the new close/open VIX evidence indexed but non-binding
-- `P3` — open a narrow follow-up Spec for `/ES` runtime safeguards, with minimum scope of stop-condition monitoring plus bot alerting
-- `P4` — after the HC reproduction pass, revisit `Q021`: whether `SPEC-066` alpha is materially driven by semantically wrong back-to-back `IC_HV` entries rather than true second-peak aftermath capture
-- `P5` — continue validating dependency-bound items before promoting broader sizing logic or additional HIGH_VOL changes into new Specs
+- `P1` — formalize the new top-level objective in ongoing research work: reasonably maximize account-level ROE under explicit risk guardrails, not just improve rule-local efficiency metrics
+- `P2` — launch `Q036` as a distinct research branch on idle-BP deployment / capital allocation, with combination-level BP modeling and `IC_HV aftermath` as the first pilot if needed
+- `P3` — get PM’s final decision on `Q021`: close it with `SPEC-066` unchanged and treat it as a completed rule-layer evidence base feeding `Q036`, unless PM explicitly wants more semantic work there
+- `P4` — ask PM to choose whether `Q019` stays deferred or advances via one of MC’s proposed paths `A / B / C`; until then, keep the new close/open VIX evidence indexed but non-binding
+- `P5` — open a narrow follow-up Spec for `/ES` runtime safeguards, with minimum scope of stop-condition monitoring plus bot alerting
 
 ## Recent Meaningful Changes
 
+- 2026-04-26 — Quant completed `Q021 Phase 4` (`doc/q021_phase4_sizing_curve_2026-04-26.md`), the 6-variant aftermath first-entry sizing-curve study. The decisive result is that every sizing-up variant underperformed the `SPEC-066` baseline on marginal `$ / BP-day`: `V_G 3.83`, `V_D 3.37`, `V_J 2.98`, `V_E 2.70` versus baseline `V_A 4.85`. This means the apparent `V_D` uplift is leverage drag rather than a smarter rule, `V_J` confirms most of `V_D`’s extra dollars came from distinct-cluster overlapping leverage, `V_G` is the cleanest doubler but still below baseline, and `V_H` is effectively `V_A - 1 trade`. Planner-level implication: `Q021` is now ready to close pending PM approval, with current recommendation “keep `SPEC-066`, do not open `SPEC-067`” — `See: RESEARCH_LOG.md`, `sync/open_questions.md`
+- 2026-04-26 — PM’s new permanent review convention is now in force: all future strategy / spec / variant / prototype comparisons must include the full metrics pack (`PnL/BP-day`, `marginal $/BP-day`, `worst trade`, `disaster window`, `max BP%`, `concurrent 2x days`, `CVaR 5%`), not just `PnL / Sharpe / MaxDD`. This rule came out of `Q021 Phase 4` and should be treated as a standing research-governance constraint rather than a question-specific preference — `See: RESEARCH_LOG.md`
+- 2026-04-26 — PM reset the project’s top-level objective from strategy-local improvement toward **reasonable account-level ROE maximization**. This changes the framing of the open sizing discussion: `Q021` remains a rule-layer conclusion and evidence base, but future work on aftermath sizing should no longer ask “should `V_D` replace `V_A`?” Instead, the new question is whether controlled idle-BP deployment can improve account-level ROE without unacceptable drawdown, margin, or concentration costs. Planner implication: open a new capital-allocation research branch (`Q036`) and keep `IC_HV aftermath` as the first pilot use case rather than as the universal answer — `See: RESEARCH_LOG.md`, `sync/open_questions.md`, `task/IDLE_BP_OVERLAY_RESEARCH_NOTE.md`
+- 2026-04-25 — `SPEC-072` is now `DONE` on HC (`main` / `3fca17a`). The frontend-only dual-scale / broken-wing visual layer has been implemented, Quant code-level review passed, and PM smoke completed enough to close the spec. Scope stayed strictly in frontend files: shared helpers in `web/static/spec072_helpers.js`, recommendation-card updates in `web/templates/index.html`, research-view / trade-log / legend work in `web/templates/backtest.html`, and margin BP dual-text in `web/templates/margin.html`. This closes the last outstanding implementation item in the HC reproduction sprint from `MC_Handoff_2026-04-24_v3` — `See: task/SPEC-072.md`, `doc/quant_review_spec072_2026-04-25.md`
 - 2026-04-24 — `MC_Handoff_2026-04-24_v3.md` has now been accepted as the authoritative MC sync package. It materially extends the aftermath stack beyond HC’s current indexed state: MC reports `SPEC-068 DONE` (per-strategy spell throttle), `SPEC-069 DONE` (`open_at_end` artifact/UI support), `SPEC-070 v2 DONE` (delta-based long-leg alignment), `SPEC-071 DONE` (aftermath broken-wing IC, `LC 0.04 / LP 0.08`, `DTE 45` unchanged), `SPEC-072 MC-side DONE` (frontend dual-scale display, still pending HC deploy), and `SPEC-073 DONE` (dead-code cleanup). These should be treated as HC reproduction targets, not yet HC-canonical facts — `See: sync/mc_to_hc/MC_Handoff_2026-04-24_v3.md`
 - 2026-04-24 — MC also surfaced two planning-relevant research governance findings that HC had not yet indexed. First, `Q029` found one material parity issue: the engine hardcodes `qty = 1` and therefore overstates live aftermath notional relative to `SizeTier`; MC’s chosen interim resolution is reporting-layer dual columns (`research_1spx` + `live_scaled_est`), not immediate engine rewrite. Second, `Q019 Phase 1` measured a non-trivial close/open VIX mismatch (`aftermath 4.63%`, `regime 9.71%`, `trend 31.54%` flips), but PM has not yet chosen whether to close, reproduce, or codify that evidence — `See: RESEARCH_LOG.md`, `sync/open_questions.md`
 - 2026-04-20 — PM surfaced a new follow-up concern on the `Q018 / SPEC-066` line: the intended behavior in a double-spike pattern is not “allow two back-to-back `IC_HV` entries,” but “allow a second `IC_HV` only after a distinct second VIX peak begins to mean-revert.” This raises the possibility that part of the `cap=2 + B` alpha was earned under the wrong semantic, so a new research item `Q020` has been opened to measure how much of the result depends on back-to-back re-entry versus genuine second-peak capture — `See: RESEARCH_LOG.md`, `sync/open_questions.md`

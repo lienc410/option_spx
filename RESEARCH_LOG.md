@@ -1,11 +1,55 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-04-24
+Last Updated: 2026-04-26
 Owner: Planner or PM
 
 ---
 
 ## Entries
+
+### R-20260426-03 — PM reset the top-level objective: the next sizing question is account-level ROE under guardrails, not another rule-replacement contest
+
+- Topic: Objective reset from rule-local optimization to account-level capital allocation
+- Findings: PM explicitly clarified that the project’s primary objective is now to **reasonably maximize account-level ROE**. “Reasonably” means the optimization target must remain constrained by explicit concern for drawdown, margin stress / forced-liquidation risk, hidden concentration, and the opportunity cost of deploying scarce BP. This reframes the aftermath sizing discussion. `Q021 Phase 4` still stands: `V_D` / `V_E` / `V_J` / `V_G` do **not** beat `V_A` as canonical rules, and `SPEC-066` remains the right rule-layer baseline. But that result does not end the higher-level question of whether persistently idle BP should sometimes be deployed through a controlled overlay to improve account-level ROE. The correct next question is therefore not “should `V_D` replace `V_A`?” but “should the system add a guarded idle-BP deployment overlay, modeled at the combination-level capital pool, with `IC_HV aftermath` as an initial pilot use case if needed?”
+- Risks / Counterarguments: this is a broader scope than `Q021`, and it introduces a governance risk if the team blurs rule quality with capital deployment. If handled carelessly, a positive overlay result could be misread as proof that a lower-quality rule should replace the baseline. PM has explicitly rejected that conflation. Another risk is premature local optimization: today the opportunity-cost baseline is intentionally simple (`A`: idle BP is allowed to remain idle), but future multi-strategy capital allocation may change the correct answer once `/ES` or other deployable sleeves mature
+- Confidence: high on the framing reset; low on the economic answer until account-level idle-BP evidence is produced
+- Next Tests: open a distinct research branch for idle-BP deployment / capital allocation. First pass should stay at feasibility level and answer: whether idle BP is persistent enough to matter, whether a guarded overlay improves account-level ROE, what incremental tail cost it creates, and whether that beats the current opportunity-cost baseline of leaving BP unused. `Q021` should be retained as an evidence base and pilot input, not as the parent framing
+- Recommendation: treat this as a new system-level research question, not as a reopened `SPEC-066` rule fight
+- Related Question: `Q036`, `Q021`
+- See: `task/IDLE_BP_OVERLAY_RESEARCH_NOTE.md`, `doc/q021_phase4_sizing_curve_2026-04-26.md`, `doc/q021_variant_matrix_2026-04-26.md`, `sync/open_questions.md`
+
+### R-20260426-01 — Q021 Phase 4 closes the sizing-up branch: no smart edge exists anywhere on the aftermath first-entry sizing curve
+
+- Topic: Final Phase 4 sizing-curve review for `Q021`
+- Findings: Quant completed the 6-variant aftermath first-entry sizing-curve study (`V_A baseline / V_D 2x full / V_E 1.5x / V_J 2x no-overlap / V_H split-entry / V_G 2x disaster-cap`). The core result is decisive: every sizing-up variant underperformed the `SPEC-066` baseline on marginal `$ / BP-day`. Baseline `V_A` runs at `+$4.85 / BP-day`, while the best sizing-up path only reaches `V_G +$3.83`, with `V_D +$3.37`, `V_J +$2.98`, and `V_E +$2.70`. This means the apparent `V_D` uplift (`+6.9%` PnL) is leverage drag rather than a smarter rule. Additional decomposition sharpened the conclusion: `V_J` and `V_E` earn almost the same extra dollars, which isolates most of `V_D`’s extra `+$17K` as distinct-cluster overlapping leverage; `V_G` is the cleanest doubler but still fails to cross baseline efficiency; and `V_H` is effectively just `V_A - 1 trade`, so split-entry has no independent alpha
+- Risks / Counterarguments: this is a strong close recommendation, not yet a PM-final close. The study rules out the tested sizing-up branch, but it does not prove no future conditioned 2x idea could ever work; it only shows there is no smart edge anywhere on the tested `[1x, 2x]` curve. Quant also explicitly treats `V_G` as a possible future research note rather than a current candidate, because even its cleaner disaster behavior still fails the marginal-efficiency bar
+- Confidence: high
+- Next Tests: Planner should now treat `Q021` as `ready to close pending PM final approval`. No new `SPEC-067` should be opened from this branch. If PM wants a future revisit, the only candidate worth remembering is `V_G`, and even that should remain a note rather than a promoted backlog item unless new evidence appears
+- Recommendation: close `Q021` with `SPEC-066` unchanged, pending PM signoff
+- Related Question: `Q021`
+- See: `doc/q021_phase4_sizing_curve_2026-04-26.md`, `doc/q021_variant_matrix_2026-04-26.md`, `backtest/prototype/q021_phase4_sizing_curve.py`, `sync/open_questions.md`
+
+### R-20260426-02 — PM established a permanent “full metrics pack” rule for all future strategy/spec comparisons
+
+- Topic: New standing research-governance rule triggered by the Q021 Phase 4 debate
+- Findings: PM accepted 2nd Quant’s critique that `PnL / Sharpe / MaxDD` alone are insufficient for variant promotion decisions and established a permanent rule: all future strategy / spec / variant / prototype / quant-review comparisons must include the full metrics pack, at minimum `PnL/BP-day`, `marginal $/BP-day`, `worst trade`, `disaster window`, `max BP%`, `concurrent 2x days`, and `CVaR 5%`. This is a cross-project research convention, not a one-off preference for `Q021`. The rule has been stored in persistent memory as `feedback_strategy_metrics_pack.md`
+- Risks / Counterarguments: this increases review overhead slightly, especially for fast iterations, but the project has now seen enough cases where raw PnL or Sharpe could mask leverage drag or tail concentration. The governance cost is justified by the reduction in false promotions
+- Confidence: high
+- Next Tests: none as a research question; the next requirement is operational discipline. Future specs, research packets, and review handoffs should be checked against this rule by default
+- Recommendation: treat as permanent project convention
+- See: `doc/q021_phase4_sizing_curve_2026-04-26.md`, `~/.claude/projects/.../memory/feedback_strategy_metrics_pack.md`
+
+### R-20260425-01 — `SPEC-072` closes the reporting-layer piece of Q029 without escalating to backend changes
+
+- Topic: Final outcome of the HC-side `SPEC-072` reproduction task
+- Findings: `SPEC-072` is now `DONE` on HC (`main` / `3fca17a`). The implementation stayed frontend-only and landed exactly where the HC mapping expected: shared helpers in `web/static/spec072_helpers.js`, dual BP badge + broken-wing BUY-leg emphasis in `web/templates/index.html`, aftermath view disclaimer + HIGH_VOL dual-stack trade-log rendering + `SPEC-071` addendum legend in `web/templates/backtest.html`, and HIGH_VOL BP dual-text in `web/templates/margin.html`. Quant’s code-level review passed all static acceptance criteria (`AC1–AC7`, `AC9`), while PM smoke was accepted through helper console checks plus browser-level visual probes rather than waiting for a naturally occurring live HIGH_VOL recommendation. This means the project has now shipped the reporting-layer mitigation implied by `Q029`: HC can display `research_1spx` alongside `live_scaled_est` without touching backend, engine, selector, or artifacts
+- Risks / Counterarguments: this closes the SPEC, not the deeper parity question. The implementation still couples broken-wing visual emphasis and dual-scale display behind the same `isAftermathHighVol` gate, and the margin dual-text path still awaits a naturally surfacing HIGH_VOL live position to be observed in production. More importantly, `SPEC-072` does **not** solve the underlying engine-level notional mismatch; it only makes the difference explicit in the UI
+- Confidence: high
+- Next Tests: no immediate frontend follow-up is required. The next meaningful decision is strategic: whether `Q029` remains sufficiently handled by UI/reporting-layer dual columns, or whether PM wants to promote a deeper live-scale engine branch (`Q035`). Separate from that, the main aftermath research question is now back to `Q021`, not more frontend work
+- Recommendation: done at the UI layer; hold deeper engine work until PM asks for it
+- Related Spec: `SPEC-072`
+- Related Question: `Q029`, `Q035`
+- See: `task/SPEC-072.md`, `doc/quant_review_spec072_2026-04-25.md`, `task/SPEC-072_handoff.md`
 
 ### R-20260424-03 — MC aftermath stack converged on broken-wing `IC_HV`, but HC still needs its own reproduction pass
 
