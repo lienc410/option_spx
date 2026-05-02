@@ -641,7 +641,7 @@ MC 解释：
 
 - `tests/test_overlay_f_gate.py`
 - `tests/test_overlay_f_monitoring.py`
-- `tests/test_bcd_filter_a.py`
+- `tests/test_bcd_filter.py`
 - `tests/test_bcd_stop.py`
 - `tests/test_dashboard_metrics_consistency.py`
 
@@ -667,7 +667,7 @@ MC 解释：
 
 - `task/Q038_2nd_quant_review.md`
 - `task/Q038_3rd_quant_review.md`
-- `task/SPEC-070_V2_Q027_Review.md`（仅参考）
+- `task/SPEC-070_v2_Q027_Review.md`（仅参考）
 
 ### 新增数据文件
 
