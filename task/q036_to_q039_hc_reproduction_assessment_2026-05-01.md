@@ -268,3 +268,22 @@ PM 已授权 batch 1（SPEC-077 / 074 / 078 主体）。Quant 在起草前对 HC
 - **W1 tieout 收口的真实主导项变成 SPEC-077 + SPEC-080**，而不是 SPEC-074。因此 batch 2（SPEC-079/080 研究 + SPEC-075 prototype lift）的优先级在 HC 端可能更紧迫；建议 PM 在看到本 §9 后再确认 batch 顺序
 
 **Quant 当前推进姿态**：继续按 PM 授权完成 batch 1 三个 spec 草稿（SPEC-074 写 no-op 形式，SPEC-077 写 default-config-change 形式，SPEC-078 待 dashboard 核查后写），并在每条 spec 内引用本 §3.5 / §9 作为依据。如 PM 看到本节后认为应改顺序（先 batch 2 研究、再回 batch 1），请直接通知。
+
+---
+
+## 10. 2026-05-01 SPEC-074 F2 比对结果（基于 MC_Spec-074_short_summary_v3.md）
+
+PM 在 batch 1 起步后提供了 `sync/mc_to_hc/MC_Spec-074_short_summary_v3.md`。Quant 完成 F2 逐行对照：
+
+| 维度 | 结论 |
+|---|---|
+| 7 项 MC 列出的 gate 缺失 | 6 项 HC 已有；第 6 项 (`SPEC-054 DIAGONAL both-high gate`) **HC 主动由 SPEC-056c 移除**，与 MC canonical 分歧 |
+| 5 个 MC 列出的实施组件 | 4 个 HC 已有（VIX3M / IVP63 helper / snapshot / delegation）；只缺 `tests/test_backtest_select_parity.py` |
+| BBG VIX3M fetch 依赖 | HC 不需要；HC engine 走 yfinance `fetch_vix3m_history(period="max")`，覆盖 inception 2003-12-04 → today |
+
+**§3.5 部分修正**：原写"SPEC-074 在 HC 是 no-op declaration"——更准确的说法是 **"HC 已实质对齐 SPEC-074 的功能层；治理层缺一个正式 parity test，且有一处真实分歧 (SPEC-054 vs SPEC-056c) 需要 PM 裁定"**。SPEC-074 不再是纯 no-op，但工作量也仅限于 F4 (test) + F5 (escalation)，不需要改 production 代码。
+
+**对 §3.5 root-cause 排序的影响**：
+- Cause A (profit_target 0.50 vs 0.60) 仍占 ~50%
+- Cause B (BCD debit stop -0.50 vs -0.35) 仍占 ~30%  
+- Cause C 需细化：HC vs MC 在 LOW_VOL + IVP_HIGH 路径上由于 SPEC-056c 分歧会有结构性差异，这是 tieout #2 残余不 100% match 的合法 fingerprint，不应视作 reproduction bug

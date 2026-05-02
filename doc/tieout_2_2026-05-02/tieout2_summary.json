@@ -1,0 +1,90 @@
+{
+  "window_start": "2023-04-29",
+  "qa_self_consistent": false,
+  "q_a_pt050": {
+    "trades": 58,
+    "open_at_end": 2,
+    "total_pnl": 75570.29,
+    "per_strategy": {
+      "Bull Call Diagonal": {
+        "count": 21,
+        "pnl": 37714.31,
+        "open": 0
+      },
+      "Iron Condor": {
+        "count": 13,
+        "pnl": 16403.94,
+        "open": 1
+      },
+      "Bull Put Spread": {
+        "count": 15,
+        "pnl": 13538.09,
+        "open": 1
+      },
+      "Iron Condor (High Vol)": {
+        "count": 8,
+        "pnl": 6186.0,
+        "open": 0
+      },
+      "Bull Put Spread (High Vol)": {
+        "count": 1,
+        "pnl": 1727.97,
+        "open": 0
+      }
+    }
+  },
+  "q_c_pt060": {
+    "trades": 57,
+    "open_at_end": 2,
+    "total_pnl": 79933.69,
+    "per_strategy": {
+      "Bull Call Diagonal": {
+        "count": 20,
+        "pnl": 38571.46,
+        "open": 0
+      },
+      "Iron Condor": {
+        "count": 13,
+        "pnl": 19329.34,
+        "open": 1
+      },
+      "Bull Put Spread": {
+        "count": 15,
+        "pnl": 13538.09,
+        "open": 1
+      },
+      "Iron Condor (High Vol)": {
+        "count": 8,
+        "pnl": 6766.83,
+        "open": 0
+      },
+      "Bull Put Spread (High Vol)": {
+        "count": 1,
+        "pnl": 1727.97,
+        "open": 0
+      }
+    }
+  },
+  "tieout1_reference": {
+    "trades": 57,
+    "pnl": 73952.0
+  },
+  "self_consistency_qa_vs_tieout1": {
+    "entry_date_match_pct": 98.28,
+    "only_in_qa": [
+      "2026-04-30"
+    ],
+    "only_in_tieout1": [],
+    "trade_delta": 1,
+    "pnl_delta": 1618.29
+  },
+  "hc_vs_mc_gap_pt050": {
+    "hc_trades": 58,
+    "mc_trades": 52,
+    "trade_delta": 6,
+    "hc_pnl": 75570.29,
+    "mc_pnl": 45922.0,
+    "pnl_delta": 29648.29,
+    "note": "Gap vs MC@0.50: batch 1 did not change selector/exit logic, so this is expected to be similar to tieout #1 gap. Real convergence requires SPEC-079/080 (batch 2)."
+  }
+}

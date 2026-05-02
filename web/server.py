@@ -1269,7 +1269,7 @@ def api_experiments_run():
             high_vol_size   = float(p.get("high_vol_size",   0.50)),
             normal_delta    = float(p.get("normal_delta",    0.30)),
             normal_dte      = int(  p.get("normal_dte",      30)),
-            profit_target   = float(p.get("profit_target",   0.50)),
+            profit_target   = float(p.get("profit_target",   0.60)),   # SPEC-077
             stop_mult       = float(p.get("stop_mult",       2.0)),
             min_hold_days   = int(  p.get("min_hold_days",   10)),
         )
@@ -1306,7 +1306,7 @@ def _run_auto_search(grid: dict, fixed: dict, start_date: str):
                 high_vol_size  = float(p.get("high_vol_size",  0.50)),
                 normal_delta   = float(p.get("normal_delta",   0.30)),
                 normal_dte     = int(  p.get("normal_dte",     30)),
-                profit_target  = float(p.get("profit_target",  0.50)),
+                profit_target  = float(p.get("profit_target",  0.60)),   # SPEC-077
                 stop_mult      = float(p.get("stop_mult",      2.0)),
                 min_hold_days  = int(  p.get("min_hold_days",  14)),
             )

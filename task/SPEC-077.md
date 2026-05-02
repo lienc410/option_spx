@@ -1,6 +1,6 @@
 # SPEC-077: profit_target Default Lift to 0.60 + stop_mult Wiring Verification
 
-Status: DRAFT
+Status: DONE (2026-05-02; AC3 全样本未达 — PM 选项 (2) 操作性 MC 对齐，量级差距调查 deferred 至 SPEC-080 wire debit-side `params.stop_mult` 之后)
 
 ## 目标
 
@@ -122,3 +122,10 @@ profit_target:      float = 0.60   # close at this fraction of max credit (SPEC-
 | 日期 | 变更 | 状态 |
 |---|---|---|
 | 2026-05-01 | Quant 起草；F1/F2 范围确认；engine credit-side wiring 已实测在 line 880 | DRAFT |
+| 2026-05-02 | PM 审批 → APPROVED；进入实施 | APPROVED |
+| 2026-05-02 | F1 落地 [strategy/selector.py:68](strategy/selector.py#L68) `profit_target=0.60`；production_config 同步 [web/server.py:1272/1309](web/server.py#L1272) | APPROVED |
+| 2026-05-02 | F2 落地 [tests/test_engine_stop_wiring.py](tests/test_engine_stop_wiring.py) — 5 testcases PASS（credit-side `params.stop_mult` 引用锁定 + debit-side `-0.50` 当前行为锁定，docstring 引用 SPEC-080） | APPROVED |
+| 2026-05-02 | F3 baseline rerun 完成 [doc/baseline_2026-05-02/](doc/baseline_2026-05-02/)。3.3y 窗口结果方向 **混合**：max DD 改善 +$958（与 Q037 一致），但 realized PnL -$13,276 / Sharpe -0.29（与 Q037 不一致；2 winners 仍 open 未实现）。AC3 全样本验证仍依赖 Q037 Phase 2A，**等 PM AC3 裁定**后再关 DONE | APPROVED |
+| 2026-05-02 | F4 RESEARCH_LOG / PROJECT_STATUS 已更新；R-20260502-01 录入 | APPROVED |
+| 2026-05-02 | **AC3 全样本 HC rerun 完成** (`doc/baseline_2026-05-02/run_ac3_fullsample.py`，start=`2007-01-01`，period=`19.32y`)。结果：Δ ann_roe = `+0.0856pp` (PT=0.50→0.60)，远低于 Q037 Phase 2A 报道的 `+0.91~+1.03pp` 区间，也未达到 SPEC-077 AC3 阈值 `≥+0.5pp`。Δ sharpe = `0.00`（非退化 ✓），Δ max_dd = `-$850`。**AC3 FAIL**。HC ↔ MC 在该实验上的 ~10× 量级差距怀疑落在 (a) 复利口径（HC 用 fixed `$100k` baseline，可能 MC compound）；(b) debit-side hardcoded `-0.50` stop（line 882，待 SPEC-080 wire）影响 BCD 与 PT 互动；(c) SPEC-054 / SPEC-056c 永久分歧带来的 trade-mix 差异。需要 PM 选择路径：(1) 暂停 SPEC-077 DONE，先开 quant 调查 HC↔MC 量级差距；(2) 接受 SPEC-077 操作性 MC 对齐（rule lift + wiring）但显式 acknowledge AC3 全样本未达，闭 DONE；(3) revert 默认到 `0.50` | APPROVED — AC3 BLOCKED |
+| 2026-05-02 | **PM 选项 (2) — 操作性 MC 对齐 + AC3 全样本未达 acknowledged → DONE**。F1 / F2 / F3 / F4 / F5 全部交付；AC1 / AC2 / AC4 / AC5 / AC6 PASS；**AC3 documented FAIL**（`+0.0856pp` < `+0.5pp` 阈值，未进 Q037 band `+0.91~+1.03pp`）。HC↔MC 量级差距调查 deferred：理由是 SPEC-080 wire debit-side `params.stop_mult` 后再 rerun 才能区分 (a) 复利 / (b) debit-stop 硬编 / (c) SPEC-054 永久分歧三因素。本 spec 闭 DONE 不阻塞 tieout #2；量级差距由 future spec（暂记 SPEC-080-followup 或 Q040）跟踪 | DONE |

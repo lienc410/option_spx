@@ -1962,6 +1962,13 @@ function fmtPctSigned(n) {
   const numeric = Number(n || 0);
   return `${numeric >= 0 ? '+' : ''}${numeric.toFixed(1)}%`;
 }
+/**
+ * @deprecated SPEC-078 — server `metrics.annualized_roe` is the source of truth.
+ *             This function is retained only as the fallback path when the API
+ *             response omits `annualized_roe` (rollout / cached responses).
+ *             Calls trigger console.warn at the call site. Do not invoke
+ *             directly in new code.
+ */
 function impliedAnnualizedRoe(totalPnl, trades, baselineEquity = BACKTEST_BASELINE_EQUITY) {
   if (!baselineEquity || baselineEquity <= 0 || !trades || !trades.length) return 0;
   const start = new Date(`${trades[0].entry_date}T00:00:00`);
@@ -2025,7 +2032,12 @@ function applyMetricCards(metrics, trades, mode = 'production') {
   const pnlEl = document.getElementById('m-pnl');
   pnlEl.textContent = fmtDollarFull(metrics.total_pnl || 0);
   pnlEl.className = 'm-value ' + pnlClass(metrics.total_pnl || 0);
-  const impliedRoe = impliedAnnualizedRoe(metrics.total_pnl || 0, trades);
+  // SPEC-078: server metrics.annualized_roe is the source of truth.
+  // Fallback to client formula only when API omits the field (during rollout).
+  const impliedRoe = (typeof metrics.annualized_roe === 'number')
+    ? metrics.annualized_roe
+    : (console.warn('[SPEC-078] server metrics.annualized_roe missing — JS fallback'),
+       impliedAnnualizedRoe(metrics.total_pnl || 0, trades));
   setText(
     'm-sub-pnl',
     isResearch

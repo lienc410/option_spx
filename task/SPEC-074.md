@@ -1,6 +1,6 @@
-# SPEC-074: Backtest Selector Path Parity (HC No-Op Declaration)
+# SPEC-074: Backtest Selector Path Parity (HC)
 
-Status: DRAFT (HC-side no-op pending PM confirmation)
+Status: DONE
 
 ## 目标
 
@@ -43,31 +43,75 @@ grep -rn "_backtest_select\|backtest_select\|simplified.*select\|fallback.*matri
 
 **核查对象**：[strategy/selector.py:543](strategy/selector.py#L543) 起的 `select_strategy(vix, iv, trend, params)` 函数
 
-**比对维度**（由 PM 在 spec 包中提供 MC 等价文件，或由 Quant 从 MC handoff `§SPEC-074 实现细节` 节选）：
+**比对源**：[sync/mc_to_hc/MC_Spec-074_short_summary_v3.md](sync/mc_to_hc/MC_Spec-074_short_summary_v3.md)（PM 2026-05-01 提供）
 
-| 分支 | HC 当前位置 | 是否需补 |
+**核查结果（2026-05-01 完成）**：
+
+#### 7 项 MC 列出的"缺失 gate"对照
+
+| MC 缺失项 | HC 当前位置 | 是否需补 |
 |---|---|---|
-| `vix.backwardation` skip (HV neutral / HV bearish / Normal bullish) | selector.py:698 / 746 / 786 / 963 / 1084 | 待 diff |
-| `IVP63_BCS_BLOCK >= 70` gate | selector.py:165, 623 | 待 diff |
-| `vix.trend == Trend.RISING` skip | selector.py:616 | 待 diff |
-| `IVR-IVP divergence` 处理 | selector.py:156 (常量) | 待 diff |
-| `VIX3M term structure` 引用 | selector.py:255-257, 220 | 待 diff |
-| 任何 MC SPEC-074 之后引入的 **新** 分支 | — | 待 PM 提供 |
+| 1. BACKWARDATION filter (BPS_HV / IC_HV aftermath) | [selector.py:698](strategy/selector.py#L698), [:746](strategy/selector.py#L746), [:786](strategy/selector.py#L786), [:963](strategy/selector.py#L963), [:1084](strategy/selector.py#L1084) | **N**（已有） |
+| 2. VIX_RISING gate (BCS_HV bearish) | [selector.py:616](strategy/selector.py#L616), [:739](strategy/selector.py#L739), [:794](strategy/selector.py#L794), [:869](strategy/selector.py#L869) (`vix.trend == Trend.RISING`) | **N**（已有） |
+| 3. IVP63 ≥ 70 gate (BCS_HV) | [selector.py:165](strategy/selector.py#L165) (`IVP63_BCS_BLOCK = 70`), [:623](strategy/selector.py#L623) | **N**（已有） |
+| 4. IC IVP range filter (20 < IVP < 50) | [selector.py:877](strategy/selector.py#L877) (`if iv.iv_percentile < 20 or iv.iv_percentile > 50: REDUCE_WAIT`) | **N**（已有） |
+| 5. DIAGONAL IV-high gate (SPEC-051) | [selector.py:914](strategy/selector.py#L914) | **N**（已有） |
+| 6. DIAGONAL both-high gate (SPEC-054) | [selector.py:924-925](strategy/selector.py#L924-L925) **明确注释 "removed by SPEC-056c"** | **⚠ 见 §F5** |
+| 7. aftermath bypass (含 backwardation retention) | [selector.py:283](strategy/selector.py#L283) (`is_aftermath`), [:581](strategy/selector.py#L581), [:697](strategy/selector.py#L697); SPEC-064 bypass 注释 [:611](strategy/selector.py#L611), [:734](strategy/selector.py#L734) | **N**（已有） |
 
-**判定规则**：
-- **若 HC 全部分支已存在** → SPEC-074 在 HC 侧 = no-op declaration，跳到 F3
-- **若 HC 缺失 ≥1 分支** → 在本 spec 内补 F4 章节描述要补的分支，并写为 `IN-SCOPE patch`，不另开 spec
+#### 5 个 MC 列出的"实施组件"对照
 
-### F3 — 在 HC 索引层归档 SPEC-074 = no-op declaration
+| MC 组件 | HC 当前位置 | 是否需补 |
+|---|---|---|
+| 1. VIX3M 历史数据 | [backtest/engine.py:671](backtest/engine.py#L671) (`fetch_vix3m_history(period="max")`) — **HC 走 yfinance**，覆盖 inception 2003-12-04 至 today | **N**（已有，无需 BBG fetch） |
+| 2. IVP63 helper | [signals/iv_rank.py:135-153](signals/iv_rank.py#L135-L153) (`compute` 内 `ivp63 = round((window63.iloc[:-1] < float(window63.iloc[-1])).mean() * 100.0, 1)`) | **N**（已有） |
+| 3. Snapshot 构建 | engine 主循环 [:812-824](backtest/engine.py#L812-L824), 第二循环 [:1232-1244](backtest/engine.py#L1232-L1244) — 含 `vix3m / backwardation / ivp63 / ivp252` 全字段 | **N**（已有） |
+| 4. `select_strategy` delegation | [engine.py:835](backtest/engine.py#L835), [:1252](backtest/engine.py#L1252) 直接调用 live `select_strategy(vix_snap, iv_snap, trend_snap, params)` | **N**（已有） |
+| 5. Parity test (`tests/test_backtest_select_parity.py`) | **不存在** | **Y → 见 §F4** |
+
+#### 判定结论
+
+- 7 项 gate 中 6 项 HC 已有；第 6 项 `SPEC-054 both-high diagonal gate` 是 **HC 主动 removed**（SPEC-056c），MC 仍 canonical → 这是 **HC vs MC 的真实行为分歧**，不是 HC 缺失，需要 PM 单独裁定
+- 5 个组件中 4 个 HC 已有；只缺 **parity test**
+- BBG VIX3M fetch 脚本（`data/fetch_bbg_vix3m.py` / `bin/run_fetch_bbg_vix3m.cmd`）在 HC 不需要，HC yfinance 已覆盖
+- 因此 SPEC-074 在 HC 侧的真实工作 = **F4 (parity test 新增) + F5 (SPEC-054 分歧 escalation)**，**不是 no-op**
+
+### F3 — 在 HC 索引层归档 SPEC-074 实际状态
 
 **变更**：
-1. `task/SPEC-074.md`（本文件）状态从 `DRAFT` → `DONE (no-op)`，并在 §变更记录写明核查日期与 grep 结果
-2. `sync/open_questions.md` `Q020`（如属同一根因）保持 `open`，并在备注引用本 spec 的 no-op 结论 —— **不**因 SPEC-074 DONE 而关闭 Q020；Q020 关闭仍以 `tieout #2` 收敛为依据
-3. `PROJECT_STATUS.md` 不新增条目；no-op spec 不算 build-up
+1. `task/SPEC-074.md`（本文件）状态：F4 + F5 完成后从 `DRAFT` → `DONE`；§变更记录列 F2 核查结果 + F4 测试结果 + F5 PM 裁定记录
+2. `sync/open_questions.md` `Q020`：保持 `open`；不因 F4 测试 PASS 直接关闭，Q020 关闭仍以 `tieout #2` 收敛为依据
+3. `PROJECT_STATUS.md`：在 backtest 节标注 "selector parity test 已立 (`tests/test_backtest_select_parity.py`)" 作为治理项
 
-### F4 — （仅在 F2 发现缺失时启用）补齐 select_strategy 缺失分支
+### F4 — 新增 backtest selection vs live selection parity test
 
-预留位。如 F2 比对未发现缺失，本节作废。
+**新增 [tests/test_backtest_select_parity.py](tests/test_backtest_select_parity.py)**：
+
+- 选 ≥ 20 个手挑日期，分布覆盖：
+  - 2008（GFC）— ≥ 4 dates
+  - 2018（Volmageddon / Q4 selloff）— ≥ 4 dates
+  - 2020（COVID）— ≥ 6 dates（含 backwardation 高峰、aftermath、recovery）
+  - 2022（rate-hike bear）— ≥ 6 dates
+- 每个日期：从 HC backtest engine 真实 snapshot 路径（`engine.py:812-824` 等同口径）构建 `VixSnapshot` / `IVSnapshot` / `TrendSnapshot`，调用 `select_strategy` 一次；并独立用 live data fetch 路径（`signals/vix_regime.fetch_vix_snapshot()` 等）构建另一份 snapshot 调用 `select_strategy` 一次
+- 断言：≥ `99%` 日期上两路返回的 `Recommendation.canonical_strategy` 一致；任何不一致日期必须列出 snapshot diff
+- **核心约束**：测试不应需要 live network；snapshot 构建走 cached pkl（`data/market_cache/yahoo__VIX__max__1d.pkl` 等已 staged）
+
+### F5 — SPEC-054 (DIAGONAL both-high gate) 分歧 escalation
+
+**事实**：
+- HC: `SPEC-056c` 已 remove `SPEC-054` both-high gate（[selector.py:924-925](strategy/selector.py#L924-L925)）
+- MC: SPEC-074 short summary 仍 list `SPEC-054 DIAGONAL both-high gate` 为 canonical 缺失项（即 MC 仍保留该 gate）
+
+**含义**：
+- 若 SPEC-074 parity test 在 LOW_VOL + IVP_HIGH 路径上某些日期 fail 99% 阈值，根因可能是这一条
+- 这不是 HC bug —— 是历史 spec 演进上 HC 走在了 MC 前面。但 PM 需要决定：
+  - **Option A**：HC 保持 `SPEC-056c` 移除状态（推荐）→ 在 SPEC-074 parity test 接受 LOW_VOL + IVP_HIGH 类日期 < 99% 一致；并由 PM 在 MC 侧补一条 spec 同步 remove
+  - **Option B**：HC 回滚 `SPEC-056c`（不推荐）→ both-high gate 重新激活；需要单独 spec
+  - **Option C**：维持现状，把 SPEC-074 parity test acceptance 从 ">=99%" 改为 ">=95%, with documented exemption for LOW_VOL + IVP_HIGH"
+
+**Quant 推荐**：Option A。理由：`SPEC-056c` 是 HC 自己审过的研究结果，回滚需要新证据；MC 侧自身缺 SPEC-056c 等同动作属 MC 治理 backlog，不应让 HC 妥协。
+
+**本 spec 的处理**：F5 里把这个分歧明文 flag，等 PM 拍板；在 PM 拍板之前，F4 测试 acceptance 阈值暂用 `>=95%` 并要求列出全部 mismatch 日期。
 
 ---
 
@@ -75,18 +119,22 @@ grep -rn "_backtest_select\|backtest_select\|simplified.*select\|fallback.*matri
 
 | 项目 | 说明 |
 |---|---|
-| F1 grep 核查 | 一行命令验证 |
-| F2 逐行 diff | 需要 PM 提供 MC 等价文件或节选 |
+| F1 grep 核查 | 已完成（无 `_backtest_select` 命中） |
+| F2 逐行 diff | 已完成（基于 MC short summary v3） |
 | F3 索引层归档 | 仅文档变更 |
+| F4 parity test 新增 | `tests/test_backtest_select_parity.py` |
+| F5 SPEC-054 分歧 PM escalation | 文档 + 等 PM 裁定 |
 
 ## Out of Scope
 
 | 项目 | 理由 |
 |---|---|
 | 引入新 `_backtest_select` wrapper | HC 无此函数；引入只会制造未来分叉 |
-| 修改 `select_strategy` 任何 behavior（除 F4 缺失分支补齐外） | 行为对齐应通过 SPEC-077 / 080 等单独 spec 处理 |
-| 关闭 `Q020` | 以 tieout #2 收敛为依据，不以 SPEC-074 DONE 为依据 |
+| 修改 `select_strategy` 任何 behavior（除 F5 PM 选 Option B 外） | 行为对齐应通过 SPEC-077 / 080 等单独 spec 处理 |
+| 引入 BBG VIX3M fetch（`data/fetch_bbg_vix3m.py` / `bin/run_fetch_bbg_vix3m.cmd`） | HC yfinance 已覆盖 inception → today，无需 BBG |
+| 关闭 `Q020` | 以 tieout #2 收敛为依据 |
 | 修改 prototype 脚本 | frozen 历史快照 |
+| 回滚 `SPEC-056c`（重新激活 SPEC-054 gate） | 除非 PM 选 F5 Option B，否则不在范围内 |
 
 ---
 
@@ -112,11 +160,12 @@ grep -rn "_backtest_select\|backtest_select\|simplified.*select\|fallback.*matri
 
 | AC | 描述 | 验证方式 |
 |---|---|---|
-| AC1 | `grep -rn "_backtest_select" backtest/` 返回 0 行（prototype 路径除外） | grep 实测 |
-| AC2 | F2 diff 列表归档于本 spec §变更记录 | 文档变更 |
-| AC3 | 若 F2 无缺失，状态写为 `DONE (no-op)` 且 `sync/open_questions.md` Q020 仍 `open` | 文档审查 |
-| AC4 | 若 F4 触发，必须先跑 tieout #2 并列出 trade-level diff | tieout 重跑 |
-| AC5 | `task/q036_to_q039_hc_reproduction_assessment_2026-05-01.md` §3.5 / §9 在本 spec 内被显式引用 | 文档审查 |
+| AC1 | `grep -rn "_backtest_select" backtest/` 返回 0 行（prototype 除外） | grep 实测（已完成，0 命中） |
+| AC2 | F2 diff 表已归档于本 spec §F2 §F5 | 文档审查（已完成） |
+| AC3 | `tests/test_backtest_select_parity.py` 存在且 PASS（≥20 dates，2008/2018/2020/2022 分布；阈值见 F5） | `pytest tests/test_backtest_select_parity.py` |
+| AC4 | F5 Option A/B/C 已由 PM 裁定，结果记录在本 spec §变更记录 | 文档审查 |
+| AC5 | `task/q036_to_q039_hc_reproduction_assessment_2026-05-01.md` §3.5 在本 spec 内被显式引用 | 文档审查（已完成） |
+| AC6 | `sync/open_questions.md` `Q020` 仍 `open`，且引用本 spec 的 F4 测试已立、tieout #2 待跑 | 文档审查 |
 
 ---
 
@@ -124,4 +173,7 @@ grep -rn "_backtest_select\|backtest_select\|simplified.*select\|fallback.*matri
 
 | 日期 | 变更 | 状态 |
 |---|---|---|
-| 2026-05-01 | Quant 起草；F1 grep 已实测无命中；F2 待 PM 提供 MC 等价文件 | DRAFT |
+| 2026-05-01 | Quant 起草，F1 grep 已实测 0 命中 | DRAFT |
+| 2026-05-01 | PM 提供 [MC_Spec-074_short_summary_v3.md](sync/mc_to_hc/MC_Spec-074_short_summary_v3.md)；F2 完成：7 项 gate 中 6 项 HC 已有，第 6 项（SPEC-054 both-high diagonal）HC 主动 removed by SPEC-056c → 升级为 §F5 PM escalation；5 个组件中 4 个已有，仅缺 parity test → §F4；BBG fetch 不适用（HC yfinance 覆盖） | DRAFT (revised) |
+| 2026-05-02 | PM 裁定 §F5 = **Option A**：HC 保持 SPEC-056c 已 remove 状态；MC 侧需由 PM 在 MC 治理 backlog 补同步 spec；F4 parity test 阈值 = **≥95%**（LOW_VOL + IVP_HIGH 类日期允许例外） | DRAFT (F5 resolved, F4 in progress) |
+| 2026-05-02 | F4 实施完成：[tests/test_backtest_select_parity.py](tests/test_backtest_select_parity.py) 新增（22 dates × 5 testcases），跑 `python -m unittest tests.test_backtest_select_parity` 全部 PASS（success rate 22/22 = 100%，远超 95% 阈值）；snapshot 字段 (vix3m / backwardation / ivp63 / ivp252 / regime / trend) 全部正确填充；2020-03-16 known backwardation 验证 PASS；F5 Option A 阈值不需要触发例外路径 | DONE |

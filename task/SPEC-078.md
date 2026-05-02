@@ -1,6 +1,6 @@
 # SPEC-078: Backtest Metrics Single-Source-of-Truth (API-as-Authority)
 
-Status: DRAFT (主体；P12 Fast Path deferred)
+Status: DONE (2026-05-02; 主体 F1-F5 全部交付 + AC1-AC7 PASS；P12 Fast Path 仍 deferred)
 
 ## 目标
 
@@ -149,3 +149,10 @@ function impliedAnnualizedRoe(totalPnl, trades, baselineEquity = BACKTEST_BASELI
 | 日期 | 变更 | 状态 |
 |---|---|---|
 | 2026-05-01 | Quant 起草；F1-F5 主体；P12 Fast Path 列为 deferred；JS 端公式与 baseline 100k 已定位 | DRAFT |
+| 2026-05-02 | PM 审批 → APPROVED；进入实施 | APPROVED |
+| 2026-05-02 | F1 落地 [backtest/engine.py](backtest/engine.py) — `compute_metrics` 增加 `annualized_roe` / `annualized_roe_basis` / `period_years`；helper `_annualized_roe_pct` byte-port JS 公式 | APPROVED |
+| 2026-05-02 | F2 落地 [web/templates/backtest.html:2028](web/templates/backtest.html#L2028) — server `annualized_roe` 优先 + console.warn fallback；F3 JSDoc `@deprecated SPEC-078` 在 `impliedAnnualizedRoe` 上 | APPROVED |
+| 2026-05-02 | F4 unit test `tests/test_metrics_annualized_roe.py` 5 case PASS（byte-identical / empty / same-day / compute_metrics 字段 / 空 trades 分支） | APPROVED |
+| 2026-05-02 | F5 RESEARCH_LOG / PROJECT_STATUS 已更新；R-20260502-02 录入。**等 PM 浏览器 smoke** 后再关 DONE | APPROVED |
+| 2026-05-02 | **Codex 脚本化 smoke PASS** ([task/SPEC-078_handoff.md](task/SPEC-078_handoff.md))：AC1 三字段（`start=2023-01-01` + `start=2007-01-01` 两窗口）PASS；AC4 byte-identical vs JS 公式 PASS（`|Δ|` 分别 `3.1e-07` / `1.2e-07`，远 < `1e-6` 阈值）；server 返回的 19.32y 全样本 ann_roe 与 SPEC-077 AC3 rerun 数据 cross-check 自洽 | APPROVED |
+| 2026-05-02 | **PM 浏览器 smoke PASS**：AC2 normal path（server `annualized_roe` 正常时 dashboard 直接展示）PASS；AC2 fallback path（DevTools Local Overrides 删 `metrics.annualized_roe` → Console 触发 `[SPEC-078] server metrics.annualized_roe missing — JS fallback` warning + ROE 卡片仍显示数字 + fallback 数值与 server 原值接近一致）PASS。AC1/AC2/AC3/AC4/AC5/AC6/AC7 全部 PASS → **SPEC-078 DONE** | DONE |

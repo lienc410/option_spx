@@ -1,0 +1,187 @@
+{
+  "window_start": "2023-04-29",
+  "regression_pass": true,
+  "scenarios": {
+    "A": {
+      "trades": 57,
+      "open_at_end": 2,
+      "total_pnl": 79933.69,
+      "per_strategy": {
+        "Bull Call Diagonal": {
+          "count": 20,
+          "pnl": 38571.46,
+          "open": 0
+        },
+        "Iron Condor": {
+          "count": 13,
+          "pnl": 19329.34,
+          "open": 1
+        },
+        "Bull Put Spread": {
+          "count": 15,
+          "pnl": 13538.09,
+          "open": 1
+        },
+        "Iron Condor (High Vol)": {
+          "count": 8,
+          "pnl": 6766.83,
+          "open": 0
+        },
+        "Bull Put Spread (High Vol)": {
+          "count": 1,
+          "pnl": 1727.97,
+          "open": 0
+        }
+      }
+    },
+    "B": {
+      "trades": 57,
+      "open_at_end": 2,
+      "total_pnl": 79933.69,
+      "per_strategy": {
+        "Bull Call Diagonal": {
+          "count": 20,
+          "pnl": 38571.46,
+          "open": 0
+        },
+        "Iron Condor": {
+          "count": 13,
+          "pnl": 19329.34,
+          "open": 1
+        },
+        "Bull Put Spread": {
+          "count": 15,
+          "pnl": 13538.09,
+          "open": 1
+        },
+        "Iron Condor (High Vol)": {
+          "count": 8,
+          "pnl": 6766.83,
+          "open": 0
+        },
+        "Bull Put Spread (High Vol)": {
+          "count": 1,
+          "pnl": 1727.97,
+          "open": 0
+        }
+      }
+    },
+    "C": {
+      "trades": 57,
+      "open_at_end": 2,
+      "total_pnl": 79933.69,
+      "per_strategy": {
+        "Bull Call Diagonal": {
+          "count": 20,
+          "pnl": 38571.46,
+          "open": 0
+        },
+        "Iron Condor": {
+          "count": 13,
+          "pnl": 19329.34,
+          "open": 1
+        },
+        "Bull Put Spread": {
+          "count": 15,
+          "pnl": 13538.09,
+          "open": 1
+        },
+        "Iron Condor (High Vol)": {
+          "count": 8,
+          "pnl": 6766.83,
+          "open": 0
+        },
+        "Bull Put Spread (High Vol)": {
+          "count": 1,
+          "pnl": 1727.97,
+          "open": 0
+        }
+      }
+    },
+    "D": {
+      "trades": 57,
+      "open_at_end": 2,
+      "total_pnl": 79933.69,
+      "per_strategy": {
+        "Bull Call Diagonal": {
+          "count": 20,
+          "pnl": 38571.46,
+          "open": 0
+        },
+        "Iron Condor": {
+          "count": 13,
+          "pnl": 19329.34,
+          "open": 1
+        },
+        "Bull Put Spread": {
+          "count": 15,
+          "pnl": 13538.09,
+          "open": 1
+        },
+        "Iron Condor (High Vol)": {
+          "count": 8,
+          "pnl": 6766.83,
+          "open": 0
+        },
+        "Bull Put Spread (High Vol)": {
+          "count": 1,
+          "pnl": 1727.97,
+          "open": 0
+        }
+      }
+    },
+    "D_pt050": {
+      "trades": 57,
+      "open_at_end": 2,
+      "total_pnl": 76449.79,
+      "per_strategy": {
+        "Bull Call Diagonal": {
+          "count": 20,
+          "pnl": 38593.81,
+          "open": 0
+        },
+        "Iron Condor": {
+          "count": 13,
+          "pnl": 16403.94,
+          "open": 1
+        },
+        "Bull Put Spread": {
+          "count": 15,
+          "pnl": 13538.09,
+          "open": 1
+        },
+        "Iron Condor (High Vol)": {
+          "count": 8,
+          "pnl": 6186.0,
+          "open": 0
+        },
+        "Bull Put Spread (High Vol)": {
+          "count": 1,
+          "pnl": 1727.97,
+          "open": 0
+        }
+      }
+    }
+  },
+  "tieout2_qc_reference": {
+    "trades": 57,
+    "pnl": 79933.69
+  },
+  "regression_A_vs_t2qc": {
+    "trade_delta": 0,
+    "pnl_delta": 0.0,
+    "pass": true
+  },
+  "mc_reference_pt050": {
+    "trades": 52,
+    "pnl": 45922.0
+  },
+  "gap_D_pt050_vs_mc": {
+    "hc_trades": 57,
+    "mc_trades": 52,
+    "trade_delta": 5,
+    "hc_pnl": 76449.79,
+    "mc_pnl": 45922.0,
+    "pnl_delta": 30527.79
+  }
+}

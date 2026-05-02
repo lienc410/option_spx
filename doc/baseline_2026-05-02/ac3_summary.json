@@ -1,0 +1,37 @@
+{
+  "start_date": "2007-01-01",
+  "ac3_pass": false,
+  "ac3_pass_breakdown": {
+    "roe_delta_ge_0_5pp": false,
+    "sharpe_non_degrade": true
+  },
+  "q037_phase2a_target": {
+    "lo_pp": 0.91,
+    "hi_pp": 1.03,
+    "hc_in_band": false
+  },
+  "deltas": {
+    "annualized_roe_pp": 0.0856,
+    "sharpe": 0.0,
+    "max_drawdown_usd": -850.11,
+    "total_pnl_usd": 6771.94
+  },
+  "pt050": {
+    "total_trades": 309,
+    "n_open_at_end": 2,
+    "total_pnl": 338532.20559556386,
+    "annualized_roe": 7.950197,
+    "sharpe": 1.72,
+    "max_drawdown": -10323.358011152846,
+    "period_years": 19.323751
+  },
+  "pt060": {
+    "total_trades": 302,
+    "n_open_at_end": 2,
+    "total_pnl": 345304.1489743933,
+    "annualized_roe": 8.035839,
+    "sharpe": 1.72,
+    "max_drawdown": -11173.46413055282,
+    "period_years": 19.323751
+  }
+}

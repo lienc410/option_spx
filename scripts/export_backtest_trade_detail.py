@@ -148,6 +148,8 @@ def _entry_recommendation(
         ivp252=ivp,
         regime_decay=regime_decay,
     )
+    spx_30d_high = float(spx_window.iloc[-30:].max()) if len(spx_window) >= 30 else None
+    dist_30d_high_pct = (spx - spx_30d_high) / spx_30d_high if spx_30d_high is not None else None
     trend_snap = TrendSnapshot(
         date=entry_date,
         spx=spx,
@@ -158,6 +160,8 @@ def _entry_recommendation(
         above_200=(spx > ma200),
         atr14=atr14,
         gap_sigma=gap_sigma,
+        spx_30d_high=spx_30d_high,
+        dist_30d_high_pct=dist_30d_high_pct,
     )
     return select_strategy(vix_snap, iv_snap, trend_snap, DEFAULT_PARAMS)
 
