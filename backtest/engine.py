@@ -23,6 +23,7 @@ Precision B limitations:
 from __future__ import annotations
 
 import math
+from datetime import datetime
 from dataclasses import asdict, dataclass, field
 from typing import Optional
 import pandas as pd
@@ -559,6 +560,32 @@ def _block_hv_spell_entry(
 
 # ─── Metrics ─────────────────────────────────────────────────────────────────
 
+_BACKTEST_BASELINE_EQUITY = 100000.0  # SPEC-078: must match web/templates/backtest.html:1165
+
+
+def _annualized_roe_pct(total_pnl: float, trades: list[Trade]) -> tuple[float, float]:
+    """SPEC-078 — port of frontend impliedAnnualizedRoe (backtest.html:1965).
+
+    Returns (annualized_roe_pct, period_years). 0/0 when trades empty or window
+    invalid. Uses trades[0].entry_date / trades[-1].exit_date so the server
+    output is byte-identical to the JS fallback.
+    """
+    if not trades:
+        return 0.0, 0.0
+    try:
+        start = datetime.fromisoformat(str(trades[0].entry_date)[:10])
+        end = datetime.fromisoformat(str(trades[-1].exit_date)[:10])
+    except (ValueError, TypeError):
+        return 0.0, 0.0
+    days = max((end - start).total_seconds() / 86400.0, 1.0)
+    years = days / 365.25
+    final_equity = _BACKTEST_BASELINE_EQUITY + float(total_pnl or 0.0)
+    if years <= 0 or final_equity <= 0:
+        return 0.0, years
+    roe = (math.pow(final_equity / _BACKTEST_BASELINE_EQUITY, 1.0 / years) - 1.0) * 100.0
+    return roe, years
+
+
 def compute_metrics(trades: list[Trade]) -> dict:
     closed = [t for t in trades if not t.open_at_end]
 
@@ -579,6 +606,9 @@ def compute_metrics(trades: list[Trade]) -> dict:
             "cvar10": 0.0,
             "skew": 0.0,
             "kurt": 0.0,
+            "annualized_roe": 0.0,
+            "annualized_roe_basis": "final_equity_compound",
+            "period_years": 0.0,
             "by_strategy": {},
         }
 
@@ -614,6 +644,8 @@ def compute_metrics(trades: list[Trade]) -> dict:
         by_strategy.setdefault(s, []).append(t.exit_pnl)
         strategy_trades.setdefault(s, []).append(t)
 
+    ann_roe_pct, period_years = _annualized_roe_pct(total_pnl, trades)
+
     return {
         "total_trades":   total,
         "n_open_at_end":  len(trades) - len(closed),
@@ -629,6 +661,9 @@ def compute_metrics(trades: list[Trade]) -> dict:
         "cvar10":         cvar10,
         "skew":           round(skew_val, 3),
         "kurt":           round(kurt_val, 3),
+        "annualized_roe":       float(round(ann_roe_pct, 6)),
+        "annualized_roe_basis": "final_equity_compound",
+        "period_years":         float(round(period_years, 6)),
         "by_strategy":    {k: {
             "n":        len(v),
             "win_rate": sum(1 for x in v if x > 0) / len(v),
@@ -825,12 +860,16 @@ def run_backtest(
             ivp252=float(ivp),
             regime_decay=_regime_decay,
         )
+        spx_30d_high = float(spx_window.iloc[-30:].max()) if len(spx_window) >= 30 else None
+        dist_30d_high_pct = (spx - spx_30d_high) / spx_30d_high if spx_30d_high is not None else None
         trend_snap = TrendSnapshot(
             date=str(date.date()), spx=spx,
             ma20=ma20_val, ma50=ma50_val, ma_gap_pct=gap, signal=trend,
             above_200=(spx > ma200_val),
             atr14=atr14,
             gap_sigma=gap_sigma,
+            spx_30d_high=spx_30d_high,
+            dist_30d_high_pct=dist_30d_high_pct,
         )
         rec = select_strategy(vix_snap, iv_snap, trend_snap, params)
         rec_key = catalog_key(rec.strategy.value) if rec.strategy != StrategyName.REDUCE_WAIT else None
@@ -879,8 +918,19 @@ def run_backtest(
                     exit_reason = "50pct_profit"
                 elif is_credit and pnl_ratio <= -params.stop_mult:   # credit trade stop
                     exit_reason = "stop_loss"
-                elif not is_credit and pnl_ratio <= -0.50:           # debit trade stop at 50% loss
-                    exit_reason = "stop_loss"
+                elif not is_credit:
+                    from strategy.bcd_stop import bcd_debit_stop, log_bcd_stop_event, BCD_STOP_TIGHTER, BCD_STOP_DEFAULT
+                    is_bcd = (position.strategy == StrategyName.BULL_CALL_DIAGONAL)
+                    if is_bcd and params.bcd_stop_tightening_mode != "disabled":
+                        effective_stop = bcd_debit_stop(params.bcd_stop_tightening_mode)
+                        # shadow: log if -0.35 would trigger but -0.50 has not
+                        if params.bcd_stop_tightening_mode == "shadow":
+                            if BCD_STOP_TIGHTER >= pnl_ratio > BCD_STOP_DEFAULT:
+                                log_bcd_stop_event(position.entry_date, pnl_ratio, "shadow", "engine")
+                        if pnl_ratio <= effective_stop:
+                            exit_reason = "stop_loss"
+                    elif pnl_ratio <= -0.50:
+                        exit_reason = "stop_loss"
 
             if short_dte <= 21 and exit_reason is None:
                 exit_reason = "roll_21dte"
@@ -1244,10 +1294,13 @@ def run_signals_only(
             ivp252=float(ivp),
             regime_decay=_regime_decay,
         )
+        spx_30d_high = float(spx_window.iloc[-30:].max()) if len(spx_window) >= 30 else None
+        dist_30d_high_pct = (spx - spx_30d_high) / spx_30d_high if spx_30d_high is not None else None
         trend_snap = TrendSnapshot(
             date=str(date.date()), spx=spx,
             ma20=ma20_val, ma50=ma50_val, ma_gap_pct=gap, signal=trend,
             above_200=(spx > ma200_val), atr14=atr14, gap_sigma=gap_sigma,
+            spx_30d_high=spx_30d_high, dist_30d_high_pct=dist_30d_high_pct,
         )
         rec = select_strategy(vix_snap, iv_snap, trend_snap, params)
         rec_key = catalog_key(rec.strategy.value) if rec.strategy != StrategyName.REDUCE_WAIT else None

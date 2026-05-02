@@ -65,7 +65,7 @@ class StrategyParams:
     normal_dte:         int   = 30
 
     # Exit rules (apply to all credit strategies)
-    profit_target:      float = 0.50   # close at this fraction of max credit
+    profit_target:      float = 0.60   # close at this fraction of max credit (SPEC-077)
     stop_mult:          float = 2.0    # stop loss at N× credit received
     min_hold_days:      int   = 10     # minimum days before profit target can trigger
 
@@ -123,6 +123,10 @@ class StrategyParams:
     # using its standard legs, bypassing all regime/IV/trend routing logic.
     # NEVER set in production.
     force_strategy: str | None = None
+    # BCD comfortable-top filter (SPEC-079)
+    bcd_comfort_filter_mode: str = "shadow"   # "disabled" | "shadow" | "active"
+    # BCD debit stop tightening (SPEC-080)
+    bcd_stop_tightening_mode: str = "shadow"   # "disabled" | "shadow" | "active"
 
     def bp_ceiling_for_regime(self, regime: "Regime") -> float:
         """Return the total-portfolio BP ceiling for the given regime."""
@@ -925,6 +929,23 @@ def select_strategy(
                 # both-high (ivp63≥50 AND ivp252≥50) no longer blocked —
                 # F006 research had negative selection bias (n=8 was post-Gate-1/2 residual).
                 # Full-history event study (n=14) shows Sharpe +1.56, similar to double_low.
+
+            from strategy.bcd_filter import should_block_bcd
+            if should_block_bcd(
+                params.bcd_comfort_filter_mode,
+                vix=vix.vix,
+                dist_30d_high_pct=trend.dist_30d_high_pct,
+                ma_gap_pct=trend.ma_gap_pct,
+                date=vix.date,
+            ):
+                return _reduce_wait(
+                    f"BCD comfortable-top filter (SPEC-079): risk_score=3 "
+                    f"(vix={vix.vix:.1f}, dist_30d={trend.dist_30d_high_pct:.3f}, "
+                    f"ma_gap={trend.ma_gap_pct:.3f})",
+                    vix, iv, trend, macro_warn,
+                    canonical_strategy=StrategyName.BULL_CALL_DIAGONAL.value,
+                    params=params,
+                )
 
             action = get_position_action(
                 StrategyName.BULL_CALL_DIAGONAL.value,

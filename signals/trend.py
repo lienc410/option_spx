@@ -49,6 +49,8 @@ class TrendSnapshot:
     above_200:  bool     # SPX above 200-day MA (macro regime check)
     atr14:      Optional[float] = None
     gap_sigma:  Optional[float] = None
+    spx_30d_high: Optional[float] = None
+    dist_30d_high_pct: Optional[float] = None
 
     def __str__(self) -> str:
         direction = "▲" if self.ma_gap_pct > 0 else "▼"
