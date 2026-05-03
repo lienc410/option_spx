@@ -6,6 +6,7 @@
 > - 目标仅为：尽量消除扫描造成的字符损坏、编号损坏、路径损坏与明显断句问题，便于回发 MC 做内容确认
 > - 若个别数字在扫描件中无法 100% 还原，保留为 `[OCR unclear]` 或按上下文做最小、可解释的修复
 > - OCR 规则补充：扫描件中大量 `Δ / delta` 被误识别为大写字母 `A`；本稿凡遇到 `A ann_roe`、`A total_pnl`、`A_n`、`A trades` 等模式，默认按 `Δ / delta` 语义恢复，除非上下文明确不是该含义
+> - 2026-05-03 更新：已根据 `sync/mc_to_hc/MC Response 2026-05-02 corrections_v2.md` 吸收 5 项 MC 明确给出的数字级 errata（`iron_condor_hv` 两项、`n_days`、6 笔 `IC` `entry_credit`、3 笔 `roll_21dte` 的 `dte_at_exit`）
 
 # MC Response 2026-05-02
 
@@ -170,7 +171,7 @@ MC 全样本：
 - 起点：`1999-01-01`
 - 终点：`2026-05-02`
 - `n_years = 26.3217`
-- `n_days = 9616` `[OCR-reconstructed]`
+- `n_days = 6621`
 
 HC 全样本：
 
@@ -207,7 +208,7 @@ HC 全样本：
 - `end_eq = 387,248.42`
 - `total_pnl_dollar = +287,248.42`
 - `n_years = 26.3217`
-- `n_days = 9616` `[OCR-reconstructed]`
+- `n_days = 6621`
 - `ann_roe_pct = 10.9130`
 - `daily_sharpe = 1.0177`
 - `max_dd_pct = -15.38`
@@ -222,7 +223,7 @@ HC 全样本：
 - `end_eq = 411,168.66`
 - `total_pnl_dollar = +311,168.66`
 - `n_years = 26.3217`
-- `n_days = 9616` `[OCR-reconstructed]`
+- `n_days = 6621`
 - `ann_roe_pct = 11.8218`
 - `daily_sharpe = 1.1077`
 - `max_dd_pct = -14.32`
@@ -285,11 +286,9 @@ delta
 
 #### iron_condor_hv
 
-- PT 0.50：75 笔 / +14,126 `[OCR-reconstructed]`
+- PT 0.50：75 笔 / +13,679
 - PT 0.60：73 笔 / +13,539
-- delta：-587 `[OCR-reconstructed]`
-
-> 注：`iron_condor_hv` 这一行在扫描件中损坏较重，建议 MC 最终确认具体数字。
+- delta：-140
 
 ### 2.8 By exit_reason
 
@@ -419,7 +418,7 @@ MC 提供 6 笔完整 ledger：
 - `exit_reason = 50pct_profit`
 - `dte_at_entry = 45`
 - `dte_at_exit = 25`
-- `entry_credit = -29.62`
+- `entry_credit = -2962`
 
 #### 第 2 笔
 
@@ -431,8 +430,8 @@ MC 提供 6 笔完整 ledger：
 - `pnl = +63`
 - `exit_reason = roll_21dte`
 - `dte_at_entry = 45`
-- `dte_at_exit = 22`
-- `entry_credit = -27.02`
+- `dte_at_exit = 21`
+- `entry_credit = -2702`
 
 #### 第 3 笔
 
@@ -444,8 +443,8 @@ MC 提供 6 笔完整 ledger：
 - `pnl = -661` `[OCR-reconstructed from summary]`
 - `exit_reason = roll_21dte`
 - `dte_at_entry = 45`
-- `dte_at_exit = 22`
-- `entry_credit = -34.87`
+- `dte_at_exit = 21`
+- `entry_credit = -3087`
 
 #### 第 4 笔
 
@@ -457,8 +456,8 @@ MC 提供 6 笔完整 ledger：
 - `pnl = +45`
 - `exit_reason = roll_21dte`
 - `dte_at_entry = 45`
-- `dte_at_exit = 22`
-- `entry_credit = -27.92`
+- `dte_at_exit = 21`
+- `entry_credit = -2792`
 
 #### 第 5 笔
 
@@ -471,7 +470,7 @@ MC 提供 6 笔完整 ledger：
 - `exit_reason = 50pct_profit`
 - `dte_at_entry = 45`
 - `dte_at_exit = 25`
-- `entry_credit = -46.35` `[OCR-reconstructed]`
+- `entry_credit = -4630`
 
 #### 第 6 笔
 
@@ -484,7 +483,7 @@ MC 提供 6 笔完整 ledger：
 - `exit_reason = 50pct_profit`
 - `dte_at_entry = 45`
 - `dte_at_exit = 25`
-- `entry_credit = -47.[OCR unclear]`
+- `entry_credit = -471`
 
 ### 3.2 总计
 

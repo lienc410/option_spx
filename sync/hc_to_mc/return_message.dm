@@ -1,23 +1,26 @@
-Hi MC — attaching HC return package for the 2026-05-01 sync round:
+Applied the 5 numeric errata from `MC Response 2026-05-02 corrections` into our cleaned `MC Response 2026-05-02_v2.md`:
 
-- sync/hc_to_mc/HC_return_2026-05-02.md
+1. `iron_condor_hv` PT=0.50 pnl corrected
+   - `+14,126 -> +13,679`
 
-Top-line:
-- HC reproduced `SPEC-074 / 077 / 078 / 079 / 080`
-- tieout #2 and #3 both PASS
-- `Q021` is now closed on HC side
-- `Q038` has already been flipped to `shadow` on old Air live runtime
-- `Q039` remains research-only on HC side
+2. `iron_condor_hv` delta pnl corrected
+   - `-587 -> -140`
 
-Two items where HC is asking for MC-side tie-out inputs:
-1. `SPEC-077 AC3` magnitude gap
-   - HC no longer believes this is a dashboard bug or SPEC-080 issue
-   - we need MC’s minimal full-sample tie-out fields (ROE formula, denominator, trade-count / exit-reason split, etc.)
-2. `Q039` residual IC regular gap
-   - HC would like the MC 6-trade IC regular ledger before widening attribution work
+3. `n_days` corrected
+   - `9616 -> 6621`
 
-Also included:
-- HC has now aligned directionally with MC on `Q036` (escalate / productization-stack direction)
-- `SPEC-075 / 076` were not implemented in this sprint, but HC is requesting the next-batch adoption input package so we can line up the next adoption pass cleanly
+4. `Q039` 6-trade IC ledger `entry_credit` corrected to MC canonical scale
+   - `2023-08-15: -29.62 -> -2962`
+   - `2023-09-20: -27.02 -> -2702`
+   - `2023-10-31: -34.87 -> -3087`
+   - `2024-05-03: -27.92 -> -2792`
+   - `2025-12-18: -46.35 -> -4630`
+   - `2026-01-21: -47.[unclear] -> -471`
 
-Please treat this package as incremental on top of prior confirmed HC↔MC sync context, not a reset of earlier aligned items.
+5. `Q039` roll_21dte rows `dte_at_exit` corrected
+   - `2023-09-20: 22 -> 21`
+   - `2023-10-31: 22 -> 21`
+   - `2024-05-03: 22 -> 21`
+
+We also preserved the corrections file itself as a separate OCR-clean errata reference:
+- `sync/mc_to_hc/MC Response 2026-05-02 corrections_v2.md`
