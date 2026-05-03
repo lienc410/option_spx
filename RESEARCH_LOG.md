@@ -7,6 +7,17 @@ Owner: Planner or PM
 
 ## Entries
 
+### R-20260503-05 — Q041 Gate 0 moves from pure theory to active data-infrastructure work, but historical feasibility is still unproven
+
+- Topic: Quant forward-collection scaffold for `Q041` / `Large-Cap Equity Option Income Overlay`
+- Findings: Quant has now completed the HC-side forward-collection scaffold for `Q041`. The delivered package includes a fixed 10-name whitelist (`AAPL / MSFT / AMZN / GOOGL / META / NVDA / BRK_B / WMT / COST / JPM`), a daily chain collector (`research/q041/collect_chains.py`), a host-local weekday `16:30` launchd schedule, parquet output under `data/q041_chains/YYYY-MM-DD/`, and the required environment support (`pyarrow>=15`, `.gitignore` rule). The scaffold stays within the agreed fence: no changes to `engine.py`, strategy logic, signals, web, bot, or Schwab trading code; only read-only reuse of Schwab auth / chain-parsing helpers. Smoke test on `AAPL --force` succeeded with `2462` rows across `20` expiries and realistic storage sizing (`~700 KB/day` full whitelist, `~175 MB/year`). This is enough to move `Q041 Gate 0` from a purely conceptual blocker into active data-infrastructure work
+- Risks / Counterarguments: this does **not** yet prove the full Gate 0. The current scaffold only establishes that forward collection on HC is feasible. The branch still lacks confirmed historical per-name options coverage for the intended `~2004–2026` research window, which remains the actual gating requirement before any Phase 1 modeling. There are also operational caveats: `BRK/B` symbol-format handling still needs first-run confirmation, launchd will still fire on market holidays unless later filtered, and current Schwab-returned expiry depth is closer to ~10 months than long-dated LEAPS
+- Confidence: high that the forward-collection scaffold itself is sound; low-to-medium that Gate 0 is fully cleared until real weekday runs and the historical-data question are both resolved
+- Next Tests: manually load the launch agent, observe the first weekday run, confirm 10-symbol parquet coverage plus `_summary.json`, inspect `logs/q041_collect*.log`, and separately resolve whether acceptable historical per-name options data exists for the intended long window
+- Recommendation: treat `Q041` as **Gate 0 in progress**, not Gate 0 passed. Do not allocate Phase 1 modeling bandwidth yet
+- Related Question: `Q041`
+- See: `research/q041/collect_chains.py`, `research/q041/whitelist.py`, `research/strategies/Large-Cap Equity Option Income Overlay/Large-Cap Equity Option Income Overlay.md`, `sync/open_questions.md`
+
 ### R-20260503-04 — Q038 shadow should be governed as a live-observability check, not as an alpha proof
 
 - Topic: Quant shadow-monitoring protocol for `Q038` / Path C after old Air moved to live `shadow`
