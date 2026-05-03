@@ -1045,6 +1045,7 @@ def api_backtest():
                 "entry_credit":    round(t.entry_credit, 2),
                 "exit_pnl":        round(t.exit_pnl, 2),
                 "exit_reason":     t.exit_reason,
+                "entry_reason":    getattr(t, "entry_reason", ""),
                 "dte_at_entry":    t.dte_at_entry,
                 "dte_at_exit":     t.dte_at_exit,
                 "spread_width":    round(t.spread_width, 0),

@@ -942,6 +942,13 @@ function buildCard(d) {
   const brokenWingBadge = isAftermathHighVol
     ? `<div class="broken-wing-badge">Broken-wing IC</div>`
     : '';
+  const overlayPanel = d.overlay_f_rationale
+    ? `<div class="formula-row"><strong>Overlay-F</strong><div class="formula-text">${
+        d.overlay_f_would_fire
+          ? `would fire · factor ${Number(d.overlay_f_factor || 1).toFixed(1)}× · ${d.overlay_f_rationale}`
+          : d.overlay_f_rationale
+      }</div></div>`
+    : '';
   const edgeText = s => {
     if (!s) return '—';
     if ((s.n || 0) < 5) return 'n too small';
@@ -987,6 +994,7 @@ function buildCard(d) {
     </div>
 
     <div class="formula-row"><strong>Schwab BP Formula</strong><div class="formula-text">${bpMeta.formula}</div></div>
+    ${overlayPanel}
     <div class="edge-row"><strong>Historical Edge</strong> All-time: ${edgeText(edgeAll)} &nbsp;&nbsp; 3Y: ${edgeText(edge3)}</div>
     <div class="rec-why">${d.rationale}</div>
     ${macroWarn}${bkWarn}`;
@@ -1035,6 +1043,7 @@ function renderRiskFlags(d) {
   if (d.macro_warning) push('MACRO DOWNTREND', 'orange');
   if (d.vix_snapshot?.transition_warning) push('VIX RISING', 'gold');
   if (d.overlay_mode === 'active') push('OVERLAY ACTIVE', 'blue');
+  if (d.overlay_f_factor && Number(d.overlay_f_factor) > 1) push('F×2', 'blue');
   if (d.shock_mode && d.shock_mode !== 'disabled') push(`SHOCK ${String(d.shock_mode).toUpperCase()}`, 'gray');
   bar.innerHTML = flags.length
     ? `<div class="risk-flags">${flags.join('')}</div>`

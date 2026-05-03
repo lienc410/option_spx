@@ -127,6 +127,8 @@ class StrategyParams:
     bcd_comfort_filter_mode: str = "shadow"   # "disabled" | "shadow" | "active"
     # BCD debit stop tightening (SPEC-080)
     bcd_stop_tightening_mode: str = "shadow"   # "disabled" | "shadow" | "active"
+    # Overlay-F account-level IC_HV size-up (SPEC-075/076)
+    overlay_f_mode: str = "shadow"  # "disabled" | "shadow" | "active"
 
     def bp_ceiling_for_regime(self, regime: "Regime") -> float:
         """Return the total-portfolio BP ceiling for the given regime."""
@@ -226,6 +228,12 @@ class Recommendation:
     canonical_strategy: str = ""
     re_enable_hint: str = ""
     overlay_mode: str = "disabled"
+    overlay_f_would_fire: bool = False
+    overlay_f_factor: float = 1.0
+    overlay_f_rationale: str = ""
+    overlay_f_idle_bp_pct: float | None = None
+    overlay_f_sg_count: int | None = None
+    overlay_f_fail_closed: bool = False
     shock_mode: str = "disabled"
     local_spike: bool = False
 
@@ -372,9 +380,50 @@ def _build_recommendation(
         canonical_strategy = canonical_strategy or strategy.value,
         re_enable_hint = re_enable_hint,
         overlay_mode = params.overlay_mode,
+        overlay_f_would_fire = False,
+        overlay_f_factor = 1.0,
+        overlay_f_rationale = "",
+        overlay_f_idle_bp_pct = None,
+        overlay_f_sg_count = None,
+        overlay_f_fail_closed = False,
         shock_mode = params.shock_mode,
         local_spike = local_spike,
     )
+
+
+def _apply_overlay_f_decision(rec: Recommendation, decision) -> Recommendation:
+    rec.overlay_f_would_fire = bool(decision.would_fire)
+    rec.overlay_f_factor = float(decision.effective_factor)
+    rec.overlay_f_rationale = str(decision.rationale or "")
+    rec.overlay_f_idle_bp_pct = decision.idle_bp_pct
+    rec.overlay_f_sg_count = decision.sg_count
+    rec.overlay_f_fail_closed = bool(decision.fail_closed)
+    return rec
+
+
+def _eval_overlay_f_live(rec: Recommendation, params: StrategyParams) -> Recommendation:
+    if params.overlay_f_mode == "disabled":
+        return rec
+    from strategy.overlay import (
+        append_overlay_f_log,
+        build_live_portfolio_state,
+        evaluate_overlay_f,
+    )
+
+    state = build_live_portfolio_state()
+    decision = evaluate_overlay_f(
+        mode=params.overlay_f_mode,
+        strategy_key=rec.strategy_key,
+        vix=rec.vix_snapshot.vix,
+        portfolio_state=state,
+    )
+    append_overlay_f_log(
+        date=rec.vix_snapshot.date,
+        strategy=rec.strategy_key,
+        vix=rec.vix_snapshot.vix,
+        decision=decision,
+    )
+    return _apply_overlay_f_decision(rec, decision)
 
 
 def _build_forced_recommendation(
@@ -1275,6 +1324,7 @@ def get_recommendation(
     vix_df=None,
     spx_df=None,
     use_intraday: bool = False,
+    params: StrategyParams = DEFAULT_PARAMS,
 ) -> Recommendation:
     """
     Fetch all signals and return today's recommendation.
@@ -1310,7 +1360,8 @@ def get_recommendation(
     iv_snap    = get_current_iv_snapshot(vix_data, current_vix=current_vix)
     trend_snap = get_current_trend(spx_data, current_spx=current_spx)
 
-    return select_strategy(vix_snap, iv_snap, trend_snap)
+    rec = select_strategy(vix_snap, iv_snap, trend_snap, params)
+    return _eval_overlay_f_live(rec, params)
 
 
 def get_es_recommendation(

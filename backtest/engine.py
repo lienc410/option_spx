@@ -96,6 +96,7 @@ class Trade:
     entry_credit: float = 0.0   # positive = credit received, negative = debit paid
     exit_pnl:     float = 0.0   # final P&L (positive = profit)
     exit_reason:  str = ""      # "50pct_profit" | "stop_loss" | "expiry" | "roll_21dte" | "roll_up"
+    entry_reason: str = ""
     dte_at_entry: int = 0
     dte_at_exit:  int = 0
 
@@ -150,6 +151,8 @@ class Position:
     spread_width:    float = 0.0  # spread width in SPX points (for BP calculation)
     bp_per_contract: float = 0.0  # Schwab PM buying power per contract in USD
     bp_target:       float = 0.0  # BP utilization target captured at entry (from StrategyParams)
+    overlay_factor:  float = 1.0
+    entry_reason:    str = ""
 
 
 @dataclass
@@ -193,7 +196,7 @@ def _current_value(legs, spx, sigma, days_held):
 def _position_contracts(position: Position, account_size: float) -> float:
     if position.bp_per_contract <= 0 or position.bp_target <= 0:
         return 0.0
-    return account_size * position.bp_target / position.bp_per_contract
+    return account_size * position.bp_target * position.overlay_factor / position.bp_per_contract
 
 
 def _position_total_bp(position: Position, account_size: float) -> float:
@@ -263,6 +266,7 @@ def _close_position(
         contracts=round(contracts, 4),
         total_bp=round(total_bp, 2),
         bp_pct_account=round(total_bp / account_size * 100, 2) if account_size else 0.0,
+        entry_reason=position.entry_reason,
     )
 
 
@@ -299,6 +303,7 @@ def _virtual_open_at_end_trade(
         total_bp=round(total_bp, 2),
         bp_pct_account=round(total_bp / account_size * 100, 2) if account_size else 0.0,
         open_at_end=True,
+        entry_reason=position.entry_reason,
     )
 
 
@@ -978,6 +983,36 @@ def run_backtest(
 
         _used_bp_usd = sum(_position_total_bp(position, account_size) for position in positions)
         _used_bp = _used_bp_usd / account_size if account_size else 0.0
+        overlay_factor = 1.0
+        overlay_entry_reason = ""
+        if params.overlay_f_mode != "disabled":
+            from strategy.overlay import (
+                append_overlay_f_log,
+                build_portfolio_state,
+                evaluate_overlay_f,
+            )
+
+            overlay_state = build_portfolio_state(positions=positions, used_bp_pct=_used_bp)
+            overlay_decision = evaluate_overlay_f(
+                mode=params.overlay_f_mode,
+                strategy_key=rec_key or "",
+                vix=vix,
+                portfolio_state=overlay_state,
+            )
+            rec.overlay_f_would_fire = overlay_decision.would_fire
+            rec.overlay_f_factor = overlay_decision.effective_factor
+            rec.overlay_f_rationale = overlay_decision.rationale
+            rec.overlay_f_idle_bp_pct = overlay_decision.idle_bp_pct
+            rec.overlay_f_sg_count = overlay_decision.sg_count
+            rec.overlay_f_fail_closed = overlay_decision.fail_closed
+            append_overlay_f_log(
+                date=str(date.date()),
+                strategy=rec_key or "",
+                vix=vix,
+                decision=overlay_decision,
+            )
+            overlay_factor = overlay_decision.effective_factor
+            overlay_entry_reason = "new_entry_overlay_f_x2" if overlay_factor > 1.0 else ""
         book_positions = [_position_snapshot(position, spx, account_size) for position in positions]
         book_report = run_shock_check(
             positions=book_positions,
@@ -1050,7 +1085,7 @@ def run_backtest(
                 and not _synthetic_block
                 and not _sg_block
                 and not _spell_block
-                and _used_bp + _new_bp_target <= _ceiling):
+                and _used_bp + (_new_bp_target * overlay_factor) <= _ceiling):
             legs, short_dte = _build_legs(rec, spx, sigma, params)
             if legs:
                 ev = _entry_value(legs, spx, sigma)
@@ -1076,6 +1111,8 @@ def run_backtest(
                     spread_width=sw,
                     bp_per_contract=bp_per_c,
                     bp_target=params.bp_target_for_regime(regime),
+                    overlay_factor=overlay_factor,
+                    entry_reason=overlay_entry_reason,
                 )
                 candidate_snapshot = _position_snapshot(candidate_position, spx, account_size)
                 candidate_report = run_shock_check(
@@ -1088,7 +1125,7 @@ def run_backtest(
                     account_size=account_size,
                     is_high_vol=(regime == Regime.HIGH_VOL),
                 )
-                post_bp_used_pct = _used_bp + _new_bp_target
+                post_bp_used_pct = _used_bp + (_new_bp_target * overlay_factor)
                 bp_headroom_breach = (1.0 - post_bp_used_pct) < params.shock_budget_bp_headroom
                 if collect_shock_reports:
                     report_payload = candidate_report.to_dict()
