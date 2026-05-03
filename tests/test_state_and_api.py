@@ -192,6 +192,40 @@ class StateAndApiTests(unittest.TestCase):
         self.assertEqual(data["bp_preview"]["basis_label"], "Schwab Option BP")
         self.assertIsNotNone(data["bp_preview"]["bp_usage_dollars"])
 
+    @patch("web.server._is_market_hours", return_value=False)
+    @patch("web.server._bp_basis_snapshot", return_value={
+        "basis_dollars": 50000.0,
+        "basis_label": "Schwab Option BP",
+        "basis_is_live": True,
+        "pct_basis_dollars": 50000.0,
+        "pct_basis_label": "Schwab Option BP",
+    })
+    @patch("schwab.auth.is_configured", return_value=True)
+    @patch("schwab.scanner.build_strike_scan", side_effect=RuntimeError("scanner offline"))
+    @patch("strategy.selector.get_recommendation")
+    def test_api_position_open_draft_falls_back_when_strike_scan_errors(self, mock_get_recommendation, _mock_scan, _mock_schwab_config, _mock_bp_basis, _mock_hours) -> None:
+        from tests.test_strategy_unification import make_iv, make_trend, make_vix
+        from signals.iv_rank import IVSignal
+        from signals.trend import TrendSignal
+        from signals.vix_regime import Regime, Trend
+        from strategy.selector import select_strategy
+
+        mock_get_recommendation.return_value = select_strategy(
+            make_vix(vix=19.0, regime=Regime.NORMAL, trend=Trend.FLAT),
+            make_iv(signal=IVSignal.HIGH, iv_rank=62.0, iv_percentile=45.0, vix=19.0),
+            make_trend(signal=TrendSignal.BULLISH),
+        )
+
+        res = self.client.get("/api/position/open-draft")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data["strategy_key"], "bull_put_spread")
+        self.assertIn("short_strike", data)
+        self.assertIn("long_strike", data)
+        self.assertNotIn("strike_scan", data)
+        self.assertIn("scanner_error", data)
+        self.assertIn("using model estimate", data["legs_hint"])
+
     @patch("web.server._save_stats_disk")
     @patch("web.server._load_stats_disk", return_value={})
     @patch("backtest.engine.run_backtest")

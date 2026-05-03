@@ -489,62 +489,67 @@ def api_position_open_draft():
             })
 
         strike_scan = None
+        scanner_error = None
+        chosen_expiry = None
         if schwab_is_configured():
-            scan_slots: dict[str, int] = {}
-            if rec.strategy_key == "bull_call_diagonal":
-                short_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "SELL" and l["option"] == "CALL"), None)
-                if short_idx is not None:
-                    scan_slots["short_leg"] = short_idx
-            elif rec.strategy_key in {"iron_condor", "iron_condor_hv"}:
-                short_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "SELL" and l["option"] == "CALL"), None)
-                long_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "BUY" and l["option"] == "CALL"), None)
-                if short_idx is not None:
-                    scan_slots["short_leg"] = short_idx
-                if long_idx is not None:
-                    scan_slots["long_leg"] = long_idx
-            else:
-                short_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "SELL"), None)
-                long_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "BUY"), None)
-                if short_idx is not None:
-                    scan_slots["short_leg"] = short_idx
-                if long_idx is not None:
-                    scan_slots["long_leg"] = long_idx
+            try:
+                scan_slots: dict[str, int] = {}
+                if rec.strategy_key == "bull_call_diagonal":
+                    short_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "SELL" and l["option"] == "CALL"), None)
+                    if short_idx is not None:
+                        scan_slots["short_leg"] = short_idx
+                elif rec.strategy_key in {"iron_condor", "iron_condor_hv"}:
+                    short_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "SELL" and l["option"] == "CALL"), None)
+                    long_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "BUY" and l["option"] == "CALL"), None)
+                    if short_idx is not None:
+                        scan_slots["short_leg"] = short_idx
+                    if long_idx is not None:
+                        scan_slots["long_leg"] = long_idx
+                else:
+                    short_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "SELL"), None)
+                    long_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "BUY"), None)
+                    if short_idx is not None:
+                        scan_slots["short_leg"] = short_idx
+                    if long_idx is not None:
+                        scan_slots["long_leg"] = long_idx
 
-            strike_scan = {"scan_fallback": False}
-            chosen_expiry = None
-            for slot, idx in scan_slots.items():
-                leg = priced_legs[idx]
-                target_delta = abs(float(leg["delta"])) if leg["option"] == "CALL" else -abs(float(leg["delta"]))
-                scan = build_strike_scan(
-                    symbol=rec.underlying,
-                    option_type=leg["option"],
-                    target_delta=target_delta,
-                    target_dte=int(leg["dte"]),
-                    center_strike=float(leg["strike"]),
-                )
-                enriched_rows = []
-                target_abs = abs(float(target_delta))
-                for row in scan["rows"]:
-                    live_delta = abs(float(row.get("delta"))) if row.get("delta") not in (None, "") else None
-                    delta_gap = abs(live_delta - target_abs) if live_delta is not None else None
-                    enriched_rows.append({
-                        **row,
-                        "target_delta": round(target_abs, 3),
-                        "live_delta": round(live_delta, 3) if live_delta is not None else None,
-                        "delta_gap": round(delta_gap, 3) if delta_gap is not None else None,
-                    })
-                strike_scan[slot] = enriched_rows
-                strike_scan["scan_fallback"] = strike_scan["scan_fallback"] or scan["scan_fallback"]
-                recommended = next((row for row in enriched_rows if row.get("recommended")), None)
-                if recommended:
-                    priced_legs[idx]["strike"] = int(round(float(recommended["strike"])))
-                    if recommended.get("mid") not in (None, ""):
-                        priced_legs[idx]["price"] = round(float(recommended["mid"]), 2)
-                    if recommended.get("expiry"):
-                        chosen_expiry = str(recommended["expiry"])
+                strike_scan = {"scan_fallback": False}
+                for slot, idx in scan_slots.items():
+                    leg = priced_legs[idx]
+                    target_delta = abs(float(leg["delta"])) if leg["option"] == "CALL" else -abs(float(leg["delta"]))
+                    scan = build_strike_scan(
+                        symbol=rec.underlying,
+                        option_type=leg["option"],
+                        target_delta=target_delta,
+                        target_dte=int(leg["dte"]),
+                        center_strike=float(leg["strike"]),
+                    )
+                    enriched_rows = []
+                    target_abs = abs(float(target_delta))
+                    for row in scan["rows"]:
+                        live_delta = abs(float(row.get("delta"))) if row.get("delta") not in (None, "") else None
+                        delta_gap = abs(live_delta - target_abs) if live_delta is not None else None
+                        enriched_rows.append({
+                            **row,
+                            "target_delta": round(target_abs, 3),
+                            "live_delta": round(live_delta, 3) if live_delta is not None else None,
+                            "delta_gap": round(delta_gap, 3) if delta_gap is not None else None,
+                        })
+                    strike_scan[slot] = enriched_rows
+                    strike_scan["scan_fallback"] = strike_scan["scan_fallback"] or scan["scan_fallback"]
+                    recommended = next((row for row in enriched_rows if row.get("recommended")), None)
+                    if recommended:
+                        priced_legs[idx]["strike"] = int(round(float(recommended["strike"])))
+                        if recommended.get("mid") not in (None, ""):
+                            priced_legs[idx]["price"] = round(float(recommended["mid"]), 2)
+                        if recommended.get("expiry"):
+                            chosen_expiry = str(recommended["expiry"])
 
-            if len(strike_scan) == 1 and "scan_fallback" in strike_scan:
+                if len(strike_scan) == 1 and "scan_fallback" in strike_scan:
+                    strike_scan = None
+            except Exception as exc:
                 strike_scan = None
+                scanner_error = str(exc)
         short_leg = None
         long_leg = None
         if rec.strategy_key in {"iron_condor", "iron_condor_hv"}:
@@ -580,6 +585,9 @@ def api_position_open_draft():
             "legs": priced_legs,
             "legs_hint": " / ".join(f'{l["action"]} {l["option"]} {l["strike"]} ({l["dte"]}D)' for l in priced_legs),
         }
+        if scanner_error:
+            payload["scanner_error"] = scanner_error
+            payload["legs_hint"] += " · Live strike scan unavailable — using model estimate."
         bp_preview = _bp_preview_payload(
             rec.strategy_key,
             rec.vix_snapshot.regime.value,

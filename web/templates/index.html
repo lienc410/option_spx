@@ -1175,6 +1175,20 @@ function scanRowsFor(slot) {
   return CURRENT_OPEN_DRAFT?.strike_scan?.[slot] || [];
 }
 
+function openDraftHintText(draft) {
+  if (!draft) return 'Loading algorithm draft…';
+  if (draft.scanner_error) {
+    return 'Model fallback active — live liquidity scan is currently unavailable, so strikes use the model estimate.';
+  }
+  if (draft.strike_scan?.scan_fallback) {
+    return 'Live liquidity scan active — at least one leg had no liquid strike, so model fallback is being used where needed.';
+  }
+  if (draft.strike_scan) {
+    return 'Live liquidity scan active — recommended strikes are coming from the live option chain.';
+  }
+  return draft.legs_hint || 'Algorithm draft loaded.';
+}
+
 function renderStrikeScan(draft) {
   const shortWrap = document.getElementById('scan-short-wrap');
   const longWrap = document.getElementById('scan-long-wrap');
@@ -1234,10 +1248,8 @@ function renderStrikeScan(draft) {
   };
   shortWrap.innerHTML = renderBox('short_leg', 'Short Leg Scan', document.getElementById('open-short-strike')?.value);
   longWrap.innerHTML = renderBox('long_leg', 'Long Leg Scan', document.getElementById('open-long-strike')?.value);
-  if (draft.strike_scan.scan_fallback) {
-    const hint = document.getElementById('open-legs-hint');
-    if (hint) hint.textContent = 'No liquid strikes found for at least one leg — using model estimate where needed.';
-  }
+  const hint = document.getElementById('open-legs-hint');
+  if (hint) hint.textContent = openDraftHintText(draft);
 }
 
 function selectScanRow(slot, idx) {
@@ -1274,7 +1286,7 @@ function applyOpenDraft(draft) {
   const paperEl = document.getElementById('open-paper-trade');
   if (paperEl) paperEl.checked = !!draft.paper_trade;
   const hint = document.getElementById('open-legs-hint');
-  if (hint) hint.textContent = draft.legs_hint || 'Algorithm draft loaded.';
+  if (hint) hint.textContent = openDraftHintText(draft);
   renderStrikeScan(draft);
   updatePremiumDiff();
   updateOpenBpPreview();
