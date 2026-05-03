@@ -7,6 +7,17 @@ Owner: Planner or PM
 
 ## Entries
 
+### R-20260503-06 — Q041 Gate 0 forward collection is now technically viable for equities plus SPX/QQQ, but still does not clear the historical-data gate
+
+- Topic: Quant refinement of the `Q041` forward-collection scaffold
+- Findings: Quant has advanced `Q041 Gate 0` beyond the initial scaffold by resolving the largest practical collection issue on the HC path. The main bug was `SPX` chain collection through Schwab: the default request shape overflowed the gateway body buffer because `$SPX` combines very dense strike spacing (`5-point` increments) with a large multi-expiry window. This is now fixed by giving `$SPX` its own narrower request envelope (`strikeCount=100`, `DTE=180d`), which still returns enough useful structure for main-strategy chain accumulation (`~40` expiries, `4159` calls). At the same time, Quant confirmed that `/ES` futures options should be removed from this Schwab-based forward path entirely: Schwab’s `/marketdata/v1/chains` endpoint rejects futures option symbols with `400 Bad Request`, so any `/ES` options work would require a separate data source such as CME DataSuite or a third-party vendor. The active forward whitelist is therefore now `12` symbols: the `10` large-cap equity-income candidates plus `SPX` and `QQQ`. Estimated collection scale is about `45K` rows and `~800KB` parquet per day
+- Risks / Counterarguments: this is still only a forward-collection result, not a historical-feasibility result. `Q041` remains blocked on the deeper Gate 0 question: whether acceptable long-history per-name options data exists for the intended research horizon. There are also a few operational unknowns left for first real runs, including `BRK/B` symbol handling, weekday scheduler behavior, and whether any symbols intermittently produce sparse or malformed outputs
+- Confidence: high that the forward-collection path itself is now workable for equities plus `SPX/QQQ`; low-to-medium that Gate 0 as a whole is cleared
+- Next Tests: let the weekday `16:30 ET` collector run, verify all `12` symbols write successfully, confirm `BRK/B -> BRK_B.parquet`, inspect structured logs, and keep `/ES` explicitly out of this Schwab-based path until a separate data-source decision is made
+- Recommendation: keep `Q041` at **Gate 0 in progress**. Do not allocate Phase 1 modeling yet, but treat the forward collector as a meaningful infrastructure step rather than a pure placeholder
+- Related Question: `Q041`
+- See: `research/q041/collect_chains.py`, `research/q041/whitelist.py`, `sync/open_questions.md`
+
 ### R-20260503-05 — Q041 Gate 0 moves from pure theory to active data-infrastructure work, but historical feasibility is still unproven
 
 - Topic: Quant forward-collection scaffold for `Q041` / `Large-Cap Equity Option Income Overlay`

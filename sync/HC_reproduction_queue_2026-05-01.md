@@ -42,9 +42,10 @@ HC 侧需要重现的是一个 **stacked reproduction sprint**，包含三层内
 
 ## 2. HC 当前与 MC 本轮 handoff 的主要差距
 
-### 2.1 HC 当前本地缺失
+### 2.1 历史缺口与当前更新
 
-HC 当前本地未见：
+最初制定本 queue 时，HC 本地未见：
+
 - `task/SPEC-074.md`
 - `task/SPEC-075.md`
 - `task/SPEC-076.md`
@@ -53,9 +54,18 @@ HC 当前本地未见：
 - `task/SPEC-079.md`
 - `task/SPEC-080.md`
 
-这意味着：
+当时这意味着：
 - 现在还没有 Developer 可以合法执行的 `APPROVED Spec` 入口
 - 也没有足够的本地详细层，能让 Developer 在不冒风险的前提下直接照着 MC 摘要重构代码
+
+**状态更新（2026-05-03）**：
+- `sync/mc_to_hc/MC Response 2026-05-02_v2.md` §4 已经补齐 `SPEC-075 / SPEC-076` 的 adoption 输入包：
+  - spec 全文位置
+  - file list / patch scope
+  - `overlay_f_mode` posture
+  - old runtime 影响面
+  - 最小 regression / tieout 口径
+- 因此，对 `SPEC-075/076` 来说，这一条已经不再是“等待 MC 包”的 blocker；当前 blocker 已转为 HC 本地 adoption 组织与 staged rollout
 
 ### 2.2 HC 当前 canonical 状态与 MC handoff 的潜在漂移
 

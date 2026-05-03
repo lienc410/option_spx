@@ -483,7 +483,7 @@ MC 提供 6 笔完整 ledger：
 - `exit_reason = 50pct_profit`
 - `dte_at_entry = 45`
 - `dte_at_exit = 25`
-- `entry_credit = -471`
+- `entry_credit = -4711`
 
 ### 3.2 总计
 
