@@ -256,9 +256,20 @@ def _parse_chain_response(payload: dict, option_type: str) -> list[dict]:
                     "mid": round(float(mid), 4) if mid not in (None, "") else None,
                     "spread_pct": round(float(spread_pct), 6) if spread_pct is not None else None,
                     "delta": contract.get("delta"),
+                    "gamma": contract.get("gamma"),
+                    "theta": contract.get("theta"),
+                    "vega": contract.get("vega"),
                     "open_interest": contract.get("openInterest"),
                     "volume": contract.get("totalVolume"),
                     "dte": dte if dte is not None else contract.get("daysToExpiration"),
+                    "iv": contract.get("volatility"),
+                    "rho": contract.get("rho"),
+                    "expiry_type": contract.get("expirationType"),
+                    "open": contract.get("openPrice"),
+                    "high": contract.get("highPrice"),
+                    "low": contract.get("lowPrice"),
+                    "close": contract.get("closePrice"),
+                    "last": contract.get("last"),
                 })
     return rows
 
@@ -424,41 +435,37 @@ def _find_chain_row(rows: list[dict], strike: float | int | str | None) -> dict 
     return None
 
 
-def _strategy_quote_layout(state: dict | None) -> tuple[str, str] | None:
+def _strategy_quote_layout(state: dict | None) -> list[dict] | None:
     if not state:
         return None
     strategy_key = str(state.get("strategy_key") or "")
     if strategy_key in {"bull_put_spread", "bull_put_spread_hv"}:
-        return ("PUT", "PUT")
+        return [
+            {"name": "short_put", "option_type": "PUT", "strike": state.get("short_strike"), "multiplier": -1.0},
+            {"name": "long_put", "option_type": "PUT", "strike": state.get("long_strike"), "multiplier": 1.0},
+        ]
     if strategy_key in {"bear_call_spread_hv"}:
-        return ("CALL", "CALL")
+        return [
+            {"name": "short_call", "option_type": "CALL", "strike": state.get("short_strike"), "multiplier": -1.0},
+            {"name": "long_call", "option_type": "CALL", "strike": state.get("long_strike"), "multiplier": 1.0},
+        ]
+    if strategy_key in {"iron_condor", "iron_condor_hv"}:
+        return [
+            {"name": "short_put", "option_type": "PUT", "strike": state.get("short_put_strike") or state.get("short_strike"), "multiplier": -1.0},
+            {"name": "long_put", "option_type": "PUT", "strike": state.get("long_put_strike") or state.get("long_strike"), "multiplier": 1.0},
+            {"name": "short_call", "option_type": "CALL", "strike": state.get("short_call_strike"), "multiplier": -1.0},
+            {"name": "long_call", "option_type": "CALL", "strike": state.get("long_call_strike"), "multiplier": 1.0},
+        ]
     return None
 
 
 def _spread_live_snapshot_from_chain(state: dict | None, positions_payload: dict) -> dict | None:
-    layout = _strategy_quote_layout(state)
-    if not state or not layout:
+    leg_specs = _strategy_quote_layout(state)
+    if not state or not leg_specs:
         return None
     expiry = str(state.get("expiry") or "")
     underlying = str(state.get("underlying") or "SPX")
-    short_strike = state.get("short_strike")
-    long_strike = state.get("long_strike")
-    if not expiry or short_strike is None or long_strike is None:
-        return None
-
-    option_type, hedge_option_type = layout
-    chain = _get_option_chain_exact_expiry(
-        underlying,
-        option_type,
-        expiry,
-        center_strike=short_strike,
-        strike_window=120,
-    )
-    if hedge_option_type != option_type:
-        return None
-    short_row = _find_chain_row(chain, short_strike)
-    long_row = _find_chain_row(chain, long_strike)
-    if not short_row or not long_row:
+    if not expiry:
         return None
 
     def _f(row: dict, key: str) -> float | None:
@@ -468,26 +475,69 @@ def _spread_live_snapshot_from_chain(state: dict | None, positions_payload: dict
         except (TypeError, ValueError):
             return None
 
-    short_bid = _f(short_row, "bid")
-    short_ask = _f(short_row, "ask")
-    long_bid = _f(long_row, "bid")
-    long_ask = _f(long_row, "ask")
-    short_mid = _f(short_row, "mid")
-    long_mid = _f(long_row, "mid")
+    grouped_specs: dict[str, list[dict]] = {}
+    for spec in leg_specs:
+        option_type = str(spec.get("option_type") or "").upper()
+        strike = spec.get("strike")
+        if option_type not in {"PUT", "CALL"} or strike is None:
+            return None
+        grouped_specs.setdefault(option_type, []).append(spec)
 
-    if short_mid is None or long_mid is None:
-        return None
+    chain_by_type: dict[str, list[dict]] = {}
+    for option_type, specs in grouped_specs.items():
+        center_strike = specs[0].get("strike")
+        chain_by_type[option_type] = _get_option_chain_exact_expiry(
+            underlying,
+            option_type,
+            expiry,
+            center_strike=center_strike,
+            strike_window=160,
+        )
 
-    spread_mark = round(short_mid - long_mid, 4)
-    spread_bid = None if short_bid is None or long_ask is None else round(short_bid - long_ask, 4)
-    spread_ask = None if short_ask is None or long_bid is None else round(short_ask - long_bid, 4)
+    leg_rows: list[dict] = []
+    for spec in leg_specs:
+        row = _find_chain_row(chain_by_type.get(str(spec["option_type"]).upper(), []), spec["strike"])
+        if not row:
+            return None
+        leg_rows.append({"spec": spec, "row": row})
+
+    def _net_price(key_for_short: str, key_for_long: str) -> float | None:
+        total = 0.0
+        for item in leg_rows:
+            spec = item["spec"]
+            row = item["row"]
+            multiplier = float(spec["multiplier"])
+            if multiplier < 0:
+                val = _f(row, key_for_short)
+                signed = 1.0
+            else:
+                val = _f(row, key_for_long)
+                signed = -1.0
+            if val is None:
+                return None
+            total += signed * val
+        return round(total, 4)
+
+    spread_mark = 0.0
+    for item in leg_rows:
+        mid = _f(item["row"], "mid")
+        if mid is None:
+            return None
+        spread_mark += (1.0 if float(item["spec"]["multiplier"]) < 0 else -1.0) * mid
+    spread_mark = round(spread_mark, 4)
+    spread_bid = _net_price("bid", "ask")
+    spread_ask = _net_price("ask", "bid")
 
     def _net_greek(key: str) -> float | None:
-        short_val = _f(short_row, key)
-        long_val = _f(long_row, key)
-        if short_val is None or long_val is None:
-            return None
-        return round((-short_val) + long_val, 6)
+        total = 0.0
+        seen = False
+        for item in leg_rows:
+            val = _f(item["row"], key)
+            if val is None:
+                continue
+            total += float(item["spec"]["multiplier"]) * val
+            seen = True
+        return round(total, 6) if seen else None
 
     try:
         contracts = float(state.get("contracts", 1))
@@ -499,6 +549,9 @@ def _spread_live_snapshot_from_chain(state: dict | None, positions_payload: dict
     trade_log_pnl = None
     if contracts is not None and entry_credit is not None:
         trade_log_pnl = round((entry_credit - spread_mark) * contracts * 100, 2)
+
+    structure = "4-leg condor" if len(leg_rows) == 4 else "2-leg spread"
+    leg_payload = {str(item["spec"]["name"]): item["row"] for item in leg_rows}
 
     return {
         "visible": True,
@@ -512,11 +565,10 @@ def _spread_live_snapshot_from_chain(state: dict | None, positions_payload: dict
         "vega": _net_greek("vega"),
         "unrealized_pnl": trade_log_pnl,
         "trade_log_pnl": trade_log_pnl,
-        "symbol": f"{underlying} {expiry} {option_type} {short_strike}/{long_strike}",
-        "legs": {
-            "short": short_row,
-            "long": long_row,
-        },
+        "symbol": f"{underlying} {expiry} {structure}",
+        "pricing_source": "spread_quote",
+        "structure": structure,
+        "legs": leg_payload,
     }
 
 

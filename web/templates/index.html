@@ -1120,7 +1120,7 @@ function renderPosition(p) {
   const live = p.schwab_live || {};
   const liveHtml = live.visible ? `
     <div class="pos-live">
-      <div class="pos-live-title">Live Greeks (Schwab) ${live.stale ? ' · stale' : ''}</div>
+      <div class="pos-live-title">Live Risk (${live.pricing_source === 'spread_quote' ? 'Schwab spread quote' : 'Schwab'})${live.structure ? ' · ' + live.structure : ''}${live.stale ? ' · stale' : ''}</div>
       <div class="pos-live-row"><strong>Δ</strong> ${fmt(live.delta)} &nbsp; <strong>Γ</strong> ${fmt(live.gamma, 3)} &nbsp; <strong>Θ</strong> ${fmt(live.theta)} /day &nbsp; <strong>V</strong> ${fmt(live.vega)}</div>
       <div class="pos-live-row"><strong>Mark</strong> ${fmt(live.mark)} &nbsp; <strong>Bid</strong> ${fmt(live.bid)} &nbsp; <strong>Ask</strong> ${fmt(live.ask)}</div>
       <div class="pos-live-row"><strong>Unrealized</strong> ${live.unrealized_pnl == null ? '—' : live.unrealized_pnl.toFixed(2)} &nbsp; <strong>Trade-log PnL</strong> ${live.trade_log_pnl == null ? '—' : live.trade_log_pnl.toFixed(2)}</div>
