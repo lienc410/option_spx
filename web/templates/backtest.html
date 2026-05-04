@@ -1329,8 +1329,7 @@ function pollAutoSearch(total) {
 // ── Experiments table ────────────────────────────────────────────────────────
 async function loadExperiments() {
   try {
-    const res  = await fetch('/api/experiments');
-    const data = await res.json();
+    const data = await fetchJsonOrThrow('/api/experiments');
     renderExperiments(data.experiments || []);
   } catch (_) {}
 }
@@ -1381,8 +1380,7 @@ function toggleExpSelect(id, checked) {
 async function loadComparison() {
   const [a, b] = [..._selectedExps];
   try {
-    const res  = await fetch(`/api/experiments?compare_a=${a}&compare_b=${b}`);
-    const data = await res.json();
+    const data = await fetchJsonOrThrow(`/api/experiments?compare_a=${a}&compare_b=${b}`);
     if (!data.comparison) return;
     renderComparison(data.comparison);
   } catch (_) {}
@@ -1642,8 +1640,7 @@ function syncWindowDateInputs(clearPeriod = false) {
 async function fetchWindowBacktest(start) {
   const query = new URLSearchParams(collectBacktestQuery());
   query.set('start', start);
-  const res = await fetch(`/api/backtest?${query.toString()}`);
-  const data = await res.json();
+  const data = await fetchJsonOrThrow(`/api/backtest?${query.toString()}`);
   if (data.error) throw new Error(data.error);
   return data;
 }
@@ -1859,10 +1856,27 @@ function collectBacktestQuery() {
   Object.entries(params).forEach(([key, value]) => query.set(key, String(value)));
   return query.toString();
 }
+async function fetchJsonOrThrow(url, options) {
+  const res = await fetch(url, options);
+  const text = await res.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch (_) {
+    const snippet = (text || '').trim().slice(0, 80);
+    if (snippet.startsWith('<!DOCTYPE') || snippet.startsWith('<html') || snippet.startsWith('<')) {
+      throw new Error(`${url} returned HTML instead of JSON. Refresh the page and retry login if needed.`);
+    }
+    throw new Error(`${url} returned invalid JSON.`);
+  }
+  if (!res.ok) {
+    throw new Error(data?.error || `${url} failed (${res.status})`);
+  }
+  return data;
+}
 async function loadSignalHistory(start = '') {
   const queryStart = start || elValue('inp-start', '') || '2000-01-01';
-  const res = await fetch(`/api/signals/history?start=${encodeURIComponent(queryStart)}`);
-  const data = await res.json();
+  const data = await fetchJsonOrThrow(`/api/signals/history?start=${encodeURIComponent(queryStart)}`);
   if (data.error) throw new Error(data.error);
   _spxFullSigData = data.signals || [];
   _sigData = _spxFullSigData;
@@ -1873,8 +1887,7 @@ async function loadSignalHistory(start = '') {
   renderSpxChart();
 }
 async function loadResearchViews() {
-  const res = await fetch('/api/research/views');
-  const data = await res.json();
+  const data = await fetchJsonOrThrow('/api/research/views');
   if (data.error || data.empty) {
     _researchViews = {};
     return;
@@ -1882,8 +1895,7 @@ async function loadResearchViews() {
   _researchViews = data.views || {};
 }
 async function loadCachedResult() {
-  const res = await fetch('/api/backtest/latest-cached');
-  const data = await res.json();
+  const data = await fetchJsonOrThrow('/api/backtest/latest-cached');
   if (data.error) throw new Error(data.error);
   if (data.empty) {
     _displayedResultMeta = null;
@@ -2995,8 +3007,7 @@ async function runBacktest() {
   }, 1000);
 
   try {
-    const res = await fetch(`/api/backtest?${collectBacktestQuery()}`);
-    const data = await res.json();
+    const data = await fetchJsonOrThrow(`/api/backtest?${collectBacktestQuery()}`);
     if (data.error) throw new Error(data.error);
     _displayedResultMeta = data;
     const startIdx = _spxFullSigData.findIndex(r => r.date >= start);
@@ -3028,10 +3039,19 @@ document.querySelectorAll('.param-input').forEach(el => {
 (async function initBacktestPage() {
   try {
     await loadResearchViews();
-    const cached = await loadCachedResult();
-    await loadSignalHistory(cached?.start_date || '');
+  } catch (_) {
+    _researchViews = {};
+  }
+  let cached = null;
+  try {
+    cached = await loadCachedResult();
   } catch (e) {
     document.getElementById('run-status').textContent = e.message || 'Init failed';
+  }
+  try {
+    await loadSignalHistory(cached?.start_date || '');
+  } catch (e) {
+    document.getElementById('run-status').textContent = e.message || 'Signal history unavailable';
   }
   loadExperiments();
 })();
