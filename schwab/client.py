@@ -356,21 +356,186 @@ def _find_matching_position(positions: list[dict], state: dict | None) -> dict |
     if not state:
         return positions[0]
     expiry = str(state.get("expiry") or "")
+    expiry_digits = expiry.replace("-", "")
+    expiry_token = expiry_digits[-6:] if len(expiry_digits) >= 6 else expiry_digits
     short_strike = str(int(float(state["short_strike"]))) if state.get("short_strike") is not None else ""
     for pos in positions:
         symbol = str(pos.get("symbol") or "")
-        if expiry.replace("-", "")[:6] in symbol and short_strike and short_strike in symbol:
+        if expiry_token and expiry_token in symbol and short_strike and short_strike in symbol:
             return pos
-    return positions[0]
+    # Fail closed when the live account positions do not match the recorded trade
+    # state. Falling back to an unrelated position can corrupt the dashboard risk
+    # panel with bogus mark/PnL data.
+    return None
+
+
+def _get_option_chain_exact_expiry(
+    symbol: str,
+    option_type: str,
+    expiry: str,
+    center_strike: float | None = None,
+    strike_window: int = 40,
+) -> list[dict]:
+    if not is_configured():
+        return []
+    expiry_date = str(expiry or "")
+    cache_key = f"chain-exact:{symbol}:{option_type.upper()}:{expiry_date}:{int(round(float(center_strike or 0)))}:{int(strike_window)}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    requested_strike_count = 20 if center_strike is None else max(300, int(strike_window) * 20)
+    res = requests.get(
+        f"{BASE_URL}/marketdata/v1/chains",
+        params={
+            "symbol": _marketdata_symbol(symbol),
+            "contractType": option_type.upper(),
+            "strikeCount": requested_strike_count,
+            "includeQuotes": "TRUE",
+            "fromDate": expiry_date,
+            "toDate": expiry_date,
+        },
+        headers=_headers(),
+        timeout=20,
+    )
+    res.raise_for_status()
+    rows = _parse_chain_response(res.json(), option_type)
+    filtered = [row for row in rows if str(row.get("expiry") or "") == expiry_date]
+    if center_strike is not None and filtered:
+        filtered = sorted(
+            filtered,
+            key=lambda row: abs(float(row.get("strike") or 0) - float(center_strike)),
+        )[: max(int(strike_window), 1)]
+    _cache_put(cache_key, filtered)
+    return filtered
+
+
+def _find_chain_row(rows: list[dict], strike: float | int | str | None) -> dict | None:
+    try:
+        strike_f = float(strike)
+    except (TypeError, ValueError):
+        return None
+    for row in rows:
+        try:
+            if float(row.get("strike")) == strike_f:
+                return row
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _strategy_quote_layout(state: dict | None) -> tuple[str, str] | None:
+    if not state:
+        return None
+    strategy_key = str(state.get("strategy_key") or "")
+    if strategy_key in {"bull_put_spread", "bull_put_spread_hv"}:
+        return ("PUT", "PUT")
+    if strategy_key in {"bear_call_spread_hv"}:
+        return ("CALL", "CALL")
+    return None
+
+
+def _spread_live_snapshot_from_chain(state: dict | None, positions_payload: dict) -> dict | None:
+    layout = _strategy_quote_layout(state)
+    if not state or not layout:
+        return None
+    expiry = str(state.get("expiry") or "")
+    underlying = str(state.get("underlying") or "SPX")
+    short_strike = state.get("short_strike")
+    long_strike = state.get("long_strike")
+    if not expiry or short_strike is None or long_strike is None:
+        return None
+
+    option_type, hedge_option_type = layout
+    chain = _get_option_chain_exact_expiry(
+        underlying,
+        option_type,
+        expiry,
+        center_strike=short_strike,
+        strike_window=120,
+    )
+    if hedge_option_type != option_type:
+        return None
+    short_row = _find_chain_row(chain, short_strike)
+    long_row = _find_chain_row(chain, long_strike)
+    if not short_row or not long_row:
+        return None
+
+    def _f(row: dict, key: str) -> float | None:
+        try:
+            value = row.get(key)
+            return None if value in (None, "") else float(value)
+        except (TypeError, ValueError):
+            return None
+
+    short_bid = _f(short_row, "bid")
+    short_ask = _f(short_row, "ask")
+    long_bid = _f(long_row, "bid")
+    long_ask = _f(long_row, "ask")
+    short_mid = _f(short_row, "mid")
+    long_mid = _f(long_row, "mid")
+
+    if short_mid is None or long_mid is None:
+        return None
+
+    spread_mark = round(short_mid - long_mid, 4)
+    spread_bid = None if short_bid is None or long_ask is None else round(short_bid - long_ask, 4)
+    spread_ask = None if short_ask is None or long_bid is None else round(short_ask - long_bid, 4)
+
+    def _net_greek(key: str) -> float | None:
+        short_val = _f(short_row, key)
+        long_val = _f(long_row, key)
+        if short_val is None or long_val is None:
+            return None
+        return round((-short_val) + long_val, 6)
+
+    try:
+        contracts = float(state.get("contracts", 1))
+        entry_credit = float(state.get("actual_premium"))
+    except (TypeError, ValueError):
+        contracts = None
+        entry_credit = None
+
+    trade_log_pnl = None
+    if contracts is not None and entry_credit is not None:
+        trade_log_pnl = round((entry_credit - spread_mark) * contracts * 100, 2)
+
+    return {
+        "visible": True,
+        "stale": positions_payload.get("stale", False),
+        "mark": spread_mark,
+        "bid": spread_bid,
+        "ask": spread_ask,
+        "delta": _net_greek("delta"),
+        "gamma": _net_greek("gamma"),
+        "theta": _net_greek("theta"),
+        "vega": _net_greek("vega"),
+        "unrealized_pnl": trade_log_pnl,
+        "trade_log_pnl": trade_log_pnl,
+        "symbol": f"{underlying} {expiry} {option_type} {short_strike}/{long_strike}",
+        "legs": {
+            "short": short_row,
+            "long": long_row,
+        },
+    }
 
 
 def live_position_snapshot(state: dict | None) -> dict:
     positions_payload = get_account_positions()
     if not positions_payload.get("configured") or not positions_payload.get("authenticated"):
         return {"visible": False, **positions_payload}
+    chain_snapshot = _spread_live_snapshot_from_chain(state, positions_payload)
+    if chain_snapshot is not None:
+        return chain_snapshot
     positions = positions_payload.get("positions", [])
     pos = _find_matching_position(positions, state)
     if not pos:
+        return {"visible": False, **positions_payload}
+    has_quote_fields = any(
+        pos.get(field) is not None
+        for field in ("bid", "ask", "delta", "gamma", "theta", "vega")
+    )
+    if state and not has_quote_fields:
         return {"visible": False, **positions_payload}
     entry = None
     if state and state.get("actual_premium") is not None and pos.get("mark") is not None:
