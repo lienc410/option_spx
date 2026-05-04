@@ -990,6 +990,7 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
           <span class="ctrl-label" style="margin-right:4px">Overlay:</span>
           <button class="overlay-btn active" id="ovr-none" onclick="setSpxOverlay('none', this)">None</button>
           <button class="overlay-btn" id="ovr-pnl"  onclick="setSpxOverlay('pnl',  this)">Cum. P&L</button>
+          <button class="overlay-btn" id="ovr-dd"   onclick="setSpxOverlay('dd',   this)">Drawdown</button>
           <button class="overlay-btn" id="ovr-bp"   onclick="setSpxOverlay('bp',   this)">Total BP Used %</button>
           <button class="overlay-btn" id="ovr-vix"  onclick="setSpxOverlay('vix',  this)">VIX</button>
           <button class="overlay-btn" id="ovr-ivr"  onclick="setSpxOverlay('ivr',  this)">IV Rank</button>
@@ -2661,6 +2662,37 @@ function renderSpxChart() {
       stepped: 'after',
       yAxisID: 'y2',
     });
+  } else if (_spxOverlay === 'dd') {
+    let cum = 0;
+    let peak = 0;
+    const closePnlByDate = new Map();
+    events
+      .filter(e => e.type === 'close')
+      .forEach(ev => {
+        if (ev.date < visibleStartDate) {
+          cum += ev.trade.exit_pnl;
+          peak = Math.max(peak, cum);
+          return;
+        }
+        closePnlByDate.set(ev.date, (closePnlByDate.get(ev.date) || 0) + ev.trade.exit_pnl);
+      });
+    const ddData = visibleRows.map(r => {
+      cum += closePnlByDate.get(r.date) || 0;
+      peak = Math.max(peak, cum);
+      return { x: r.date, y: cum - peak };
+    });
+    datasets.push({
+      label: 'Drawdown',
+      data: ddData,
+      borderColor: 'rgba(224,72,98,0.78)',
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      pointRadius: 0,
+      pointHitRadius: 0,
+      tension: 0,
+      stepped: 'after',
+      yAxisID: 'y2',
+    });
   } else if (_spxOverlay === 'bp') {
     let totalBpPct = 0;
     const bpEventsByDate = new Map();
@@ -2848,7 +2880,7 @@ function renderSpxChart() {
       grid: { drawOnChartArea: false },
       ticks: {
         color: '#606880', font: { family: "'JetBrains Mono'", size: 10 },
-        callback: _spxOverlay === 'pnl'
+        callback: (_spxOverlay === 'pnl' || _spxOverlay === 'dd')
           ? v => (v >= 0 ? '+$' : '-$') + Math.abs(v / 1000).toFixed(0) + 'k'
           : _spxOverlay === 'bp'
             ? v => v.toFixed(1) + '%'
