@@ -9,3 +9,5 @@ config.local.yaml
 logs/
 *.log
 data/q041_chains/
+data/q041_historical/
+.gstack/
