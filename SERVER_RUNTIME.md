@@ -212,12 +212,32 @@ bash scripts/check_oldair_cloudflared.sh
 bash scripts/check_oldair_cloudflared.sh --heal
 ```
 
+## Runtime Validation Rule
+
+old Air 是生产 runtime source of truth，但**不是**研究或调试沙盒。
+
+默认工作流：
+1. 研究与策略设计在主力机进行
+2. 实施与本地测试在主力机进行
+3. 只有本地验证通过后，才在 old Air 执行部署或验证
+
+**不应在 old Air 上进行的操作**：
+- 探索性编码（exploratory coding）
+- 大型 research / backtest job（除非 PM 明确批准）
+- 未批准的策略逻辑试验
+- 广泛性调试实验
+
+**本地行为与 old Air 行为不一致时**：
+- old Air 是 live 行为的权威
+- 主力机是开发测试的权威
+- 在修改 production runtime 前，先记录差异原因
+
 ## Coordination Rules
 
 - Quant Researcher should use old Air when the task depends on live recommendation history or current runtime behavior
 - Planner should treat old Air as the canonical runtime when summarizing deployment or operational state
 - Developer should not assume the main machine represents production runtime
-- Server Maintainer owns runtime diagnostics and low-risk operational recovery on old Air
+- **Server Maintainer 由 Developer 兼任**：Developer 通过 SSH 连接 old Air 执行运维操作，不是独立 agent，不在 old Air 本地运行。涉及代码修改时必须走 Spec 路径
 
 ## Related Docs
 

@@ -1,0 +1,129 @@
+{
+  "snapshot_date": "2026-05-04",
+  "symbols_requested": [
+    "AAPL",
+    "MSFT",
+    "AMZN",
+    "GOOGL",
+    "META",
+    "NVDA",
+    "BRK/B",
+    "WMT",
+    "COST",
+    "JPM",
+    "SPX",
+    "QQQ",
+    "TSLA",
+    "AMD",
+    "ASML",
+    "TSM",
+    "PANW"
+  ],
+  "ok": 17,
+  "errors": 0,
+  "total_rows": 95756,
+  "results": [
+    {
+      "symbol": "AAPL",
+      "rows": 3184,
+      "pages": 13,
+      "error": null
+    },
+    {
+      "symbol": "MSFT",
+      "rows": 3834,
+      "pages": 16,
+      "error": null
+    },
+    {
+      "symbol": "AMZN",
+      "rows": 2790,
+      "pages": 12,
+      "error": null
+    },
+    {
+      "symbol": "GOOGL",
+      "rows": 4914,
+      "pages": 20,
+      "error": null
+    },
+    {
+      "symbol": "META",
+      "rows": 7882,
+      "pages": 32,
+      "error": null
+    },
+    {
+      "symbol": "NVDA",
+      "rows": 4146,
+      "pages": 17,
+      "error": null
+    },
+    {
+      "symbol": "BRK/B",
+      "rows": 2174,
+      "pages": 9,
+      "error": null
+    },
+    {
+      "symbol": "WMT",
+      "rows": 1250,
+      "pages": 6,
+      "error": null
+    },
+    {
+      "symbol": "COST",
+      "rows": 3158,
+      "pages": 13,
+      "error": null
+    },
+    {
+      "symbol": "JPM",
+      "rows": 2068,
+      "pages": 9,
+      "error": null
+    },
+    {
+      "symbol": "SPX",
+      "rows": 29948,
+      "pages": 120,
+      "error": null
+    },
+    {
+      "symbol": "QQQ",
+      "rows": 10838,
+      "pages": 44,
+      "error": null
+    },
+    {
+      "symbol": "TSLA",
+      "rows": 5726,
+      "pages": 23,
+      "error": null
+    },
+    {
+      "symbol": "AMD",
+      "rows": 4090,
+      "pages": 17,
+      "error": null
+    },
+    {
+      "symbol": "ASML",
+      "rows": 4672,
+      "pages": 19,
+      "error": null
+    },
+    {
+      "symbol": "TSM",
+      "rows": 2402,
+      "pages": 10,
+      "error": null
+    },
+    {
+      "symbol": "PANW",
+      "rows": 2680,
+      "pages": 11,
+      "error": null
+    }
+  ]
+}

@@ -176,10 +176,25 @@ def _build_chain_frame(
         "delta",
         "open_interest",
         "volume",
+        "iv",
+        "gamma",
+        "theta",
+        "vega",
+        "rho",
+        "expiry_type",
+        "open",
+        "high",
+        "low",
+        "close",
+        "last",
     ]
     df = df.reindex(columns=cols_order)
     for col in ("strike", "bid", "ask", "mid", "spread_pct", "delta"):
         df[col] = pd.to_numeric(df[col], errors="coerce")
+    for col in ("iv", "gamma", "theta", "vega", "rho", "open", "high", "low", "close", "last"):
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    # Schwab uses -999.0 as a sentinel for "IV unavailable"; coerce to NaN
+    df["iv"] = df["iv"].where(df["iv"] > 0, other=pd.NA)
     for col in ("open_interest", "volume", "dte"):
         df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
     return df

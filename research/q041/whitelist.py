@@ -29,4 +29,10 @@ WHITELIST: tuple[str, ...] = (
     # Main-strategy chain accumulation
     "SPX",
     "QQQ",
+    # Extended watchlist added 2026-05-03
+    "TSLA",
+    "AMD",
+    "ASML",
+    "TSM",
+    "PANW",
 )
