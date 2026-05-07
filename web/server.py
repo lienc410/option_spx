@@ -206,6 +206,27 @@ def api_strategy_catalog():
     return jsonify(strategy_catalog_payload())
 
 
+@app.route("/api/sleeve-candidates")
+def api_sleeve_candidates():
+    from web.portfolio_surface import sleeve_candidates_payload
+
+    return jsonify(sleeve_candidates_payload())
+
+
+@app.route("/api/portfolio/summary")
+def api_portfolio_summary():
+    from web.portfolio_surface import portfolio_summary_payload
+
+    return jsonify(portfolio_summary_payload())
+
+
+@app.route("/api/portfolio/attribution")
+def api_portfolio_attribution():
+    from web.portfolio_surface import attribution_payload
+
+    return jsonify(attribution_payload())
+
+
 @app.route("/api/position")
 def api_position():
     from strategy.state import read_state

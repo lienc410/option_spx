@@ -1,11 +1,163 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-05 (R-20260505-04)
+Last Updated: 2026-05-07 (R-20260507-04)
 Owner: Planner or PM
 
 ---
 
 ## Entries
+
+### R-20260507-04 — Q041 Tier 3 portfolio-attribution prototype accepted as SPEC-085 F3 source; long paper-trading path materially collapsed
+
+- Topic: Quant completed the `Q041` Tier 3 portfolio-attribution prototype and PM decided to accept its artifact as the formal `SPEC-085 F3` attribution input, while explicitly declining both the original 12-month paper-trading path and the intermediate `4–6` week live signal forward-tracking observation window.
+- Findings:
+  - The Tier 3 prototype now provides a concrete portfolio-value artifact for `Q041`: `idle_day_capture = 132 days` (`86.8%` of J3 fully-idle days), `delta_avg_bp = +22.21pp`, `bp_fill_contribution = +22.21pp`, `joint mean BP = 38.04%`, and `excess_overlap_vs_occupancy = +4.5pp`.
+  - This is strong enough to answer the research-side `A/C/D/E` questions ex ante: cycle quality, idle-day capture, BP-fill contribution, and worst-day overlap are now materially quantified.
+  - The remaining realism gap is no longer broad paper-trading evidence accumulation; it is narrowly the single-name fill/slippage realism question for Tier 2 (`GOOGL` / `AMZN`). PM chose **not** to require an additional generic forward-tracking observation phase before using the artifact as the canonical `SPEC-085 F3` source.
+  - Operationally, this changes `Q041` from “paper-trading support first” to “visualization / attribution first, with any later live or calibration need judged as a narrower follow-up rather than as the default next gate.”
+- Risks / Counterarguments:
+  - The artifact is still based on a bounded `3.3y` window, excludes COVID 2020, approximates CSP BP as `K*100`, and does not perform fill calibration. It should be treated as a strong portfolio-deployment prior, not as a substitute for every future live-validation question.
+  - Because PM declined the generic `4–6` week forward-tracking window, any future request for Tier 2 single-name realism evidence should be framed as a narrow follow-up question rather than assumed to be part of the current path.
+- Confidence: medium-high. Strong enough to change planning posture and to serve as the formal `SPEC-085 F3` input; not a reason by itself to auto-promote any sleeve into production trading.
+- Next Tests: none required as a default gating step. Keep overlap validation running on its own track and let `SPEC-085` consume the accepted artifact. Only reopen live calibration if PM later asks a narrower Tier 2 fill/slippage question.
+- Recommendation: treat `data/q041_portfolio_attribution_latest.json` as the canonical `SPEC-085 F3` source, drop the old 12-month paper-trading path as the main route, and do not impose a new generic `4–6` week live signal forward-tracking requirement.
+- Related Question: `Q041`, `Q046`, `Q048`, `Q049`, `SPEC-085`
+- See: `doc/q041_portfolio_attribution_results_2026-05-07.md`, `data/q041_portfolio_attribution_latest.json`
+
+---
+
+### R-20260507-03 — Q048 opened: architecture-planning lane for the transition from single-SPX execution platform to portfolio research platform
+
+- Topic: Planner-led architecture review after `Q041` / `Q045` / `Q046` concluded that the project is no longer just adding more SPX strategies; it is entering a portfolio-research stage that needs new state, bookkeeping, and recommendation abstractions.
+- Findings:
+  - The current live system still assumes one canonical recommendation, one current live position, and one SPX-centered backtest / dashboard universe.
+  - `Q041` already introduced a second rail — a multi-record paper ledger with its own budget and review logic — which now coexists alongside the single-position SPX live rail.
+  - Quant-side review concluded that the research object has changed from isolated strategy quality to **capital deployment across interacting sleeves**, and that the platform now needs a formal distinction between production SPX sleeves, capital-fill sleeves, tail-caveated sleeves, and observe-only sleeves.
+  - Developer-side review concluded that the deepest technical seam is not UI cosmetics but the continued dependence on `current_position.json`, single-answer recommendation semantics, split ledgers, and SPX-centric information architecture.
+- Risks / Counterarguments: Opening a large “multi-strategy platform rewrite” now would be premature and could contaminate the stable SPX live rail. The near-term risk is architectural overbuild before the portfolio research model and sleeve-governance vocabulary stabilize.
+- Confidence: high on the diagnosis; medium on exact future implementation slicing, because the right spec boundaries should follow from a dedicated planning pass rather than be improvised inside a live feature branch.
+- Next Tests: keep `Q041` on its current evidence-accumulation path; use `Q048` to define the minimum portfolio-state / unified-ledger / candidate-set abstractions and then decide whether one or two narrow future specs should be opened.
+- Recommendation: keep `Q048` as a planning / architecture item, not a DRAFT Spec. The correct next move is staged design: explicit dual-rail acknowledgement, portfolio-state abstraction, recommendation split, minimal portfolio summary surface, then attribution-first research interfaces.
+- Related Question: `Q048`, `Q041`, `Q045`, `Q046`
+- See: `doc/q048_portfolio_state_architecture_transition_plan_seed_memo_2026-05-07.md`
+
+---
+
+### R-20260507-02 — Q046 benchmark-normalization result: the remaining post-SPEC-084 BP gap is moderate, and Q041 is the primary next mechanism axis
+
+- Topic: Quant follow-up on `Q046` — normalize external BP-usage benchmarks against our post-`SPEC-084` book and decide which mechanism family should be promoted next.
+- Findings:
+  - The raw external headline (`~25%–30%` or wider `25%–50%` allocation frameworks) is not directly comparable to our single-trade `bp_target`; the correct comparison layer is **portfolio-level average BP usage**.
+  - After normalizing for **PM vs Reg-T** and **defined-risk strategy structure**, our post-`SPEC-084` level (`~15.93%`) is not dramatically under-deployed relative to a conservative-to-neutral PM defined-risk book; the real gap compresses to roughly `~5–10pp`, not `15pp+`.
+  - `Q045` already exhausted most of the sizing axis: A (more sizing) has limited remaining value and runs into cliff / tail issues; B (more concurrency) cannot touch the `17%` fully idle days and increases concentration; D (higher ceiling) is an enabler rather than a standalone axis.
+  - **Mechanism C (broader strategy / underlying coverage)** is the clear next step because it is the only family that can directly attack the fully idle days. `Q041` already exists as the live carrier for this axis through paper trading.
+- Risks / Counterarguments: This conclusion is a framing / prioritization result, not a new simulation result; the real validation now depends on actual `Q041` paper-trading accumulation because the current backtest framework does not support a full joint multi-underlying account simulation. External benchmarks remain heterogeneous and should not be over-literalized.
+- Confidence: medium-high. Strong enough to reprioritize the next research axis; not strong enough to justify another live sizing lift or a ceiling change today.
+- Next Tests: do not open a new sizing/ceiling Spec. Let `Q041` advance through the accepted attribution artifact plus the still-separate overlap-monitoring track, and only reopen a narrower follow-up if PM later asks a specific Tier 2 fill/slippage realism question.
+- Recommendation: treat `Q041` as the **primary post-`Q045` account-level deployment-efficiency mechanism axis**. Keep `Q046` as completed benchmark / mechanism map. Defer A/B/D unless PM later explicitly reopens sizing or ceiling governance.
+- Related Question: `Q046`, `Q041`, `Q045`, `Q036`, `Q044`
+- See: `doc/q046_bp_utilization_external_benchmark_seed_memo_2026-05-07.md`
+
+---
+
+### R-20260507-01 — Q046 opened: external BP-utilization benchmark and deployment-efficiency research seed
+
+- Topic: After `SPEC-084`/`Q045 J3` went live, PM raised a new account-level question: even with average BP usage lifted to only `~15.9%`, is the system still materially under-deployed relative to mainstream short-premium practice? The research problem is not to raise live sizing immediately, but to benchmark current book-level deployment against external practitioner norms and decide which mechanism family should be researched next.
+- Findings: Initial external scan suggests common practitioner discussion clusters around portfolio-level usage in the `~20%–30%` range, with broader retail-PM allocation frameworks often discussed in the `25%–50%` total-buying-power-at-work range. This benchmark is not directly comparable to a single-trade `bp_target`; the right comparison layer is account-level average BP utilization. Our internal post-`SPEC-084` level (`~15.9%`) therefore looks conservative enough to justify deeper study.
+- Risks / Counterarguments: External sources mix Reg-T and PM, defined-risk and undefined-risk books, and retail anecdote with formal guidance. A naive “market uses 30%, so we should too” inference would be invalid. The next research step must normalize account type, strategy type, and risk posture before drawing implementation conclusions.
+- Confidence: medium. The benchmark direction is clear enough to open a research lane, but not yet strong enough to justify another sizing lift or a ceiling change.
+- Next Tests: Quant should compare external benchmark ranges against our internal baseline/post-`SPEC-084` deployment profile, then rank the next mechanism family: more sizing, more overlap, broader strategy set (`Q041`), or ceiling changes.
+- Recommendation: keep this as a research seed / benchmark study, not a new Spec entry. The immediate output should be a benchmark-and-mechanism map.
+- Related Question: `Q046`, `Q045`, `Q041`, `Q036`, `Q044`
+- See: `doc/q046_bp_utilization_external_benchmark_seed_memo_2026-05-07.md`
+
+---
+
+### R-20260506-05 — Q045 Tier 3 PASS: joint NORMAL+HIGH_VOL bp_target lift delivers +5.48pp account-level AnnROE on 19y sample; supersedes Q044, partially supersedes Q036
+
+- Topic: Account-level ROE optimization across the full strategy matrix (Q045). Reframes piecemeal Q036/Q044/SPEC-077 work into a single joint optimization. PM observation triggered the reframe: "we are doing this one strategy at a time, not ideal."
+- Findings:
+  - **Phase 1 (baseline mapping)**: System is structurally under-utilized. Time-weighted avg BP = 11.09% out of 35% NORMAL ceiling; 17% of trading days have zero positions; 61% have only one strategy open; peak BP never exceeds 30% in baseline. The bottleneck is not "make each position bigger" but "the system doesn't fire on most days."
+  - **Phase 2A (NORMAL regime sweep)**: Lifting `bp_target_normal` from 10% to 15% gives +4.15pp account-level AnnROE — far more than Q044's BPS-only +1.51pp because the parameter is regime-level, not strategy-level. All three NORMAL strategies (BCD +0.85pp, IC +1.79pp, BPS +1.51pp) scale together. Sharpe nearly unchanged (2.18 → 2.14). 20% has cliff effect (BPS -113% marginal decay) due to ceiling crowding.
+  - **Phase 2B (HIGH_VOL regime sweep)**: Lifting `bp_target_high_vol` from 7% to 14% gives +1.97pp account-level AnnROE on 3y window. Sharpe IMPROVES (2.18 → 2.35). IC_HV is the biggest beneficiary (+2.06pp), with 100% WR maintained.
+  - **Phase 2C (joint optimum)**: J3 (NORMAL=15%, HIGH_VOL=14%) delivers +6.12pp AnnROE = exact sum of N1+H2 alone. Interaction effect = +0.000pp — the two regimes are perfectly independent (different market conditions trigger them). Sharpe 2.18 → 2.31. Peak BP 43% within HIGH_VOL ceiling 50%. NO ceiling change needed.
+  - **Phase 2D (idle BP analysis)**: Even at J3, avg BP utilization is 15.93% out of 35% ceiling = 19pp idle. 17% of days fully idle, 61% single-strategy days. Theoretical upper bound if 50% of remaining idle BP could be filled: another +20.7pp AnnROE. This frames Q041 paper trading as the diversification axis to capture the remaining gap.
+  - **19-year robustness check**: J3 holds up over 2007-2026. AnnROE 11.94% → 17.41% (+5.48pp). Sharpe 1.78 → 1.83 (+0.05). All 6 strategies contribute positive uplift. BCS_HV concern from 3y window (N=1) is unfounded on full sample (N=9, WR=55.6%, +0.07pp uplift). Worst trade scales 1.57x (-$8,456 → -$13,235 = -8.82% account). Trade count drops 304→282 from BCD ceiling crowding; remaining trades scale up to compensate.
+  - **vs Q036 Overlay-F**: Q036's full-sample uplift is +0.074pp; Q045 J3's HIGH_VOL component delivers +1.96pp on the same 19y sample = 26x more. Q036's selectivity (short-gamma guard) may still have value as a tail-event safety layer but its base contribution is largely captured by the simpler J3 lift.
+  - **vs Q044 BPS-only**: Q044 A1 delivered +1.51pp; Q045 J3 delivers +5.48pp via joint scaling. Same implementation effort. Q044 is superseded.
+- Risks / Counterarguments: Worst-trade % account rises from -5.64% to -8.82% (1.57x scaling — proportional but visible). CVaR 5% scales 1.61x. BCD's long hold (17d avg) causes ceiling crowding that drops trade count by ~7% (304→282) in 19y sample — minor adverse selection but compensated by larger remaining trades. Live size rule "≤ 3% of account" needs updating to "≤ 4.5%" on Spec implementation.
+- Confidence: high. 19-year robustness, all 6 strategies positive, perfectly additive across regimes, Sharpe improves. The result is structural (regimes don't compete for BP), not regime-window dependent.
+- Next Tests: only Spec-implementation regression (verify default-baseline byte-identical; verify lift produces expected behavior).
+- Recommendation: **Open DRAFT Spec for joint bp_target lift (Q045 J3)**. Single Spec scope: `bp_target_normal` 0.10→0.15, `bp_target_high_vol` 0.07→0.14, `bp_target_low_vol` 0.10→0.15, plus `_size_rule()` text updates. Q044 to be closed as superseded. Q036 Overlay-F kept in shadow but deprioritized.
+- Related Question: `Q045`, `Q044` (superseded), `Q036` (partially superseded), `Q041` (complementary)
+- See: `task/q045_pm_decision_packet_2026-05-06.md`, `backtest/prototype/q045_phase1_baseline.py`, `backtest/prototype/q045_phase2{a,b,c,d}_*.py`
+
+---
+
+### R-20260506-04 — Q044 Tier 2 PASS: A1 (bp_target 15%) clears all checks; ready for Spec discussion
+
+- Topic: Q044 Tier 2 deep dive — year-by-year attribution, full PM metrics pack, A2 ceiling cliff autopsy, Q036 combined ceiling stress test
+- Findings:
+  - **Year-by-year attribution (Part 1)**: A1 improvement is uniformly distributed — 2024 +$1,781, 2025 +$3,021, 2026 +$2,770. Same trade count each year, same win rate. Not a single-year artifact.
+  - **Full metrics pack (Part 2)**: Sharpe unchanged (0.91 → 0.91); peak concurrent BP% unchanged (30.0% → 30.0%, within 35% ceiling); AnnROE +1.510pp (3.042%→4.552%); marginal $/BP-day decay -0.3%; worst trade scales to -6.25% of account (vs -4.17% at baseline); CVaR5% and disaster window scale proportionally. All risk metrics are proportional — pure linear scaling confirmed.
+  - **A2 ceiling cliff autopsy (Part 3)**: Of 8 blocked trades at A2 ceiling=35%, 7 were profitable (avg +$2,513). Adverse selection confirmed: ceiling blocks BPS exactly in favorable NORMAL+BULLISH environments when other positions are concurrent. Lifting ceiling to 40% recovers 5 blocked trades; A2+ceiling40% generates $27,332 (>A1 $22,823). Ceiling 40% is a valid secondary research direction but outside A1 Spec scope.
+  - **Q036 combined stress test (Part 4)**: BPS A1 (15%) + IC_HV Overlay-F 2x concurrent peak = 29.0% vs HIGH_VOL ceiling 50%. 21pp headroom. One concurrent episode (2025-04-24): 15%+14%=29% — safe. Q036 active decision is fully compatible with A1.
+- Risks / Counterarguments: N=15 BPS trades over 3y is a small sample — the $7,571 uplift represents ~2 full-size trades worth of incremental PnL. Worst trade rises to -6.25% of account (from -4.17%), which must be disclosed in Spec. Live size rule ("≤ 3% of account") needs updating to "≤ 4.5% of account" if A1 is implemented.
+- Confidence: high (Tier 2, all checks clear, attribution robust)
+- Next Tests: none required for A1 direction. Spec can begin. If ceiling study is desired, separate Tier 2 for A2+ceiling40% warranted.
+- Recommendation: **advance A1 (bp_target_normal = 0.15) to DRAFT Spec**. Key Spec scope: change `bp_target_normal` and `bp_target_low_vol` from 0.10 to 0.15; update live size rule text; add risk disclosure (worst trade -6.25% acct). No ceiling change needed. Note A2+ceiling40% as a deferred follow-up.
+- Related Question: `Q044`, `Q036`
+- See: `doc/q044_bps_tier2_results_2026-05-06.md`, `backtest/prototype/q044_bps_sizing_tier2.py`
+
+---
+
+### R-20260506-03 — Q044 Tier 1 PASS: A1 (bp_target 15%) is viable; Axis B closed; A2 cliff identified
+
+- Topic: BPS spread sizing Tier 1 Quick Scan — tested 6 variants across two axes (bp_target scale-up and spread-width expansion), 3-year window 2023-01-01→2026-05-06, $150K account
+- Findings:
+  - **Axis A (bp_target variants, same δ0.30/0.15 structure)**: A1 (15% bp_target) near-linear scaling — marginal $/BP-day decay only -0.3% (0.00782 → 0.00780), BPS AnnROE +1.5pp (3.0% → 4.6%), worst trade scales proportionally. A2 (20% bp_target) hits a BP ceiling cliff — N drops from 15 to 9 because BPS entries are blocked when concurrent IC/Diagonal positions push total above `bp_ceiling_normal=35%`. The 6 blocked trades are in the most favorable NORMAL+BULLISH environments; adverse selection causes total PnL to turn negative at A2. **A1 is the viable direction; A2 is not viable without also adjusting bp_ceiling.**
+  - **Axis B (spread-width variants, same bp_target=10%)**: Going wider (δ0.25 or δ0.20 for short leg) uniformly degrades $/BP-day by 14% and 37% respectively, despite improving win rate from 73% to 80%. Mechanism: more OTM short put collects less premium per BP-day consumed. **Axis B direction closed — current δ0.30/0.15 structure is optimal for BPS premium efficiency.**
+  - **Q036 dependency revised**: A1 and Q036 Overlay-F are regime-separated (BPS in NORMAL; Overlay-F in IC_HV aftermath). Combined BP at simultaneous open would be ~15% + 20% = 35%, within HIGH_VOL ceiling (50%). No need to wait for Q036 active decision to proceed to Tier 2 on A1.
+- Risks / Counterarguments: 3-year sample has only 15 BPS trades; A1 vs A0 PnL difference ($7,571) could be one or two trades. Year-by-year attribution needed before treating A1 as robust. A2 cliff mechanism (ceiling blocking favorable entries) is a real governance risk that would need ceiling adjustment if 20% is ever revisited.
+- Confidence: medium (Tier 1 directional, small sample). A1 direction is clear; Axis B closure is conclusive.
+- Next Tests: Tier 2 for A1 — year-by-year attribution, combined BPS+Overlay-F ceiling stress test, live Schwab PM margin check for actual BP consumed per BPS contract
+- Recommendation: advance A1 (bp_target 15%) to Tier 2. Close Axis B. Flag A2 as blocked until ceiling governance is resolved. No Spec yet.
+- Related Question: `Q044`, `Q036`
+- See: `doc/q044_bps_tier1_results_2026-05-06.md`, `backtest/prototype/q044_bps_sizing_tier1.py`
+
+---
+
+### R-20260506-02 — Q044 seed opened: BPS spread sizing and account-level ROE
+
+- Topic: Whether current BPS single-position BP target (10% of account, NORMAL regime) is optimally sized for account-level ROE, or leaves structural idle BP that could be deployed
+- Findings: Code inspection confirms `bp_target_normal = 0.10`, `bp_ceiling_normal = 0.35` (SPEC-024, "2× scale" design). In typical NORMAL environment with one BPS open, structural idle BP ≈ 25% (ceiling minus current usage). Live sizing rule ("risk ≤ 3% of account") and backtest bp_target (10%) are separate parameters with different semantics. Two sizing paths identified: (1) widen spread (e.g. 70pt → 120pt, same contracts) — more premium but higher absolute tail loss; (2) increase contracts (same width, 2× contracts) — more linear scaling. Both compete for the same idle BP as Q036 Overlay-F. The ROE research (SPEC-077 profit_target lift) already applies to all credit strategies including BPS. Q036 is the current designed answer for the idle BP gap but remains in shadow.
+- Risks / Counterarguments: Wider spreads likely have lower credit/width ratio (nonlinear gamma pricing), meaning marginal $/BP-day may be lower than expected. Absolute tail loss increases. Q036 Overlay-F and larger BPS compete for the same ~25% idle BP — both cannot be at full size simultaneously without risk of approaching the ceiling.
+- Confidence: low (seed level, no backtest run yet)
+- Next Tests: Tier 1 Quick Scan — run 3 spread width variants in existing backtest framework, read marginal $/BP-day and CVaR. Only after Q036 shadow outcome is clearer.
+- Recommendation: hold at seed / not in active queue. Q036 active decision is the gating dependency. Do not spec before Tier 1 scan.
+- Related Question: `Q044`, `Q036`
+- See: `doc/q044_bps_sizing_roe_seed_memo_2026-05-06.md`, `strategy/selector.py:75–77`
+
+---
+
+### R-20260506-01 — Q041 overlap-validation: first same-day comparison (May 4); M3/M6 cleanup completed; protocol corrections encoded; old Air three-feed automation now live
+
+- Topic: Q041 dual-source overlap-validation — first true same-day Schwab vs Massive comparison after incremental download; M3 script bug fixed; M6 iv=-999 handling confirmed; M9 protocol text corrected
+- Findings:
+  - **Massive incremental download**: ran `download_massive.py --start 2026-05-02 --end 2026-05-05` successfully; parquet now covers through 2026-05-05 (May 4: 40,478 rows, May 5: 39,534 rows, all 17 symbols)
+  - **M4 (same-day, May 4)**: first true same-day comparison using Schwab `last` vs Massive `close` — the protocol-specified comparison. All matched contracts (n=29,733): median `|Δ|` = **0.000%**, >2% = 2.3%, >10% = 0.7% → **STRONG PASS**. SPX ATM (|δ| 0.20–0.75, n=4,144): median 0.000%, >2% = 13.9%. The 14% tail for SPX ATM is structural: reflects that for lower-volume strikes, the Schwab “last trade” occurred at a different time than Massive's EOD close (which is the official CBOE settlement). This is a timing/settlement methodology difference, not a data source error. Q041 target |δ| 0.18–0.28, vol≥5: n=398, median 0.000%, >2% = 9.8%. M4 **PASS**. Protocol note: Schwab `close` field = previous day's settlement (cannot be used for same-day comparison); always use Schwab `last`.
+  - **M3 (strike match, merge-based fix)**: the prior set-based implementation gave 0% due to a code bug. Merge-based per-expiry comparison shows: SPX 99.8% (STRONG PASS), GOOGL 83.6%, AMZN 85.8% (PASS), COST 74.4%, JPM 71.5% (below threshold — Tier 3 observe-only, acceptable), overall mean 80.3% (PASS at protocol ≥80%).
+  - **M6 (IV completeness, near-money)**: iv=-999 sentinel count = 0 in May 4 Schwab snapshot. Near-money (|δ| 0.25–0.75) completeness = **100% across all 17 symbols** → STRONG PASS. Protocol note: -999 sentinel (unusable contracts, zero bid/ask) does not appear at near-money range; document in pipeline null-handling policy and filter at ingestion.
+  - **M7/M8 (Greeks/OI completeness)**: delta/gamma/theta/vega/OI all 100% in near-money range → PASS.
+  - **M9 (expiry_type clarification)**: confirmed from live data. SPX ATM matched contracts: W=2,993 (weekly), S=1,684 (standard monthly = third-Friday), M=138 (special month-end product). Correct mapping: Schwab `S` ↔ standard monthly (Q041 paper-trading target, DTE30 third-Friday roll). Protocol text correction needed: replace “W vs M” ratio with “W vs S” ratio as the stability check.
+- Risks / Counterarguments: SPX ATM M4 >2% tail (14%) is higher than hoped for the ATM range; it's not a blocker but should be monitored as volume conditions change. COST/JPM M3 below protocol threshold (Tier 3 only). The operational risk is no longer “manual download drift”; with all three old Air feeds now scheduled, the remaining risk is monitoring launchd health and interpreting the tail behavior correctly.
+- Confidence: high that same-day comparison confirms pipeline alignment. M4 median 0.000% is a strong result. No blocker-grade issue found.
+- Next Tests: (1) monitor M4 daily as the 20-day formal window runs, (2) monitor the scheduled old Air jobs (`Schwab chain`, `Massive REST snapshot`, `Massive historical T+1`) for continuity, (3) preserve the protocol corrections (`M4 = Schwab last`, `M6 = Massive IV ×100`, `M9 = Schwab expiry_type S`) in downstream review scripts, (4) keep accumulating same-day reads for the final Reconciliation Report
+- Recommendation: overlap validation status remains **converging as expected**, now with first same-day evidence and all three old Air data feeds in scheduled operation. No protocol gates are failing. Proceed through the formal 20-day window without resetting the clock; remaining work is monitoring and final reconciliation packaging, not collector setup.
+- Related Question: `Q041`
+- See: `data/q041_chains/2026-05-04/`, `data/q041_historical/*.parquet`, `doc/q041_overlap_validation_protocol_2026-05-03.md`
+
+---
 
 ### R-20260505-04 — Q041 overlap-validation checkpoint upgrades to “converging as expected”; remaining work is cleanup-level, not blocker-grade
 

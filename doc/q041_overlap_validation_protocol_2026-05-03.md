@@ -56,7 +56,7 @@
 | M6 | **IV completeness rate** | ATM±5 strike 合约中，两边 IV 均存在的比例；比较时 Massive `implied_volatility` 先 `×100` 后再与 Schwab `iv` 对齐（SPEC-082 完成后） | ≥ 90% |
 | M7 | **Greeks completeness rate** | Schwab `delta` / `gamma` / `theta` / `vega` 四列均非 null 的比例 | ≥ 85% |
 | M8 | **OI completeness rate** | Schwab `open_interest` 非 null 的比例 | ≥ 80% |
-| M9 | **SPX/SPXW split stability** | Massive `O:SPX` vs `O:SPXW` 的合约行数比；Schwab `expiry_type=W` vs `M` 的合约行数比；两边比值偏差 | ≤ 10% 偏差 |
+| M9 | **SPX/SPXW split stability** | Massive `O:SPX` vs `O:SPXW` 的合约行数比；Schwab `expiry_type=W`（weekly）vs `S`（standard monthly = third-Friday）的合约行数比；两边比值偏差。注：Schwab `M` type = special month-end product（如 2026-08-31），不是标准月度合约；正确对应关系为 Schwab `S` ↔ Massive `O:SPX` bucket | ≤ 10% 偏差 |
 | M10 | **BRK/B naming stability** | `BRKB`（Massive）→ `BRK/B`（canonical）映射每日命中率 | 100% |
 
 ### 2B. 周度人工 Review
@@ -114,8 +114,10 @@
    → 理由：日期对不齐则行级 join 全部错位，污染所有数值比较。
 
 3. Price / field mapping
-   → 确认 Schwab `last` = 最新成交（同日 canonical），
-     Schwab `close` = 前日收盘（≠ 同日 Massive close，不可直接比）
+   → 确认 Schwab `last` = 当日最新成交价（同日 canonical，用于 M4）
+     Schwab `close` = 前日官方收盘价（≠ 同日 Massive close，不可直接用于 M4，否则中位偏差 ~9%）
+     Schwab `mid` = 当日盘后 bid/ask 均值（反映盘后 fair value，可用于辅助分析，但非 M4 基准）
+   → M4 SPX ATM 说明：median 0.000%（strong pass），但 >2% 约 14%，来自低成交量 strike 的盘中最后成交时间 vs CBOE 收盘价的时间差，不是数据错误。
    → 理由：这个混淆是最高频的"看起来偏差很大但其实 key 用错了"情形。
 
 4. IV 单位 / 口径

@@ -1,0 +1,71 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-05-07T22:17:35.909115Z",
+  "source": "backtest/prototype/q041_portfolio_attribution.py",
+  "window": {
+    "start": "2023-01-02",
+    "end": "2026-04-29",
+    "trading_days": 868
+  },
+  "account_size_usd": 150000.0,
+  "sleeves_simulated": [
+    {
+      "id": "tier1_spx_csp",
+      "symbol": "SPX",
+      "dte": 30,
+      "target_delta": 0.2,
+      "bp_cap_pct": 20.0,
+      "n_cycles": 25
+    },
+    {
+      "id": "tier2_googl_csp",
+      "symbol": "GOOGL",
+      "dte": 21,
+      "target_delta": 0.2,
+      "bp_cap_pct": 7.5,
+      "n_cycles": 40
+    },
+    {
+      "id": "tier2_amzn_csp",
+      "symbol": "AMZN",
+      "dte": 21,
+      "target_delta": 0.25,
+      "bp_cap_pct": 7.5,
+      "n_cycles": 40
+    }
+  ],
+  "j3_baseline": {
+    "mean_bp_pct": 15.83,
+    "fully_idle_days": 152,
+    "fully_idle_share_pct": 17.51
+  },
+  "idle_day_capture": {
+    "value": 132,
+    "unit": "days",
+    "share_of_j3_idle_pct": 86.84
+  },
+  "delta_avg_bp": {
+    "value": 22.21,
+    "unit": "pct_points"
+  },
+  "bp_fill_contribution": {
+    "value": 22.21,
+    "unit": "pct_points"
+  },
+  "worst_day_overlap": {
+    "value": 87.8,
+    "unit": "pct_points",
+    "n_tail_days": 41,
+    "definition": "share of bottom-5% SPX daily-return days where any Q041 sleeve had open exposure",
+    "q041_open_occupancy_pct": 83.29,
+    "excess_overlap_vs_occupancy_pp": 4.51,
+    "interpretation": "compare worst_day_overlap against q041_open_occupancy_pct; near-zero excess = no tail clustering, large positive excess = Q041 disproportionately exposed during SPX tails"
+  },
+  "joint_bp_diagnostics": {
+    "mean_pct": 38.04,
+    "max_pct": 92.0,
+    "days_above_35_pct": 399,
+    "days_above_50_pct": 99
+  },
+  "notes": "Window 2023-01-02 to 2026-04-29 (~3.3y). Joint multi-sleeve backtest restricted by Q041 historical option data availability (2022-05 to 2026-05). Does NOT cover COVID 2020 or full 2022 bear market. SPX spot from yfinance ^GSPC; GOOGL/AMZN spot via put-call parity from option chain. Tier 2 single-name allocation is 7.5% per sleeve so combined Tier 2 sits at packet cap 15% when both open and respects the 10% single-name cap when only one open. Tier 3 (COST/JPM) is review-only per Q041 packet and not simulated. CSP BP is approximated as strike (margin requirement proxy) which slightly overstates BP vs PM defined-risk; metrics are consistent across sleeves under this proxy. SPEC-085 forward-tracking surface should still be the primary evidence source; this artifact is a research-side prior, not a live-validated quantification."
+}

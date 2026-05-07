@@ -4,6 +4,8 @@
 **角色：** Developer → Quant Researcher  
 **范围：** Q041 当日数据补跑、Massive snapshot collector 落地、old Air 定时任务状态
 
+**后续更新 2026-05-06**：三条数据流全部就位，pending 决策已解决。见下方 §3 结尾。
+
 ---
 
 ## 1. 结论
@@ -278,19 +280,24 @@ us_options_opra/day_aggs_v1/2026/05/2026-05-04.csv.gz
 
 ---
 
-## 7. 未完成 / 后续决策点
+## 7. 后续决策点
 
-1. `com.spxstrat.q041_massive_historical` 是否需要在 old Air 上正式加载
-   - 目前未加载
-   - 时间已调到 `08:15 ET`
+1. ~~`com.spxstrat.q041_massive_historical` 是否需要在 old Air 上正式加载~~
+   - **✅ 已解决（2026-05-06）**：PM 选择加载（Option B）
+   - 修复：old Air venv 缺 `boto3`，已安装
+   - bootstrap：全量历史 2022-05-06 → 2026-05-05，17 parquets，28,959,022 rows，约 20 分钟
+   - 现状：已 loaded，每日 08:15 ET 自动增量运行
+   - 已知：exit code 1（T+1 lag 导致当天 S3 403），不影响数据积累，可 defer Developer 修复
 
 2. 是否需要把 `Massive snapshot` 的当天产物也定期复制回主力机，作为 Quant 的默认消费路径
    - 当前两边可分别访问，但未做自动同步
+   - **状态：open / defer**，当前 Quant 直接 SSH old Air 或用主力机独立消费
 
 3. 若 Quant 后续需要 stitched dataset：
-   - 现在应把 Massive snapshot 明确看作 **当日 delayed greeks/IV/OI source**
-   - 把 Massive historical 明确看作 **T+1 historical OHLCV source**
+   - Massive snapshot = **当日 delayed greeks/IV/OI source**（16:35 ET old Air）
+   - Massive historical = **T+1 historical OHLCV source**（08:15 ET old Air，已自动化）
+   - Schwab chain = **当日 forward-chain canonical**（16:30 ET old Air）
 
 ---
 
-**handoff 完成。**
+**handoff 完成。三条数据流全部就位（2026-05-06）。**
