@@ -169,19 +169,21 @@ class Spec056Tests(unittest.TestCase):
         )
         self.assertEqual(rec.strategy, StrategyName.BEAR_CALL_SPREAD_HV)
 
-    def test_t9_gates_still_active_when_not_disabled(self):
+    def test_t9_removed_diagonal_gate1_no_longer_blocks_when_not_disabled(self):
         from strategy.selector import DEFAULT_PARAMS, StrategyName, select_strategy
         from signals.iv_rank import IVSignal
         from signals.trend import TrendSignal
         from signals.vix_regime import Regime, Trend
 
+        # Historical DIAGONAL Gate 1 (ivp252 in [30,50]) has been removed from
+        # canonical routing; non-disabled production now allows this setup.
         rec = select_strategy(
             _fake_vix_snap(regime=Regime.LOW_VOL, trend=Trend.FLAT),
             _fake_iv_snap(signal=IVSignal.NEUTRAL, ivp63=45.0, ivp252=40.0, iv_percentile=40.0),
             _fake_trend_snap(signal=TrendSignal.BULLISH),
             DEFAULT_PARAMS,
         )
-        self.assertEqual(rec.strategy, StrategyName.REDUCE_WAIT)
+        self.assertEqual(rec.strategy, StrategyName.BULL_CALL_DIAGONAL)
 
     @patch("backtest.run_event_study.run_backtest")
     def test_t10_event_study_has_signal_cols(self, mock_run_backtest):

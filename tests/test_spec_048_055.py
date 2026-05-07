@@ -69,15 +69,17 @@ class Spec048055Tests(unittest.TestCase):
         snap = get_current_iv_snapshot(make_iv_frame(lower_252=151, lower_63=38))
         self.assertFalse(snap.regime_decay)
 
-    def test_t5_low_vol_bullish_ivp252_35_waits_gate1(self) -> None:
+    def test_t5_low_vol_bullish_ivp252_35_allows_diagonal_after_gate1_removal(self) -> None:
+        # Historical DIAGONAL Gate 1 (ivp252 in [30,50]) was removed after
+        # later research found it blocked profitable trades. Current canonical
+        # behavior routes this LOW_VOL+BULLISH setup to DIAGONAL.
         rec = select_strategy(
             make_vix(vix=13.0, regime=Regime.LOW_VOL, trend=Trend.FLAT),
             make_iv_snapshot(signal=IVSignal.NEUTRAL, iv_percentile=45.0, ivp63=45.0, ivp252=35.0),
             make_trend(signal=TrendSignal.BULLISH),
         )
-        self.assertEqual(rec.strategy, StrategyName.REDUCE_WAIT)
-        self.assertIn("ivp252=35", rec.rationale)
-        self.assertIn("marginal zone", rec.rationale)
+        self.assertEqual(rec.strategy, StrategyName.BULL_CALL_DIAGONAL)
+        self.assertNotIn("marginal zone", rec.rationale)
 
     def test_t6_low_vol_bullish_iv_high_waits_gate2(self) -> None:
         rec = select_strategy(
@@ -173,14 +175,16 @@ class Spec048055Tests(unittest.TestCase):
         self.assertEqual(rec.strategy, StrategyName.BULL_CALL_DIAGONAL)
         self.assertFalse(rec.local_spike)
 
-    def test_t16_gate_order_gate1_blocks_before_others(self) -> None:
+    def test_t16_gate_order_removed_gate1_no_longer_blocks_gate2(self) -> None:
+        # Gate 1 is no longer active; the same setup now reaches the remaining
+        # IV=HIGH LOW_VOL+BULLISH gate instead of a marginal-zone block.
         rec = select_strategy(
             make_vix(vix=13.0, regime=Regime.LOW_VOL, trend=Trend.FLAT),
             make_iv_snapshot(signal=IVSignal.HIGH, iv_rank=60.0, iv_percentile=50.0, ivp63=60.0, ivp252=35.0),
             make_trend(signal=TrendSignal.BULLISH),
         )
-        self.assertIn("marginal zone", rec.rationale)
-        self.assertNotIn("IV=HIGH", rec.rationale)
+        self.assertIn("IV=HIGH", rec.rationale)
+        self.assertNotIn("marginal zone", rec.rationale)
         self.assertNotIn("both-high", rec.rationale)
 
     def test_t17_gate_order_gate2_blocks_after_gate1_pass(self) -> None:
