@@ -72,9 +72,9 @@ class StrategyParams:
     # BP utilization target per regime (fraction of account_size per trade)
     # Used by backtest engine to size contracts; supersedes risk_pct + size_mult sizing.
     # Calibrated to tastytrade retail PM standard: single position ≤ 5–7% of account.
-    bp_target_low_vol:  float = 0.10   # LOW_VOL:  10% — 2× scale (SPEC-024)
-    bp_target_normal:   float = 0.10   # NORMAL:   10% — 2× scale (SPEC-024)
-    bp_target_high_vol: float = 0.07   # HIGH_VOL: 7% — 2× scale (SPEC-024)
+    bp_target_low_vol:  float = 0.15   # LOW_VOL:  15% — Q045 J3 joint optimum (SPEC-084)
+    bp_target_normal:   float = 0.15   # NORMAL:   15% — Q045 J3 joint optimum (SPEC-084)
+    bp_target_high_vol: float = 0.14   # HIGH_VOL: 14% — Q045 J3 joint optimum (SPEC-084)
 
     # Total BP ceiling per regime (fraction of account_size, all concurrent positions combined)
     # Governs maximum aggregate portfolio margin utilization at any point in time.
@@ -319,8 +319,8 @@ def _size_rule(vix: VixSnapshot, iv_s: IVSignal, t: TrendSignal) -> str:
     signals_favor_sell = iv_s in (IVSignal.HIGH, IVSignal.NEUTRAL)
 
     if not vix_rising and signals_favor_sell:
-        return "Full size — risk ≤ 3% of account (signals agree + VIX flat/falling)"
-    return "Half size — risk ≤ 1.5% of account (VIX rising or signals mixed)"
+        return "Full size — risk ≤ 4.5% of account (signals agree + VIX flat/falling)"
+    return "Half size — risk ≤ 2.25% of account (VIX rising or signals mixed)"
 
 
 def _compute_size_tier(

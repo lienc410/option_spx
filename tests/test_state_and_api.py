@@ -135,7 +135,7 @@ class StateAndApiTests(unittest.TestCase):
         self.assertTrue(data["legs"])
         self.assertIn("bp_preview", data)
         self.assertGreaterEqual(data["contracts"], 1)
-        self.assertEqual(data["bp_preview"]["bp_target_pct"], 10.0)
+        self.assertEqual(data["bp_preview"]["bp_target_pct"], 15.0)
 
     @patch("web.server._is_market_hours", return_value=False)
     @patch("web.server._bp_basis_snapshot", return_value={
