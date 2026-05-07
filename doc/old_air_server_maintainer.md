@@ -52,17 +52,16 @@ It may also inspect:
 
 Use SSH alias access whenever possible.
 
-Current known host paths:
+Stable host access:
 
-- LAN IPv4: `192.168.68.117`
 - Tailscale IPv4: `100.114.226.33`
+- LAN IPv4: optional same-LAN entry only; verify the current LAN IP before use
 
 Practical rule:
 
-- On the same home/local network, LAN access is fine
-- Outside the home network, prefer Tailscale
 - Keep `ssh oldair` pointed at the Tailscale IPv4 as the stable default
 - Keep a separate `ssh oldair-lan` alias for same-LAN access when lower latency is useful
+- Do not treat any LAN IP as canonical; LAN addresses depend on the current network environment and must be checked before use
 
 Current runtime note:
 
@@ -179,7 +178,7 @@ For `502` after Cloudflare Access login:
 
 - first confirm `web` is healthy on `127.0.0.1:5050`
 - then confirm both connectors have active HA connections and zero local origin request errors
-- if the request never reaches old Air, treat it as likely Cloudflare-side until proven otherwise
+- separate local health from ingress health: if local Flask and connector metrics are healthy but the request never reaches old Air, treat it as likely Cloudflare-side Access / tunnel edge behavior until proven otherwise
 - prefer using the local-first checker before restarting connectors:
 
 ```bash

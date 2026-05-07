@@ -1,6 +1,6 @@
 # SERVER_RUNTIME
 
-Last Updated: 2026-04-19
+Last Updated: 2026-05-06
 Owner: PM / Planner / Server Maintainer
 
 ## Canonical Live Host
@@ -82,23 +82,23 @@ Host oldair
   User macbook
 
 Host oldair-lan
-  HostName 192.168.68.117
+  HostName <current LAN IP, verify before use>
   User macbook
 ```
 
-Verified on 2026-04-18:
+Stable entry:
 
-- `ssh -G oldair` resolves to `hostname 192.168.68.117`
-- `ifconfig` on old Air reports `inet 192.168.68.117`
-- `tailscale ip -4` on old Air reports `100.114.226.33`
+- Default stable SSH entry is the Tailscale IPv4:
+  - `100.114.226.33`
+- `oldair-lan` is only an optional same-LAN shortcut
+- LAN IPs are network-environment dependent and must be checked at time of use; do not treat any LAN IP as canonical
 
 Recommended access model:
 
-- When away from home or when LAN routing is inconvenient, use the default `oldair` alias over the Tailscale IPv4:
+- Use the default `oldair` alias over the Tailscale IPv4 for stable access:
   - `100.114.226.33`
-- When on the same local network, use the explicit LAN alias:
+- When on the same local network, `oldair-lan` may be used after verifying the current LAN IP on old Air:
   - `ssh oldair-lan`
-  - `192.168.68.117`
 - Keep `oldair` as the human-friendly remote/default entry point and reserve `oldair-lan` for same-LAN access
 
 Recommended split-alias model:
@@ -109,7 +109,7 @@ Host oldair
   User macbook
 
 Host oldair-lan
-  HostName 192.168.68.117
+  HostName <current LAN IP, verify before use>
   User macbook
 ```
 
@@ -204,7 +204,7 @@ If public web fails with `502`:
 2. check both `com.spxstrat.cloudflared` and `com.spxstrat.cloudflared-b`
 3. inspect `cloudflared` logs
 4. verify `/Users/macbook/.cloudflared/config.yml` still points `www.portimperialventures.com` to `http://127.0.0.1:5050`
-5. if local Flask and local tunnel metrics are healthy but Access login still ends in `502`, suspect Cloudflare-side Access / tunnel edge behavior before changing old Air again
+5. distinguish local health from public ingress: if local Flask and local tunnel metrics are healthy but Access login still ends in `502`, suspect Cloudflare-side Access / tunnel edge behavior before changing old Air again
 6. use the local-first health script before restarting connectors:
 
 ```bash

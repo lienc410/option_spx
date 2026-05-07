@@ -67,6 +67,28 @@
 6. 预期输出格式
 7. 回滚或验证说明（如适用）
 
+若实施包来自 Quant / Planner 的 handoff，默认应尽量具备以下最小结构：
+
+1. **What changes**
+2. **What must stay invariant**
+3. **Acceptance checks**
+4. **Out of scope**
+5. **Failure / rollback condition**
+
+若上述结构缺失，且缺口足以影响边界判断或验收判断，Developer 应停止并向 PM 报告，不自行补全策略语义。
+
+### 关于 Spec 设计来源
+
+Developer 默认不拥有 `research-driven Spec` 的设计权。
+
+这意味着：
+
+- 对涉及策略逻辑、风险边界、signal eligibility、position sizing、recommendation routing、paper-trading route 的 Spec，Developer 默认把 Quant 视为设计来源
+- 对涉及 refactor、logging、test harness、dashboard、runtime reliability、data pipeline 的 Spec，Developer 可以作为设计来源提出 implementation design
+- Planner 负责把设计内容收口成 DRAFT Spec，但 Developer 不应把 Planner 的 packaging 误读为独立设计授权
+
+如果某个 DRAFT / handoff 在设计来源上不清楚，或把工程实现问题与策略设计问题混在一起，Developer 应停止并报告，而不是自行补全策略语义。
+
 ---
 
 ## Server Maintainer via SSH
