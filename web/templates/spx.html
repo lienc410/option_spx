@@ -224,7 +224,7 @@ body {
   background: linear-gradient(180deg, var(--gold) 0%, rgba(201,168,64,0.2) 100%);
   border-radius: 0;
 }
-.rec-emoji { font-size: 1.25rem; display: block; margin-bottom: 6px; }
+.rec-emoji { display: none; }
 .rec-name {
   font-family: var(--f-display);
   font-style: italic;
@@ -1134,7 +1134,7 @@ function renderPosition(p) {
   panel.innerHTML = `
     <div class="pos-dot"></div>
     <div class="pos-body">
-      <div class="pos-name">${emoji} ${strategyName}${paperBadge} <span style="color:var(--text-muted);font-weight:400">on ${p.underlying}</span></div>
+      <div class="pos-name">${strategyName}${paperBadge} <span style="color:var(--text-muted);font-weight:400">on ${p.underlying}</span></div>
       <div class="pos-meta">Opened ${p.opened_at}${dteLine ? '  ·  ' + dteLine : ''}${rollLine}</div>
       ${notesHtml}
       ${liveHtml}
