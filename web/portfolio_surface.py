@@ -164,13 +164,36 @@ def _safe_q041_snapshot() -> dict:
         }
 
 
+def _schwab_bp_basis() -> float | None:
+    """Return live Schwab option_buying_power as BP basis, or None if unavailable.
+    option_buying_power is the PM account's options-specific available buying power,
+    the correct denominator for spread margin % calculations."""
+    try:
+        from schwab.client import get_account_balances
+        balances = get_account_balances()
+        if not balances.get("configured") or not balances.get("authenticated"):
+            return None
+        if balances.get("stale"):
+            return None
+        # option_buying_power = PM available BP for options (used + available total = NLV)
+        # Use net_liquidation as the denominator: total account value including all positions
+        nlv = balances.get("net_liquidation")
+        if nlv and float(nlv) > 0:
+            return float(nlv)
+    except Exception:
+        pass
+    return None
+
+
 def portfolio_summary_payload() -> dict:
     from strategy.selector import DEFAULT_PARAMS
     from strategy.state import read_state
 
     current_position = read_state()
     q041 = _safe_q041_snapshot()
-    basis = float(DEFAULT_PARAMS.initial_equity)
+    # Prefer live Schwab NLV as BP basis; fall back to strategy default
+    live_nlv = _schwab_bp_basis()
+    basis = live_nlv if live_nlv is not None else float(DEFAULT_PARAMS.initial_equity)
     spx_usage = _estimate_spx_bp_usage(current_position, basis)
     q041_total = _num(q041.get("bp_usage", {}).get("total_q041_bp_pct"))
     spx_pct = _num(spx_usage.get("bp_usage_pct"))
@@ -181,6 +204,8 @@ def portfolio_summary_payload() -> dict:
         "surface": "portfolio_summary",
         "semantics": "read-only SPX live rail + Q041 paper rail summary; not unified portfolio state",
         "as_of": date.today().isoformat(),
+        "bp_basis": round(basis, 0),
+        "bp_basis_source": "schwab_nlv" if live_nlv is not None else "default_params",
         "rails": {
             "spx_live": {
                 "status": "open" if current_position else "none",

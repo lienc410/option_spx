@@ -154,21 +154,23 @@ body {
 .card-name-primary {
   font-family: var(--f-display);
   font-style: italic;
-  font-size: 1.40rem;
+  font-size: 1.20rem;
   font-weight: 400;
   color: var(--text);
 }
 .card-name-secondary {
-  font-family: var(--f-ui);
-  font-size: 1.05rem;
-  font-weight: 500;
-  color: var(--text);
-}
-.card-name-tertiary {
-  font-family: var(--f-ui);
-  font-size: 0.90rem;
+  font-family: var(--f-display);
+  font-size: 1.10rem;
   font-weight: 400;
   color: var(--text-2);
+  letter-spacing: 0.01em;
+}
+.card-name-tertiary {
+  font-family: var(--f-display);
+  font-size: 0.95rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
 }
 .card-subtitle {
   font-family: var(--f-mono);
@@ -665,21 +667,30 @@ async function loadSpx() {
       document.getElementById('structure-spx').innerHTML = legHtml;
     }
 
-    // Position
-    const posEl = document.getElementById('position-spx');
+    // Position — fields are flat in /api/position (no nested current_position)
     const posBody = document.getElementById('pos-spx-body');
     if (posRes.ok) {
       const pos = await posRes.json();
-      if (pos.open && pos.current_position) {
-        const p = pos.current_position;
-        const pnl = pos.schwab_live ? pos.schwab_live.unrealized_pnl : null;
+      if (pos.open) {
+        const live = pos.schwab_live || {};
+        const pnl  = live.unrealized_pnl;
         const pnlCls = pnl == null ? '' : pnl >= 0 ? 'profit' : 'loss';
         const pnlStr = pnl != null ? (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(0) : '—';
+        const premium = pos.actual_premium || pos.model_premium;
+        // Compute current DTE from expiry
+        let dte = null;
+        if (pos.expiry) {
+          const exp = new Date(pos.expiry + 'T00:00:00');
+          const today = new Date(); today.setHours(0,0,0,0);
+          dte = Math.max(0, Math.round((exp - today) / 86400000));
+        }
         posBody.outerHTML = `<div class="pos-grid">
-          ${p.expiry     ? `<div class="pos-item"><div class="pos-label">Expiry</div><div class="pos-value">${p.expiry}</div></div>` : ''}
-          ${p.dte != null? `<div class="pos-item"><div class="pos-label">DTE</div><div class="pos-value">${p.dte}d</div></div>` : ''}
-          ${p.entry_premium != null ? `<div class="pos-item"><div class="pos-label">Entry</div><div class="pos-value">$${Number(p.entry_premium).toFixed(2)}</div></div>` : ''}
-          ${pnl != null  ? `<div class="pos-item"><div class="pos-label">Unrealized</div><div class="pos-value ${pnlCls}">${pnlStr}</div></div>` : ''}
+          ${pos.opened_at   ? `<div class="pos-item"><div class="pos-label">Opened</div><div class="pos-value">${pos.opened_at}</div></div>` : ''}
+          ${pos.expiry      ? `<div class="pos-item"><div class="pos-label">Expiry</div><div class="pos-value">${pos.expiry}${dte != null ? ' (' + dte + 'd)' : ''}</div></div>` : ''}
+          ${pos.short_strike? `<div class="pos-item"><div class="pos-label">Strikes</div><div class="pos-value">${pos.short_strike} / ${pos.long_strike || '—'}</div></div>` : ''}
+          ${pos.contracts   ? `<div class="pos-item"><div class="pos-label">Contracts</div><div class="pos-value">${pos.contracts}</div></div>` : ''}
+          ${premium != null ? `<div class="pos-item"><div class="pos-label">Entry</div><div class="pos-value">$${Number(premium).toFixed(2)}</div></div>` : ''}
+          ${pnl != null     ? `<div class="pos-item"><div class="pos-label">Unrealized</div><div class="pos-value ${pnlCls}">${pnlStr}</div></div>` : ''}
         </div>`;
       } else {
         posBody.textContent = 'No open position';
