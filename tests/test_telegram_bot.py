@@ -131,6 +131,7 @@ class TelegramBotSpec046Tests(unittest.TestCase):
     def setUp(self) -> None:
         bot_mod._intraday_state["spike_level"] = SpikeLevel.NONE
         bot_mod._intraday_state["stop_level"] = StopLevel.NONE
+        bot_mod._intraday_state["es_stop_level"] = bot_mod.EsStopLevel.NONE
 
     @patch("notify.telegram_bot.is_market_open", return_value=True)
     @patch("notify.telegram_bot.get_spx_stop")

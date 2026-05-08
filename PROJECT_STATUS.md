@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-07 (SPEC-085 DONE; Q041 attribution artifact accepted as F3 source)
+Last Updated: 2026-05-07 (SPEC-086 DONE; B1 closed — /ES credit stop bot alerting now live)
 Owner: Planner or PM
 
 ## Current Phase
@@ -32,6 +32,7 @@ Owner: Planner or PM
 
 ## Recently Closed Specs
 
+- `SPEC-086` — `/ES` Short Put Credit Stop Monitor. Closed **DONE** 2026-05-07. Implemented as a read-only monitor inside the existing Telegram `intraday_monitor` loop: WARNING fires when `/ES` put mark reaches ≥ 2× entry premium; TRIGGER fires at ≥ 3× (the SPEC-061 credit stop line). Uses escalation-only logic (same pattern as VIX/SPX alerts) and fail-soft when Schwab is unavailable; an `observed` flag ensures Schwab unavailability never produces false "cleared" alerts. AC1–AC8 all PASS, 15/15 tests pass, Quant Researcher independent review PASS. Known open item (non-blocking): Schwab `mark` field per-share unit not yet validated against a real `/ES` position — to be confirmed when the first live `/ES` position is opened — `See: task/SPEC-086.md`, `task/SPEC-086_handoff.md`
 - `SPEC-085` — Multi-Sleeve Read-Only Recommendation & Visualization Surface. Closed **DONE** 2026-05-07. This was the first narrow platformization step from `Q048`: a strictly read-only support surface for post-`Q045` / `Q041` portfolio-research work. Delivered scope: independent Tier 1 / Tier 2 `sleeve_candidates[]`, minimal dual-rail portfolio summary (`SPX` live rail + `Q041` paper rail), and an F3 attribution carrier that now reads the accepted `Q041` Tier 3 artifact. Key guardrails held: no unified routing, no live write-path merge, no broker write, no scanner / bot expansion, no full multi-asset simulator, and no direct promotion of `Q041` into a production trading sleeve — `See: task/SPEC-085.md`, `task/SPEC-085_handoff.md`
 - `SPEC-084` — Q045 joint `bp_target` lift for account-level ROE. Closed **DONE** 2026-05-07 and now **live on old Air production**. AC1–AC7 PASS: `bp_target_low_vol 0.10→0.15`, `bp_target_normal 0.10→0.15`, `bp_target_high_vol 0.07→0.14`; `_size_rule()` 文案从 `3% / 1.5%` 更新为 `4.5% / 2.25%`; old baseline override (`0.10 / 0.10 / 0.07`) 验证通过；ceiling 默认值 `35% / 50%` 不变；`tests/test_state_and_api.py:138` 已同步为 `15.0`; implementation review PASS. Production deploy verified on old Air: `/api/recommendation` 200 OK, live size rule now shows `4.5%`, `/api/position/open-draft` now returns `bp_target_pct = 15.0`, and `HIGH_VOL` helper path returns `14.0`. Three failing legacy tests in `test_spec_048_055` / `test_spec_056` were separately cleaned up; current regression status is `228/228 PASS`. Runtime note: old Air accepted the change by cherry-pick because the repo is locally ahead/behind and not currently fast-forward clean — `See: task/SPEC-084.md`, `task/SPEC-084_handoff.md`
 
@@ -43,7 +44,7 @@ Owner: Planner or PM
 
 ## Top Blockers
 
-- `B1` — `/ES` minimal production cell (`SPEC-061`) is now done, but its production safety boundary is still below PM requirements: pure manual stop monitoring is not acceptable; the minimum acceptable next step is system monitoring plus bot alerting for the stop condition — owner: PM/Planner — next action: open a narrow follow-up Spec for runtime safeguards
+- `B1` — **CLOSED** (2026-05-07). `/ES` credit stop bot alerting is now live via `SPEC-086 DONE`. The prior gap — pure manual stop monitoring not acceptable, minimum acceptable next step being system monitoring plus bot alerting — is resolved. `notify/telegram_bot.py` now monitors the `/ES` put mark continuously and fires WARNING at ≥ 2× and TRIGGER at ≥ 3× entry premium inside the existing `intraday_monitor` loop.
 - `B2` — `Q036` is no longer blocked on branch selection, missing MC adoption inputs, missing HC local planning structure, PM review of the local disabled implementation, or the first shadow deployment itself. `SPEC-075/076` are now live on old Air in `shadow`, and the remaining blocker is evidence accumulation: we have not yet observed a real Overlay-F would-fire event in runtime, so there is nothing substantive to review yet beyond health / no-side-effect checks — owner: PM / Planner / Quant — next action: observe `shadow` until the first meaningful would-fire sample set appears, then review against the protocol
 - `B3` — dependency-bound legacy items (`Q001`, `Q002`, `Q003`) are still unresolved and can compete for attention if not kept explicitly ordered — owner: PM/Planner — next action: preserve `/ES` as the current front-of-queue decision item unless a dependency clears
 
@@ -51,7 +52,7 @@ Owner: Planner or PM
 
 - `Q002` — Shock active mode still needs Phase B validation — `open`
 - `Q012` — `/ES` short put path is now the preferred production candidate; remaining question is shared-BP management with SPX Credit and how far to extend the MVP beyond Layer 2 — `open`
-- `Q013` — `/ES` short put runtime stop execution and post-entry management remain undefined in production — `open`
+- `Q013` — `/ES` short put runtime stop execution: bot alerting for the credit stop condition is now live via `SPEC-086 DONE`; remaining open item is post-entry management and Layer 1 / Layer 3 coverage — `open (bot alert gap closed)`
 - `Q029` — research/live parity remains open at the engine level (`qty = 1` vs `SizeTier`), but the reporting-layer mitigation is now shipped: `SPEC-072` completed the dual-scale frontend so HC can display `research_1spx + live_scaled_est` without touching backend logic — `open`
 - `Q020` — MC `backtest_select` simplification produced a low aftermath artifact count for `SPEC-064 AC10`; HC artifact count `49` is canonical, this entry tracks MC-side housekeeping only — `MC-side housekeeping`
 - `Q037` — `profit_target = 0.60` broad-rule lift is now operationally aligned via `SPEC-077 DONE`. The remaining HC↔MC AC3 magnitude gap is now explained enough to stop treating it as a high-priority mystery: HC is not showing a metric bug, and the residual gap is best read as a mixed effect of metric/denominator semantics plus sample-window / strategy-path differences. What remains is a narrow attribution note / MC tie-out follow-up, not another broad HC rerun campaign — `open (de-escalated)`
@@ -91,7 +92,7 @@ Owner: Planner or PM
 - `P3` — run `Q038` shadow observation under the fixed Quant protocol: review `data/bcd_filter_shadow.jsonl`, runtime health, `risk_score` distribution, and recommendation side-effects weekly; treat `SPEC-079` as the actual live-observable signal and `SPEC-080` as posture alignment unless a separate live stop-monitoring scope is opened
 - `P4` — ask PM to choose whether `Q019` stays deferred or advances via one of MC’s proposed paths `A / B / C`; until then, keep the new close/open VIX evidence indexed but non-binding
 - `P5` — finish the narrow post-sync attribution wrap-up: record the `SPEC-077 AC3` gap as explained enough for planning purposes, then use the MC 6-trade IC ledger to build only a compact `Q039` mini attribution table rather than widening into an IVP sweep
-- `P6` — open a narrow follow-up Spec for `/ES` runtime safeguards, with minimum scope of stop-condition monitoring plus bot alerting
+- `P6` — `/ES` credit stop bot alerting is now live (`SPEC-086 DONE`, B1 closed); remaining `/ES` runtime safeguard work (Layer 1 / Layer 3, post-entry management) is deferred until the first live `/ES` position is opened and the Schwab `mark` field unit is validated
 
 ## Recent Meaningful Changes
 

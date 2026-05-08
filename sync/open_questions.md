@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-05-07（Planner，Q046 benchmark complete; Q041 promoted）
+最后更新：2026-05-07（Planner，SPEC-086 DONE; B1 closed — /ES credit stop bot alerting live）
 
 ---
 
@@ -44,11 +44,12 @@
 - **来源**：Claude 研究更新 2026-04-12
 
 ### Q013 — `/ES` short put 运行时止损与持仓管理定义
-- **状态**：open
-- **内容**：`SPEC-061` 已完成 `/ES` minimal production cell 的入场路径，但 `-300%` stop 当前仍主要是 catalog / review 层面的文档化规则，生产中没有自动触发执行；同时，趋势转负后的现有持仓行为也未定义。PM 已明确：**不能接受纯人工盯仓止损**；最少要求是系统监控该 stop 条件，并在触发时由 bot 发出提醒
-- **依赖**：应收缩成一个新的 follow-up Spec，只补运行时风控与 post-entry 管理；最小可接受范围应至少覆盖 stop 监控与 bot alert，不把 Layer 1 / Layer 3 / leverage 一起带入
-- **当前归类**：ready for DRAFT Spec
-- **来源**：`SPEC-061` review + `/ES` 三层体系覆盖盘点，2026-04-12
+- **状态**：open（bot alert gap 已关闭）
+- **内容**：`SPEC-086 DONE`（2026-05-07）已交付最小可接受范围：`notify/telegram_bot.py` 的 `intraday_monitor` 循环现在持续监控 `/ES` put mark，≥ 2× entry premium 发 WARNING，≥ 3× 发 TRIGGER（即 SPEC-061 credit stop 线）；fail-soft 设计，Schwab 不可用时不产生误报。PM 明确的"不能接受纯人工盯仓止损"最低要求已满足，B1 blocker 正式关闭。趋势转负后的现有持仓行为以及 Layer 1 / Layer 3 覆盖仍未定义
+- **已关闭子项**：stop 监控 + bot alert（via `SPEC-086`）
+- **剩余开放项**：post-entry 管理，Layer 1 / Layer 3 覆盖；Schwab `mark` 字段单位（per-share）待第一笔真实 `/ES` 仓位开立后验证
+- **当前归类**：bot alert gap closed; remaining post-entry / leverage scope deferred
+- **来源**：`SPEC-061` review + `/ES` 三层体系覆盖盘点，2026-04-12；`SPEC-086` DONE 2026-05-07
 
 ### Q017 — VIX 顶峰回落早期窗口：HIGH_VOL 分支是否结构性错过机会
 - **状态**：resolved

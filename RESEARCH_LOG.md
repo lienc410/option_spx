@@ -1,11 +1,21 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-07 (R-20260507-04)
+Last Updated: 2026-05-07 (R-20260507-05)
 Owner: Planner or PM
 
 ---
 
 ## Entries
+
+### R-20260507-05 — SPEC-086 DONE: /ES short put credit stop monitor live; B1 closed
+
+- Topic: `SPEC-086` implemented and reviewed; top blocker B1 formally closed.
+- Outcome: `/ES` put mark monitor now runs inside the existing Telegram `intraday_monitor` loop — WARNING at ≥ 2× entry premium, TRIGGER at ≥ 3× (the SPEC-061 credit stop line). Escalation-only logic with fail-soft on Schwab unavailability; `observed` flag prevents false "cleared" alerts. AC1–AC8 all PASS, 15/15 tests pass, Quant Researcher independent review PASS.
+- B1 status: **CLOSED**. The prior minimum-acceptable requirement (system monitoring + bot alerting for the `/ES` credit stop condition) is now met.
+- Known open item (non-blocking): Schwab `mark` field per-share unit not yet validated against a real `/ES` position — to be confirmed when the first live `/ES` position is opened.
+- Related: `Q013`, `SPEC-061`, `notify/telegram_bot.py`, `tests/test_spec_086.py`, `task/SPEC-086.md`, `task/SPEC-086_handoff.md`
+
+---
 
 ### R-20260507-04 — Q041 Tier 3 portfolio-attribution prototype accepted as SPEC-085 F3 source; long paper-trading path materially collapsed
 

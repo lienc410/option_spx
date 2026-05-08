@@ -28,8 +28,9 @@ import json
 import logging
 import os
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import date, datetime, time as dtime
+from enum import Enum
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
@@ -101,9 +102,28 @@ _SPIKE_RANK = {SpikeLevel.NONE: 0, SpikeLevel.WARNING: 1, SpikeLevel.ALERT: 2}
 _STOP_RANK  = {StopLevel.NONE:  0, StopLevel.CAUTION:  1, StopLevel.TRIGGER: 2}
 _STALE_QUOTE_MINUTES = 10
 
+
+class EsStopLevel(str, Enum):
+    NONE = "NONE"
+    WARNING = "WARNING"
+    TRIGGER = "TRIGGER"
+
+
+@dataclass(frozen=True)
+class EsStopResult:
+    level: EsStopLevel
+    entry_premium: float | None = None
+    current_mark: float | None = None
+    ratio: float | None = None
+    observed: bool = False
+
+
+_ES_STOP_RANK = {EsStopLevel.NONE: 0, EsStopLevel.WARNING: 1, EsStopLevel.TRIGGER: 2}
+
 _intraday_state: dict = {
     "spike_level": SpikeLevel.NONE,
     "stop_level":  StopLevel.NONE,
+    "es_stop_level": EsStopLevel.NONE,
 }
 _morning_snapshot: dict | None = None
 
@@ -236,6 +256,100 @@ def _format_stop_alert(stop: IntradayStopTrigger) -> str:
     )
 
 
+def _is_es_short_put_state(state: dict | None) -> bool:
+    if not state:
+        return False
+    strategy_key = str(state.get("strategy_key") or "").strip().lower()
+    if strategy_key == "es_short_put":
+        return True
+    underlying = str(state.get("underlying") or "").upper()
+    strategy = str(state.get("strategy") or "").lower()
+    return underlying == "/ES" and "short put" in strategy
+
+
+def _is_es_put_position(position: dict) -> bool:
+    text = f"{position.get('symbol', '')} {position.get('description', '')}".upper()
+    quantity = _num(position.get("quantity")) or 0.0
+    return abs(quantity) > 0 and "/ES" in text and "PUT" in text
+
+
+def _num(value) -> float | None:
+    try:
+        if value in (None, ""):
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _check_es_credit_stop() -> EsStopResult:
+    state = read_state()
+    if not _is_es_short_put_state(state):
+        return EsStopResult(level=EsStopLevel.NONE, observed=True)
+
+    entry_premium = _num(state.get("actual_premium")) or _num(state.get("model_premium"))
+    if entry_premium is None or entry_premium <= 0:
+        return EsStopResult(level=EsStopLevel.NONE, observed=True)
+
+    try:
+        from schwab.client import get_account_positions
+
+        positions_payload = get_account_positions()
+    except Exception:
+        return EsStopResult(level=EsStopLevel.NONE)
+
+    if (
+        not positions_payload.get("configured")
+        or not positions_payload.get("authenticated")
+        or positions_payload.get("stale")
+    ):
+        return EsStopResult(level=EsStopLevel.NONE)
+
+    position = next((_pos for _pos in positions_payload.get("positions", []) if _is_es_put_position(_pos)), None)
+    if position is None:
+        return EsStopResult(level=EsStopLevel.NONE)
+
+    mark = _num(position.get("mark"))
+    if mark is None:
+        return EsStopResult(level=EsStopLevel.NONE)
+
+    ratio = mark / entry_premium
+    if ratio >= 3.0:
+        level = EsStopLevel.TRIGGER
+    elif ratio >= 2.0:
+        level = EsStopLevel.WARNING
+    else:
+        level = EsStopLevel.NONE
+    return EsStopResult(level=level, entry_premium=entry_premium, current_mark=mark, ratio=ratio, observed=True)
+
+
+def _format_es_stop_alert(result: EsStopResult) -> str:
+    entry = result.entry_premium or 0.0
+    mark = result.current_mark or 0.0
+    ratio = result.ratio or 0.0
+    if result.level == EsStopLevel.TRIGGER:
+        return (
+            "🚨 <b>/ES Short Put — Credit Stop TRIGGERED [–300%]</b>\n"
+            f"Entry premium: <code>{entry:.2f}</code> → Current mark: <code>{mark:.2f}</code>  "
+            f"(<code>×{ratio:.2f}</code>)\n"
+            "SPEC-061 credit stop line breached. Consider closing immediately.\n"
+            "<i>/closed after exiting.</i>"
+        )
+    if result.level == EsStopLevel.WARNING:
+        stop_mark = entry * 3.0
+        return (
+            "⚠️ <b>/ES Short Put — Stop Watch [–200%]</b>\n"
+            f"Entry premium: <code>{entry:.2f}</code> → Current mark: <code>{mark:.2f}</code>  "
+            f"(<code>×{ratio:.2f}</code>)\n"
+            f"Credit stop is at ×3.0 (mark ≥ <code>{stop_mark:.2f}</code>).\n"
+            "Monitor closely and prepare to close if mark continues rising."
+        )
+    return (
+        "✅ <b>/ES Short Put — Stop watch cleared</b>\n"
+        f"Mark has fallen back below ×2.0 threshold. Current mark: <code>{mark:.2f}</code>"
+    )
+
+
 def _alert_timing_label(timestamp: str, realtime: bool | None) -> str:
     sent_at = datetime.now(ET).strftime("%Y-%m-%d %H:%M")
     if realtime is False:
@@ -339,6 +453,7 @@ def _reset_intraday_state() -> None:
     global _morning_snapshot
     _intraday_state["spike_level"] = SpikeLevel.NONE
     _intraday_state["stop_level"]  = StopLevel.NONE
+    _intraday_state["es_stop_level"] = EsStopLevel.NONE
     _morning_snapshot = None
     log.info("Intraday state reset for new session.")
 
@@ -365,6 +480,7 @@ async def intraday_monitor(bot: Bot, chat_id: str) -> None:
 
     prev_spike = _intraday_state["spike_level"]
     prev_stop  = _intraday_state["stop_level"]
+    prev_es_stop = _intraday_state["es_stop_level"]
 
     msgs: list[str] = []
 
@@ -396,9 +512,22 @@ async def intraday_monitor(bot: Bot, chat_id: str) -> None:
             f"Run /today to re-check entry conditions."
         )
 
+    es_stop = _check_es_credit_stop()
+    if es_stop.observed:
+        if _ES_STOP_RANK[es_stop.level] > _ES_STOP_RANK[prev_es_stop]:
+            msgs.append(_format_es_stop_alert(es_stop))
+        elif (
+            prev_es_stop != EsStopLevel.NONE
+            and es_stop.level == EsStopLevel.NONE
+            and es_stop.current_mark is not None
+        ):
+            msgs.append(_format_es_stop_alert(es_stop))
+
     # Persist new state
     _intraday_state["spike_level"] = spike.level
     _intraday_state["stop_level"]  = stop.level
+    if es_stop.observed:
+        _intraday_state["es_stop_level"] = es_stop.level
 
     for msg in msgs:
         try:
