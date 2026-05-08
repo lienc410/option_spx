@@ -205,6 +205,29 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .stop-bar-tick-label { font-family: var(--f-mono); font-size: 0.58rem; color: var(--text-muted); }
 
 .pos-none { font-family: var(--f-ui); font-size: 0.72rem; color: var(--text-muted); font-style: italic; }
+.pos-actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+.action-btn { font-family: var(--f-ui); font-size: 0.72rem; padding: 6px 14px; border-radius: 5px; border: 1px solid var(--border-2); background: var(--surface-hi); color: var(--text); cursor: pointer; }
+.action-btn.primary { border-color: var(--orange-border); background: var(--orange-bg); color: var(--orange); }
+.action-btn:hover { background: var(--border-2); }
+
+/* ── Modal ── */
+.modal-wrap { position: fixed; inset: 0; background: rgba(8,10,19,0.82); z-index: 200; display: flex; align-items: center; justify-content: center; }
+.modal-wrap.hidden { display: none; }
+.modal { background: var(--surface); border: 1px solid var(--border-2); border-radius: 9px; padding: 24px; width: 480px; max-width: 95vw; }
+.modal-hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.modal-title { font-family: var(--f-ui); font-size: 0.80rem; font-weight: 600; color: var(--text); }
+.modal-close { background: none; border: none; color: var(--text-2); font-size: 1.1rem; cursor: pointer; }
+.modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+.modal-field { display: grid; gap: 5px; }
+.modal-field.full { grid-column: 1 / -1; }
+.modal-label { font-family: var(--f-ui); font-size: 0.65rem; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.06em; }
+.modal-input, .modal-select { font-family: var(--f-mono); font-size: 0.72rem; background: var(--bg); border: 1px solid var(--border-2); border-radius: 5px; padding: 6px 8px; color: var(--text); width: 100%; }
+.modal-check { font-family: var(--f-ui); font-size: 0.72rem; color: var(--text-2); display: flex; align-items: center; gap: 6px; }
+.modal-hint { font-family: var(--f-mono); font-size: 0.65rem; color: var(--text-2); }
+.modal-cta { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.modal-msg { font-family: var(--f-ui); font-size: 0.70rem; margin-top: 10px; }
+.modal-msg.error { color: var(--red); }
+.modal-msg.ok { color: var(--green); }
 
 /* ── Deferred notice ── */
 .deferred-card {
@@ -287,6 +310,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     <div class="pos-header">Current /ES Position</div>
     <div id="pos-body"><div class="pos-none">Loading…</div></div>
   </div>
+  <div id="pos-actions" class="pos-actions"></div>
 
   <!-- Deferred: performance history -->
   <div class="deferred-card">
@@ -296,8 +320,18 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 
 </div>
 
+<div id="es-modal-wrap" class="modal-wrap hidden">
+  <div class="modal">
+    <div class="modal-hd">
+      <div class="modal-title" id="es-modal-title">Trade Action</div>
+      <button class="modal-close" onclick="closeEsModal()">×</button>
+    </div>
+    <div id="es-modal-body"></div>
+  </div>
+</div>
+
 <div class="footer">
-  Read-only summary — all values from existing strategy APIs. No write paths.
+  Signals only — verify strike and fill price on your broker before executing.
 </div>
 
 <script>
@@ -420,8 +454,13 @@ async function loadPosition() {
     if (!pos.open) {
       posCard.className = 'position-card no-pos';
       posBody.innerHTML = '<div class="pos-none">No open /ES position</div>';
+      document.getElementById('pos-actions').innerHTML =
+        `<button class="action-btn primary" onclick="openEsModal('open')">+ Open Position</button>`;
       return;
     }
+    document.getElementById('pos-actions').innerHTML = `
+      <button class="action-btn" onclick="openEsModal('close')">Close</button>
+      <button class="action-btn" onclick="openEsModal('note')">Add Note</button>`;
 
     // Determine stop level class
     const level = String(pos.stop_level || 'NONE').toUpperCase();
@@ -466,6 +505,201 @@ async function loadPosition() {
     posCard.className = 'position-card no-pos';
     posBody.innerHTML = '<div class="pos-none">Position data unavailable</div>';
   }
+}
+
+// ── Modal helpers ─────────────────────────────────────────────────────────────
+let CURRENT_ES_REC = null;
+
+function closeEsModal() {
+  document.getElementById('es-modal-wrap').classList.add('hidden');
+}
+
+function showEsModalMsg(msg, isError) {
+  let el = document.getElementById('es-modal-msg');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'es-modal-msg';
+    document.getElementById('es-modal-body').appendChild(el);
+  }
+  el.className = 'modal-msg' + (isError ? ' error' : ' ok');
+  el.textContent = msg;
+}
+
+async function postJson(url, body) {
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  return res.json();
+}
+
+function plusDays(n) {
+  const d = new Date(); d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+async function openEsModal(kind) {
+  const wrap  = document.getElementById('es-modal-wrap');
+  const body  = document.getElementById('es-modal-body');
+  const title = document.getElementById('es-modal-title');
+  wrap.classList.remove('hidden');
+
+  if (kind === 'open') {
+    title.textContent = 'Open /ES Position';
+    body.innerHTML = `
+      <div class="modal-grid">
+        <div class="modal-field">
+          <label class="modal-label">Strike (Short Put)</label>
+          <input id="es-short-strike" class="modal-input" type="number" step="5" placeholder="e.g. 5800">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Expiry</label>
+          <input id="es-expiry" class="modal-input" type="date" value="${plusDays(45)}">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">DTE at Entry</label>
+          <input id="es-dte" class="modal-input" type="number" value="45">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Contracts</label>
+          <input id="es-contracts" class="modal-input" type="number" min="1" step="1" value="1">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Actual Premium (credit received)</label>
+          <input id="es-actual-premium" class="modal-input" type="number" step="0.01" placeholder="from fill">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Model Premium</label>
+          <input id="es-model-premium" class="modal-input" type="number" step="0.01" placeholder="auto-filled">
+        </div>
+        <div class="modal-field full">
+          <label class="modal-label">Note</label>
+          <input id="es-note" class="modal-input" placeholder="optional">
+        </div>
+        <div class="modal-field full">
+          <label class="modal-check"><input id="es-paper-trade" type="checkbox"> Mark as paper trade</label>
+        </div>
+        <div class="modal-field full">
+          <div class="modal-hint" id="es-draft-hint">Loading draft…</div>
+        </div>
+      </div>
+      <div class="modal-cta">
+        <button class="action-btn" onclick="closeEsModal()">Cancel</button>
+        <button class="action-btn primary" onclick="submitEsOpen()">Open</button>
+      </div>`;
+    loadEsDraft();
+
+  } else if (kind === 'close') {
+    title.textContent = 'Close /ES Position';
+    body.innerHTML = `
+      <div class="modal-grid">
+        <div class="modal-field">
+          <label class="modal-label">Exit Premium (cost to close)</label>
+          <input id="es-exit-premium" class="modal-input" type="number" step="0.01" placeholder="buy-back price">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Exit Reason</label>
+          <select id="es-exit-reason" class="modal-select">
+            <option value="credit_stop">Credit stop (3×)</option>
+            <option value="50pct_profit">50% profit</option>
+            <option value="roll_21dte">Roll at 21 DTE</option>
+            <option value="manual">Manual</option>
+            <option value="expired">Expired worthless</option>
+          </select>
+        </div>
+        <div class="modal-field full">
+          <label class="modal-label">Note</label>
+          <input id="es-close-note" class="modal-input" placeholder="optional">
+        </div>
+      </div>
+      <div class="modal-cta">
+        <button class="action-btn" onclick="closeEsModal()">Cancel</button>
+        <button class="action-btn primary" onclick="submitEsClose()">Close Position</button>
+      </div>`;
+
+  } else if (kind === 'note') {
+    title.textContent = 'Add Note';
+    body.innerHTML = `
+      <div class="modal-grid">
+        <div class="modal-field full">
+          <label class="modal-label">Note</label>
+          <input id="es-note-body" class="modal-input" placeholder="trade note">
+        </div>
+      </div>
+      <div class="modal-cta">
+        <button class="action-btn" onclick="closeEsModal()">Cancel</button>
+        <button class="action-btn primary" onclick="submitEsNote()">Save Note</button>
+      </div>`;
+  }
+}
+
+async function loadEsDraft() {
+  const hint = document.getElementById('es-draft-hint');
+  try {
+    const res = await fetch('/api/es/position/open-draft');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      hint.textContent = err.error || 'Draft unavailable — fill manually.';
+      return;
+    }
+    const d = await res.json();
+    if (d.error) { hint.textContent = d.error; return; }
+    CURRENT_ES_REC = d;
+    if (d.short_strike) document.getElementById('es-short-strike').value = d.short_strike;
+    if (d.expiry)       document.getElementById('es-expiry').value = d.expiry;
+    if (d.dte_at_entry) document.getElementById('es-dte').value = d.dte_at_entry;
+    if (d.model_premium != null) document.getElementById('es-model-premium').value = Number(d.model_premium).toFixed(2);
+    hint.textContent = d.legs_hint
+      ? `Algorithm draft: ${d.legs_hint} · model $${Number(d.model_premium).toFixed(2)}`
+      : 'Draft loaded — verify strike and fill price on broker before submitting.';
+  } catch (e) {
+    hint.textContent = 'Draft fetch failed — fill manually.';
+  }
+}
+
+async function submitEsOpen() {
+  const payload = {
+    strategy_key:   'es_short_put',
+    underlying:     '/ES',
+    short_strike:   Number(document.getElementById('es-short-strike').value || 0) || null,
+    long_strike:    null,
+    expiry:         document.getElementById('es-expiry').value,
+    dte_at_entry:   Number(document.getElementById('es-dte').value || 45),
+    contracts:      Number(document.getElementById('es-contracts').value || 1),
+    actual_premium: document.getElementById('es-actual-premium').value || null,
+    model_premium:  document.getElementById('es-model-premium').value || null,
+    entry_spx:      CURRENT_ES_REC?.entry_spx ?? null,
+    entry_vix:      CURRENT_ES_REC?.entry_vix ?? null,
+    regime:         CURRENT_ES_REC?.regime ?? null,
+    iv_signal:      CURRENT_ES_REC?.iv_signal ?? null,
+    trend_signal:   CURRENT_ES_REC?.trend_signal ?? null,
+    paper_trade:    !!document.getElementById('es-paper-trade')?.checked,
+    note:           document.getElementById('es-note').value || '',
+  };
+  if (!payload.short_strike) return showEsModalMsg('Strike is required.', true);
+  const data = await postJson('/api/position/open', payload);
+  if (data.error) return showEsModalMsg(data.error, true);
+  showEsModalMsg(`Opened ${data.trade_id}`);
+  await loadPosition();
+  setTimeout(closeEsModal, 600);
+}
+
+async function submitEsClose() {
+  const payload = {
+    exit_premium: Number(document.getElementById('es-exit-premium').value || 0),
+    exit_reason:  document.getElementById('es-exit-reason').value,
+    note:         document.getElementById('es-close-note').value || '',
+  };
+  const data = await postJson('/api/position/close', payload);
+  if (data.error) return showEsModalMsg(data.error, true);
+  showEsModalMsg(`Closed · P&L ${data.actual_pnl ?? '—'}`);
+  await loadPosition();
+  setTimeout(closeEsModal, 600);
+}
+
+async function submitEsNote() {
+  const payload = { note: document.getElementById('es-note-body').value || '' };
+  const data = await postJson('/api/position/note', payload);
+  if (data.error) return showEsModalMsg(data.error, true);
+  showEsModalMsg('Note saved');
+  setTimeout(closeEsModal, 400);
 }
 
 // ── Date ──────────────────────────────────────────────────────────────────────
