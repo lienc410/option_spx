@@ -1268,9 +1268,10 @@ def api_schwab_positions():
     maintenance  = bal_payload.get("maintenance_margin") or 0.0
 
     # Known ETF tickers for sub-category classification
-    _EQUITY_ETF  = {"SPY", "QQQ", "IWM", "VTI", "VOO", "SCHB"}
-    _BOND_ETF    = {"BOXX", "BND", "AGG", "SHY", "TLT", "SGOV", "TBLL"}
-    _CASH_ETF    = {"SGOV", "TBLL", "USFR", "FLOT"}
+    _EQUITY_ETF    = {"SPY", "QQQ", "IWM", "VTI", "VOO", "SCHB"}
+    _BOND_ETF      = {"BOXX", "BND", "AGG", "SHY", "TLT"}
+    _CASH_ETF      = {"SGOV", "TBLL", "USFR", "FLOT", "SHV", "BIL"}
+    _MONEY_MARKET  = {"SPAXX", "SWVXX", "VMFXX", "VMMXX", "FDRXX", "FZFXX", "SPRXX"}
 
     enriched = []
     # Group SPXW legs by expiry to show as spread net
@@ -1296,9 +1297,15 @@ def api_schwab_positions():
                 if sym_up in _EQUITY_ETF:
                     cat = "collective"
                     sub = "equity_etf"
-                elif sym_up in _BOND_ETF or sym_up in _CASH_ETF:
+                elif sym_up in _CASH_ETF:
+                    cat = "collective"
+                    sub = "cash_etf"
+                elif sym_up in _BOND_ETF:
                     cat = "collective"
                     sub = "bond_etf"
+                elif sym_up in _MONEY_MARKET:
+                    cat = "cash"
+                    sub = "money_market"
                 else:
                     cat = "collective"
                     sub = "etf"
@@ -1331,9 +1338,35 @@ def api_schwab_positions():
             "legs":         grp["legs"],
         })
 
-    # Sort: spx_options first, then by abs market value desc
+    # Inject cash balance as a synthetic position if > $1
+    cash_balance = float(bal_payload.get("cash_balance") or 0.0)
+    # Subtract money-market positions already counted as positions to avoid double-count
+    mm_mv = sum(p.get("market_value") or 0.0 for p in enriched if p.get("sub_category") == "money_market")
+    cash_only = cash_balance - mm_mv
+    if cash_only > 1.0:
+        enriched.append({
+            "symbol":       "Cash",
+            "description":  "Cash & sweep",
+            "asset_type":   "CASH",
+            "category":     "cash",
+            "sub_category": "cash",
+            "market_value": round(cash_only, 2),
+            "mv_pct_nlv":   round(cash_only / nlv * 100, 2) if nlv else None,
+            "quantity":     None,
+            "unrealized_pnl": None,
+        })
+
+    # Compute total cash (cash + cash ETF + money market)
+    _CASH_CATS = {"cash"}
+    _CASH_SUBS = {"cash_etf", "money_market", "cash"}
+    total_cash_mv = sum(
+        p.get("market_value") or 0.0 for p in enriched
+        if p.get("category") == "cash" or p.get("sub_category") in _CASH_SUBS
+    )
+
+    # Sort: spx_options first, cash last, then by abs market value desc
     enriched.sort(key=lambda p: (
-        0 if p["category"] == "spx_options" else 1,
+        0 if p["category"] == "spx_options" else (2 if p["category"] == "cash" or p.get("sub_category") in ("cash_etf", "money_market", "cash") else 1),
         -abs(p.get("market_value") or 0)
     ))
 
@@ -1346,6 +1379,9 @@ def api_schwab_positions():
             "maintenance_margin": round(maintenance, 2),
             "margin_pct_nlv":   round(maintenance / nlv * 100, 2) if nlv else None,
             "position_count":   len(enriched),
+            "cash_balance":     round(cash_balance, 2),
+            "total_cash_mv":    round(total_cash_mv, 2),
+            "total_cash_pct":   round(total_cash_mv / nlv * 100, 2) if nlv else None,
         },
     })
 

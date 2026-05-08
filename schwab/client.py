@@ -187,6 +187,7 @@ def get_account_balances() -> dict:
         maintenance = balances.get("maintenanceRequirement") or balances.get("maintenanceMargin")
         buying_power = balances.get("buyingPower") or balances.get("availableFundsNonMarginableTrade")
         net_liq = balances.get("liquidationValue") or balances.get("netLiquidation")
+        cash_bal = balances.get("cashBalance") or balances.get("availableFunds") or 0.0
         payload = {
             "configured": True,
             "authenticated": True,
@@ -195,6 +196,7 @@ def get_account_balances() -> dict:
             "net_liquidation": net_liq,
             "initial_margin": initial,
             "maintenance_margin": maintenance,
+            "cash_balance": float(cash_bal),
             "stale": False,
             "updated_at": datetime.now(_ET).isoformat(timespec="seconds"),
         }
