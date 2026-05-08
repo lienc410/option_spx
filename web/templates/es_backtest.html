@@ -142,7 +142,6 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     <a href="/spx"               class="nav-link">SPX</a>
     <a href="/es"                class="nav-link active">/ES</a>
     <a href="/q041"              class="nav-link">Q041</a>
-    <a href="/backtest"          class="nav-link">Backtest</a>
     <a href="/portfolio-backtest" class="nav-link">Port BT</a>
     <a href="/performance"       class="nav-link">Performance</a>
     <a href="/margin"            class="nav-link">Margin</a>
@@ -153,14 +152,24 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 <div class="page">
 
   <div class="page-hero">
-    <h1>/ES Short Put <em>Backtest</em></h1>
-    <div class="page-hero-meta">
-      <span>45 DTE · Δ0.20 · 3× credit stop · single slot</span>
-      <span>·</span>
-      <span><span class="dot dot-orange"></span> Trend Filter ON</span>
-      <span><span class="dot dot-blue"></span> No Filter</span>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div>
+        <h1>/ES Short Put <em>Backtest</em></h1>
+        <div class="page-hero-meta">
+          <span>45 DTE · Δ0.20 · 3× credit stop · single slot</span>
+          <span>·</span>
+          <span><span class="dot dot-orange"></span> Trend Filter ON</span>
+          <span><span class="dot dot-blue"></span> No Filter</span>
+        </div>
+      </div>
+      <a href="/es" style="font-family:var(--f-ui);font-size:0.65rem;color:var(--text-2);text-decoration:none;border:1px solid var(--border-2);border-radius:9999px;padding:3px 10px;margin-top:6px;white-space:nowrap">← /ES Strategy</a>
     </div>
+  
+  <div style="display:flex;gap:2px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+    <a href="/es" style="font-family:var(--f-ui);font-size:0.72rem;padding:5px 14px;border-radius:5px;text-decoration:none;color:var(--text-2);border:1px solid transparent">Strategy</a>
+    <a href="/es-backtest" style="font-family:var(--f-ui);font-size:0.72rem;padding:5px 14px;border-radius:5px;text-decoration:none;color:var(--text);background:var(--surface-hi);border:1px solid var(--border-2)">Backtest</a>
   </div>
+</div>
 
   <div class="controls">
     <span class="ctrl-label">Start</span>

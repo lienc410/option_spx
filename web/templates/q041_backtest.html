@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Q041 Backtest · Strategy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#080A13; --surface:#0D1020; --surface-hi:#131728;
+  --border:#191E33; --border-2:#232A42;
+  --text:#C4CEEC; --text-2:#606880; --text-muted:#363C52;
+  --gold:#C9A840; --gold-bg:rgba(201,168,64,0.07); --gold-border:rgba(201,168,64,0.22);
+  --green:#42CC7C; --green-bg:rgba(66,204,124,0.07);
+  --red:#E04862; --red-bg:rgba(224,72,98,0.07);
+  --blue:#4888E8; --blue-bg:rgba(72,136,232,0.07);
+  --orange:#E08040; --orange-bg:rgba(224,128,64,0.07); --orange-border:rgba(224,128,64,0.22);
+  --gray-bg:rgba(96,104,128,0.08); --gray-border:rgba(96,104,128,0.2);
+  --f-display:'Newsreader',Georgia,serif;
+  --f-mono:'JetBrains Mono','Courier New',monospace;
+  --f-ui:'DM Sans',system-ui,sans-serif;
+  --c-spx:#C9A840; --c-googl:#4888E8; --c-amzn:#42CC7C;
+}
+html { font-size: 14px; }
+body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-height: 100vh; }
+
+.nav {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px; height: 50px;
+  background: rgba(8,10,19,0.92); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+.nav-brand { font-family: var(--f-display); font-size: 1.05rem; color: var(--gold); }
+.nav-brand em { font-style: italic; }
+.nav-links { display: flex; gap: 2px; }
+.nav-link { font-family:var(--f-ui); font-size:0.76rem; padding:5px 10px; border-radius:5px; color:var(--text-2); text-decoration:none; transition:0.15s; }
+.nav-link:hover { color:var(--text); background:var(--surface-hi); }
+.nav-link.active { color:var(--text-muted); background:var(--gray-bg); }
+.nav-right { font-family:var(--f-mono); font-size:0.65rem; color:var(--text-muted); }
+
+.page { max-width: 1100px; margin: 0 auto; padding: 28px 24px 60px; }
+
+.page-hero { margin-bottom: 24px; }
+.page-hero h1 { font-family: var(--f-display); font-size: 1.6rem; font-weight: 400; }
+.page-hero h1 em { font-style: italic; color: var(--text-muted); }
+.page-hero-meta { font-family:var(--f-ui); font-size:0.68rem; color:var(--text-2); margin-top:6px; display:flex; gap:10px; flex-wrap:wrap; }
+.strat-link { font-family:var(--f-ui); font-size:0.65rem; color:var(--text-2); text-decoration:none; border:1px solid var(--border-2); border-radius:9999px; padding:3px 10px; transition:0.15s; white-space:nowrap; }
+.strat-link:hover { color:var(--gold); border-color:var(--gold-border); }
+
+.controls { display:flex; gap:12px; align-items:center; margin-bottom:20px; flex-wrap:wrap; }
+.ctrl-label { font-family:var(--f-ui); font-size:0.65rem; color:var(--text-2); text-transform:uppercase; letter-spacing:0.06em; }
+.ctrl-select { font-family:var(--f-mono); font-size:0.72rem; background:var(--surface); border:1px solid var(--border-2); border-radius:5px; padding:5px 10px; color:var(--text); }
+.run-btn { font-family:var(--f-ui); font-size:0.72rem; padding:6px 16px; border:1px solid var(--gray-border); background:var(--gray-bg); color:var(--text-2); border-radius:5px; cursor:pointer; }
+.run-btn:hover { color:var(--text); border-color:var(--border-2); }
+.run-btn:disabled { opacity:0.4; cursor:default; }
+
+.section-label { font-family:var(--f-ui); font-size:0.65rem; font-weight:500; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin:24px 0 10px; }
+
+/* Sleeve cards side by side */
+.sleeve-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:24px; }
+.sleeve-card { background:var(--surface); border:1px solid var(--border); border-radius:9px; overflow:hidden; }
+.sleeve-card-hd { padding:12px 16px 10px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.sleeve-name { font-family:var(--f-display); font-style:italic; font-size:1.05rem; font-weight:400; }
+.sleeve-tier { font-family:var(--f-ui); font-size:0.58rem; font-weight:600; text-transform:uppercase; letter-spacing:0.09em; padding:2px 7px; border-radius:9999px; }
+.tier1 { background:var(--gold-bg); color:var(--gold); border:1px solid var(--gold-border); }
+.tier2 { background:var(--gray-bg); color:var(--text-2); border:1px solid var(--gray-border); }
+.sleeve-metrics { display:grid; grid-template-columns:1fr 1fr; gap:0; }
+.sleeve-metric { padding:10px 16px; border-right:1px solid var(--border); border-bottom:1px solid var(--border); }
+.sleeve-metric:nth-child(2n) { border-right:none; }
+.sleeve-metric:nth-last-child(-n+2) { border-bottom:none; }
+.metric-lbl { font-family:var(--f-ui); font-size:0.58rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:4px; }
+.metric-val { font-family:var(--f-mono); font-size:0.90rem; }
+.metric-val.up   { color:var(--green); }
+.metric-val.down { color:var(--red); }
+.metric-val.warn { color:var(--orange); }
+
+.chart-wrap { background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:20px; margin-bottom:20px; }
+.chart-hd { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px; }
+.chart-title { font-family:var(--f-ui); font-size:0.72rem; color:var(--text-2); }
+.chart-legend { display:flex; gap:14px; }
+.chart-legend-item { display:flex; align-items:center; gap:5px; font-family:var(--f-mono); font-size:0.60rem; color:var(--text-2); }
+.chart-legend-line { width:14px; height:2px; border-radius:2px; }
+
+.tabs-row { display:flex; gap:4px; margin-bottom:12px; }
+.tab-btn { font-family:var(--f-ui); font-size:0.68rem; padding:4px 12px; border-radius:5px; border:1px solid var(--border-2); background:none; color:var(--text-2); cursor:pointer; }
+.tab-btn.active { background:var(--surface-hi); color:var(--text); border-color:var(--border-2); }
+.tab-panel { display:none; }
+.tab-panel.active { display:block; }
+
+.trades-wrap { background:var(--surface); border:1px solid var(--border); border-radius:9px; overflow:hidden; }
+.trades-hd { display:grid; grid-template-columns:90px 90px 70px 70px 70px 80px 80px 80px; padding:8px 16px; background:var(--surface-hi); border-bottom:1px solid var(--border-2); font-family:var(--f-ui); font-size:0.58rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; }
+.trades-body { max-height:300px; overflow-y:auto; }
+.trade-row { display:grid; grid-template-columns:90px 90px 70px 70px 70px 80px 80px 80px; padding:6px 16px; border-bottom:1px solid var(--border); font-family:var(--f-mono); font-size:0.65rem; color:var(--text-2); }
+.trade-row:last-child { border-bottom:none; }
+.exit-chip { font-family:var(--f-ui); font-size:0.54rem; padding:1px 5px; border-radius:3px; text-transform:uppercase; }
+.exit-stop   { background:var(--red-bg);   color:var(--red); }
+.exit-profit { background:var(--green-bg); color:var(--green); }
+.exit-gamma  { background:var(--orange-bg);color:var(--orange); }
+.exit-expiry { background:var(--blue-bg);  color:var(--blue); }
+.pnl-up   { color:var(--green); }
+.pnl-down { color:var(--red); }
+
+.note-box { font-family:var(--f-ui); font-size:0.62rem; color:var(--text-muted); background:var(--surface); border:1px solid var(--border-2); border-radius:6px; padding:8px 14px; margin-bottom:16px; line-height:1.5; }
+.loading-msg { font-family:var(--f-ui); font-size:0.72rem; color:var(--text-muted); font-style:italic; padding:40px; text-align:center; }
+.error-msg { font-family:var(--f-mono); font-size:0.68rem; color:var(--red); padding:20px; }
+.footer { text-align:center; padding:20px 0 0; font-size:0.65rem; color:var(--text-muted); }
+
+@media (max-width: 700px) { .sleeve-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav-brand">SPX <em>Strategy</em></span>
+  <div class="nav-links">
+    <a href="/"                   class="nav-link">Portfolio</a>
+    <a href="/spx"                class="nav-link">SPX</a>
+    <a href="/es"                 class="nav-link">/ES</a>
+    <a href="/q041"               class="nav-link active">Q041</a>
+    <a href="/portfolio-backtest" class="nav-link">Port BT</a>
+    <a href="/performance"        class="nav-link">Performance</a>
+    <a href="/margin"             class="nav-link">Margin</a>
+  </div>
+  <div class="nav-right" id="nav-date">—</div>
+</nav>
+
+<div class="page">
+
+  <div class="page-hero">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div>
+        <h1>Q041 Sleeves <em>Backtest</em></h1>
+        <div class="page-hero-meta">
+          <span>SPX Tier-1 30d Δ0.20 · GOOGL / AMZN Tier-2 21d Δ0.20</span>
+          <span>·</span>
+          <span>3× credit stop · 50% profit target · actual option prices</span>
+        </div>
+      </div>
+      <a href="/q041" class="strat-link" style="margin-top:6px">← Q041 Sleeves</a>
+    </div>
+  </div>
+
+  <div class="controls">
+    <span class="ctrl-label">Start</span>
+    <select id="ctrl-start" class="ctrl-select">
+      <option value="2022-05-06" selected>2022 (actual prices only)</option>
+      <option value="2023-01-01">2023</option>
+      <option value="2024-01-01">2024</option>
+    </select>
+    <button id="run-btn" class="run-btn" onclick="runBacktest()">Run Backtest</button>
+  </div>
+
+  
+  <div style="display:flex;gap:2px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+    <a href="/q041" style="font-family:var(--f-ui);font-size:0.72rem;padding:5px 14px;border-radius:5px;text-decoration:none;color:var(--text-2);border:1px solid transparent">Strategy</a>
+    <a href="/q041-backtest" style="font-family:var(--f-ui);font-size:0.72rem;padding:5px 14px;border-radius:5px;text-decoration:none;color:var(--text);background:var(--surface-hi);border:1px solid var(--border-2)">Backtest</a>
+  </div>
+<div id="note" class="note-box" style="display:none"></div>
+  <div id="body-area"><div class="loading-msg">Select parameters and click Run Backtest.</div></div>
+
+</div>
+
+<div class="footer">
+  Paper observation — actual SPX/GOOGL/AMZN option close prices; $100/contract multiplier throughout.
+</div>
+
+<script>
+const COLORS = { SPX: '#C9A840', GOOGL: '#4888E8', AMZN: '#42CC7C' };
+let chartInst = null;
+let currentData = null;
+
+function fmtDate(s) { return s ? s.slice(0,10) : '—'; }
+function fmtDollar(n) { return typeof n==='number' ? (n>=0?'+':'')+Math.round(n).toLocaleString() : '—'; }
+
+function exitLabel(r) { return {stop_loss:'Stop',profit_target:'Profit',gamma_risk:'Gamma',expiry:'Expiry'}[r]||r; }
+function exitCls(r) {
+  if (r==='stop_loss')     return 'exit-stop';
+  if (r==='profit_target') return 'exit-profit';
+  if (r==='gamma_risk')    return 'exit-gamma';
+  return 'exit-expiry';
+}
+
+function tierLabel(sym) { return sym==='SPX' ? 'Tier 1' : 'Tier 2'; }
+function tierCls(sym)   { return sym==='SPX' ? 'tier1' : 'tier2'; }
+
+function renderSleeveCard(s) {
+  const col = COLORS[s.symbol] || '#C4CEEC';
+  return `
+    <div class="sleeve-card" style="border-top:3px solid ${col}">
+      <div class="sleeve-card-hd">
+        <span class="sleeve-name" style="color:${col}">${s.symbol}</span>
+        <span class="sleeve-tier ${tierCls(s.symbol)}">${tierLabel(s.symbol)}</span>
+      </div>
+      <div class="sleeve-metrics">
+        <div class="sleeve-metric">
+          <div class="metric-lbl">Trades</div>
+          <div class="metric-val">${s.n_trades}</div>
+        </div>
+        <div class="sleeve-metric">
+          <div class="metric-lbl">Win Rate</div>
+          <div class="metric-val ${s.win_rate_pct>=75?'up':''}">${s.win_rate_pct.toFixed(1)}%</div>
+        </div>
+        <div class="sleeve-metric">
+          <div class="metric-lbl">Stop Rate</div>
+          <div class="metric-val ${s.stop_rate_pct>20?'down':'warn'}">${s.stop_rate_pct.toFixed(1)}%</div>
+        </div>
+        <div class="sleeve-metric">
+          <div class="metric-lbl">Total PnL</div>
+          <div class="metric-val ${s.total_pnl>0?'up':'down'}">${fmtDollar(s.total_pnl)}</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function buildChart(sleeves) {
+  if (chartInst) { chartInst.destroy(); chartInst = null; }
+  const canvas = document.getElementById('eq-chart');
+  if (!canvas) return;
+  const datasets = sleeves.map(s => ({
+    label: s.label,
+    data: s.equity_curve.map(r => ({ x: r.date, y: r.equity })),
+    borderColor: COLORS[s.symbol] || '#C4CEEC',
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    pointRadius: 0,
+    tension: 0.2,
+  }));
+  chartInst = new Chart(canvas, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true,
+      animation: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: {
+          type: 'category',
+          ticks: { color:'#606880', font:{family:'JetBrains Mono',size:10}, maxTicksLimit:8, maxRotation:0,
+            callback: (v,i) => { const d=datasets[0]?.data[i]?.x; return d?d.slice(0,7):v; }},
+          grid: { color:'#191E33' },
+        },
+        y: {
+          ticks: { color:'#606880', font:{family:'JetBrains Mono',size:10}, callback: v=>'$'+Math.round(v).toLocaleString() },
+          grid: { color:'#191E33' },
+        },
+      },
+    },
+  });
+}
+
+function renderTradeTable(trades) {
+  const rows = trades.slice(0, 300).map(t => `
+    <div class="trade-row">
+      <span>${fmtDate(t.entry_date)}</span>
+      <span>${fmtDate(t.exit_date)}</span>
+      <span>${t.dte_at_entry}d→${t.dte_at_exit}d</span>
+      <span>${t.strike?.toFixed(0)||'—'}</span>
+      <span>${t.entry_premium?.toFixed(2)||'—'}</span>
+      <span>${t.exit_premium?.toFixed(2)||'—'}</span>
+      <span><span class="exit-chip ${exitCls(t.exit_reason)}">${exitLabel(t.exit_reason)}</span></span>
+      <span class="${t.pnl>=0?'pnl-up':'pnl-down'}">${fmtDollar(t.pnl)}</span>
+    </div>`).join('');
+  return `
+    <div class="trades-wrap">
+      <div class="trades-hd"><span>Entry</span><span>Exit</span><span>DTE</span><span>Strike</span><span>Entry $</span><span>Exit $</span><span>Reason</span><span>PnL</span></div>
+      <div class="trades-body">${rows}</div>
+    </div>`;
+}
+
+function showTab(sym) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.sym===sym));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.dataset.sym===sym));
+}
+
+async function runBacktest() {
+  const btn   = document.getElementById('run-btn');
+  const area  = document.getElementById('body-area');
+  const start = document.getElementById('ctrl-start').value;
+  btn.disabled = true; btn.textContent = 'Running…';
+  area.innerHTML = '<div class="loading-msg">Running Q041 sleeve backtests — first run takes ~20 seconds…</div>';
+
+  try {
+    const res  = await fetch(`/api/q041/backtest?start=${start}`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    currentData = data;
+
+    const note = document.getElementById('note');
+    note.style.display = 'block';
+    note.textContent = `Actual SPX/GOOGL/AMZN option close prices (q041_historical), ${data.start_date} to present. IV proxy used for daily MTM only when option leaves data set. PnL per $50k notional sleeve.`;
+
+    // Sleeve summary cards
+    let html = '<div class="section-label">Per-Sleeve Summary</div>';
+    html += '<div class="sleeve-grid">' + data.sleeves.map(renderSleeveCard).join('') + '</div>';
+
+    // Equity chart
+    html += `
+      <div class="chart-wrap">
+        <div class="chart-hd">
+          <span class="chart-title">Equity Curve — $50k per sleeve (${data.start_date} → today)</span>
+          <div class="chart-legend">
+            ${data.sleeves.map(s=>`<div class="chart-legend-item"><div class="chart-legend-line" style="background:${COLORS[s.symbol]||'#C4CEEC'}"></div>${s.symbol}</div>`).join('')}
+          </div>
+        </div>
+        <canvas id="eq-chart" height="220" style="width:100%"></canvas>
+      </div>`;
+
+    // Trade logs tabbed
+    html += '<div class="section-label">Trade Log</div>';
+    html += '<div class="tabs-row">' +
+      data.sleeves.map((s,i) => `<button class="tab-btn${i===0?' active':''}" data-sym="${s.symbol}" onclick="showTab('${s.symbol}')">${s.symbol} (${s.n_trades})</button>`).join('') +
+      '</div>';
+    html += data.sleeves.map((s,i) =>
+      `<div class="tab-panel${i===0?' active':''}" data-sym="${s.symbol}">${renderTradeTable(s.trades)}</div>`
+    ).join('');
+
+    area.innerHTML = html;
+    buildChart(data.sleeves);
+  } catch (e) {
+    area.innerHTML = `<div class="error-msg">Error: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Run Backtest';
+  }
+}
+
+document.getElementById('nav-date').textContent = new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+</script>
+</body>
+</html>

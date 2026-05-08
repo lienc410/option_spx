@@ -189,6 +189,11 @@ def es_backtest_page():
     return render_template("es_backtest.html")
 
 
+@app.route("/q041-backtest")
+def q041_backtest_page():
+    return render_template("q041_backtest.html")
+
+
 @app.route("/matrix")
 def matrix_page():
     return render_template("matrix.html")
@@ -366,6 +371,7 @@ def api_portfolio_bp_timeline():
 
 
 _ES_BT_CACHE: dict = {}
+_Q041_BT_CACHE: dict = {}
 
 @app.route("/api/es/backtest")
 def api_es_backtest():
@@ -453,6 +459,21 @@ def api_es_backtest():
             }
 
         _ES_BT_CACHE[cache_key] = payload
+        return jsonify(payload)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/q041/backtest")
+def api_q041_backtest():
+    start_date = flask_req.args.get("start", "2022-05-06")
+    cache_key  = start_date
+    if cache_key in _Q041_BT_CACHE:
+        return jsonify(_Q041_BT_CACHE[cache_key])
+    try:
+        from research.strategies.q041_csp_backtest import run_q041_backtest
+        payload = run_q041_backtest(start_date=start_date)
+        _Q041_BT_CACHE[cache_key] = payload
         return jsonify(payload)
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500

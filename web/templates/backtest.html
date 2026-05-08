@@ -67,11 +67,17 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 
 /* ── Layout ── */
 .container { max-width: 900px; margin: 0 auto; padding: 26px 24px 72px; }
-.page-hd { margin-bottom: 20px; }
+.page-hd { margin-bottom: 20px; display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
 .page-title {
   font-family: var(--f-display); font-style: italic;
   font-size: 1.5rem; font-weight: 400; color: var(--text);
 }
+.strat-link {
+  font-family: var(--f-ui); font-size: 0.65rem; color: var(--text-2);
+  text-decoration: none; border: 1px solid var(--border-2); border-radius: 9999px;
+  padding: 3px 10px; transition: 0.15s;
+}
+.strat-link:hover { color: var(--gold); border-color: var(--gold-border); }
 
 /* ── Controls bar ── */
 .controls {
@@ -753,10 +759,9 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
   <span class="nav-brand">SPX <em>Strategy</em></span>
   <div class="nav-links">
     <a href="/" class="nav-link">Portfolio</a>
-    <a href="/spx" class="nav-link">SPX</a>
+    <a href="/spx" class="nav-link active">SPX</a>
     <a href="/es" class="nav-link">/ES</a>
     <a href="/q041" class="nav-link">Q041</a>
-    <a href="/backtest" class="nav-link active">Backtest</a>
     <a href="/portfolio-backtest" class="nav-link">Port BT</a>
     <a href="/performance" class="nav-link">Performance</a>
     <a href="/margin" class="nav-link">Margin</a>
@@ -768,8 +773,13 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
 
   <div class="page-hd">
     <div class="page-title">Backtest Analysis</div>
+    <a href="/spx" class="strat-link">← SPX Strategy</a>
   </div>
 
+  <div style="display:flex;gap:2px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+    <a href="/spx" style="font-family:var(--f-ui);font-size:0.72rem;padding:5px 14px;border-radius:5px;text-decoration:none;color:var(--text-2);border:1px solid transparent">Strategy</a>
+    <a href="/backtest" style="font-family:var(--f-ui);font-size:0.72rem;padding:5px 14px;border-radius:5px;text-decoration:none;color:var(--text);background:var(--surface-hi);border:1px solid var(--border-2)">Backtest</a>
+  </div>
   <!-- Controls -->
   <div class="controls">
     <div class="period-pills">
