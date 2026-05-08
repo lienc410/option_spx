@@ -117,11 +117,14 @@ Three visual tiers for the multi-strategy portfolio layout. All cards use the sa
 - **Grid:** Single column, centered, 880px max-width, 24px side padding
 - **Nav:** Sticky top, 50px height, blur backdrop, `--border` bottom edge
 - **Multi-page structure:**
-  - `/` — Portfolio Command Center (Today's Actions + Portfolio Snapshot + quick nav)
-  - `/spx` — SPX strategy detail (current + backtest)
-  - `/es` — /ES short put detail
+  - `/` — Portfolio Command Center (Today's Actions + Portfolio Snapshot + account positions)
+  - `/spx` — SPX strategy detail (current recommendation + backtest)
+  - `/es` — /ES short put detail (signal cards + credit stop bar)
   - `/q041` — Q041 sleeves + paper trades + attribution
-  - `/portfolio-backtest` — joint simulation + attribution charts
+  - `/backtest` — SPX strategy backtest (on-demand)
+  - `/portfolio-backtest` — joint J0 vs J3 BP simulation (873-day chart)
+  - `/performance` — live trade performance
+  - `/margin` — margin estimator + Schwab live BP
 - **Border radius:** sm: 5px (buttons, badges), md: 9px (cards), lg: 12px (large panels), pill: 9999px (dots, status indicators)
 - **Card spacing:** 12px margin-bottom between cards, 16px internal padding (strip), 20px internal padding (full card)
 
@@ -140,7 +143,7 @@ Three visual tiers for the multi-strategy portfolio layout. All cards use the sa
 Nav links for the multi-page portfolio architecture:
 
 ```
-Portfolio  |  SPX  |  /ES  |  Q041  |  Backtest
+Portfolio  |  SPX  |  /ES  |  Q041  |  Backtest  |  Port BT  |  Performance  |  Margin
 ```
 
 - Active page: `--gold` text + `--gold-bg` background
