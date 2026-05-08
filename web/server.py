@@ -179,6 +179,11 @@ def backtest_page():
     return render_template("backtest.html")
 
 
+@app.route("/portfolio-backtest")
+def portfolio_backtest_page():
+    return render_template("portfolio_backtest.html")
+
+
 @app.route("/matrix")
 def matrix_page():
     return render_template("matrix.html")
@@ -328,6 +333,31 @@ def api_portfolio_attribution():
     from web.portfolio_surface import attribution_payload
 
     return jsonify(attribution_payload())
+
+
+@app.route("/api/portfolio/bp-timeline")
+def api_portfolio_bp_timeline():
+    import csv, os
+
+    path = os.path.join(os.path.dirname(__file__), "..", "data", "q045_phase2d_idle_bp_timeline.csv")
+    try:
+        rows = []
+        with open(path, newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                date_val = row.get("") or row.get("date") or ""
+                if not date_val:
+                    continue
+                rows.append({
+                    "date":      date_val,
+                    "j0_bp_pct": float(row["j0_bp_pct"]) if row.get("j0_bp_pct") not in (None, "") else 0.0,
+                    "j3_bp_pct": float(row["j3_bp_pct"]) if row.get("j3_bp_pct") not in (None, "") else 0.0,
+                    "j0_n_open": int(float(row["j0_n_open"])) if row.get("j0_n_open") not in (None, "") else 0,
+                    "j3_n_open": int(float(row["j3_n_open"])) if row.get("j3_n_open") not in (None, "") else 0,
+                })
+        return jsonify({"status": "ok", "rows": rows, "count": len(rows)})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 @app.route("/api/position")
