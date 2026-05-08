@@ -156,7 +156,17 @@ def _json_dc(dc) -> Response:
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("portfolio_home.html")
+
+
+@app.route("/spx")
+def spx_page():
+    return render_template("spx.html")
+
+
+@app.route("/es")
+def es_page():
+    return render_template("es.html")
 
 
 @app.route("/backtest")
@@ -196,6 +206,94 @@ def api_es_recommendation():
     try:
         rec = get_es_recommendation(use_intraday=_is_market_hours())
         return _json_dc(rec)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/es/position")
+def api_es_position():
+    from datetime import date
+    from strategy.state import read_state
+
+    try:
+        state = read_state()
+
+        # Determine if an /ES short put position is open
+        strategy_key = str(state.get("strategy_key") or "").strip().lower() if state else ""
+        underlying   = str(state.get("underlying")   or "").upper()         if state else ""
+        strategy_str = str(state.get("strategy")     or "").lower()         if state else ""
+        is_es = state and (
+            strategy_key == "es_short_put"
+            or (underlying == "/ES" and "short put" in strategy_str)
+        )
+
+        if not is_es:
+            return jsonify({"open": False, "entry_premium": None, "mark": None,
+                            "ratio": None, "stop_level": "NONE",
+                            "entry_date": None, "expiry": None, "dte": None})
+
+        def _num(v):
+            try:
+                return float(v) if v not in (None, "") else None
+            except (TypeError, ValueError):
+                return None
+
+        entry_premium = _num(state.get("actual_premium")) or _num(state.get("model_premium"))
+        expiry_str    = state.get("expiry")
+        entry_date    = state.get("opened_at")
+        short_strike  = _num(state.get("short_strike"))
+        contracts     = _num(state.get("contracts")) or 1
+
+        # DTE from expiry
+        dte = None
+        if expiry_str:
+            try:
+                dte = max((date.fromisoformat(str(expiry_str)) - date.today()).days, 0)
+            except ValueError:
+                pass
+
+        # Mark from Schwab live positions
+        mark = None
+        ratio = None
+        stop_level = "NONE"
+        try:
+            from schwab.client import get_account_positions
+
+            pos_payload = get_account_positions()
+            if (pos_payload.get("configured") and pos_payload.get("authenticated")
+                    and not pos_payload.get("stale")):
+                for pos in pos_payload.get("positions", []):
+                    text = f"{pos.get('symbol', '')} {pos.get('description', '')}".upper()
+                    qty  = _num(pos.get("quantity")) or 0.0
+                    if abs(qty) > 0 and "/ES" in text and "PUT" in text:
+                        mark = _num(pos.get("mark"))
+                        break
+        except Exception:
+            pass
+
+        if mark is not None and entry_premium and entry_premium > 0:
+            ratio = round(mark / entry_premium, 3)
+            if ratio >= 3.0:
+                stop_level = "TRIGGER"
+            elif ratio >= 2.0:
+                stop_level = "WARNING"
+
+        # Expiry DTE warning
+        expiry_warning = dte is not None and dte <= 7
+
+        return jsonify({
+            "open":            True,
+            "entry_premium":   entry_premium,
+            "mark":            mark,
+            "ratio":           ratio,
+            "stop_level":      stop_level,
+            "entry_date":      entry_date,
+            "expiry":          expiry_str,
+            "dte":             dte,
+            "short_strike":    short_strike,
+            "contracts":       int(contracts),
+            "expiry_warning":  expiry_warning,
+        })
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 
