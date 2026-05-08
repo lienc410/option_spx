@@ -373,6 +373,40 @@ def api_portfolio_bp_timeline():
 _ES_BT_CACHE: dict = {}
 _Q041_BT_CACHE: dict = {}
 
+
+def _warmup_backtest_caches() -> None:
+    """Pre-compute backtest caches in background thread on server start.
+    Prevents first-user Cloudflare timeout (~20s cold start)."""
+    try:
+        from research.strategies.q041_csp_backtest import run_q041_backtest
+        payload = run_q041_backtest(start_date="2022-05-06")
+        _Q041_BT_CACHE["2022-05-06"] = payload
+    except Exception:
+        pass
+    try:
+        from research.strategies.ES_puts.backtest import run_phase1_hybrid
+        rf = run_phase1_hybrid(mode="filtered",  start_date="2022-05-01")
+        rb = run_phase1_hybrid(mode="baseline",  start_date="2022-05-01")
+
+        def _ser(r, label):
+            wins  = [t for t in r.trades if t.pnl > 0]
+            stops = [t for t in r.trades if t.exit_reason == "stop_loss"]
+            profs = [t for t in r.trades if t.exit_reason == "profit_target"]
+            m = r.portfolio_metrics
+            return {
+                "label": label, "phase": r.phase,
+                "trades": [{"entry_date": t.entry_date, "exit_date": t.exit_date, "entry_spx": round(t.entry_spx,1), "exit_spx": round(t.exit_spx,1), "entry_vix": round(t.entry_vix,1), "entry_premium": round(t.entry_premium,2), "exit_premium": round(t.exit_premium,2), "dte_at_entry": t.dte_at_entry, "dte_at_exit": t.dte_at_exit, "exit_reason": t.exit_reason, "contracts": round(t.contracts,4), "pnl": round(t.pnl,2)} for t in r.trades],
+                "equity_curve": [{"date": dr.date, "equity": round(dr.end_equity,2)} for i, dr in enumerate(r.daily_rows) if i % 5 == 0],
+                "summary": {"n_trades": len(r.trades), "win_rate_pct": round(len(wins)/len(r.trades)*100,1) if r.trades else 0, "stop_rate_pct": round(len(stops)/len(r.trades)*100,1) if r.trades else 0, "profit_target_pct": round(len(profs)/len(r.trades)*100,1) if r.trades else 0, "total_pnl": round(sum(t.pnl for t in r.trades),0), "ann_return_pct": m.get("ann_return"), "sharpe": m.get("daily_sharpe"), "max_drawdown_pct": round(abs(m.get("max_drawdown",0) or 0)*100,2), "actual_market_entries": m.get("actual_market_entries"), "bs_fallback_entries": m.get("bs_fallback_entries")},
+            }
+
+        _ES_BT_CACHE["filtered:2022-05-01:1"] = {"status": "ok", "filtered": _ser(rf, "Trend Filter ON"), "baseline": _ser(rb, "No Filter"), "start_date": "2022-05-01", "pricing": "hybrid_actual+bs"}
+    except Exception:
+        pass
+
+
+threading.Thread(target=_warmup_backtest_caches, daemon=True).start()
+
 @app.route("/api/es/backtest")
 def api_es_backtest():
     import json, hashlib, time
