@@ -169,6 +169,11 @@ def es_page():
     return render_template("es.html")
 
 
+@app.route("/q041")
+def q041_page():
+    return render_template("q041.html")
+
+
 @app.route("/backtest")
 def backtest_page():
     return render_template("backtest.html")

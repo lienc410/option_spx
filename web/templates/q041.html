@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Q041 Sleeves · Observation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:            #080A13;
+  --surface:       #0D1020;
+  --surface-hi:    #131728;
+  --border:        #191E33;
+  --border-2:      #232A42;
+  --text:          #C4CEEC;
+  --text-2:        #606880;
+  --text-muted:    #363C52;
+  --gold:          #C9A840;
+  --gold-bg:       rgba(201,168,64,0.07);
+  --gold-border:   rgba(201,168,64,0.22);
+  --green:         #42CC7C;
+  --green-bg:      rgba(66,204,124,0.07);
+  --green-border:  rgba(66,204,124,0.22);
+  --red:           #E04862;
+  --red-bg:        rgba(224,72,98,0.07);
+  --red-border:    rgba(224,72,98,0.22);
+  --blue:          #4888E8;
+  --blue-bg:       rgba(72,136,232,0.07);
+  --blue-border:   rgba(72,136,232,0.22);
+  --orange:        #E08040;
+  --orange-bg:     rgba(224,128,64,0.07);
+  --orange-border: rgba(224,128,64,0.22);
+  --gray-bg:       rgba(96,104,128,0.08);
+  --gray-border:   rgba(96,104,128,0.2);
+
+  --f-display: 'Newsreader', Georgia, serif;
+  --f-mono:    'JetBrains Mono', 'Courier New', monospace;
+  --f-ui:      'DM Sans', system-ui, sans-serif;
+}
+
+html { font-size: 14px; }
+body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.55; }
+
+/* ── Nav ── */
+.nav {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px; height: 50px;
+  background: rgba(8,10,19,0.88); backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.nav-brand { font-family: var(--f-display); font-size: 1.05rem; color: var(--text); letter-spacing: 0.01em; user-select: none; }
+.nav-brand em { color: var(--gold); font-style: italic; }
+.nav-links { display: flex; gap: 2px; }
+.nav-link {
+  font-size: 0.76rem; font-weight: 500; color: var(--text-2);
+  text-decoration: none; padding: 5px 13px; border-radius: 5px;
+  letter-spacing: 0.03em; transition: color 0.15s, background 0.15s;
+}
+.nav-link:hover  { color: var(--text); background: var(--surface-hi); }
+.nav-link.active { color: var(--text-2); background: var(--gray-bg); border: 1px solid var(--gray-border); }
+.nav-right { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-muted); }
+
+/* ── Layout ── */
+.container { max-width: 880px; margin: 0 auto; padding: 26px 24px 72px; }
+
+/* ── Page hero ── */
+.page-hero { margin-bottom: 28px; padding-bottom: 22px; border-bottom: 1px solid var(--border); }
+.page-title { font-family: var(--f-ui); font-size: 1.80rem; font-weight: 500; color: var(--text); margin-bottom: 6px; display: flex; align-items: baseline; gap: 12px; }
+.page-tier-badge {
+  font-family: var(--f-ui); font-size: 0.60rem; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.10em;
+  color: var(--text-muted); background: var(--gray-bg);
+  border: 1px solid var(--gray-border); padding: 2px 8px; border-radius: 5px;
+}
+.page-meta { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-2); letter-spacing: 0.02em; }
+.page-meta .meta-sep { color: var(--text-muted); margin: 0 6px; }
+
+/* ── Section label ── */
+.section-label {
+  font-family: var(--f-ui); font-size: 0.60rem; font-weight: 700;
+  letter-spacing: 0.13em; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: 10px;
+}
+
+/* ── Panel card (tertiary tier) ── */
+.panel {
+  background: var(--surface); border: 1px solid var(--border-2);
+  border-left: 3px solid rgba(96,104,128,0.40);
+  border-radius: 9px; padding: 16px 20px; margin-bottom: 12px;
+}
+.panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.panel-title { font-family: var(--f-ui); font-size: 0.80rem; font-weight: 600; color: var(--text); }
+.panel-count { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-2); }
+
+/* ── State badges ── */
+.state-badge {
+  display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 5px;
+  font-family: var(--f-ui); font-size: 0.58rem; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap;
+}
+.badge-watching  { color: var(--gold);       background: var(--gold-bg);   border: 1px solid var(--gold-border); }
+.badge-review    { color: var(--text-muted); background: var(--gray-bg);   border: 1px solid var(--gray-border); }
+.badge-blocked   { color: var(--red);        background: var(--red-bg);    border: 1px solid var(--red-border); opacity: 0.7; }
+.badge-open-pos  { color: var(--green);      background: var(--green-bg);  border: 1px solid var(--green-border); }
+.badge-unavail   { color: var(--text-muted); background: var(--gray-bg);   border: 1px solid var(--gray-border); font-style: italic; }
+
+/* ── Tier label pill ── */
+.tier-pill {
+  font-family: var(--f-mono); font-size: 0.60rem;
+  color: var(--text-muted); background: var(--surface-hi);
+  border: 1px solid var(--border-2); padding: 1px 6px; border-radius: 4px;
+}
+
+/* ── Sleeve table ── */
+.sleeve-table { width: 100%; border-collapse: collapse; }
+.sleeve-table th {
+  font-family: var(--f-ui); font-size: 0.58rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted);
+  padding: 0 0 8px; text-align: left; border-bottom: 1px solid var(--border-2);
+}
+.sleeve-table th.num { text-align: right; }
+.sleeve-table td { padding: 8px 0; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.sleeve-table tr:last-child td { border-bottom: none; }
+.td-ticker { font-family: var(--f-mono); font-size: 0.80rem; font-weight: 500; color: var(--text); padding-right: 12px; }
+.td-type   { font-family: var(--f-ui); font-size: 0.68rem; color: var(--text-2); padding-right: 12px; }
+.td-num    { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-2); text-align: right; padding-right: 12px; }
+.td-caveat { font-family: var(--f-ui); font-size: 0.62rem; color: var(--text-muted); padding-top: 2px; font-style: italic; }
+.group-header td {
+  font-family: var(--f-ui); font-size: 0.58rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.10em; color: var(--text-muted);
+  padding: 10px 0 4px; border-bottom: none;
+}
+
+/* ── Paper trade table ── */
+.trade-table { width: 100%; border-collapse: collapse; }
+.trade-table th {
+  font-family: var(--f-ui); font-size: 0.58rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted);
+  padding: 0 0 8px; text-align: left; border-bottom: 1px solid var(--border-2);
+}
+.trade-table td { padding: 7px 0; border-bottom: 1px solid var(--border); font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-2); }
+.trade-table tr:last-child td { border-bottom: none; }
+.trade-table td.td-ticker { color: var(--text); font-weight: 500; }
+.trade-table td.profit { color: var(--green); }
+.trade-table td.loss   { color: var(--red); }
+
+.unavail-notice {
+  background: var(--surface-hi); border: 1px solid var(--border-2); border-radius: 7px;
+  padding: 12px 16px; font-family: var(--f-ui); font-size: 0.68rem; color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ── Attribution metrics grid ── */
+.attr-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+.attr-cell {
+  background: var(--surface-hi); border: 1px solid var(--border-2);
+  border-radius: 9px; padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.attr-label { font-family: var(--f-ui); font-size: 0.58rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+.attr-val   { font-family: var(--f-mono); font-size: 1.10rem; font-weight: 600; color: var(--text); line-height: 1.1; }
+.attr-sub   { font-family: var(--f-ui); font-size: 0.62rem; color: var(--text-2); }
+
+/* ── Sleeves simulated strip ── */
+.sim-strip { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.sim-chip {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--surface-hi); border: 1px solid var(--border-2);
+  border-radius: 5px; padding: 4px 10px;
+}
+.sim-ticker { font-family: var(--f-mono); font-size: 0.72rem; font-weight: 500; color: var(--text); }
+.sim-detail { font-family: var(--f-ui); font-size: 0.62rem; color: var(--text-2); }
+
+/* ── Attribution window / notes ── */
+.attr-note { font-family: var(--f-ui); font-size: 0.65rem; color: var(--text-muted); line-height: 1.55; margin-top: 10px; }
+.attr-window { font-family: var(--f-mono); font-size: 0.65rem; color: var(--text-2); margin-bottom: 8px; }
+
+.footer { text-align: center; padding: 20px 0 0; font-size: 0.65rem; color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav-brand">SPX <em>Strategy</em></span>
+  <div class="nav-links">
+    <a href="/" class="nav-link">Portfolio</a>
+    <a href="/spx" class="nav-link">SPX</a>
+    <a href="/es" class="nav-link">/ES</a>
+    <a href="/q041" class="nav-link active">Q041</a>
+    <a href="/backtest" class="nav-link">Backtest</a>
+    <a href="/performance" class="nav-link">Performance</a>
+    <a href="/margin" class="nav-link">Margin</a>
+  </div>
+  <div class="nav-right" id="nav-date">—</div>
+</nav>
+
+<div class="container">
+
+  <!-- Page hero -->
+  <div class="page-hero">
+    <h1 class="page-title">
+      Q041 Sleeves
+      <span class="page-tier-badge">Observation</span>
+    </h1>
+    <div class="page-meta">
+      <span id="hero-date">—</span>
+      <span class="meta-sep">·</span>
+      <span id="hero-meta">Loading…</span>
+    </div>
+  </div>
+
+  <!-- Sleeve Candidates -->
+  <div class="section-label">Sleeve Candidates</div>
+  <div class="panel" id="sleeve-panel">
+    <div class="panel-header">
+      <span class="panel-title">Active Sleeve List</span>
+      <span class="panel-count" id="sleeve-count">—</span>
+    </div>
+    <div id="sleeve-body"><div class="unavail-notice">Loading…</div></div>
+  </div>
+
+  <!-- Paper Trade Ledger -->
+  <div class="section-label">Paper Trade Ledger</div>
+  <div class="panel" id="ledger-panel">
+    <div class="panel-header">
+      <span class="panel-title">Open Positions</span>
+      <span class="panel-count" id="ledger-count">—</span>
+    </div>
+    <div id="ledger-body"><div class="unavail-notice">Loading…</div></div>
+  </div>
+
+  <!-- Attribution Summary -->
+  <div class="section-label">Attribution Summary <span style="font-weight:400;letter-spacing:0;text-transform:none;color:var(--text-muted);font-size:0.62rem;margin-left:6px">backtest artifact · read-only</span></div>
+  <div class="panel" id="attr-panel">
+    <div id="attr-body"><div class="unavail-notice">Loading…</div></div>
+  </div>
+
+</div>
+
+<div class="footer">
+  Read-only summary — forward-tracking observation. No write paths.
+</div>
+
+<script>
+function fmtNum(n, d) { return typeof n === 'number' ? n.toFixed(d ?? 1) : '—'; }
+
+// ── Sleeve Candidates ─────────────────────────────────────────────────────────
+async function loadSleeves() {
+  const body = document.getElementById('sleeve-body');
+  const count = document.getElementById('sleeve-count');
+  try {
+    const res = await fetch('/api/sleeve-candidates');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    const watching   = (data.sleeve_candidates || []).filter(s => s.candidate_status === 'watching');
+    const due        = (data.sleeve_candidates || []).filter(s => s.candidate_status === 'due');
+    const blocked    = (data.sleeve_candidates || []).filter(s => s.candidate_status === 'blocked_missing_data');
+    const reviewOnly = data.review_only || [];
+    const total = watching.length + due.length + blocked.length + reviewOnly.length;
+
+    count.textContent = total + ' total';
+    document.getElementById('hero-meta').textContent =
+      watching.length + ' watching · ' + reviewOnly.length + ' review-only';
+
+    if (total === 0) {
+      body.innerHTML = '<div class="unavail-notice">No active sleeves</div>';
+      return;
+    }
+
+    function statusBadge(s) {
+      if (s === 'watching') return `<span class="state-badge badge-watching">Watching</span>`;
+      if (s === 'due')      return `<span class="state-badge badge-open-pos">Due</span>`;
+      if (s === 'blocked_missing_data') return `<span class="state-badge badge-blocked">Blocked</span>`;
+      return `<span class="state-badge badge-review">Review only</span>`;
+    }
+
+    function tierLabel(t) {
+      return (t || '').replace('tier', 'T');
+    }
+
+    function sleeveRows(sleeves, groupLabel) {
+      if (sleeves.length === 0) return '';
+      const header = `<tr class="group-header"><td colspan="6">${groupLabel}</td></tr>`;
+      const rows = sleeves.map(s => `
+        <tr>
+          <td class="td-ticker">${s.underlying || '—'}</td>
+          <td class="td-type">${(s.strategy_type || '').toUpperCase().replace('_', ' ')}</td>
+          <td><span class="tier-pill">${tierLabel(s.tier)}</span></td>
+          <td class="td-num">${s.bp_target_pct != null ? s.bp_target_pct.toFixed(0) + '%' : '—'}</td>
+          <td>${statusBadge(s.candidate_status)}</td>
+          <td class="td-type" style="font-style:italic;max-width:260px">${s.caveat || ''}</td>
+        </tr>`).join('');
+      return header + rows;
+    }
+
+    body.innerHTML = `
+      <table class="sleeve-table">
+        <thead>
+          <tr>
+            <th>Underlying</th>
+            <th>Type</th>
+            <th>Tier</th>
+            <th class="num">BP Cap</th>
+            <th>Status</th>
+            <th>Caveat</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sleeveRows([...watching, ...due], 'Active — Watching / Due')}
+          ${sleeveRows(blocked, 'Blocked — Missing Data')}
+          ${sleeveRows(reviewOnly, 'Read Only — Observe Only')}
+        </tbody>
+      </table>`;
+  } catch (e) {
+    body.innerHTML = `<div class="unavail-notice">Sleeve data unavailable: ${e.message}</div>`;
+  }
+}
+
+// ── Paper Trade Ledger ────────────────────────────────────────────────────────
+async function loadLedger() {
+  const body = document.getElementById('ledger-body');
+  const countEl = document.getElementById('ledger-count');
+  try {
+    const res = await fetch('/api/portfolio/summary');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const q = (data.rails || {}).q041_paper || {};
+
+    if (q.status === 'unavailable') {
+      countEl.textContent = 'unavailable';
+      body.innerHTML = `<div class="unavail-notice">Paper trade config not loaded: ${q.reason || 'unknown reason'}</div>`;
+      return;
+    }
+
+    const open   = q.current_paper_positions || [];
+    const recent = q.recent_entries || [];
+    countEl.textContent = open.length + ' open';
+
+    if (open.length === 0 && recent.length === 0) {
+      body.innerHTML = '<div class="unavail-notice">No paper trades on record</div>';
+      return;
+    }
+
+    let html = '';
+
+    if (open.length > 0) {
+      html += `<div style="font-family:var(--f-ui);font-size:0.60rem;font-weight:600;text-transform:uppercase;letter-spacing:0.10em;color:var(--text-muted);margin-bottom:6px">Open Positions</div>
+      <table class="trade-table" style="margin-bottom:16px">
+        <thead><tr>
+          <th>Ticker</th><th>Type</th><th>Opened</th><th>Expiry</th>
+          <th>Entry $</th><th>Mark $</th><th>Unrealized</th>
+        </tr></thead><tbody>`;
+      for (const p of open) {
+        const pnl = p.unrealized_pnl;
+        const pnlCls = pnl == null ? '' : pnl >= 0 ? 'profit' : 'loss';
+        const pnlStr = pnl != null ? (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(0) : '—';
+        html += `<tr>
+          <td class="td-ticker">${p.underlying || '—'}</td>
+          <td>${(p.strategy_type || '').toUpperCase()}</td>
+          <td>${p.opened_at || '—'}</td>
+          <td>${p.expiry || '—'}</td>
+          <td>$${p.entry_premium != null ? Number(p.entry_premium).toFixed(2) : '—'}</td>
+          <td>${p.mark != null ? '$' + Number(p.mark).toFixed(2) : '—'}</td>
+          <td class="${pnlCls}">${pnlStr}</td>
+        </tr>`;
+      }
+      html += '</tbody></table>';
+    }
+
+    if (recent.length > 0) {
+      html += `<div style="font-family:var(--f-ui);font-size:0.60rem;font-weight:600;text-transform:uppercase;letter-spacing:0.10em;color:var(--text-muted);margin-bottom:6px">Recent Entries</div>
+      <table class="trade-table">
+        <thead><tr><th>Ticker</th><th>Type</th><th>Opened</th><th>Closed</th><th>P&L</th></tr></thead><tbody>`;
+      for (const e of recent.slice(0, 10)) {
+        const pnl = e.realized_pnl;
+        const pnlCls = pnl == null ? '' : pnl >= 0 ? 'profit' : 'loss';
+        const pnlStr = pnl != null ? (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(0) : '—';
+        html += `<tr>
+          <td class="td-ticker">${e.underlying || '—'}</td>
+          <td>${(e.strategy_type || '').toUpperCase()}</td>
+          <td>${e.opened_at || '—'}</td>
+          <td>${e.closed_at || '—'}</td>
+          <td class="${pnlCls}">${pnlStr}</td>
+        </tr>`;
+      }
+      html += '</tbody></table>';
+    }
+
+    body.innerHTML = html;
+  } catch (e) {
+    body.innerHTML = `<div class="unavail-notice">Ledger unavailable: ${e.message}</div>`;
+  }
+}
+
+// ── Attribution Summary ───────────────────────────────────────────────────────
+async function loadAttribution() {
+  const body = document.getElementById('attr-body');
+  try {
+    const res = await fetch('/api/portfolio/attribution');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const d = await res.json();
+    if (d.error || d.status !== 'available') throw new Error(d.error || 'unavailable');
+
+    const win  = d.window || {};
+    const bp   = d.joint_bp_diagnostics || {};
+    const idle = d.idle_day_capture || {};
+    const j3   = d.j3_baseline || {};
+    const wdo  = d.worst_day_overlap || {};
+    const sims = d.sleeves_simulated || [];
+
+    // Metrics grid
+    const cells = [
+      { label: 'Δ Avg BP vs J3',   val: '+' + fmtNum(d.delta_avg_bp?.value, 2) + ' pp',  sub: 'J3 baseline ' + fmtNum(j3.mean_bp_pct, 1) + '% → joint ' + fmtNum(bp.mean_pct, 1) + '%' },
+      { label: 'Idle Day Capture', val: fmtNum(idle.value, 0) + 'd',                      sub: fmtNum(idle.share_of_j3_idle_pct, 1) + '% of J3 idle days captured' },
+      { label: 'Joint Mean BP',    val: fmtNum(bp.mean_pct, 1) + '%',                     sub: 'Max ' + fmtNum(bp.max_pct, 0) + '% · >35%: ' + (bp.days_above_35_pct || '—') + 'd' },
+      { label: 'Worst-Day Excess', val: '+' + fmtNum(wdo.excess_overlap_vs_occupancy_pp, 1) + ' pp', sub: 'Overlap ' + fmtNum(wdo.value, 1) + '% vs occ. ' + fmtNum(wdo.q041_open_occupancy_pct, 1) + '%' },
+    ];
+    const gridHtml = cells.map(c => `
+      <div class="attr-cell">
+        <div class="attr-label">${c.label}</div>
+        <div class="attr-val">${c.val}</div>
+        <div class="attr-sub">${c.sub}</div>
+      </div>`).join('');
+
+    // Simulated sleeves chips
+    const simHtml = sims.map(s => `
+      <div class="sim-chip">
+        <span class="sim-ticker">${s.symbol}</span>
+        <span class="sim-detail">${(s.id || '').replace(/_/g,' ')} · ${s.dte}d Δ${Number(s.target_delta).toFixed(2)} · BP${s.bp_cap_pct}% · ${s.n_cycles} cycles</span>
+      </div>`).join('');
+
+    body.innerHTML = `
+      <div class="attr-grid">${gridHtml}</div>
+      <div style="font-family:var(--f-ui);font-size:0.60rem;font-weight:600;text-transform:uppercase;letter-spacing:0.10em;color:var(--text-muted);margin-bottom:6px">Sleeves Simulated</div>
+      <div class="sim-strip">${simHtml}</div>
+      <div class="attr-window">Window: ${win.start || '—'} → ${win.end || '—'} · ${win.trading_days || '—'} trading days</div>
+      <div class="attr-note">${d.notes || ''}</div>`;
+  } catch (_) {
+    body.innerHTML = '<div class="unavail-notice">Attribution artifact unavailable</div>';
+  }
+}
+
+// ── Date ──────────────────────────────────────────────────────────────────────
+const now = new Date();
+const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+document.getElementById('nav-date').textContent = dateStr;
+document.getElementById('hero-date').textContent = dateStr;
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+(async () => { await Promise.allSettled([loadSleeves(), loadLedger(), loadAttribution()]); })();
+</script>
+</body>
+</html>
