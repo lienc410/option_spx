@@ -219,6 +219,55 @@ def _make_row(date_str, equity, daily_pnl, peak_equity,
     return row, end_eq, peak
 
 
+# ─── Actual market data loader (2022+) ───────────────────────────────────────
+
+_HIST_PARQUET = (
+    __import__("pathlib").Path(__file__).resolve().parent.parent.parent.parent
+    / "data" / "q041_historical" / "SPX.parquet"
+)
+
+def _load_actual_prices() -> pd.DataFrame | None:
+    """Load q041_historical/SPX.parquet and return puts-only indexed by (date, expiry, strike)."""
+    try:
+        df = __import__("pandas").read_parquet(_HIST_PARQUET)
+        puts = df[df["option_type"] == "P"][["date", "expiry", "strike", "close", "volume"]].copy()
+        puts["date"]   = __import__("pandas").to_datetime(puts["date"])
+        puts["expiry"] = __import__("pandas").to_datetime(puts["expiry"])
+        puts["dte"]    = (puts["expiry"] - puts["date"]).dt.days
+        return puts
+    except Exception:
+        return None
+
+
+def _actual_entry_price(
+    actual_df: pd.DataFrame,
+    date: "pd.Timestamp",
+    target_strike: float,
+    target_dte: int = 45,
+    dte_window: int = 8,
+    strike_window: float = 100.0,
+) -> float | None:
+    """
+    Look up the closest actual market put price for target_strike ± strike_window,
+    DTE in [target_dte - dte_window, target_dte + dte_window].
+    Returns the close price (in index points) or None if not available.
+    """
+    if actual_df is None:
+        return None
+    day = actual_df[
+        (actual_df["date"] == date)
+        & (actual_df["dte"].between(target_dte - dte_window, target_dte + dte_window))
+        & (actual_df["close"] > 0.10)
+    ]
+    if day.empty:
+        return None
+    nearest = day.iloc[(day["strike"] - target_strike).abs().argsort()].iloc[0]
+    # Reject if strike is more than strike_window away
+    if abs(float(nearest["strike"]) - target_strike) > strike_window:
+        return None
+    return float(nearest["close"])
+
+
 # ─── Phase 1: single 45-DTE slot ─────────────────────────────────────────────
 
 def run_phase1(
@@ -302,6 +351,103 @@ def run_phase1(
     result.daily_rows        = daily_rows
     if len(trades) >= 10:
         result.bootstrap = bootstrap_ci([t.pnl for t in trades])
+    return result
+
+
+def run_phase1_hybrid(
+    mode: Literal["baseline", "filtered"] = "filtered",
+    start_date: str = "2000-01-01",
+    end_date: str | None = None,
+    verbose: bool = False,
+) -> BacktestResult:
+    """
+    Phase 1 with hybrid pricing:
+    - Entry premium: actual market price from q041_historical/SPX.parquet when available (2022+)
+    - Daily MTM and fallback: Black-Scholes (same as run_phase1)
+    - All other logic identical to run_phase1
+    """
+    actual_df = _load_actual_prices()
+    data, full_spx = _load_data()
+    sim = data[data.index >= pd.Timestamp(start_date)]
+    if end_date:
+        sim = sim[sim.index <= pd.Timestamp(end_date)]
+
+    result   = BacktestResult(phase="phase1_hybrid", mode=mode)
+    exp_id   = f"es_puts_p1_hybrid_{mode}"
+    equity   = P1_INITIAL_EQUITY
+    peak_eq  = P1_INITIAL_EQUITY
+    daily_rows: list[DailyPortfolioRow] = []
+    trades: list[PutTrade]              = []
+    positions: dict[int, PutPosition]   = {}
+    actual_hits = 0
+    bs_hits     = 0
+
+    for date, row in sim.iterrows():
+        spx  = float(row["spx"])
+        vix  = float(row["vix"])
+        sig  = vix / 100.0
+        dstr = date.strftime("%Y-%m-%d")
+        daily_pnl = 0.0
+
+        pos = positions.get(P1_ENTRY_DTE)
+        if pos:
+            pos.expiry_dte -= 1
+            cur_val    = put_price(spx, pos.strike, max(pos.expiry_dte, 0), sig)
+            daily_pnl += (pos.prev_val - cur_val) * pos.contracts * SPX_MULTIPLIER
+            reason     = None
+            if   pos.expiry_dte <= GAMMA_DTE:   reason = "gamma_risk"
+            elif cur_val >= pos.stop_premium:    reason = "stop_loss"
+            elif cur_val <= pos.profit_premium:  reason = "profit_target"
+            elif pos.expiry_dte <= 0:            reason = "expiry"
+            if reason:
+                pnl_total = (pos.entry_premium - cur_val) * pos.contracts * SPX_MULTIPLIER
+                trades.append(PutTrade(
+                    slot=P1_ENTRY_DTE, entry_date=pos.entry_date, exit_date=dstr,
+                    entry_spx=pos.entry_spx, exit_spx=spx, entry_vix=pos.entry_vix,
+                    entry_premium=pos.entry_premium, exit_premium=cur_val,
+                    dte_at_entry=P1_ENTRY_DTE, dte_at_exit=pos.expiry_dte,
+                    exit_reason=reason, contracts=pos.contracts, pnl=pnl_total,
+                ))
+                del positions[P1_ENTRY_DTE]
+            else:
+                pos.prev_val = cur_val
+
+        if P1_ENTRY_DTE not in positions:
+            window   = full_spx[full_spx.index <= date].iloc[-200:]
+            trend_ok = True
+            if mode == "filtered":
+                trend_ok = (_trend(window, spx) == TrendSignal.BULLISH)
+            if trend_ok and len(window) >= WARMUP_DAYS:
+                k    = find_strike_for_delta(spx, P1_ENTRY_DTE, sig, TARGET_DELTA, False)
+                # Hybrid: prefer actual market price for entry
+                actual_price = _actual_entry_price(actual_df, date, k)
+                if actual_price is not None:
+                    prem = actual_price
+                    actual_hits += 1
+                else:
+                    prem = put_price(spx, k, P1_ENTRY_DTE, sig)
+                    bs_hits += 1
+                if prem > 0.5:
+                    n = _contracts(equity, P1_BP_TARGET, spx, k, prem)
+                    positions[P1_ENTRY_DTE] = PutPosition(
+                        slot=P1_ENTRY_DTE, entry_date=dstr, expiry_dte=P1_ENTRY_DTE,
+                        strike=k, entry_premium=prem, entry_spx=spx, entry_vix=vix,
+                        contracts=n, bp_used=n * _bp_per_contract(spx, k, prem),
+                        stop_premium=prem * STOP_MULT, profit_premium=prem * PROFIT_TARGET,
+                        prev_val=prem,
+                    )
+
+        dr, equity, peak_eq = _make_row(dstr, equity, daily_pnl, peak_eq, positions, vix, exp_id)
+        daily_rows.append(dr)
+
+    result.trades            = trades
+    result.portfolio_metrics = compute_portfolio_metrics(daily_rows).to_dict()
+    result.daily_rows        = daily_rows
+    if len(trades) >= 10:
+        result.bootstrap = bootstrap_ci([t.pnl for t in trades])
+    # Attach pricing source stats
+    result.portfolio_metrics["actual_market_entries"] = actual_hits
+    result.portfolio_metrics["bs_fallback_entries"]   = bs_hits
     return result
 
 

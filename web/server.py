@@ -184,6 +184,11 @@ def portfolio_backtest_page():
     return render_template("portfolio_backtest.html")
 
 
+@app.route("/es-backtest")
+def es_backtest_page():
+    return render_template("es_backtest.html")
+
+
 @app.route("/matrix")
 def matrix_page():
     return render_template("matrix.html")
@@ -356,6 +361,99 @@ def api_portfolio_bp_timeline():
                     "j3_n_open": int(float(row["j3_n_open"])) if row.get("j3_n_open") not in (None, "") else 0,
                 })
         return jsonify({"status": "ok", "rows": rows, "count": len(rows)})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+_ES_BT_CACHE: dict = {}
+
+@app.route("/api/es/backtest")
+def api_es_backtest():
+    import json, hashlib, time
+    from pathlib import Path
+
+    mode       = flask_req.args.get("mode", "filtered")   # filtered | baseline | both
+    start_date = flask_req.args.get("start", "2000-01-01")
+    use_hybrid = flask_req.args.get("hybrid", "1") == "1"
+    cache_key  = f"{mode}:{start_date}:{use_hybrid}"
+
+    # In-memory cache (cleared on server restart)
+    if cache_key in _ES_BT_CACHE:
+        return jsonify(_ES_BT_CACHE[cache_key])
+
+    def _serialize_result(r, label):
+        trades_out = [
+            {
+                "entry_date":    t.entry_date,
+                "exit_date":     t.exit_date,
+                "entry_spx":     round(t.entry_spx, 1),
+                "exit_spx":      round(t.exit_spx, 1),
+                "entry_vix":     round(t.entry_vix, 1),
+                "entry_premium": round(t.entry_premium, 2),
+                "exit_premium":  round(t.exit_premium, 2),
+                "dte_at_entry":  t.dte_at_entry,
+                "dte_at_exit":   t.dte_at_exit,
+                "exit_reason":   t.exit_reason,
+                "contracts":     round(t.contracts, 4),
+                "pnl":           round(t.pnl, 2),
+            }
+            for t in r.trades
+        ]
+        # Sample equity curve (every 5 days to reduce payload)
+        equity_rows = [
+            {"date": dr.date, "equity": round(dr.end_equity, 2)}
+            for i, dr in enumerate(r.daily_rows)
+            if i % 5 == 0
+        ]
+        wins   = [t for t in r.trades if t.pnl > 0]
+        stops  = [t for t in r.trades if t.exit_reason == "stop_loss"]
+        profits = [t for t in r.trades if t.exit_reason == "profit_target"]
+        total_pnl = sum(t.pnl for t in r.trades)
+        m = r.portfolio_metrics
+        return {
+            "label":          label,
+            "phase":          r.phase,
+            "trades":         trades_out,
+            "equity_curve":   equity_rows,
+            "summary": {
+                "n_trades":          len(r.trades),
+                "win_rate_pct":      round(len(wins) / len(r.trades) * 100, 1) if r.trades else 0,
+                "stop_rate_pct":     round(len(stops) / len(r.trades) * 100, 1) if r.trades else 0,
+                "profit_target_pct": round(len(profits) / len(r.trades) * 100, 1) if r.trades else 0,
+                "total_pnl":         round(total_pnl, 0),
+                "ann_return_pct":    m.get("ann_return"),
+                "sharpe":            m.get("daily_sharpe"),
+                "max_drawdown_pct":  round(abs(m.get("max_drawdown", 0) or 0) * 100, 2),
+                "actual_market_entries": m.get("actual_market_entries"),
+                "bs_fallback_entries":   m.get("bs_fallback_entries"),
+            },
+        }
+
+    try:
+        from research.strategies.ES_puts.backtest import run_phase1, run_phase1_hybrid
+        run_fn = run_phase1_hybrid if use_hybrid else run_phase1
+
+        if mode == "both":
+            rf = run_fn(mode="filtered",  start_date=start_date)
+            rb = run_fn(mode="baseline",  start_date=start_date)
+            payload = {
+                "status":   "ok",
+                "filtered": _serialize_result(rf, "Trend Filter ON"),
+                "baseline": _serialize_result(rb, "No Filter"),
+                "start_date": start_date,
+                "pricing":    "hybrid_actual+bs" if use_hybrid else "black_scholes",
+            }
+        else:
+            r = run_fn(mode=mode, start_date=start_date)
+            payload = {
+                "status":   "ok",
+                mode:       _serialize_result(r, "Trend Filter ON" if mode == "filtered" else "No Filter"),
+                "start_date": start_date,
+                "pricing":    "hybrid_actual+bs" if use_hybrid else "black_scholes",
+            }
+
+        _ES_BT_CACHE[cache_key] = payload
+        return jsonify(payload)
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 
