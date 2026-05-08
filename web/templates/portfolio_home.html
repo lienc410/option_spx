@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portfolio · Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:            #080A13;
+  --surface:       #0D1020;
+  --surface-hi:    #131728;
+  --border:        #191E33;
+  --border-2:      #232A42;
+  --text:          #C4CEEC;
+  --text-2:        #606880;
+  --text-muted:    #363C52;
+  --gold:          #C9A840;
+  --gold-bg:       rgba(201,168,64,0.07);
+  --gold-border:   rgba(201,168,64,0.22);
+  --green:         #42CC7C;
+  --green-bg:      rgba(66,204,124,0.07);
+  --green-border:  rgba(66,204,124,0.22);
+  --red:           #E04862;
+  --red-bg:        rgba(224,72,98,0.07);
+  --red-border:    rgba(224,72,98,0.22);
+  --blue:          #4888E8;
+  --blue-bg:       rgba(72,136,232,0.07);
+  --blue-border:   rgba(72,136,232,0.22);
+  --orange:        #E08040;
+  --orange-bg:     rgba(224,128,64,0.07);
+  --orange-border: rgba(224,128,64,0.22);
+  --gray-bg:       rgba(96,104,128,0.08);
+  --gray-border:   rgba(96,104,128,0.2);
+
+  --f-display: 'Newsreader', Georgia, serif;
+  --f-mono:    'JetBrains Mono', 'Courier New', monospace;
+  --f-ui:      'DM Sans', system-ui, sans-serif;
+}
+
+html { font-size: 14px; }
+body {
+  font-family: var(--f-ui);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.55;
+}
+
+/* ── Nav ── */
+.nav {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px;
+  height: 50px;
+  background: rgba(8,10,19,0.88);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.nav-brand {
+  font-family: var(--f-display);
+  font-size: 1.05rem;
+  color: var(--text);
+  letter-spacing: 0.01em;
+  user-select: none;
+}
+.nav-brand em { color: var(--gold); font-style: italic; }
+.nav-links { display: flex; gap: 2px; }
+.nav-link {
+  font-size: 0.76rem; font-weight: 500;
+  color: var(--text-2);
+  text-decoration: none;
+  padding: 5px 13px; border-radius: 5px;
+  letter-spacing: 0.03em;
+  transition: color 0.15s, background 0.15s;
+}
+.nav-link:hover          { color: var(--text);  background: var(--surface-hi); }
+.nav-link.active         { color: var(--gold);  background: var(--gold-bg); }
+.nav-right {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--f-mono); font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+/* ── Layout ── */
+.container { max-width: 880px; margin: 0 auto; padding: 26px 24px 72px; }
+
+/* ── Page hero ── */
+.page-hero {
+  margin-bottom: 28px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--border);
+}
+.page-title {
+  font-family: var(--f-display);
+  font-size: 2.10rem;
+  font-weight: 400;
+  line-height: 1.15;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.page-title em {
+  font-style: italic;
+  color: var(--gold);
+}
+.page-meta {
+  font-family: var(--f-mono);
+  font-size: 0.68rem;
+  color: var(--text-2);
+  letter-spacing: 0.02em;
+}
+.page-meta .meta-sep { color: var(--text-muted); margin: 0 6px; }
+
+/* ── Section titles ── */
+.section-title {
+  font-family: var(--f-ui);
+  font-size: 0.60rem; font-weight: 700;
+  letter-spacing: 0.13em; text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+/* ── Today's Actions zone ── */
+.actions-zone {
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: 9px;
+  padding: 16px 20px;
+  margin-bottom: 12px;
+}
+
+.action-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0 10px 14px;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  margin-left: -20px;
+  padding-left: 17px;
+  transition: border-left-color 0.15s;
+}
+.action-row:last-child { border-bottom: none; }
+.action-row.tier-primary   { border-left-color: rgba(201,168,64,0.55); }
+.action-row.tier-secondary { border-left-color: rgba(224,128,64,0.50); }
+.action-row.tier-tertiary  { border-left-color: rgba(96,104,128,0.35); }
+
+.action-strat-name {
+  min-width: 80px;
+}
+.strat-primary {
+  font-family: var(--f-display);
+  font-style: italic;
+  font-size: 1.05rem;
+  color: var(--text);
+}
+.strat-secondary {
+  font-family: var(--f-ui);
+  font-size: 0.76rem;
+  color: var(--text);
+}
+.strat-tertiary {
+  font-family: var(--f-ui);
+  font-size: 0.72rem;
+  color: var(--text-2);
+}
+
+/* ── Action state badge ── */
+.state-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 5px;
+  font-family: var(--f-ui);
+  font-size: 0.60rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  white-space: nowrap;
+}
+.badge-open     { color: var(--green);      background: var(--green-bg);  border: 1px solid var(--green-border); }
+.badge-hold     { color: var(--blue);       background: var(--blue-bg);   border: 1px solid var(--blue-border); }
+.badge-close    { color: var(--red);        background: var(--red-bg);    border: 1px solid var(--red-border); }
+.badge-wait     { color: var(--text-muted); background: var(--gray-bg);   border: 1px solid var(--gray-border); }
+.badge-blocked  { color: var(--text-muted); background: var(--gray-bg);   border: 1px solid var(--gray-border); opacity: 0.6; }
+.badge-review   { color: var(--gold);       background: var(--gold-bg);   border: 1px solid var(--gold-border); }
+.badge-readonly { color: var(--text-muted); background: var(--gray-bg);   border: 1px solid var(--gray-border); }
+.badge-unavail  { color: var(--text-muted); background: var(--gray-bg);   border: 1px solid var(--gray-border); font-style: italic; }
+
+.action-summary {
+  font-family: var(--f-ui);
+  font-size: 0.69rem;
+  color: var(--text-2);
+  flex: 1;
+}
+
+/* ── Portfolio Snapshot zone ── */
+.snapshot-zone {
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: 9px;
+  padding: 16px 20px;
+  margin-bottom: 12px;
+}
+
+.snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.snapshot-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--surface-hi);
+  border: 1px solid var(--border-2);
+  border-radius: 9px;
+  padding: 14px 16px;
+}
+.snapshot-cell.cell-idle {
+  border-color: var(--blue-border);
+  background: var(--blue-bg);
+}
+.snapshot-cell.cell-idle .snapshot-val { color: var(--blue); }
+.snapshot-label {
+  font-family: var(--f-ui);
+  font-size: 0.60rem; font-weight: 600;
+  letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.snapshot-val {
+  font-family: var(--f-mono);
+  font-size: 1.60rem; font-weight: 600;
+  color: var(--text);
+  line-height: 1.1;
+}
+
+/* ── Composite BP bar ── */
+.bp-composite-wrap { margin-bottom: 14px; }
+.bp-composite-label {
+  font-family: var(--f-ui);
+  font-size: 0.60rem; font-weight: 600;
+  letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.bp-composite-track {
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--border-2);
+  overflow: hidden;
+  display: flex;
+}
+.bp-seg {
+  height: 100%;
+  transition: width 0.45s ease;
+}
+.bp-seg-spx  { background: var(--gold); }
+.bp-seg-es   { background: var(--orange); }
+.bp-seg-q041 { background: var(--blue); }
+.bp-composite-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 6px;
+}
+.bp-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--f-mono);
+  font-size: 0.65rem;
+  color: var(--text-2);
+}
+.bp-legend-dot {
+  width: 7px; height: 7px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+.dot-spx  { background: var(--gold); }
+.dot-es   { background: var(--orange); }
+.dot-q041 { background: var(--blue); }
+.dot-idle { background: var(--border-2); border: 1px solid var(--border); }
+
+.bp-buckets {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+.bp-bucket-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+.bp-bucket-label {
+  font-family: var(--f-ui);
+  font-size: 0.68rem;
+  color: var(--text-2);
+  min-width: 160px;
+}
+.bp-bucket-bar-wrap {
+  flex: 1;
+  height: 6px;
+  background: var(--border-2);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+.bp-bucket-bar {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.45s ease;
+}
+.bar-spx   { background: var(--gold); }
+.bar-q041  { background: var(--blue); }
+.bp-bucket-pct {
+  font-family: var(--f-mono);
+  font-size: 0.68rem;
+  color: var(--text);
+  min-width: 42px;
+  text-align: right;
+}
+
+.snapshot-note {
+  font-family: var(--f-ui);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-top: 10px;
+  font-style: italic;
+}
+
+.snapshot-unavail {
+  font-family: var(--f-ui);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 8px 0;
+}
+
+.footer {
+  text-align: center;
+  padding: 20px 0 0;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav-brand">SPX <em>Strategy</em></span>
+  <div class="nav-links">
+    <a href="/" class="nav-link active">Portfolio</a>
+    <a href="/spx" class="nav-link">SPX</a>
+    <a href="/es" class="nav-link" style="opacity:0.45;pointer-events:none">/ES</a>
+    <a href="/q041" class="nav-link" style="opacity:0.45;pointer-events:none">Q041</a>
+    <a href="/backtest" class="nav-link">Backtest</a>
+  </div>
+  <div class="nav-right">
+    <span id="nav-date">—</span>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- Page hero -->
+  <div class="page-hero">
+    <h1 class="page-title">Portfolio <em>Command Center</em></h1>
+    <div class="page-meta">
+      <span id="hero-date">—</span>
+      <span class="meta-sep">·</span>
+      <span>SPX · /ES · Q041 Sleeves</span>
+    </div>
+  </div>
+
+  <!-- Today's Actions zone -->
+  <div class="actions-zone">
+    <div class="section-title">Today's Actions</div>
+
+    <!-- SPX row -->
+    <div class="action-row tier-primary" id="row-spx">
+      <div class="action-strat-name">
+        <span class="strat-primary">SPX</span>
+      </div>
+      <span class="state-badge badge-wait" id="badge-spx">WAIT</span>
+      <div class="action-summary" id="summary-spx">Loading…</div>
+    </div>
+
+    <!-- /ES row -->
+    <div class="action-row tier-secondary" id="row-es">
+      <div class="action-strat-name">
+        <span class="strat-secondary">/ES</span>
+      </div>
+      <span class="state-badge badge-wait" id="badge-es">WAIT</span>
+      <div class="action-summary" id="summary-es">Loading…</div>
+    </div>
+
+    <!-- Q041 row -->
+    <div class="action-row tier-tertiary" id="row-q041">
+      <div class="action-strat-name">
+        <span class="strat-tertiary">Q041 Sleeves</span>
+      </div>
+      <span class="state-badge badge-wait" id="badge-q041">WAIT</span>
+      <div class="action-summary" id="summary-q041">Loading…</div>
+    </div>
+
+  </div>
+
+  <!-- Portfolio Snapshot zone -->
+  <div class="snapshot-zone">
+    <div class="section-title">Portfolio Snapshot</div>
+    <div id="snapshot-body">
+      <div class="snapshot-unavail">Loading portfolio data…</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  Read-only summary — all values from existing strategy APIs. No write paths.
+</div>
+
+<script>
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function fmtPct(n) {
+  return typeof n === 'number' ? n.toFixed(1) + '%' : '—';
+}
+
+// ── SPX badge mapping ────────────────────────────────────────────────────────
+function spxBadge(data) {
+  const action = String(data.position_action || '').toUpperCase();
+  const open = !!data.open;
+  if (action === 'OPEN' || action === 'CLOSE_AND_OPEN') {
+    return { cls: 'badge-open', label: 'OPEN' };
+  }
+  if (action === 'CLOSE') {
+    return { cls: 'badge-close', label: 'CLOSE' };
+  }
+  if (action === 'WAIT' || action === 'CLOSE_AND_WAIT') {
+    return { cls: 'badge-wait', label: 'WAIT' };
+  }
+  if (open) {
+    return { cls: 'badge-hold', label: 'HOLD' };
+  }
+  return { cls: 'badge-wait', label: 'WAIT' };
+}
+
+// ── /ES badge mapping ────────────────────────────────────────────────────────
+function esBadge(data) {
+  const key = String(data.strategy_key || '');
+  const blocked = !!data.blocked;
+  if (blocked || key === 'reduce_wait') {
+    return { cls: 'badge-blocked', label: 'BLOCKED' };
+  }
+  return { cls: 'badge-open', label: 'OPEN' };
+}
+
+// ── Q041 badge mapping ───────────────────────────────────────────────────────
+function q041Badge(data) {
+  const candidates = data.sleeve_candidates || [];
+  const reviewOnly = data.review_only || [];
+  const all = [...candidates, ...reviewOnly];
+  if (all.length === 0) {
+    return { cls: 'badge-wait', label: 'WAIT' };
+  }
+  const statuses = all.map(c => String(c.candidate_status || '').toLowerCase());
+  if (statuses.some(s => s === 'watching')) {
+    return { cls: 'badge-review', label: 'REVIEW' };
+  }
+  if (statuses.every(s => s === 'review_only')) {
+    return { cls: 'badge-readonly', label: 'READ ONLY' };
+  }
+  return { cls: 'badge-wait', label: 'WAIT' };
+}
+
+// ── Apply badge to element ───────────────────────────────────────────────────
+function applyBadge(id, badgeObj) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'state-badge ' + badgeObj.cls;
+  el.textContent = badgeObj.label;
+}
+
+function setUnavail(badgeId, summaryId) {
+  const badge = document.getElementById(badgeId);
+  if (badge) {
+    badge.className = 'state-badge badge-unavail';
+    badge.textContent = 'N/A';
+  }
+  const summary = document.getElementById(summaryId);
+  if (summary) {
+    summary.textContent = '[API UNAVAILABLE]';
+  }
+}
+
+// ── Load SPX ─────────────────────────────────────────────────────────────────
+async function loadSpx() {
+  try {
+    const res = await fetch('/api/recommendation');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    applyBadge('badge-spx', spxBadge(data));
+    const strategy = data.strategy || 'SPX Options';
+    const action = data.position_action || '';
+    const date = (data.vix_snapshot || {}).date || '';
+    document.getElementById('summary-spx').textContent =
+      strategy + (action ? ' · ' + action : '') + (date ? ' · ' + date : '');
+  } catch (_) {
+    setUnavail('badge-spx', 'summary-spx');
+  }
+}
+
+// ── Load /ES ─────────────────────────────────────────────────────────────────
+async function loadEs() {
+  try {
+    const res = await fetch('/api/es/recommendation');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    applyBadge('badge-es', esBadge(data));
+    const strategy = data.strategy || '/ES Short Put';
+    const key = data.strategy_key || '';
+    document.getElementById('summary-es').textContent =
+      strategy + (key && key !== 'reduce_wait' ? ' · ' + key : key === 'reduce_wait' ? ' · reduce/wait' : '');
+  } catch (_) {
+    setUnavail('badge-es', 'summary-es');
+  }
+}
+
+// ── Load Q041 ────────────────────────────────────────────────────────────────
+async function loadQ041() {
+  try {
+    const res = await fetch('/api/sleeve-candidates');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    applyBadge('badge-q041', q041Badge(data));
+    const candidates = data.sleeve_candidates || [];
+    const reviewOnly = data.review_only || [];
+    const watchCount = candidates.filter(c => c.candidate_status === 'watching').length;
+    const roCount = reviewOnly.length;
+    let summary = '';
+    if (watchCount > 0) summary += watchCount + ' watching';
+    if (roCount > 0) summary += (summary ? ' · ' : '') + roCount + ' review-only';
+    document.getElementById('summary-q041').textContent = summary || 'No active sleeves';
+  } catch (_) {
+    setUnavail('badge-q041', 'summary-q041');
+  }
+}
+
+// ── Load Portfolio Snapshot ──────────────────────────────────────────────────
+async function loadSnapshot() {
+  const body = document.getElementById('snapshot-body');
+  try {
+    const res = await fetch('/api/portfolio/summary');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    const buckets = data.bp_usage_by_bucket || {};
+    const totalPct = typeof data.total_used_bp_pct === 'number' ? data.total_used_bp_pct : null;
+    const idlePct = typeof data.idle_capacity_pct === 'number' ? data.idle_capacity_pct : null;
+
+    // Count open positions
+    const rails = data.rails || {};
+    const spxOpen = (rails.spx_live || {}).status === 'open' ? 1 : 0;
+    const q041Positions = ((rails.q041_paper || {}).current_paper_positions || []).length;
+    const openCount = spxOpen + q041Positions;
+
+    // Build bar for a bucket (clamp 0–100)
+    function barHtml(label, pct, barClass) {
+      const width = typeof pct === 'number' ? Math.min(Math.max(pct, 0), 100).toFixed(1) : '0';
+      const display = typeof pct === 'number' ? pct.toFixed(1) + '%' : '—';
+      return `
+        <div class="bp-bucket-row">
+          <div class="bp-bucket-label">${label}</div>
+          <div class="bp-bucket-bar-wrap">
+            <div class="bp-bucket-bar ${barClass}" style="width:${width}%"></div>
+          </div>
+          <div class="bp-bucket-pct">${display}</div>
+        </div>`;
+    }
+
+    // Build composite segmented bar
+    const spxW  = typeof buckets.spx_live_bp_pct  === 'number' ? Math.min(buckets.spx_live_bp_pct,  100) : 0;
+    const q1W   = typeof buckets.q041_tier1_bp_pct === 'number' ? Math.min(buckets.q041_tier1_bp_pct, 100) : 0;
+    const q2W   = typeof buckets.q041_tier2_bp_pct === 'number' ? Math.min(buckets.q041_tier2_bp_pct, 100) : 0;
+    const q3W   = typeof buckets.q041_tier3_bp_pct === 'number' ? Math.min(buckets.q041_tier3_bp_pct, 100) : 0;
+    const q041W = Math.min(q1W + q2W + q3W, 100);
+    const usedW = Math.min(spxW + q041W, 100);
+    const idleW = Math.max(100 - usedW, 0);
+
+    body.innerHTML = `
+      <div class="snapshot-grid">
+        <div class="snapshot-cell">
+          <div class="snapshot-label">Total BP Used</div>
+          <div class="snapshot-val">${fmtPct(totalPct)}</div>
+        </div>
+        <div class="snapshot-cell cell-idle">
+          <div class="snapshot-label">Idle Capacity</div>
+          <div class="snapshot-val">${fmtPct(idlePct)}</div>
+        </div>
+        <div class="snapshot-cell">
+          <div class="snapshot-label">Open Positions</div>
+          <div class="snapshot-val">${openCount}</div>
+        </div>
+      </div>
+      <div class="bp-composite-wrap">
+        <div class="bp-composite-label">Buying Power Allocation</div>
+        <div class="bp-composite-track">
+          <div class="bp-seg bp-seg-spx"  style="width:${spxW.toFixed(1)}%"></div>
+          <div class="bp-seg bp-seg-q041" style="width:${q041W.toFixed(1)}%"></div>
+        </div>
+        <div class="bp-composite-legend">
+          <div class="bp-legend-item"><div class="bp-legend-dot dot-spx"></div>SPX Live ${spxW.toFixed(1)}%</div>
+          <div class="bp-legend-item"><div class="bp-legend-dot dot-q041"></div>Q041 ${q041W.toFixed(1)}%</div>
+          <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>
+        </div>
+      </div>
+      <div class="bp-buckets">
+        ${barHtml('SPX Live', buckets.spx_live_bp_pct, 'bar-spx')}
+        ${barHtml('Q041 Tier 1', buckets.q041_tier1_bp_pct, 'bar-q041')}
+        ${barHtml('Q041 Tier 2', buckets.q041_tier2_bp_pct, 'bar-q041')}
+        ${barHtml('Q041 Tier 3', buckets.q041_tier3_bp_pct, 'bar-q041')}
+      </div>
+      <div class="snapshot-note">/ES BP bucket — Phase 2</div>`;
+  } catch (_) {
+    body.innerHTML = '<div class="snapshot-unavail">Portfolio data unavailable</div>';
+  }
+}
+
+// ── Set nav + hero date ───────────────────────────────────────────────────────
+const now = new Date();
+const dateStr = now.toLocaleDateString('en-US', {
+  weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
+});
+document.getElementById('nav-date').textContent = dateStr;
+document.getElementById('hero-date').textContent = dateStr;
+
+// ── Boot: fetch all in parallel ──────────────────────────────────────────────
+(async () => {
+  await Promise.allSettled([
+    loadSpx(),
+    loadEs(),
+    loadQ041(),
+    loadSnapshot(),
+  ]);
+})();
+</script>
+</body>
+</html>
