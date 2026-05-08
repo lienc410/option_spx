@@ -422,27 +422,31 @@ body {
   background: var(--border-2); overflow: hidden; display: flex;
 }
 .bp-seg { height: 100%; transition: width 0.45s ease; }
-.bp-seg-spx  { background: var(--gold); }
-.bp-seg-es   { background: var(--orange); }
-.bp-seg-q041 { background: var(--blue); }
-.bp-composite-legend { display: flex; gap: 16px; margin-top: 6px; }
+.bp-seg-spx    { background: var(--gold); }
+.bp-seg-es     { background: var(--orange); }
+.bp-seg-equity { background: #4a7c59; }
+.bp-seg-q041   { background: var(--blue); }
+.bp-composite-legend { display: flex; gap: 16px; margin-top: 6px; flex-wrap: wrap; }
 .bp-legend-item {
   display: flex; align-items: center; gap: 5px;
   font-family: var(--f-mono); font-size: 0.65rem; color: var(--text-2);
 }
 .bp-legend-dot { width: 7px; height: 7px; border-radius: 9999px; flex-shrink: 0; }
-.dot-spx  { background: var(--gold); }
-.dot-es   { background: var(--orange); }
-.dot-q041 { background: var(--blue); }
-.dot-idle { background: var(--border-2); border: 1px solid var(--border); }
+.dot-spx    { background: var(--gold); }
+.dot-es     { background: var(--orange); }
+.dot-equity { background: #4a7c59; }
+.dot-q041   { background: var(--blue); }
+.dot-idle   { background: var(--border-2); border: 1px solid var(--border); }
 
 .bp-buckets { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 4px; }
 .bp-bucket-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
 .bp-bucket-label { font-family: var(--f-ui); font-size: 0.68rem; color: var(--text-2); min-width: 160px; }
+.bp-bucket-note { font-size: 0.60rem; color: var(--text-muted); margin-left: 4px; }
 .bp-bucket-bar-wrap { flex: 1; height: 6px; background: var(--border-2); border-radius: 9999px; overflow: hidden; }
 .bp-bucket-bar { height: 100%; border-radius: 9999px; transition: width 0.45s ease; }
-.bar-spx  { background: var(--gold); }
-.bar-q041 { background: var(--blue); }
+.bar-spx    { background: var(--gold); }
+.bar-equity { background: #4a7c59; }
+.bar-q041   { background: var(--blue); }
 .bp-bucket-pct { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text); min-width: 42px; text-align: right; }
 
 .snapshot-note { font-family: var(--f-ui); font-size: 0.65rem; color: var(--text-muted); margin-top: 10px; font-style: italic; }
@@ -628,6 +632,7 @@ body {
 <script>
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtPct(n) { return typeof n === 'number' ? n.toFixed(1) + '%' : '—'; }
+function fmtDollars(n) { return typeof n === 'number' ? '$' + Math.round(n).toLocaleString() : '—'; }
 function fmtNum(n, dec) { return typeof n === 'number' ? n.toFixed(dec ?? 0) : '—'; }
 function fmtPrice(n) {
   return typeof n === 'number'
@@ -892,36 +897,44 @@ async function loadSnapshot() {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
 
-    const buckets  = data.bp_usage_by_bucket || {};
-    const totalPct = typeof data.total_used_bp_pct === 'number' ? data.total_used_bp_pct : null;
-    const idlePct  = typeof data.idle_capacity_pct === 'number' ? data.idle_capacity_pct : null;
-    const rails    = data.rails || {};
-    const spxOpen  = (rails.spx_live || {}).status === 'open' ? 1 : 0;
-    const q041Pos  = ((rails.q041_paper || {}).current_paper_positions || []).length;
+    const buckets   = data.bp_usage_by_bucket || {};
+    const totalReal = typeof data.total_real_margin_pct === 'number' ? data.total_real_margin_pct : null;
+    const idlePct   = typeof data.idle_capacity_pct === 'number' ? data.idle_capacity_pct : null;
+    const rails     = data.rails || {};
+    const spxOpen   = (rails.spx_live || {}).status === 'open' ? 1 : 0;
+    const q041Pos   = ((rails.q041_paper || {}).current_paper_positions || []).length;
     const openCount = spxOpen + q041Pos;
 
-    function barHtml(label, pct, barClass) {
+    function barHtml(label, pct, barClass, note) {
       const w = typeof pct === 'number' ? Math.min(Math.max(pct, 0), 100).toFixed(1) : '0';
       const d = typeof pct === 'number' ? pct.toFixed(1) + '%' : '—';
+      const n = note ? `<span class="bp-bucket-note">${note}</span>` : '';
       return `<div class="bp-bucket-row">
-        <div class="bp-bucket-label">${label}</div>
+        <div class="bp-bucket-label">${label}${n}</div>
         <div class="bp-bucket-bar-wrap"><div class="bp-bucket-bar ${barClass}" style="width:${w}%"></div></div>
         <div class="bp-bucket-pct">${d}</div>
       </div>`;
     }
 
-    const spxW  = typeof buckets.spx_live_bp_pct  === 'number' ? Math.min(buckets.spx_live_bp_pct,  100) : 0;
-    const q1W   = typeof buckets.q041_tier1_bp_pct === 'number' ? Math.min(buckets.q041_tier1_bp_pct, 100) : 0;
-    const q2W   = typeof buckets.q041_tier2_bp_pct === 'number' ? Math.min(buckets.q041_tier2_bp_pct, 100) : 0;
-    const q3W   = typeof buckets.q041_tier3_bp_pct === 'number' ? Math.min(buckets.q041_tier3_bp_pct, 100) : 0;
-    const q041W = Math.min(q1W + q2W + q3W, 100);
-    const idleW = Math.max(100 - Math.min(spxW + q041W, 100), 0);
+    const spxW    = typeof buckets.spx_live_bp_pct     === 'number' ? Math.min(buckets.spx_live_bp_pct,     100) : 0;
+    const eqW     = typeof buckets.equity_margin_bp_pct === 'number' ? Math.min(buckets.equity_margin_bp_pct, 100) : 0;
+    const q1W     = typeof buckets.q041_tier1_bp_pct    === 'number' ? Math.min(buckets.q041_tier1_bp_pct,    100) : 0;
+    const q2W     = typeof buckets.q041_tier2_bp_pct    === 'number' ? Math.min(buckets.q041_tier2_bp_pct,    100) : 0;
+    const q3W     = typeof buckets.q041_tier3_bp_pct    === 'number' ? Math.min(buckets.q041_tier3_bp_pct,    100) : 0;
+    const q041W   = Math.min(q1W + q2W + q3W, 100);
+    const realUsed = Math.min(spxW + eqW, 100);
+    const idleW   = Math.max(100 - Math.min(realUsed + q041W, 100), 0);
+
+    const eqDollars = buckets.equity_margin_dollars;
+    const eqNote = typeof eqDollars === 'number'
+      ? fmtDollars(eqDollars) + ' (15% haircut)'
+      : '15% haircut';
 
     body.innerHTML = `
       <div class="snapshot-grid">
         <div class="snapshot-cell">
-          <div class="snapshot-label">Total BP Used</div>
-          <div class="snapshot-val">${fmtPct(totalPct)}</div>
+          <div class="snapshot-label">Total Margin</div>
+          <div class="snapshot-val">${fmtPct(totalReal)}</div>
         </div>
         <div class="snapshot-cell cell-idle">
           <div class="snapshot-label">Idle Capacity</div>
@@ -933,24 +946,27 @@ async function loadSnapshot() {
         </div>
       </div>
       <div class="bp-composite-wrap">
-        <div class="bp-composite-label">Buying Power Allocation</div>
+        <div class="bp-composite-label">Margin Allocation (% NLV)</div>
         <div class="bp-composite-track">
-          <div class="bp-seg bp-seg-spx"  style="width:${spxW.toFixed(1)}%"></div>
-          <div class="bp-seg bp-seg-q041" style="width:${q041W.toFixed(1)}%"></div>
+          <div class="bp-seg bp-seg-spx"    style="width:${spxW.toFixed(1)}%"></div>
+          <div class="bp-seg bp-seg-equity" style="width:${eqW.toFixed(1)}%"></div>
+          <div class="bp-seg bp-seg-q041"   style="width:${q041W.toFixed(1)}%"></div>
         </div>
         <div class="bp-composite-legend">
           <div class="bp-legend-item"><div class="bp-legend-dot dot-spx"></div>SPX ${spxW.toFixed(1)}%</div>
+          <div class="bp-legend-item"><div class="bp-legend-dot dot-equity"></div>Equity ${eqW.toFixed(1)}%</div>
           <div class="bp-legend-item"><div class="bp-legend-dot dot-q041"></div>Q041 ${q041W.toFixed(1)}%</div>
           <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>
         </div>
       </div>
       <div class="bp-buckets">
-        ${barHtml('SPX Live', buckets.spx_live_bp_pct, 'bar-spx')}
-        ${barHtml('Q041 Tier 1', buckets.q041_tier1_bp_pct, 'bar-q041')}
-        ${barHtml('Q041 Tier 2', buckets.q041_tier2_bp_pct, 'bar-q041')}
-        ${barHtml('Q041 Tier 3', buckets.q041_tier3_bp_pct, 'bar-q041')}
+        ${barHtml('SPX Live', buckets.spx_live_bp_pct, 'bar-spx', 'PM max-loss')}
+        ${barHtml('Equity Margin', buckets.equity_margin_bp_pct, 'bar-equity', eqNote)}
+        ${barHtml('Q041 Tier 1', buckets.q041_tier1_bp_pct, 'bar-q041', 'paper')}
+        ${barHtml('Q041 Tier 2', buckets.q041_tier2_bp_pct, 'bar-q041', 'paper')}
+        ${barHtml('Q041 Tier 3', buckets.q041_tier3_bp_pct, 'bar-q041', 'paper')}
       </div>
-      <div class="snapshot-note">/ES BP bucket — Phase 2</div>`;
+      <div class="snapshot-note">SPX + Equity reconciles to Schwab maintenance_margin</div>`;
   } catch (_) {
     body.innerHTML = '<div class="snapshot-unavail">Portfolio data unavailable</div>';
   }

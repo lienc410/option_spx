@@ -107,19 +107,19 @@ def _estimate_spx_bp_usage(current_position: dict | None, basis_dollars: float) 
 
     strategy_key = str(current_position.get("strategy_key") or "")
     contracts = max(1.0, _num(current_position.get("contracts")) or 1.0)
-    premium = abs(_num(current_position.get("actual_premium")) or _num(current_position.get("model_premium")) or 0.0)
     short_strike = _num(current_position.get("short_strike"))
     long_strike = _num(current_position.get("long_strike"))
     width = abs(short_strike - long_strike) if short_strike is not None and long_strike is not None else None
 
     bp_per_contract: float | None = None
     if strategy_key == "bull_call_diagonal":
+        # Debit diagonal: BP = net debit paid (correct for debit spreads under both Reg-T and PM)
+        premium = abs(_num(current_position.get("actual_premium")) or _num(current_position.get("model_premium")) or 0.0)
         bp_per_contract = max(premium * 100.0, 0.0)
-    elif strategy_key in {"bull_put_spread", "bull_put_spread_hv", "bear_call_spread_hv", "iron_condor", "iron_condor_hv"}:
-        if width is not None:
-            bp_per_contract = max((width - premium) * 100.0, 0.0)
     elif width is not None:
-        bp_per_contract = max((width - premium) * 100.0, 0.0)
+        # PM stress-test approximation: margin ≈ max spread loss = width × $100
+        # PM does not offset by opening credit (stress-test sees worst-case, not net credit)
+        bp_per_contract = width * 100.0
 
     if bp_per_contract is None:
         return {
@@ -136,7 +136,7 @@ def _estimate_spx_bp_usage(current_position: dict | None, basis_dollars: float) 
         "bp_usage_dollars": dollars,
         "bp_usage_pct": pct,
         "basis_dollars": round(basis_dollars, 2),
-        "source": "current_position read-only estimate",
+        "source": "pm_max_loss_proxy",
     }
 
 
@@ -164,10 +164,8 @@ def _safe_q041_snapshot() -> dict:
         }
 
 
-def _schwab_bp_basis() -> float | None:
-    """Return live Schwab option_buying_power as BP basis, or None if unavailable.
-    option_buying_power is the PM account's options-specific available buying power,
-    the correct denominator for spread margin % calculations."""
+def _schwab_margin_data() -> dict | None:
+    """Return live Schwab NLV and maintenance_margin, or None if unavailable."""
     try:
         from schwab.client import get_account_balances
         balances = get_account_balances()
@@ -175,11 +173,59 @@ def _schwab_bp_basis() -> float | None:
             return None
         if balances.get("stale"):
             return None
-        # option_buying_power = PM available BP for options (used + available total = NLV)
-        # Use net_liquidation as the denominator: total account value including all positions
         nlv = balances.get("net_liquidation")
+        maint = balances.get("maintenance_margin")
         if nlv and float(nlv) > 0:
-            return float(nlv)
+            return {
+                "nlv": float(nlv),
+                "maintenance_margin": float(maint) if maint is not None else None,
+            }
+    except Exception:
+        pass
+    return None
+
+
+def _schwab_spx_bp_from_positions() -> dict | None:
+    """Compute SPX spread max-loss BP directly from live Schwab option positions.
+    Used as fallback when strategy state file has no open position logged.
+    Parses SPXW option symbols to extract strikes, finds spread width, returns max-loss."""
+    import re
+    try:
+        from schwab.client import get_account_positions
+        pos_payload = get_account_positions()
+        if pos_payload.get("stale") or not pos_payload.get("authenticated"):
+            return None
+        positions = pos_payload.get("positions", [])
+        spx_opts = [
+            p for p in positions
+            if str(p.get("asset_type") or "") == "OPTION"
+            and ("SPX" in str(p.get("symbol") or "").upper())
+        ]
+        if not spx_opts:
+            return None
+        # Parse strikes from OCC symbol: SPXW  YYMMDDCNNNNN (e.g. SPXW  260529P07100000)
+        strikes = []
+        for p in spx_opts:
+            sym = str(p.get("symbol") or "")
+            m = re.search(r'[CP](\d{8})$', sym.replace(" ", ""))
+            if m:
+                strikes.append(float(m.group(1)) / 1000.0)
+        if len(strikes) < 2:
+            return None
+        width = abs(max(strikes) - min(strikes))
+        # Count contracts from short leg quantity
+        short_legs = [p for p in spx_opts if (_num(p.get("quantity")) or 0) < 0]
+        contracts = max(1.0, sum(abs(_num(p.get("quantity")) or 0) for p in short_legs))
+        bp_dollars = width * 100.0 * contracts
+        return {
+            "status": "estimated",
+            "bp_usage_dollars": round(bp_dollars, 2),
+            "source": "schwab_live_positions_max_loss",
+            "short_strike": max(strikes),
+            "long_strike": min(strikes),
+            "width": width,
+            "contracts": contracts,
+        }
     except Exception:
         pass
     return None
@@ -191,13 +237,39 @@ def portfolio_summary_payload() -> dict:
 
     current_position = read_state()
     q041 = _safe_q041_snapshot()
-    # Prefer live Schwab NLV as BP basis; fall back to strategy default
-    live_nlv = _schwab_bp_basis()
+
+    # Prefer live Schwab NLV + maintenance as basis; fall back to strategy default
+    schwab = _schwab_margin_data()
+    live_nlv = schwab["nlv"] if schwab else None
+    live_maint = schwab["maintenance_margin"] if schwab else None
     basis = live_nlv if live_nlv is not None else float(DEFAULT_PARAMS.initial_equity)
+
     spx_usage = _estimate_spx_bp_usage(current_position, basis)
+    # Fallback: if state has no position but Schwab shows live SPX options, compute from live
+    if spx_usage.get("status") == "none":
+        live_spx = _schwab_spx_bp_from_positions()
+        if live_spx:
+            live_spx_dollars = live_spx["bp_usage_dollars"]
+            spx_usage = {
+                **live_spx,
+                "bp_usage_pct": round(live_spx_dollars / basis * 100.0, 2) if basis > 0 else None,
+                "basis_dollars": round(basis, 2),
+            }
+    spx_dollars = _num(spx_usage.get("bp_usage_dollars")) or 0.0
+    spx_pct = _num(spx_usage.get("bp_usage_pct")) or 0.0
+
+    # Equity margin: Schwab total maintenance minus SPX spread max-loss
+    # Residual reflects the PM 15% haircut on equity positions
+    equity_margin_dollars: float | None = None
+    equity_margin_pct: float | None = None
+    if live_maint is not None and basis > 0:
+        equity_margin_dollars = round(max(0.0, live_maint - spx_dollars), 2)
+        equity_margin_pct = round(equity_margin_dollars / basis * 100.0, 2)
+
     q041_total = _num(q041.get("bp_usage", {}).get("total_q041_bp_pct"))
-    spx_pct = _num(spx_usage.get("bp_usage_pct"))
-    total_used = round((spx_pct or 0.0) + (q041_total or 0.0), 2)
+    # Total used = real margin (SPX + equity) + paper Q041
+    total_real = round(spx_pct + (equity_margin_pct or 0.0), 2)
+    total_used = round(total_real + (q041_total or 0.0), 2)
     idle = round(max(0.0, 100.0 - total_used), 2)
 
     return {
@@ -216,11 +288,14 @@ def portfolio_summary_payload() -> dict:
         },
         "bp_usage_by_bucket": {
             "spx_live_bp_pct": spx_usage.get("bp_usage_pct"),
+            "equity_margin_bp_pct": equity_margin_pct,
+            "equity_margin_dollars": equity_margin_dollars,
             "q041_tier1_bp_pct": q041.get("bp_usage", {}).get("tier1_bp_pct"),
             "q041_tier2_bp_pct": q041.get("bp_usage", {}).get("tier2_bp_pct"),
             "q041_tier3_bp_pct": q041.get("bp_usage", {}).get("tier3_bp_pct"),
             "q041_total_bp_pct": q041.get("bp_usage", {}).get("total_q041_bp_pct"),
         },
+        "total_real_margin_pct": total_real,
         "total_used_bp_pct": total_used,
         "idle_capacity_pct": idle,
         "next_review_item": _next_review_item(q041),
