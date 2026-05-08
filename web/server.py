@@ -1106,8 +1106,95 @@ def api_schwab_status():
 
 @app.route("/api/schwab/positions")
 def api_schwab_positions():
-    from schwab.client import get_account_positions
-    return jsonify(get_account_positions())
+    from schwab.client import get_account_positions, get_account_balances
+
+    pos_payload  = get_account_positions()
+    bal_payload  = get_account_balances()
+    positions    = pos_payload.get("positions", [])
+    nlv          = bal_payload.get("net_liquidation") or 0.0
+    maintenance  = bal_payload.get("maintenance_margin") or 0.0
+
+    # Known ETF tickers for sub-category classification
+    _EQUITY_ETF  = {"SPY", "QQQ", "IWM", "VTI", "VOO", "SCHB"}
+    _BOND_ETF    = {"BOXX", "BND", "AGG", "SHY", "TLT", "SGOV", "TBLL"}
+    _CASH_ETF    = {"SGOV", "TBLL", "USFR", "FLOT"}
+
+    enriched = []
+    # Group SPXW legs by expiry to show as spread net
+    spx_legs: dict = {}
+    for pos in positions:
+        sym      = str(pos.get("symbol") or "")
+        at       = str(pos.get("asset_type") or "")
+        mv       = float(pos.get("market_value") or 0.0)
+        sym_up   = sym.upper()
+
+        if at == "OPTION" and ("SPX" in sym_up or "SPXW" in sym_up):
+            # Collect SPX option legs to group into spread
+            key = "spx_options"
+            if key not in spx_legs:
+                spx_legs[key] = {"legs": [], "net_mv": 0.0}
+            spx_legs[key]["legs"].append(pos)
+            spx_legs[key]["net_mv"] += mv
+        else:
+            if at == "EQUITY":
+                cat = "equity"
+                sub = "stock"
+            elif at == "COLLECTIVE_INVESTMENT":
+                if sym_up in _EQUITY_ETF:
+                    cat = "collective"
+                    sub = "equity_etf"
+                elif sym_up in _BOND_ETF or sym_up in _CASH_ETF:
+                    cat = "collective"
+                    sub = "bond_etf"
+                else:
+                    cat = "collective"
+                    sub = "etf"
+            else:
+                cat = "other"
+                sub = at.lower()
+            enriched.append({
+                "symbol":       sym,
+                "description":  pos.get("description") or sym,
+                "asset_type":   at,
+                "category":     cat,
+                "sub_category": sub,
+                "market_value": round(mv, 2),
+                "mv_pct_nlv":   round(mv / nlv * 100, 2) if nlv else None,
+                "quantity":     pos.get("quantity"),
+                "unrealized_pnl": pos.get("unrealized_pnl"),
+            })
+
+    # Add grouped SPX spread entry
+    for key, grp in spx_legs.items():
+        net_mv = grp["net_mv"]
+        enriched.append({
+            "symbol":       "SPX Options",
+            "description":  f"SPX spread ({len(grp['legs'])} legs)",
+            "asset_type":   "OPTION",
+            "category":     "spx_options",
+            "sub_category": "spread",
+            "market_value": round(net_mv, 2),
+            "mv_pct_nlv":   round(net_mv / nlv * 100, 2) if nlv else None,
+            "legs":         grp["legs"],
+        })
+
+    # Sort: spx_options first, then by abs market value desc
+    enriched.sort(key=lambda p: (
+        0 if p["category"] == "spx_options" else 1,
+        -abs(p.get("market_value") or 0)
+    ))
+
+    return jsonify({
+        "configured":   pos_payload.get("configured"),
+        "authenticated": pos_payload.get("authenticated"),
+        "positions":    enriched,
+        "summary": {
+            "nlv":              round(nlv, 2),
+            "maintenance_margin": round(maintenance, 2),
+            "margin_pct_nlv":   round(maintenance / nlv * 100, 2) if nlv else None,
+            "position_count":   len(enriched),
+        },
+    })
 
 
 @app.route("/api/schwab/balances")

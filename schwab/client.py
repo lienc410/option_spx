@@ -151,7 +151,9 @@ def get_account_positions() -> dict:
             parsed = {
                 "symbol": instr.get("symbol"),
                 "description": instr.get("description"),
+                "asset_type": instr.get("assetType"),
                 "quantity": pos.get("longQuantity", 0) - pos.get("shortQuantity", 0),
+                "market_value": pos.get("marketValue"),
                 "unrealized_pnl": pos.get("currentDayProfitLoss") or pos.get("marketValue") - pos.get("averagePrice", 0),
             }
             parsed.update(_extract_quote_greeks(pos))
