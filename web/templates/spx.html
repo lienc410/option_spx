@@ -442,86 +442,6 @@ body {
   display: flex; gap: 8px; flex-wrap: wrap;
   margin-top: 10px;
 }
-.portfolio-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-top: 2px solid var(--blue);
-  border-radius: 9px;
-  margin-top: 16px;
-  overflow: hidden;
-}
-.portfolio-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--border);
-}
-.portfolio-title {
-  font-family: var(--f-display);
-  font-style: italic;
-  font-size: 1rem;
-  color: var(--text);
-}
-.portfolio-sub {
-  color: var(--text-muted);
-  font-size: 0.68rem;
-  margin-top: 2px;
-}
-.portfolio-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0;
-  border-bottom: 1px solid var(--border);
-}
-.portfolio-cell {
-  padding: 13px 16px;
-  border-right: 1px solid var(--border);
-}
-.portfolio-cell:last-child { border-right: none; }
-.portfolio-label {
-  color: var(--text-muted);
-  font-size: 0.58rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-.portfolio-val {
-  color: var(--text);
-  font-family: var(--f-mono);
-  font-size: 1rem;
-  margin-top: 5px;
-}
-.portfolio-body {
-  display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
-  gap: 0;
-}
-.portfolio-section {
-  padding: 14px 18px;
-  border-right: 1px solid var(--border);
-}
-.portfolio-section:last-child { border-right: none; }
-.sleeve-row {
-  display: grid;
-  grid-template-columns: 70px 1fr auto;
-  gap: 10px;
-  align-items: center;
-  padding: 9px 0;
-  border-bottom: 1px solid var(--border);
-}
-.sleeve-row:last-child { border-bottom: none; }
-.sleeve-name { color: var(--text); font-weight: 600; }
-.sleeve-note { color: var(--text-2); font-size: 0.68rem; }
-.surface-note {
-  padding: 10px 18px;
-  border-top: 1px solid var(--border);
-  color: var(--text-muted);
-  font-size: 0.68rem;
-  font-style: italic;
-}
-.surface-muted { color: var(--text-muted); }
-.surface-warning { color: var(--orange); }
 .action-btn {
   padding: 7px 12px;
   border-radius: 6px;
@@ -702,21 +622,6 @@ body {
   .scan-table-wrap {
     max-height: 180px;
   }
-  .portfolio-grid,
-  .portfolio-body {
-    grid-template-columns: 1fr;
-  }
-  .portfolio-cell,
-  .portfolio-section {
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
-  .portfolio-section:last-child {
-    border-bottom: none;
-  }
-  .sleeve-row {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* ── Loading / Error ─────────────────────────────────────────── */
@@ -853,16 +758,6 @@ body {
   </div>
   <div id="pos-actions" class="pos-actions"></div>
 
-  <div id="portfolio-panel" class="portfolio-panel">
-    <div class="portfolio-head">
-      <div>
-        <div class="portfolio-title">Multi-Sleeve Observation</div>
-        <div class="portfolio-sub">Forward-tracking observation only. Not an actionable trade recommendation.</div>
-      </div>
-      <span class="badge badge-gray">READ ONLY</span>
-    </div>
-    <div id="portfolio-surface-body" class="surface-note">Loading portfolio observation surface...</div>
-  </div>
 
   <div id="trade-modal-wrap" class="modal-wrap hidden">
     <div class="modal">
@@ -1837,111 +1732,6 @@ async function loadPosition() {
   }
 }
 
-function fmtPctValue(n) {
-  return typeof n === 'number' ? `${n.toFixed(1)}%` : '—';
-}
-
-function statusBadge(status) {
-  const value = String(status || 'unavailable').toLowerCase();
-  const color = value === 'watching' ? 'blue'
-    : value === 'due' ? 'gold'
-    : value === 'review_only' ? 'gray'
-    : value === 'blocked_missing_data' ? 'orange'
-    : 'gray';
-  return `<span class="badge badge-${color}">${value}</span>`;
-}
-
-function renderSleeveRows(candidates, reviewOnly) {
-  const executableRows = (candidates || []).map(c => `
-    <div class="sleeve-row">
-      <div>${statusBadge(c.candidate_status)}</div>
-      <div>
-        <div class="sleeve-name">${c.underlying} ${String(c.strategy_type || '').toUpperCase()} <span class="surface-muted">· ${c.tier}</span></div>
-        <div class="sleeve-note">${c.caveat || c.rationale || 'Forward tracking only.'}</div>
-      </div>
-      <div class="portfolio-val">${fmtPctValue(c.bp_target_pct)}</div>
-    </div>`).join('');
-  const reviewRows = (reviewOnly || []).map(c => `
-    <div class="sleeve-row">
-      <div>${statusBadge('review_only')}</div>
-      <div>
-        <div class="sleeve-name">${c.underlying} ${String(c.strategy_type || '').toUpperCase()} <span class="surface-muted">· ${c.tier}</span></div>
-        <div class="sleeve-note">${c.caveat || 'Review-only forward log.'}</div>
-      </div>
-      <div class="portfolio-val">${fmtPctValue(c.bp_target_pct)}</div>
-    </div>`).join('');
-  return executableRows + reviewRows;
-}
-
-function renderPortfolioSurface(summary, candidates, attribution) {
-  const body = document.getElementById('portfolio-surface-body');
-  if (!body) return;
-  const buckets = summary?.bp_usage_by_bucket || {};
-  const q041Status = summary?.rails?.q041_paper?.status || 'unavailable';
-  const attributionStatus = attribution?.status || 'pending_quant_input';
-  const next = summary?.next_review_item || {};
-  const nextText = next.status === 'available'
-    ? `${next.type}: ${next.item?.record_id || next.item?.symbol || 'record'}`
-    : next.status === 'none'
-      ? 'No open Q041 review item'
-      : `Q041 ${next.status}`;
-  body.className = '';
-  body.innerHTML = `
-    <div class="portfolio-grid">
-      <div class="portfolio-cell">
-        <div class="portfolio-label">Total Used BP</div>
-        <div class="portfolio-val">${fmtPctValue(summary?.total_used_bp_pct)}</div>
-      </div>
-      <div class="portfolio-cell">
-        <div class="portfolio-label">Idle Capacity</div>
-        <div class="portfolio-val">${fmtPctValue(summary?.idle_capacity_pct)}</div>
-      </div>
-      <div class="portfolio-cell">
-        <div class="portfolio-label">Next Review</div>
-        <div class="portfolio-val">${nextText}</div>
-      </div>
-    </div>
-    <div class="portfolio-body">
-      <div class="portfolio-section">
-        <div class="portfolio-label">Sleeve Candidates</div>
-        ${renderSleeveRows(candidates?.sleeve_candidates || [], candidates?.review_only || [])}
-      </div>
-      <div class="portfolio-section">
-        <div class="portfolio-label">BP Buckets</div>
-        <div class="sleeve-note">SPX live: <strong>${fmtPctValue(buckets.spx_live_bp_pct)}</strong></div>
-        <div class="sleeve-note">Q041 Tier 1: <strong>${fmtPctValue(buckets.q041_tier1_bp_pct)}</strong></div>
-        <div class="sleeve-note">Q041 Tier 2: <strong>${fmtPctValue(buckets.q041_tier2_bp_pct)}</strong></div>
-        <div class="sleeve-note">Q041 Tier 3: <strong>${fmtPctValue(buckets.q041_tier3_bp_pct)}</strong></div>
-        <div class="sleeve-note" style="margin-top:10px">Q041 ledger: ${statusBadge(q041Status)}</div>
-        <div class="sleeve-note">Attribution: ${statusBadge(attributionStatus)}</div>
-        <div class="${attributionStatus === 'pending_quant_input' ? 'surface-warning' : 'surface-muted'}" style="margin-top:10px;font-size:.68rem">
-          idle-day capture / BP-fill contribution / worst-day overlap: ${attributionStatus}
-        </div>
-      </div>
-    </div>
-    <div class="surface-note">SPX live rail + Q041 paper rail summary. This is not unified portfolio routing and does not write to any ledger.</div>`;
-}
-
-async function loadPortfolioSurface() {
-  try {
-    const [summaryRes, candidatesRes, attributionRes] = await Promise.all([
-      fetch('/api/portfolio/summary'),
-      fetch('/api/sleeve-candidates'),
-      fetch('/api/portfolio/attribution'),
-    ]);
-    const [summary, candidates, attribution] = await Promise.all([
-      summaryRes.json(),
-      candidatesRes.json(),
-      attributionRes.json(),
-    ]);
-    renderPortfolioSurface(summary, candidates, attribution);
-  } catch (e) {
-    const body = document.getElementById('portfolio-surface-body');
-    if (body) {
-      body.className = 'surface-note';
-      body.textContent = e.message || 'Portfolio observation surface unavailable.';
-    }
-  }
 }
 
 // ── Intraday panel ──────────────────────────────────────────────────────────
@@ -2015,12 +1805,10 @@ document.getElementById('nav-date').textContent = now.toLocaleDateString('en-US'
   loadStats();
   load();
   loadPosition();
-  loadPortfolioSurface();
   loadIntraday();
-  setInterval(load,          5 * 60 * 1000);
-  setInterval(loadPosition,      30 * 1000);
-  setInterval(loadPortfolioSurface, 5 * 60 * 1000);
-  setInterval(loadIntraday,      60 * 1000);
+  setInterval(load,        5 * 60 * 1000);
+  setInterval(loadPosition,    30 * 1000);
+  setInterval(loadIntraday,    60 * 1000);
 })();
 </script>
 </body>
