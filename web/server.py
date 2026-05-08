@@ -1269,8 +1269,8 @@ def api_schwab_positions():
 
     # Known ETF tickers for sub-category classification
     _EQUITY_ETF    = {"SPY", "QQQ", "IWM", "VTI", "VOO", "SCHB"}
-    _BOND_ETF      = {"BOXX", "BND", "AGG", "SHY", "TLT"}
-    _CASH_ETF      = {"SGOV", "TBLL", "USFR", "FLOT", "SHV", "BIL"}
+    _BOND_ETF      = {"BND", "AGG", "SHY", "TLT"}
+    _CASH_ETF      = {"BOXX", "SGOV", "TBLL", "USFR", "FLOT", "SHV", "BIL"}
     _MONEY_MARKET  = {"SPAXX", "SWVXX", "VMFXX", "VMMXX", "FDRXX", "FZFXX", "SPRXX"}
 
     enriched = []

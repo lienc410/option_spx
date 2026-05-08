@@ -1006,24 +1006,15 @@ async function loadPositionComposition() {
       'rgba(72,136,232,0.40)',
       'rgba(72,136,232,0.28)',
     ];
-    const cashShades = [
-      'rgba(32,188,164,0.90)',
-      'rgba(32,188,164,0.72)',
-      'rgba(32,188,164,0.55)',
-    ];
     let equityIdx = 0;
-    let cashIdx   = 0;
     const colorOf = (pos) => {
       const cat = pos.category;
       const sub = pos.sub_category;
-      if (cat === 'spx_options')                      return 'rgba(201,168,64,0.90)';
+      if (cat === 'spx_options')                        return 'rgba(201,168,64,0.90)';
       if (cat === 'collective' && sub === 'equity_etf') return 'rgba(66,204,124,0.80)';
-      if (cat === 'cash' || sub === 'cash_etf' || sub === 'money_market' || sub === 'cash') {
-        const c = cashShades[cashIdx % cashShades.length];
-        cashIdx++;
-        return c;
-      }
-      if (cat === 'collective')                       return 'rgba(96,104,128,0.45)';
+      if (cat === 'cash' || sub === 'cash_etf' || sub === 'money_market' || sub === 'cash')
+                                                        return 'rgba(32,188,164,0.85)';
+      if (cat === 'collective')                         return 'rgba(96,104,128,0.45)';
       if (cat === 'equity') {
         const c = equityShades[equityIdx % equityShades.length];
         equityIdx++;
