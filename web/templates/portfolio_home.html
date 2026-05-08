@@ -103,10 +103,7 @@ body {
   color: var(--text);
   margin-bottom: 6px;
 }
-.page-title em {
-  font-style: italic;
-  color: var(--gold);
-}
+.page-title em { font-style: italic; color: var(--gold); }
 .page-meta {
   font-family: var(--f-mono);
   font-size: 0.68rem;
@@ -115,58 +112,82 @@ body {
 }
 .page-meta .meta-sep { color: var(--text-muted); margin: 0 6px; }
 
-/* ── Section titles ── */
-.section-title {
+/* ── Section label ── */
+.section-label {
   font-family: var(--f-ui);
   font-size: 0.60rem; font-weight: 700;
   letter-spacing: 0.13em; text-transform: uppercase;
   color: var(--text-muted);
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
-/* ── Today's Actions zone ── */
-.actions-zone {
+/* ── Strategy Cards (per-tier) ── */
+.strategy-card {
   background: var(--surface);
   border: 1px solid var(--border-2);
+  border-left: 3px solid transparent;
   border-radius: 9px;
   padding: 16px 20px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
+.strategy-card.tier-primary   { border-left-color: rgba(201,168,64,0.60); }
+.strategy-card.tier-secondary { border-left-color: rgba(224,128,64,0.55); }
+.strategy-card.tier-tertiary  { border-left-color: rgba(96,104,128,0.40); }
 
-.action-row {
+/* Card header */
+.card-header {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 10px 0 10px 14px;
-  border-bottom: 1px solid var(--border);
-  border-left: 3px solid transparent;
-  margin-left: -20px;
-  padding-left: 17px;
-  transition: border-left-color 0.15s;
+  gap: 12px;
+  margin-bottom: 12px;
 }
-.action-row:last-child { border-bottom: none; }
-.action-row.tier-primary   { border-left-color: rgba(201,168,64,0.55); }
-.action-row.tier-secondary { border-left-color: rgba(224,128,64,0.50); }
-.action-row.tier-tertiary  { border-left-color: rgba(96,104,128,0.35); }
-
-.action-strat-name {
-  min-width: 80px;
+.card-name-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
 }
-.strat-primary {
+.card-name {
+  flex-shrink: 0;
+}
+.card-name-primary {
   font-family: var(--f-display);
   font-style: italic;
+  font-size: 1.40rem;
+  font-weight: 400;
+  color: var(--text);
+}
+.card-name-secondary {
+  font-family: var(--f-ui);
   font-size: 1.05rem;
+  font-weight: 500;
   color: var(--text);
 }
-.strat-secondary {
+.card-name-tertiary {
   font-family: var(--f-ui);
-  font-size: 0.76rem;
-  color: var(--text);
-}
-.strat-tertiary {
-  font-family: var(--f-ui);
-  font-size: 0.72rem;
+  font-size: 0.90rem;
+  font-weight: 400;
   color: var(--text-2);
+}
+.card-subtitle {
+  font-family: var(--f-mono);
+  font-size: 0.68rem;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.badge-obs {
+  font-family: var(--f-ui);
+  font-size: 0.60rem; font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: var(--text-muted);
+  border: 1px solid var(--gray-border);
+  background: var(--gray-bg);
+  padding: 2px 7px;
+  border-radius: 5px;
 }
 
 /* ── Action state badge ── */
@@ -181,21 +202,172 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.10em;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 .badge-open     { color: var(--green);      background: var(--green-bg);  border: 1px solid var(--green-border); }
 .badge-hold     { color: var(--blue);       background: var(--blue-bg);   border: 1px solid var(--blue-border); }
 .badge-close    { color: var(--red);        background: var(--red-bg);    border: 1px solid var(--red-border); }
 .badge-wait     { color: var(--text-muted); background: var(--gray-bg);   border: 1px solid var(--gray-border); }
+.badge-warning  { color: var(--orange);     background: var(--orange-bg); border: 1px solid var(--orange-border); }
 .badge-blocked  { color: var(--text-muted); background: var(--gray-bg);   border: 1px solid var(--gray-border); opacity: 0.6; }
 .badge-review   { color: var(--gold);       background: var(--gold-bg);   border: 1px solid var(--gold-border); }
 .badge-readonly { color: var(--text-muted); background: var(--gray-bg);   border: 1px solid var(--gray-border); }
 .badge-unavail  { color: var(--text-muted); background: var(--gray-bg);   border: 1px solid var(--gray-border); font-style: italic; }
 
-.action-summary {
+/* ── Signal chips ── */
+.card-signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 11px;
+}
+.signal-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--surface-hi);
+  border: 1px solid var(--border-2);
+  border-radius: 5px;
+  padding: 4px 9px;
+}
+.sig-label {
   font-family: var(--f-ui);
-  font-size: 0.69rem;
+  font-size: 0.58rem; font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+.sig-value {
+  font-family: var(--f-mono);
+  font-size: 0.72rem;
+  color: var(--text);
+}
+.sig-value.bullish { color: var(--green); }
+.sig-value.bearish { color: var(--red); }
+.sig-value.warning { color: var(--orange); }
+.sig-value.muted   { color: var(--text-2); }
+.sig-note {
+  font-family: var(--f-ui);
+  font-size: 0.60rem;
+  color: var(--text-muted);
+}
+
+/* ── Rationale text ── */
+.card-rationale-primary {
+  font-family: var(--f-display);
+  font-style: italic;
+  font-size: 0.90rem;
+  color: var(--text-2);
+  line-height: 1.55;
+  margin-bottom: 10px;
+}
+.card-rationale-secondary {
+  font-family: var(--f-ui);
+  font-size: 0.72rem;
+  color: var(--text-2);
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+/* ── Trade structure strip ── */
+.card-structure {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.leg-chip {
+  font-family: var(--f-mono);
+  font-size: 0.65rem;
+  color: var(--text-2);
+  background: var(--surface-hi);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 3px 8px;
+}
+.leg-chip.leg-sell { border-color: rgba(224,72,98,0.25); color: var(--red); }
+.leg-chip.leg-buy  { border-color: rgba(72,136,232,0.25); color: var(--blue); }
+.leg-sep { font-family: var(--f-mono); font-size: 0.65rem; color: var(--text-muted); }
+
+/* ── Position strip ── */
+.card-position {
+  background: var(--surface-hi);
+  border: 1px solid var(--border-2);
+  border-radius: 7px;
+  padding: 10px 14px;
+  margin-top: 4px;
+}
+.pos-header {
+  font-family: var(--f-ui);
+  font-size: 0.60rem; font-weight: 600;
+  letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.pos-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.pos-item { display: flex; flex-direction: column; gap: 3px; }
+.pos-label {
+  font-family: var(--f-ui);
+  font-size: 0.58rem; font-weight: 500;
+  letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.pos-value {
+  font-family: var(--f-mono);
+  font-size: 0.72rem;
+  color: var(--text);
+}
+.pos-value.profit { color: var(--green); }
+.pos-value.loss   { color: var(--red); }
+.pos-value.warn   { color: var(--orange); }
+.pos-none {
+  font-family: var(--f-ui);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ── Q041 sleeve list ── */
+.sleeve-list { display: flex; flex-direction: column; gap: 0; }
+.sleeve-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+}
+.sleeve-row:last-child { border-bottom: none; }
+.sleeve-ticker {
+  font-family: var(--f-mono);
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--text);
+  min-width: 52px;
+}
+.sleeve-type {
+  font-family: var(--f-ui);
+  font-size: 0.68rem;
   color: var(--text-2);
   flex: 1;
+}
+.sleeve-tier {
+  font-family: var(--f-ui);
+  font-size: 0.60rem; font-weight: 500;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-muted);
+  min-width: 38px;
+}
+.sleeve-bp {
+  font-family: var(--f-mono);
+  font-size: 0.65rem;
+  color: var(--text-2);
+  min-width: 44px;
+  text-align: right;
 }
 
 /* ── Portfolio Snapshot zone ── */
@@ -206,27 +378,20 @@ body {
   padding: 16px 20px;
   margin-bottom: 12px;
 }
-
 .snapshot-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
   margin-bottom: 18px;
 }
-
 .snapshot-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: flex; flex-direction: column; gap: 6px;
   background: var(--surface-hi);
   border: 1px solid var(--border-2);
   border-radius: 9px;
   padding: 14px 16px;
 }
-.snapshot-cell.cell-idle {
-  border-color: var(--blue-border);
-  background: var(--blue-bg);
-}
+.snapshot-cell.cell-idle { border-color: var(--blue-border); background: var(--blue-bg); }
 .snapshot-cell.cell-idle .snapshot-val { color: var(--blue); }
 .snapshot-label {
   font-family: var(--f-ui);
@@ -251,103 +416,37 @@ body {
   margin-bottom: 6px;
 }
 .bp-composite-track {
-  height: 8px;
-  border-radius: 9999px;
-  background: var(--border-2);
-  overflow: hidden;
-  display: flex;
+  height: 8px; border-radius: 9999px;
+  background: var(--border-2); overflow: hidden; display: flex;
 }
-.bp-seg {
-  height: 100%;
-  transition: width 0.45s ease;
-}
+.bp-seg { height: 100%; transition: width 0.45s ease; }
 .bp-seg-spx  { background: var(--gold); }
 .bp-seg-es   { background: var(--orange); }
 .bp-seg-q041 { background: var(--blue); }
-.bp-composite-legend {
-  display: flex;
-  gap: 16px;
-  margin-top: 6px;
-}
+.bp-composite-legend { display: flex; gap: 16px; margin-top: 6px; }
 .bp-legend-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-family: var(--f-mono);
-  font-size: 0.65rem;
-  color: var(--text-2);
+  display: flex; align-items: center; gap: 5px;
+  font-family: var(--f-mono); font-size: 0.65rem; color: var(--text-2);
 }
-.bp-legend-dot {
-  width: 7px; height: 7px;
-  border-radius: 9999px;
-  flex-shrink: 0;
-}
+.bp-legend-dot { width: 7px; height: 7px; border-radius: 9999px; flex-shrink: 0; }
 .dot-spx  { background: var(--gold); }
 .dot-es   { background: var(--orange); }
 .dot-q041 { background: var(--blue); }
 .dot-idle { background: var(--border-2); border: 1px solid var(--border); }
 
-.bp-buckets {
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
-  margin-top: 4px;
-}
-.bp-bucket-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 0;
-}
-.bp-bucket-label {
-  font-family: var(--f-ui);
-  font-size: 0.68rem;
-  color: var(--text-2);
-  min-width: 160px;
-}
-.bp-bucket-bar-wrap {
-  flex: 1;
-  height: 6px;
-  background: var(--border-2);
-  border-radius: 9999px;
-  overflow: hidden;
-}
-.bp-bucket-bar {
-  height: 100%;
-  border-radius: 9999px;
-  transition: width 0.45s ease;
-}
-.bar-spx   { background: var(--gold); }
-.bar-q041  { background: var(--blue); }
-.bp-bucket-pct {
-  font-family: var(--f-mono);
-  font-size: 0.68rem;
-  color: var(--text);
-  min-width: 42px;
-  text-align: right;
-}
+.bp-buckets { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 4px; }
+.bp-bucket-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+.bp-bucket-label { font-family: var(--f-ui); font-size: 0.68rem; color: var(--text-2); min-width: 160px; }
+.bp-bucket-bar-wrap { flex: 1; height: 6px; background: var(--border-2); border-radius: 9999px; overflow: hidden; }
+.bp-bucket-bar { height: 100%; border-radius: 9999px; transition: width 0.45s ease; }
+.bar-spx  { background: var(--gold); }
+.bar-q041 { background: var(--blue); }
+.bp-bucket-pct { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text); min-width: 42px; text-align: right; }
 
-.snapshot-note {
-  font-family: var(--f-ui);
-  font-size: 0.65rem;
-  color: var(--text-muted);
-  margin-top: 10px;
-  font-style: italic;
-}
+.snapshot-note { font-family: var(--f-ui); font-size: 0.65rem; color: var(--text-muted); margin-top: 10px; font-style: italic; }
+.snapshot-unavail { font-family: var(--f-ui); font-size: 0.72rem; color: var(--text-muted); font-style: italic; padding: 8px 0; }
 
-.snapshot-unavail {
-  font-family: var(--f-ui);
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  font-style: italic;
-  padding: 8px 0;
-}
-
-.footer {
-  text-align: center;
-  padding: 20px 0 0;
-  font-size: 0.65rem;
-  color: var(--text-muted);
-}
+.footer { text-align: center; padding: 20px 0 0; font-size: 0.65rem; color: var(--text-muted); }
 </style>
 </head>
 <body>
@@ -361,9 +460,7 @@ body {
     <a href="/q041" class="nav-link" style="opacity:0.45;pointer-events:none">Q041</a>
     <a href="/backtest" class="nav-link">Backtest</a>
   </div>
-  <div class="nav-right">
-    <span id="nav-date">—</span>
-  </div>
+  <div class="nav-right"><span id="nav-date">—</span></div>
 </nav>
 
 <div class="container">
@@ -378,42 +475,62 @@ body {
     </div>
   </div>
 
-  <!-- Today's Actions zone -->
-  <div class="actions-zone">
-    <div class="section-title">Today's Actions</div>
+  <!-- Today's Actions section label -->
+  <div class="section-label" style="margin-bottom:10px">Today's Actions</div>
 
-    <!-- SPX row -->
-    <div class="action-row tier-primary" id="row-spx">
-      <div class="action-strat-name">
-        <span class="strat-primary">SPX</span>
+  <!-- ── SPX Primary Card ── -->
+  <div class="strategy-card tier-primary" id="card-spx">
+    <div class="card-header">
+      <div class="card-name-wrap">
+        <span class="card-name card-name-primary">SPX</span>
+        <span class="card-subtitle" id="subtitle-spx">—</span>
       </div>
       <span class="state-badge badge-wait" id="badge-spx">WAIT</span>
-      <div class="action-summary" id="summary-spx">Loading…</div>
     </div>
+    <div class="card-signals" id="signals-spx"></div>
+    <div class="card-rationale-primary" id="rationale-spx"></div>
+    <div class="card-structure" id="structure-spx"></div>
+    <div class="card-position" id="position-spx">
+      <div class="pos-header">Open Position</div>
+      <div class="pos-none" id="pos-spx-body">Loading…</div>
+    </div>
+  </div>
 
-    <!-- /ES row -->
-    <div class="action-row tier-secondary" id="row-es">
-      <div class="action-strat-name">
-        <span class="strat-secondary">/ES</span>
+  <!-- ── /ES Secondary Card ── -->
+  <div class="strategy-card tier-secondary" id="card-es">
+    <div class="card-header">
+      <div class="card-name-wrap">
+        <span class="card-name card-name-secondary">/ES</span>
+        <span class="card-subtitle" id="subtitle-es">—</span>
       </div>
       <span class="state-badge badge-wait" id="badge-es">WAIT</span>
-      <div class="action-summary" id="summary-es">Loading…</div>
     </div>
+    <div class="card-signals" id="signals-es"></div>
+    <div class="card-rationale-secondary" id="rationale-es"></div>
+    <div class="card-structure" id="structure-es"></div>
+    <div class="card-position" id="position-es">
+      <div class="pos-header">Open Position</div>
+      <div class="pos-none" id="pos-es-body">Loading…</div>
+    </div>
+  </div>
 
-    <!-- Q041 row -->
-    <div class="action-row tier-tertiary" id="row-q041">
-      <div class="action-strat-name">
-        <span class="strat-tertiary">Q041 Sleeves</span>
+  <!-- ── Q041 Sleeve Card ── -->
+  <div class="strategy-card tier-tertiary" id="card-q041" style="margin-bottom:20px">
+    <div class="card-header">
+      <div class="card-name-wrap">
+        <span class="card-name card-name-tertiary">Q041 Sleeves</span>
+        <span class="badge-obs">Observation</span>
       </div>
       <span class="state-badge badge-wait" id="badge-q041">WAIT</span>
-      <div class="action-summary" id="summary-q041">Loading…</div>
     </div>
-
+    <div class="sleeve-list" id="sleeves-q041">
+      <div class="pos-none">Loading…</div>
+    </div>
   </div>
 
   <!-- Portfolio Snapshot zone -->
+  <div class="section-label" style="margin-bottom:10px">Portfolio Snapshot</div>
   <div class="snapshot-zone">
-    <div class="section-title">Portfolio Snapshot</div>
     <div id="snapshot-body">
       <div class="snapshot-unavail">Loading portfolio data…</div>
     </div>
@@ -426,135 +543,255 @@ body {
 </div>
 
 <script>
-// ── Helpers ──────────────────────────────────────────────────────────────────
-function fmtPct(n) {
-  return typeof n === 'number' ? n.toFixed(1) + '%' : '—';
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function fmtPct(n) { return typeof n === 'number' ? n.toFixed(1) + '%' : '—'; }
+function fmtNum(n, dec) { return typeof n === 'number' ? n.toFixed(dec ?? 0) : '—'; }
+function fmtPrice(n) {
+  return typeof n === 'number'
+    ? n.toLocaleString('en-US', { maximumFractionDigits: 0 })
+    : '—';
 }
 
-// ── SPX badge mapping ────────────────────────────────────────────────────────
-function spxBadge(data) {
-  const action = String(data.position_action || '').toUpperCase();
-  const open = !!data.open;
-  if (action === 'OPEN' || action === 'CLOSE_AND_OPEN') {
-    return { cls: 'badge-open', label: 'OPEN' };
-  }
-  if (action === 'CLOSE') {
-    return { cls: 'badge-close', label: 'CLOSE' };
-  }
-  if (action === 'WAIT' || action === 'CLOSE_AND_WAIT') {
-    return { cls: 'badge-wait', label: 'WAIT' };
-  }
-  if (open) {
-    return { cls: 'badge-hold', label: 'HOLD' };
-  }
-  return { cls: 'badge-wait', label: 'WAIT' };
+// ── Signal chip builder ───────────────────────────────────────────────────────
+function sigChip(label, value, cls, note) {
+  const notePart = note ? `<span class="sig-note">${note}</span>` : '';
+  return `<div class="signal-chip">
+    <span class="sig-label">${label}</span>
+    <span class="sig-value ${cls || ''}">${value}</span>${notePart}
+  </div>`;
+}
+function vixCls(regime) {
+  if (!regime) return '';
+  const r = regime.toUpperCase();
+  if (r === 'STRESSED') return 'bearish';
+  if (r === 'HIGH_VOL') return 'warning';
+  return '';
+}
+function ivCls(signal) {
+  if (!signal) return '';
+  const s = signal.toUpperCase();
+  if (s === 'HIGH' || s === 'ELEVATED') return 'warning';
+  if (s === 'LOW') return 'muted';
+  return '';
+}
+function trendCls(signal) {
+  if (!signal) return '';
+  const s = signal.toUpperCase();
+  if (s === 'BULLISH') return 'bullish';
+  if (s === 'BEARISH') return 'bearish';
+  return 'muted';
 }
 
-// ── /ES badge mapping ────────────────────────────────────────────────────────
-function esBadge(data) {
-  const key = String(data.strategy_key || '');
-  const blocked = !!data.blocked;
-  if (blocked || key === 'reduce_wait') {
-    return { cls: 'badge-blocked', label: 'BLOCKED' };
-  }
-  return { cls: 'badge-open', label: 'OPEN' };
-}
-
-// ── Q041 badge mapping ───────────────────────────────────────────────────────
-function q041Badge(data) {
-  const candidates = data.sleeve_candidates || [];
-  const reviewOnly = data.review_only || [];
-  const all = [...candidates, ...reviewOnly];
-  if (all.length === 0) {
-    return { cls: 'badge-wait', label: 'WAIT' };
-  }
-  const statuses = all.map(c => String(c.candidate_status || '').toLowerCase());
-  if (statuses.some(s => s === 'watching')) {
-    return { cls: 'badge-review', label: 'REVIEW' };
-  }
-  if (statuses.every(s => s === 'review_only')) {
-    return { cls: 'badge-readonly', label: 'READ ONLY' };
-  }
-  return { cls: 'badge-wait', label: 'WAIT' };
-}
-
-// ── Apply badge to element ───────────────────────────────────────────────────
+// ── Badge helpers ─────────────────────────────────────────────────────────────
 function applyBadge(id, badgeObj) {
   const el = document.getElementById(id);
   if (!el) return;
   el.className = 'state-badge ' + badgeObj.cls;
   el.textContent = badgeObj.label;
 }
-
-function setUnavail(badgeId, summaryId) {
-  const badge = document.getElementById(badgeId);
-  if (badge) {
-    badge.className = 'state-badge badge-unavail';
-    badge.textContent = 'N/A';
-  }
-  const summary = document.getElementById(summaryId);
-  if (summary) {
-    summary.textContent = '[API UNAVAILABLE]';
-  }
+function spxBadge(data) {
+  const action = String(data.position_action || '').toUpperCase();
+  if (action === 'OPEN' || action === 'CLOSE_AND_OPEN') return { cls: 'badge-open',  label: 'OPEN' };
+  if (action === 'CLOSE')                               return { cls: 'badge-close', label: 'CLOSE' };
+  if (action === 'WAIT' || action === 'CLOSE_AND_WAIT') return { cls: 'badge-wait',  label: 'WAIT' };
+  if (data.open)                                        return { cls: 'badge-hold',  label: 'HOLD' };
+  return { cls: 'badge-wait', label: 'WAIT' };
+}
+function esBadge(data) {
+  if (data.blocked || data.strategy_key === 'reduce_wait')
+    return { cls: 'badge-blocked', label: 'BLOCKED' };
+  return { cls: 'badge-open', label: 'OPEN' };
+}
+function q041Badge(data) {
+  const all = [...(data.sleeve_candidates || []), ...(data.review_only || [])];
+  if (all.length === 0) return { cls: 'badge-wait', label: 'WAIT' };
+  const statuses = all.map(c => String(c.candidate_status || '').toLowerCase());
+  if (statuses.some(s => s === 'watching')) return { cls: 'badge-review', label: 'REVIEW' };
+  if (statuses.every(s => s === 'review_only')) return { cls: 'badge-readonly', label: 'READ ONLY' };
+  return { cls: 'badge-wait', label: 'WAIT' };
 }
 
-// ── Load SPX ─────────────────────────────────────────────────────────────────
+// ── SPX Card ──────────────────────────────────────────────────────────────────
 async function loadSpx() {
   try {
-    const res = await fetch('/api/recommendation');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    applyBadge('badge-spx', spxBadge(data));
-    const strategy = data.strategy || 'SPX Options';
-    const action = data.position_action || '';
-    const date = (data.vix_snapshot || {}).date || '';
-    document.getElementById('summary-spx').textContent =
-      strategy + (action ? ' · ' + action : '') + (date ? ' · ' + date : '');
+    const [recRes, posRes] = await Promise.all([
+      fetch('/api/recommendation'),
+      fetch('/api/position'),
+    ]);
+    if (!recRes.ok) throw new Error('rec HTTP ' + recRes.status);
+    const rec = await recRes.json();
+    if (rec.error) throw new Error(rec.error);
+
+    // Badge
+    applyBadge('badge-spx', spxBadge(rec));
+
+    // Subtitle: strategy + legs
+    const legs = (rec.legs || []);
+    const legsStr = legs.map(l =>
+      `${l.action} PUT ${l.dte}d Δ${Number(l.delta).toFixed(2)}`
+    ).join(' / ');
+    document.getElementById('subtitle-spx').textContent =
+      (rec.strategy || '') + (legsStr ? ' · ' + legsStr : '');
+
+    // Signal chips
+    const vix   = rec.vix_snapshot  || {};
+    const iv    = rec.iv_snapshot   || {};
+    const trend = rec.trend_snapshot || {};
+    let chips = '';
+    if (vix.vix != null)
+      chips += sigChip('VIX', fmtNum(vix.vix, 1), vixCls(vix.regime), vix.regime || '');
+    if (iv.iv_rank != null)
+      chips += sigChip('IV Rank', fmtNum(iv.iv_rank, 0) + '%', ivCls(iv.iv_signal), iv.iv_signal || '');
+    if (trend.signal)
+      chips += sigChip('Trend', trend.signal, trendCls(trend.signal));
+    if (trend.spx != null)
+      chips += sigChip('SPX', fmtPrice(trend.spx), '');
+    if (vix.vix3m != null)
+      chips += sigChip('VIX3M', fmtNum(vix.vix3m, 1), '', vix.backwardation ? 'backw.' : '');
+    document.getElementById('signals-spx').innerHTML = chips;
+
+    // Rationale
+    if (rec.rationale)
+      document.getElementById('rationale-spx').textContent = rec.rationale;
+
+    // Legs structure
+    if (legs.length > 0) {
+      const legHtml = legs.map(l =>
+        `<span class="leg-chip ${l.action === 'SELL' ? 'leg-sell' : 'leg-buy'}">${l.action} PUT · ${l.dte}d · Δ${Number(l.delta).toFixed(2)}</span>`
+      ).join('<span class="leg-sep"> / </span>');
+      document.getElementById('structure-spx').innerHTML = legHtml;
+    }
+
+    // Position
+    const posEl = document.getElementById('position-spx');
+    const posBody = document.getElementById('pos-spx-body');
+    if (posRes.ok) {
+      const pos = await posRes.json();
+      if (pos.open && pos.current_position) {
+        const p = pos.current_position;
+        const pnl = pos.schwab_live ? pos.schwab_live.unrealized_pnl : null;
+        const pnlCls = pnl == null ? '' : pnl >= 0 ? 'profit' : 'loss';
+        const pnlStr = pnl != null ? (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(0) : '—';
+        posBody.outerHTML = `<div class="pos-grid">
+          ${p.expiry     ? `<div class="pos-item"><div class="pos-label">Expiry</div><div class="pos-value">${p.expiry}</div></div>` : ''}
+          ${p.dte != null? `<div class="pos-item"><div class="pos-label">DTE</div><div class="pos-value">${p.dte}d</div></div>` : ''}
+          ${p.entry_premium != null ? `<div class="pos-item"><div class="pos-label">Entry</div><div class="pos-value">$${Number(p.entry_premium).toFixed(2)}</div></div>` : ''}
+          ${pnl != null  ? `<div class="pos-item"><div class="pos-label">Unrealized</div><div class="pos-value ${pnlCls}">${pnlStr}</div></div>` : ''}
+        </div>`;
+      } else {
+        posBody.textContent = 'No open position';
+      }
+    } else {
+      posBody.textContent = 'Position data unavailable';
+    }
   } catch (_) {
-    setUnavail('badge-spx', 'summary-spx');
+    applyBadge('badge-spx', { cls: 'badge-unavail', label: 'N/A' });
+    document.getElementById('subtitle-spx').textContent = '[API UNAVAILABLE]';
+    document.getElementById('pos-spx-body').textContent = '—';
   }
 }
 
-// ── Load /ES ─────────────────────────────────────────────────────────────────
+// ── /ES Card ──────────────────────────────────────────────────────────────────
 async function loadEs() {
   try {
     const res = await fetch('/api/es/recommendation');
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    applyBadge('badge-es', esBadge(data));
-    const strategy = data.strategy || '/ES Short Put';
-    const key = data.strategy_key || '';
-    document.getElementById('summary-es').textContent =
-      strategy + (key && key !== 'reduce_wait' ? ' · ' + key : key === 'reduce_wait' ? ' · reduce/wait' : '');
+    const rec = await res.json();
+    if (rec.error) throw new Error(rec.error);
+
+    applyBadge('badge-es', esBadge(rec));
+
+    // Subtitle
+    const legs = rec.legs || [];
+    const legsStr = legs.map(l =>
+      `${l.action} PUT ${l.dte}d Δ${Number(l.delta).toFixed(2)}`
+    ).join(' / ');
+    document.getElementById('subtitle-es').textContent =
+      (rec.strategy || '') + (legsStr ? ' · ' + legsStr : '');
+
+    // Signals
+    const vix   = rec.vix_snapshot  || {};
+    const trend = rec.trend_snapshot || {};
+    let chips = '';
+    if (trend.signal)
+      chips += sigChip('Trend Filter', trend.signal, trendCls(trend.signal));
+    if (vix.vix != null)
+      chips += sigChip('VIX', fmtNum(vix.vix, 1), vixCls(vix.regime), vix.regime || '');
+    if (trend.spx != null)
+      chips += sigChip('/ES proxy', fmtPrice(trend.spx), '');
+    document.getElementById('signals-es').innerHTML = chips;
+
+    // Rationale
+    if (rec.rationale)
+      document.getElementById('rationale-es').textContent = rec.rationale;
+
+    // Legs structure
+    if (legs.length > 0) {
+      const legHtml = legs.map(l =>
+        `<span class="leg-chip ${l.action === 'SELL' ? 'leg-sell' : 'leg-buy'}">${l.action} PUT · ${l.dte}d · Δ${Number(l.delta).toFixed(2)}</span>`
+      ).join('<span class="leg-sep"> / </span>');
+      document.getElementById('structure-es').innerHTML = legHtml;
+    }
+
+    // Position strip (Phase 2: /api/es/position)
+    document.getElementById('pos-es-body').textContent = 'No open position';
   } catch (_) {
-    setUnavail('badge-es', 'summary-es');
+    applyBadge('badge-es', { cls: 'badge-unavail', label: 'N/A' });
+    document.getElementById('subtitle-es').textContent = '[API UNAVAILABLE]';
+    document.getElementById('pos-es-body').textContent = '—';
   }
 }
 
-// ── Load Q041 ────────────────────────────────────────────────────────────────
+// ── Q041 Card ─────────────────────────────────────────────────────────────────
 async function loadQ041() {
+  const listEl = document.getElementById('sleeves-q041');
   try {
     const res = await fetch('/api/sleeve-candidates');
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
+
     applyBadge('badge-q041', q041Badge(data));
-    const candidates = data.sleeve_candidates || [];
-    const reviewOnly = data.review_only || [];
-    const watchCount = candidates.filter(c => c.candidate_status === 'watching').length;
-    const roCount = reviewOnly.length;
-    let summary = '';
-    if (watchCount > 0) summary += watchCount + ' watching';
-    if (roCount > 0) summary += (summary ? ' · ' : '') + roCount + ' review-only';
-    document.getElementById('summary-q041').textContent = summary || 'No active sleeves';
+
+    const candidates  = data.sleeve_candidates || [];
+    const reviewOnly  = data.review_only || [];
+
+    if (candidates.length === 0 && reviewOnly.length === 0) {
+      listEl.innerHTML = '<div class="pos-none">No active sleeves</div>';
+      return;
+    }
+
+    function statusBadge(status) {
+      if (status === 'watching')     return `<span class="state-badge badge-review" style="font-size:0.55rem;padding:2px 6px">Watching</span>`;
+      if (status === 'review_only')  return `<span class="state-badge badge-readonly" style="font-size:0.55rem;padding:2px 6px">Review only</span>`;
+      if (status === 'due')          return `<span class="state-badge badge-open" style="font-size:0.55rem;padding:2px 6px">Due</span>`;
+      if (status === 'blocked_missing_data') return `<span class="state-badge badge-blocked" style="font-size:0.55rem;padding:2px 6px">Blocked</span>`;
+      return `<span class="state-badge badge-wait" style="font-size:0.55rem;padding:2px 6px">${status}</span>`;
+    }
+
+    function sleeveRow(s) {
+      const typeLabel = (s.strategy_type || '').toUpperCase().replace('_', ' ');
+      const tierLabel = (s.tier || '').replace('tier', 'T');
+      return `<div class="sleeve-row">
+        <span class="sleeve-ticker">${s.underlying || '—'}</span>
+        <span class="sleeve-type">${typeLabel}</span>
+        <span class="sleeve-tier">${tierLabel}</span>
+        <span class="sleeve-bp">${s.bp_target_pct != null ? s.bp_target_pct.toFixed(0) + '% BP' : '—'}</span>
+        ${statusBadge(s.candidate_status)}
+      </div>`;
+    }
+
+    listEl.innerHTML = [
+      ...candidates.map(sleeveRow),
+      ...reviewOnly.map(sleeveRow),
+    ].join('');
   } catch (_) {
-    setUnavail('badge-q041', 'summary-q041');
+    applyBadge('badge-q041', { cls: 'badge-unavail', label: 'N/A' });
+    listEl.innerHTML = '<div class="pos-none">[API UNAVAILABLE]</div>';
   }
 }
 
-// ── Load Portfolio Snapshot ──────────────────────────────────────────────────
+// ── Portfolio Snapshot ────────────────────────────────────────────────────────
 async function loadSnapshot() {
   const body = document.getElementById('snapshot-body');
   try {
@@ -563,38 +800,30 @@ async function loadSnapshot() {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
 
-    const buckets = data.bp_usage_by_bucket || {};
+    const buckets  = data.bp_usage_by_bucket || {};
     const totalPct = typeof data.total_used_bp_pct === 'number' ? data.total_used_bp_pct : null;
-    const idlePct = typeof data.idle_capacity_pct === 'number' ? data.idle_capacity_pct : null;
+    const idlePct  = typeof data.idle_capacity_pct === 'number' ? data.idle_capacity_pct : null;
+    const rails    = data.rails || {};
+    const spxOpen  = (rails.spx_live || {}).status === 'open' ? 1 : 0;
+    const q041Pos  = ((rails.q041_paper || {}).current_paper_positions || []).length;
+    const openCount = spxOpen + q041Pos;
 
-    // Count open positions
-    const rails = data.rails || {};
-    const spxOpen = (rails.spx_live || {}).status === 'open' ? 1 : 0;
-    const q041Positions = ((rails.q041_paper || {}).current_paper_positions || []).length;
-    const openCount = spxOpen + q041Positions;
-
-    // Build bar for a bucket (clamp 0–100)
     function barHtml(label, pct, barClass) {
-      const width = typeof pct === 'number' ? Math.min(Math.max(pct, 0), 100).toFixed(1) : '0';
-      const display = typeof pct === 'number' ? pct.toFixed(1) + '%' : '—';
-      return `
-        <div class="bp-bucket-row">
-          <div class="bp-bucket-label">${label}</div>
-          <div class="bp-bucket-bar-wrap">
-            <div class="bp-bucket-bar ${barClass}" style="width:${width}%"></div>
-          </div>
-          <div class="bp-bucket-pct">${display}</div>
-        </div>`;
+      const w = typeof pct === 'number' ? Math.min(Math.max(pct, 0), 100).toFixed(1) : '0';
+      const d = typeof pct === 'number' ? pct.toFixed(1) + '%' : '—';
+      return `<div class="bp-bucket-row">
+        <div class="bp-bucket-label">${label}</div>
+        <div class="bp-bucket-bar-wrap"><div class="bp-bucket-bar ${barClass}" style="width:${w}%"></div></div>
+        <div class="bp-bucket-pct">${d}</div>
+      </div>`;
     }
 
-    // Build composite segmented bar
     const spxW  = typeof buckets.spx_live_bp_pct  === 'number' ? Math.min(buckets.spx_live_bp_pct,  100) : 0;
     const q1W   = typeof buckets.q041_tier1_bp_pct === 'number' ? Math.min(buckets.q041_tier1_bp_pct, 100) : 0;
     const q2W   = typeof buckets.q041_tier2_bp_pct === 'number' ? Math.min(buckets.q041_tier2_bp_pct, 100) : 0;
     const q3W   = typeof buckets.q041_tier3_bp_pct === 'number' ? Math.min(buckets.q041_tier3_bp_pct, 100) : 0;
     const q041W = Math.min(q1W + q2W + q3W, 100);
-    const usedW = Math.min(spxW + q041W, 100);
-    const idleW = Math.max(100 - usedW, 0);
+    const idleW = Math.max(100 - Math.min(spxW + q041W, 100), 0);
 
     body.innerHTML = `
       <div class="snapshot-grid">
@@ -618,7 +847,7 @@ async function loadSnapshot() {
           <div class="bp-seg bp-seg-q041" style="width:${q041W.toFixed(1)}%"></div>
         </div>
         <div class="bp-composite-legend">
-          <div class="bp-legend-item"><div class="bp-legend-dot dot-spx"></div>SPX Live ${spxW.toFixed(1)}%</div>
+          <div class="bp-legend-item"><div class="bp-legend-dot dot-spx"></div>SPX ${spxW.toFixed(1)}%</div>
           <div class="bp-legend-item"><div class="bp-legend-dot dot-q041"></div>Q041 ${q041W.toFixed(1)}%</div>
           <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>
         </div>
@@ -635,22 +864,15 @@ async function loadSnapshot() {
   }
 }
 
-// ── Set nav + hero date ───────────────────────────────────────────────────────
+// ── Date ──────────────────────────────────────────────────────────────────────
 const now = new Date();
-const dateStr = now.toLocaleDateString('en-US', {
-  weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
-});
+const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 document.getElementById('nav-date').textContent = dateStr;
 document.getElementById('hero-date').textContent = dateStr;
 
-// ── Boot: fetch all in parallel ──────────────────────────────────────────────
+// ── Boot ──────────────────────────────────────────────────────────────────────
 (async () => {
-  await Promise.allSettled([
-    loadSpx(),
-    loadEs(),
-    loadQ041(),
-    loadSnapshot(),
-  ]);
+  await Promise.allSettled([loadSpx(), loadEs(), loadQ041(), loadSnapshot()]);
 })();
 </script>
 </body>
