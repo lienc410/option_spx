@@ -380,14 +380,17 @@ def api_etrade_auth():
     from etrade.auth import get_access_token, request_token
 
     verifier = flask_req.args.get("oauth_verifier")
-    if verifier:
-        get_access_token(verifier)
+    try:
+        if verifier:
+            get_access_token(verifier)
+            return redirect("/")
+        token_payload = request_token()
+        authorize_url = token_payload.get("authorize_url")
+        if not authorize_url:
+            return redirect("/")
+        return redirect(authorize_url)
+    except Exception:
         return redirect("/")
-    token_payload = request_token()
-    authorize_url = token_payload.get("authorize_url")
-    if not authorize_url:
-        return redirect("/")
-    return redirect(authorize_url)
 
 
 @app.route("/api/portfolio/attribution")
