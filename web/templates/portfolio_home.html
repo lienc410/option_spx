@@ -998,25 +998,33 @@ function _renderMarginAllocation(data) {
   const rails   = data.rails || {};
 
   // Dollar amounts for per-account-NLV recalculation
-  const spxDollars = typeof rails.spx_live?.bp_usage?.bp_usage_dollars === 'number'
-                     ? rails.spx_live.bp_usage.bp_usage_dollars : 0;
-  const eqDollars  = typeof buckets.equity_margin_dollars        === 'number' ? buckets.equity_margin_dollars        : 0;
-  const etDollars  = typeof buckets.etrade_maintenance_dollars   === 'number' ? buckets.etrade_maintenance_dollars   : 0;
-  const schwabNlv  = typeof accounts.schwab_nlv  === 'number' ? accounts.schwab_nlv  : 0;
-  const etradeNlv  = typeof accounts.etrade_nlv  === 'number' ? accounts.etrade_nlv  : 0;
+  const spxDollars  = typeof rails.spx_live?.bp_usage?.bp_usage_dollars === 'number'
+                      ? rails.spx_live.bp_usage.bp_usage_dollars : 0;
+  const eqDollars   = typeof buckets.equity_margin_dollars      === 'number' ? buckets.equity_margin_dollars      : 0;
+  const etDollars   = typeof buckets.etrade_maintenance_dollars === 'number' ? buckets.etrade_maintenance_dollars : 0;
+  const etEqDollars = typeof buckets.etrade_equity_dollars      === 'number' ? buckets.etrade_equity_dollars      : 0;
+  const schwabNlv   = typeof accounts.schwab_nlv === 'number' ? accounts.schwab_nlv : 0;
+  const etradeNlv   = typeof accounts.etrade_nlv === 'number' ? accounts.etrade_nlv : 0;
   // _rpct: recompute pct against a specific NLV denominator
   const _rpct = (d, n) => n > 0 ? Math.min(Math.max(d / n * 100, 0), 100) : 0;
 
-  // "All" view: backend already uses combined_nlv as denominator — use directly
-  const spxW  = Math.min(typeof buckets.spx_live_bp_pct      === 'number' ? buckets.spx_live_bp_pct      : 0, 100);
-  const eqW   = Math.min(typeof buckets.equity_margin_bp_pct  === 'number' ? buckets.equity_margin_bp_pct  : 0, 100);
-  const etW   = Math.min(typeof buckets.etrade_maintenance_bp_pct === 'number' ? buckets.etrade_maintenance_bp_pct : 0, 100);
-  const q1W   = Math.min(typeof buckets.q041_tier1_bp_pct     === 'number' ? buckets.q041_tier1_bp_pct     : 0, 100);
-  const q2W   = Math.min(typeof buckets.q041_tier2_bp_pct     === 'number' ? buckets.q041_tier2_bp_pct     : 0, 100);
-  const q3W   = Math.min(typeof buckets.q041_tier3_bp_pct     === 'number' ? buckets.q041_tier3_bp_pct     : 0, 100);
-  const q041W = Math.min(q1W + q2W + q3W, 100);
+  // "All" view: backend uses combined_nlv as denominator — use directly
+  const spxW   = Math.min(typeof buckets.spx_live_bp_pct          === 'number' ? buckets.spx_live_bp_pct          : 0, 100);
+  const eqW    = Math.min(typeof buckets.equity_margin_bp_pct     === 'number' ? buckets.equity_margin_bp_pct     : 0, 100);
+  const etW    = Math.min(typeof buckets.etrade_maintenance_bp_pct === 'number' ? buckets.etrade_maintenance_bp_pct : 0, 100);
+  const etOptW = Math.min(typeof buckets.etrade_options_bp_pct    === 'number' ? buckets.etrade_options_bp_pct    : 0, 100);
+  const etEqW  = Math.min(typeof buckets.etrade_equity_bp_pct     === 'number' ? buckets.etrade_equity_bp_pct     : 0, 100);
+  const q1W    = Math.min(typeof buckets.q041_tier1_bp_pct        === 'number' ? buckets.q041_tier1_bp_pct        : 0, 100);
+  const q2W    = Math.min(typeof buckets.q041_tier2_bp_pct        === 'number' ? buckets.q041_tier2_bp_pct        : 0, 100);
+  const q3W    = Math.min(typeof buckets.q041_tier3_bp_pct        === 'number' ? buckets.q041_tier3_bp_pct        : 0, 100);
+  const q041W  = Math.min(q1W + q2W + q3W, 100);
+  // Combined type buckets for "All" view
+  const optionsW = Math.min(spxW + etOptW, 100);   // SPX spread + E-Trade options
+  const equityW  = Math.min(eqW  + etEqW,  100);   // Schwab equity + E-Trade equity
 
   const eqNote = eqDollars > 0 ? fmtDollars(eqDollars) + ' (15% haircut)' : '15% haircut';
+  const allEqNote = (eqDollars + etEqDollars) > 0
+    ? fmtDollars(eqDollars + etEqDollars) + ' (Schwab + E-Trade, 15% haircut)' : '15% haircut';
 
   function barHtml(label, pct, barClass, note) {
     const w = typeof pct === 'number' ? Math.min(Math.max(pct, 0), 100).toFixed(1) : '0';
@@ -1079,24 +1087,26 @@ function _renderMarginAllocation(data) {
       : `<div class="account-rail-card"><div class="account-rail-unavail">E-Trade temporarily unavailable</div></div>`;
 
   } else {
-    // All
-    const realUsed = Math.min(spxW + eqW + etW, 100);
+    // All — merge by asset type: Options (SPX + E-Trade options) + Equity (Schwab + E-Trade equity)
+    const realUsed = Math.min(optionsW + equityW, 100);
     const idleW    = Math.max(100 - Math.min(realUsed + q041W, 100), 0);
     barSegments = `
-      <div class="bp-seg bp-seg-spx"    style="width:${spxW.toFixed(1)}%"></div>
-      <div class="bp-seg bp-seg-equity" style="width:${eqW.toFixed(1)}%"></div>
-      <div class="bp-seg bp-seg-es"     style="width:${etW.toFixed(1)}%"></div>
+      <div class="bp-seg bp-seg-spx"    style="width:${optionsW.toFixed(1)}%"></div>
+      <div class="bp-seg bp-seg-equity" style="width:${equityW.toFixed(1)}%"></div>
       <div class="bp-seg bp-seg-q041"   style="width:${q041W.toFixed(1)}%"></div>`;
     legendItems = `
-      <div class="bp-legend-item"><div class="bp-legend-dot dot-spx"></div>SPX ${spxW.toFixed(1)}%</div>
-      <div class="bp-legend-item"><div class="bp-legend-dot dot-equity"></div>Equity ${eqW.toFixed(1)}%</div>
-      <div class="bp-legend-item"><div class="bp-legend-dot dot-es"></div>E-Trade ${etW.toFixed(1)}%</div>
+      <div class="bp-legend-item"><div class="bp-legend-dot dot-spx"></div>Options ${optionsW.toFixed(1)}%</div>
+      <div class="bp-legend-item"><div class="bp-legend-dot dot-equity"></div>Equity ${equityW.toFixed(1)}%</div>
       <div class="bp-legend-item"><div class="bp-legend-dot dot-q041"></div>Q041 ${q041W.toFixed(1)}%</div>
       <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>`;
+    // Show per-account sub-rows only when E-Trade is actually contributing
+    const etOptsRow  = etOptW > 0 ? barHtml('  E-Trade Options', etOptW,  'bar-etrade', 'PM max-loss') : '';
+    const etEquityRow = etEqW > 0 ? barHtml('  E-Trade Equity',  etEqW,   'bar-etrade', '15% haircut') : '';
     bucketRows =
-      barHtml('SPX Live', buckets.spx_live_bp_pct, 'bar-spx', 'PM max-loss') +
-      barHtml('Equity Margin', buckets.equity_margin_bp_pct, 'bar-equity', eqNote) +
-      barHtml('E-Trade PM', buckets.etrade_maintenance_bp_pct, 'bar-etrade', 'account maintenance') +
+      barHtml('Options Margin', optionsW, 'bar-spx', 'SPX spread' + (etOptW > 0 ? ' + E-Trade options' : '')) +
+      etOptsRow +
+      barHtml('Equity Margin',  equityW,  'bar-equity', allEqNote) +
+      etEquityRow +
       barHtml('Q041 Tier 1', buckets.q041_tier1_bp_pct, 'bar-q041', 'paper') +
       barHtml('Q041 Tier 2', buckets.q041_tier2_bp_pct, 'bar-q041', 'paper') +
       barHtml('Q041 Tier 3', buckets.q041_tier3_bp_pct, 'bar-q041', 'paper');
@@ -1108,7 +1118,7 @@ function _renderMarginAllocation(data) {
       </div>
       <div class="account-rail-card">
         <div class="account-rail-title">E-Trade</div>
-        ${typeof accounts.etrade_nlv === 'number'
+        ${etradeNlv > 0
           ? `<div class="account-rail-line"><span>NLV</span><span>${fmtDollars(accounts.etrade_nlv)}</span></div>
              <div class="account-rail-line"><span>Maint</span><span>${fmtDollars(accounts.etrade_maintenance_margin)}</span></div>`
           : `<div class="account-rail-unavail">E-Trade temporarily unavailable</div>`}
@@ -1119,7 +1129,7 @@ function _renderMarginAllocation(data) {
         <div class="account-rail-line"><span>Maint</span><span>${fmtDollars(accounts.combined_maintenance_margin)}</span></div>
         <div class="account-rail-note">Read-only aggregate PM maintenance across both rails.</div>
       </div>`;
-    noteHtml = '<div class="snapshot-note">Schwab + E-Trade maintenance shown separately; Q041 remains paper-only.</div>';
+    noteHtml = '<div class="snapshot-note">Options = SPX spread + E-Trade options；Equity = Schwab + E-Trade equity；Q041 paper-only。</div>';
   }
 
   el.innerHTML = `
