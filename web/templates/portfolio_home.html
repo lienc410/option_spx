@@ -729,9 +729,7 @@ async function loadSpx() {
     const rec = await recRes.json();
     if (rec.error) throw new Error(rec.error);
 
-    // Badge
-    applyBadge('badge-spx', spxBadge(rec));
-
+    // Badge — applied after pos is read so data.open is available
     // Subtitle: strategy + legs
     const legs = (rec.legs || []);
     const legsStr = legs.map(l =>
@@ -773,6 +771,7 @@ async function loadSpx() {
     const posBody = document.getElementById('pos-spx-body');
     if (posRes.ok) {
       const pos = await posRes.json();
+      applyBadge('badge-spx', spxBadge({ ...rec, open: pos.open }));
       if (pos.open) {
         const live = pos.schwab_live || {};
         const pnl  = live.unrealized_pnl;
@@ -798,6 +797,7 @@ async function loadSpx() {
         posBody.textContent = 'No open position';
       }
     } else {
+      applyBadge('badge-spx', spxBadge({ ...rec, open: false }));
       posBody.textContent = 'Position data unavailable';
     }
   } catch (_) {
