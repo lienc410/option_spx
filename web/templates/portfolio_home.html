@@ -683,6 +683,16 @@ body {
       <button class="pos-view-tab"        data-av="schwab"  onclick="setAccountView('schwab')">Schwab</button>
       <button class="pos-view-tab"        data-av="etrade"  onclick="setAccountView('etrade')">E-Trade</button>
     </div>
+    <div style="display:flex;align-items:center;gap:5px;margin-left:4px">
+      <span style="font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted)">Default:</span>
+      <select id="default-view-sel" style="font-family:var(--f-ui);font-size:0.60rem;padding:2px 5px;border-radius:4px;background:var(--surface);border:1px solid var(--border-2);color:var(--text-2);cursor:pointer">
+        <option value="all">All</option>
+        <option value="schwab">Schwab</option>
+        <option value="etrade">E-Trade</option>
+      </select>
+      <button id="save-default-view-btn" onclick="saveDefaultView()" style="font-family:var(--f-ui);font-size:0.60rem;padding:2px 8px;border-radius:4px;background:transparent;border:1px solid var(--border-2);color:var(--text-2);cursor:pointer;transition:0.12s" onmouseover="this.style.color='var(--text)';this.style.background='var(--surface-hi)'" onmouseout="this.style.color='var(--text-2)';this.style.background='transparent'">Save</button>
+      <span id="save-default-view-ack" style="font-family:var(--f-mono);font-size:0.55rem;color:var(--green);display:none">✓</span>
+    </div>
     <button id="sync-btn" onclick="syncPortfolio()" style="font-family:var(--f-ui);font-size:0.60rem;padding:2px 8px;border-radius:4px;background:transparent;border:1px solid var(--border-2);color:var(--text-2);cursor:pointer;transition:0.12s" onmouseover="this.style.color='var(--text)';this.style.background='var(--surface-hi)'" onmouseout="this.style.color='var(--text-2)';this.style.background='transparent'">↻ Sync</button>
     <span id="sync-ts" style="font-family:var(--f-mono);font-size:0.55rem;color:var(--text-muted)"></span>
   </div>
@@ -1521,8 +1531,29 @@ async function syncPortfolio() {
   if (ts)  ts.textContent = 'synced ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
 
+// ── Default view preference ───────────────────────────────────────────────────
+const _DEFAULT_VIEW_KEY = 'portfolio_default_view';
+function saveDefaultView() {
+  const sel = document.getElementById('default-view-sel');
+  const ack = document.getElementById('save-default-view-ack');
+  if (!sel) return;
+  localStorage.setItem(_DEFAULT_VIEW_KEY, sel.value);
+  setAccountView(sel.value);
+  if (ack) {
+    ack.style.display = 'inline';
+    setTimeout(() => { ack.style.display = 'none'; }, 1500);
+  }
+}
+function _initDefaultView() {
+  const saved = localStorage.getItem(_DEFAULT_VIEW_KEY) || 'all';
+  const sel = document.getElementById('default-view-sel');
+  if (sel) sel.value = saved;
+  setAccountView(saved);
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 (async () => {
+  _initDefaultView();
   await Promise.allSettled([loadSpx(), loadEs(), loadQ041(), loadSnapshot(), loadPositionComposition()]);
   const ts = document.getElementById('sync-ts');
   if (ts) ts.textContent = 'loaded ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
