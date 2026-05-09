@@ -56,7 +56,7 @@
 - `--red:    #E04862` / bg `rgba(224,72,98,0.07)` / border `rgba(224,72,98,0.22)` — negative / CLOSE signal / stop triggered / loss
 - `--blue:   #4888E8` / bg `rgba(72,136,232,0.07)` / border `rgba(72,136,232,0.22)` — informational / HOLD / neutral signal / backtest line
 - `--orange: #E08040` / bg `rgba(224,128,64,0.07)` / border `rgba(224,128,64,0.22)` — warning / approaching threshold (2× credit stop, expiry <7d)
-- `--gray-bg: rgba(96,104,128,0.08)` / `--gray-border: rgba(96,104,128,0.2)` — disabled / WAIT / blocked / read-only badge
+- `--gray-bg: rgba(96,104,128,0.08)` / `--gray-border: rgba(96,104,128,0.2)` — disabled / NO ENTRY / blocked / read-only badge
 
 **Dark mode only:** This product has no light mode. The dark palette is canonical.
 
@@ -69,7 +69,7 @@ Used in the Portfolio Command Center "Today's Actions" zone and per-strategy car
 | OPEN | `--green` | Valid entry opportunity available today |
 | HOLD | `--blue` | Position open, no action needed |
 | CLOSE | `--red` | Close signal: stop triggered, expiry imminent, or explicit signal |
-| WAIT | `--text-muted` | Entry conditions not met; waiting |
+| NO ENTRY | `--text-muted` | Entry conditions not met; no valid setup today |
 | WARNING | `--orange` | Approaching critical threshold (credit stop 2×, DTE ≤7, VIX spike) |
 | BLOCKED | `--text-muted` (reduced opacity) | Blocked by system rule (BP limit, trend filter, missing data) |
 | REVIEW | `--gold-bg` + `--gold-border` | Paper trade / observe-only sleeve; requires manual review |
