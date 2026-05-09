@@ -220,6 +220,22 @@ def api_recommendation():
         return jsonify({"error": str(exc)}), 500
 
 
+@app.route("/api/recommendation/settling")
+def api_recommendation_settling():
+    try:
+        from production.vix_settling import read_settling_state
+
+        return jsonify(read_settling_state())
+    except Exception as exc:
+        return jsonify({
+            "date": datetime.now(_ET).date().isoformat(),
+            "status": "unavailable",
+            "note": str(exc),
+            "signal1": None,
+            "signal2": None,
+        }), 200
+
+
 @app.route("/api/es/recommendation")
 def api_es_recommendation():
     from strategy.selector import get_es_recommendation
