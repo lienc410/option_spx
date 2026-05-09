@@ -40,7 +40,7 @@ class _FakeOAuth:
 
 
 class _FakeAccounts:
-    def __init__(self, *_args):
+    def __init__(self, *_args, **_kwargs):
         pass
 
     def list_accounts(self):
