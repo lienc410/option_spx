@@ -441,7 +441,7 @@ body {
 
 .bp-buckets { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 4px; }
 .bp-bucket-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
-.bp-bucket-label { font-family: var(--f-ui); font-size: 0.68rem; color: var(--text-2); flex: 0 0 160px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.bp-bucket-label { font-family: var(--f-ui); font-size: 0.68rem; color: var(--text-2); flex: 0 0 185px; }
 .bp-bucket-note { font-size: 0.60rem; color: var(--text-muted); margin-left: 4px; }
 .bp-bucket-bar-wrap { flex: 1; height: 6px; background: var(--border-2); border-radius: 9999px; overflow: hidden; }
 .bp-bucket-bar { height: 100%; border-radius: 9999px; transition: width 0.45s ease; }
@@ -1022,8 +1022,10 @@ function _renderMarginAllocation(data) {
   const optionsW = Math.min(spxW + etOptW, 100);   // SPX spread + E-Trade options
   const equityW  = Math.min(eqW  + etEqW,  100);   // Schwab equity + E-Trade equity
 
-  const eqNote    = '15% haircut';
-  const allEqNote = etradeNlv > 0 ? 'combined · 15% haircut' : '15% haircut';
+  const _fmtK = (n) => !n ? '' : n >= 1e6 ? '$' + (n/1e6).toFixed(1) + 'M' : n >= 1000 ? '$' + Math.round(n/1000) + 'k' : '$' + Math.round(n);
+  const eqNote    = eqDollars   > 0 ? _fmtK(eqDollars) + ' (15% haircut)' : '15% haircut';
+  const allEqNote = (eqDollars + etEqDollars) > 0
+    ? _fmtK(eqDollars + etEqDollars) + (etradeNlv > 0 ? ' (combined)' : ' (15% haircut)') : '15% haircut';
 
   function barHtml(label, pct, barClass, note) {
     const w = typeof pct === 'number' ? Math.min(Math.max(pct, 0), 100).toFixed(1) : '0';
@@ -1076,7 +1078,7 @@ function _renderMarginAllocation(data) {
     legendItems = `
       <div class="bp-legend-item"><div class="bp-legend-dot dot-es"></div>E-Trade ${etWe.toFixed(1)}%</div>
       <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>`;
-    bucketRows = barHtml('E-Trade PM', etWe, 'bar-etrade', 'account maintenance');
+    bucketRows = barHtml('E-Trade PM', etWe, 'bar-etrade', (etDollars > 0 ? _fmtK(etDollars) + ' ' : '') + 'maintenance');
     railCards = etradeNlv > 0
       ? `<div class="account-rail-card">
           <div class="account-rail-title">E-Trade</div>
