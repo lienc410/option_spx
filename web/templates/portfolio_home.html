@@ -636,6 +636,17 @@ body {
 }
 
 .footer { text-align: center; padding: 20px 0 0; font-size: 0.65rem; color: var(--text-muted); }
+
+.pos-view-tabs { display: flex; gap: 4px; }
+.pos-view-tab {
+  font-family: var(--f-ui); font-size: 0.60rem; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 3px 10px; border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--border-2); color: var(--text-muted); background: transparent;
+  transition: color 0.12s, background 0.12s, border-color 0.12s;
+}
+.pos-view-tab.active { color: var(--text); border-color: var(--border); background: var(--surface-hi); }
+.pos-view-tab:hover:not(.active) { color: var(--text-2); }
 </style>
 </head>
 <body>
@@ -742,19 +753,10 @@ body {
     <div class="pos-comp-section" id="pos-comp-section" style="margin-top:16px">
       <div class="pos-comp-header">
         <span class="pos-comp-title">Account Positions — Market Value</span>
-        <div class="pos-comp-legend">
-          <div class="pos-comp-leg-item">
-            <div class="pos-comp-leg-dot" style="background:rgba(201,168,64,0.9)"></div>SPX strategy
-          </div>
-          <div class="pos-comp-leg-item">
-            <div class="pos-comp-leg-dot" style="background:rgba(72,136,232,0.85)"></div>Equities
-          </div>
-          <div class="pos-comp-leg-item">
-            <div class="pos-comp-leg-dot" style="background:rgba(66,204,124,0.8)"></div>Equity ETF
-          </div>
-          <div class="pos-comp-leg-item">
-            <div class="pos-comp-leg-dot" style="background:rgba(96,104,128,0.5)"></div>Bond/Cash ETF
-          </div>
+        <div class="pos-view-tabs">
+          <button class="pos-view-tab active" data-view="schwab" onclick="setPositionView('schwab')">Schwab</button>
+          <button class="pos-view-tab" data-view="etrade" onclick="setPositionView('etrade')">E-Trade</button>
+          <button class="pos-view-tab" data-view="all" onclick="setPositionView('all')">All</button>
         </div>
       </div>
       <div class="pos-col-header">
@@ -1217,114 +1219,181 @@ document.getElementById('nav-date').textContent = dateStr;
 document.getElementById('hero-date').textContent = dateStr;
 
 // ── Position Composition ─────────────────────────────────────────────────────
+let _posCache = { schwab: null, etrade: null };
+let _posActiveView = 'schwab';
+
+function setPositionView(v) {
+  _posActiveView = v;
+  document.querySelectorAll('.pos-view-tab').forEach(el =>
+    el.classList.toggle('active', el.dataset.view === v));
+  renderPositionBars();
+}
+
 async function loadPositionComposition() {
+  const [sr, er, ebr] = await Promise.allSettled([
+    fetch('/api/schwab/positions'),
+    fetch('/api/etrade/positions'),
+    fetch('/api/etrade/balances'),
+  ]);
+  if (sr.status === 'fulfilled' && sr.value.ok) {
+    const d = await sr.value.json();
+    if (d.configured && d.authenticated) _posCache.schwab = d;
+  }
+  if (er.status === 'fulfilled' && er.value.ok &&
+      ebr.status === 'fulfilled' && ebr.value.ok) {
+    const pos = await er.value.json();
+    const bal = await ebr.value.json();
+    if (!pos.error && !bal.error && Array.isArray(pos.positions)) {
+      _posCache.etrade = {
+        positions: pos.positions,
+        nlv: bal.net_liquidation,
+        maintenance_margin: bal.maintenance_margin,
+        margin_pct_nlv: bal.net_liquidation > 0 && bal.maintenance_margin > 0
+          ? bal.maintenance_margin / bal.net_liquidation * 100 : null,
+      };
+    }
+  }
+  renderPositionBars();
+}
+
+function _fmtMv(v) {
+  if (v == null) return '—';
+  const abs = Math.abs(v), sign = v < 0 ? '-' : '';
+  if (abs >= 1e6)  return sign + '$' + (abs / 1e6).toFixed(2) + 'M';
+  if (abs >= 1000) return sign + '$' + (abs / 1000).toFixed(1) + 'k';
+  return sign + '$' + abs.toFixed(0);
+}
+
+function _schwabPosColor(pos, ref) {
+  const cat = pos.category, sub = pos.sub_category;
+  if (cat === 'spx_options') return 'rgba(201,168,64,0.90)';
+  if (cat === 'collective' && sub === 'equity_etf') return 'rgba(66,204,124,0.80)';
+  if (cat === 'cash' || sub === 'cash_etf' || sub === 'money_market' || sub === 'cash')
+    return 'rgba(32,188,164,0.85)';
+  if (cat === 'collective') return 'rgba(96,104,128,0.45)';
+  if (cat === 'equity') {
+    const s = ['rgba(72,136,232,0.90)','rgba(72,136,232,0.72)','rgba(72,136,232,0.55)',
+               'rgba(72,136,232,0.40)','rgba(72,136,232,0.28)'];
+    return s[(ref.i++) % s.length];
+  }
+  return 'rgba(96,104,128,0.30)';
+}
+
+function _etradePosColor(pos, ref) {
+  const at = (pos.asset_type || '').toUpperCase();
+  if (at === 'OPTN' || at === 'OPTION') return 'rgba(201,168,64,0.90)';
+  if (at === 'ETF')                     return 'rgba(66,204,124,0.80)';
+  const s = ['rgba(160,100,220,0.90)','rgba(160,100,220,0.72)','rgba(160,100,220,0.55)',
+             'rgba(160,100,220,0.40)','rgba(160,100,220,0.28)'];
+  return s[(ref.i++) % s.length];
+}
+
+function _posBarRow(label, mv, pnl, barW, color, nlv) {
+  const pct = nlv > 0 && mv != null ? (Math.abs(mv) / nlv * 100).toFixed(1) + '%' : '—';
+  const pnlStr = pnl != null
+    ? ` <span style="color:${pnl >= 0 ? 'var(--green)' : 'var(--red)'}">${pnl >= 0 ? '+' : ''}${_fmtMv(pnl)}</span>`
+    : '';
+  return `<div class="pos-row">
+    <div class="pos-row-label">${label}</div>
+    <div class="pos-bar-wrap"><div class="pos-bar" style="width:${barW.toFixed(1)}%;background:${color}"></div></div>
+    <div class="pos-row-mv">${_fmtMv(mv)}${pnlStr}</div>
+    <div class="pos-row-pct">${pct}</div>
+  </div>`;
+}
+
+function renderPositionBars() {
   const barsEl = document.getElementById('pos-comp-bars');
-  try {
-    const res = await fetch('/api/schwab/positions');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    if (!data.configured || !data.authenticated) {
-      barsEl.innerHTML = '<div class="snapshot-unavail">Schwab not connected</div>';
-      return;
-    }
-    const positions = data.positions || [];
-    const summary   = data.summary   || {};
-    const nlv       = summary.nlv    || 0;
+  const view   = _posActiveView;
 
-    if (positions.length === 0) {
-      barsEl.innerHTML = '<div class="snapshot-unavail">No positions found</div>';
-      return;
-    }
-
-    // Color palette per category
-    // equity: blue spectrum, spx_options: gold, equity_etf: green, cash/cash_etf/mm: teal, bond_etf: gray
-    const equityShades = [
-      'rgba(72,136,232,0.90)',
-      'rgba(72,136,232,0.72)',
-      'rgba(72,136,232,0.55)',
-      'rgba(72,136,232,0.40)',
-      'rgba(72,136,232,0.28)',
-    ];
-    let equityIdx = 0;
-    const colorOf = (pos) => {
-      const cat = pos.category;
-      const sub = pos.sub_category;
-      if (cat === 'spx_options')                        return 'rgba(201,168,64,0.90)';
-      if (cat === 'collective' && sub === 'equity_etf') return 'rgba(66,204,124,0.80)';
-      if (cat === 'cash' || sub === 'cash_etf' || sub === 'money_market' || sub === 'cash')
-                                                        return 'rgba(32,188,164,0.85)';
-      if (cat === 'collective')                         return 'rgba(96,104,128,0.45)';
-      if (cat === 'equity') {
-        const c = equityShades[equityIdx % equityShades.length];
-        equityIdx++;
-        return c;
-      }
-      return 'rgba(96,104,128,0.30)';
-    };
-
-    // Max abs MV for bar scaling
+  // ── E-Trade view ──
+  if (view === 'etrade') {
+    const d = _posCache.etrade;
+    if (!d) { barsEl.innerHTML = '<div class="snapshot-unavail">E-Trade not connected</div>'; return; }
+    const positions = d.positions;
+    if (!positions.length) { barsEl.innerHTML = '<div class="snapshot-unavail">No E-Trade positions</div>'; return; }
     const maxAbs = Math.max(...positions.map(p => Math.abs(p.market_value || 0)), 1);
-
-    function fmtMv(v) {
-      if (v == null) return '—';
-      const abs = Math.abs(v);
-      const sign = v < 0 ? '-' : '';
-      if (abs >= 1000) return sign + '$' + (abs / 1000).toFixed(1) + 'k';
-      return sign + '$' + abs.toFixed(0);
-    }
-
+    const nlv = d.nlv || 0;
+    const ref = { i: 0 };
     const rows = positions.map(pos => {
-      const mv    = pos.market_value || 0;
-      const absMv = Math.abs(mv);
-      const pct   = nlv > 0 ? (absMv / nlv * 100) : 0;
-      const barW  = (absMv / maxAbs * 100).toFixed(1);
-      const color = colorOf(pos);
-      const label = pos.symbol === 'SPX Options'
-        ? 'SPX spread'
-        : pos.symbol.replace(/\s+/g, ' ').trim().substring(0, 10);
-      const pnl   = pos.unrealized_pnl;
-      const pnlStr = pnl != null
-        ? ` <span style="color:${pnl >= 0 ? 'var(--green)' : 'var(--red)'}">` +
-          `${pnl >= 0 ? '+' : ''}${fmtMv(pnl)}</span>`
-        : '';
-      return `<div class="pos-row">
-        <div class="pos-row-label">${label}</div>
-        <div class="pos-bar-wrap">
-          <div class="pos-bar" style="width:${barW}%;background:${color}"></div>
-        </div>
-        <div class="pos-row-mv">${fmtMv(mv)}${pnlStr}</div>
-        <div class="pos-row-pct">${pct.toFixed(1)}%</div>
-      </div>`;
+      const mv = pos.market_value || 0;
+      return _posBarRow((pos.symbol || '—').substring(0, 10), mv, pos.unrealized_pnl ?? null,
+        Math.abs(mv) / maxAbs * 100, _etradePosColor(pos, ref), nlv);
     }).join('');
-
-    const maint      = summary.maintenance_margin;
-    const mPct       = summary.margin_pct_nlv;
-    const totalCash  = summary.total_cash_mv;
-    const cashPct    = summary.total_cash_pct;
-    const nlvStr = nlv >= 1000 ? '$' + (nlv / 1000).toFixed(0) + 'k' : '$' + nlv.toFixed(0);
-    const mStr   = maint >= 1000 ? '$' + (maint / 1000).toFixed(1) + 'k' : '$' + (maint || 0).toFixed(0);
-    const cashStr = totalCash >= 1000 ? '$' + (totalCash / 1000).toFixed(1) + 'k' : '$' + (totalCash || 0).toFixed(0);
-
-    const cashFooter = totalCash > 1
-      ? `<div class="margin-footer" style="margin-top:4px">
-          <div class="margin-footer-left" style="color:rgba(32,188,164,0.9)">Cash + Cash ETF + Money Market</div>
-          <div class="margin-footer-right">
-            <span class="margin-badge" style="background:rgba(32,188,164,0.15);color:rgba(32,188,164,0.9);border-color:rgba(32,188,164,0.3)">${cashStr} / ${cashPct != null ? cashPct.toFixed(1) + '%' : '—'}</span>
-          </div>
-        </div>`
-      : '';
-
     barsEl.innerHTML = rows + `
       <div class="margin-footer">
-        <div class="margin-footer-left">NLV ${nlvStr} · Maintenance margin (Schwab PM)</div>
+        <div class="margin-footer-left">NLV ${_fmtMv(nlv)} · Maintenance margin (E-Trade PM)</div>
         <div class="margin-footer-right">
-          <span class="margin-badge">${mStr} / ${mPct != null ? mPct.toFixed(1) + '%' : '—'}</span>
+          <span class="margin-badge">${_fmtMv(d.maintenance_margin)} / ${d.margin_pct_nlv != null ? d.margin_pct_nlv.toFixed(1) + '%' : '—'}</span>
           <span class="margin-source">account-level · not per-position</span>
         </div>
-      </div>` + cashFooter;
-  } catch (e) {
-    barsEl.innerHTML = `<div class="snapshot-unavail">Position data unavailable: ${e.message}</div>`;
+      </div>`;
+    return;
   }
+
+  // ── All view ──
+  if (view === 'all') {
+    const s = _posCache.schwab, e = _posCache.etrade;
+    if (!s && !e) { barsEl.innerHTML = '<div class="snapshot-unavail">No account data available</div>'; return; }
+    const sNlv = s?.summary?.nlv || 0, eNlv = e?.nlv || 0;
+    const combinedNlv = sNlv + eNlv;
+    const allPoss = [
+      ...(s?.positions || []).map(p => ({ ...p, _acct: 'schwab' })),
+      ...(e?.positions || []).map(p => ({ ...p, _acct: 'etrade' })),
+    ];
+    const maxAbs = Math.max(...allPoss.map(p => Math.abs(p.market_value || 0)), 1);
+    const sRef = { i: 0 }, eRef = { i: 0 };
+    const rows = allPoss.map(pos => {
+      const mv = pos.market_value || 0;
+      const label = pos.symbol === 'SPX Options' ? 'SPX spread' : (pos.symbol || '—').substring(0, 10);
+      const color = pos._acct === 'schwab' ? _schwabPosColor(pos, sRef) : _etradePosColor(pos, eRef);
+      return _posBarRow(label, mv, pos.unrealized_pnl ?? null, Math.abs(mv) / maxAbs * 100, color, combinedNlv);
+    }).join('');
+    const combMaint = (s?.summary?.maintenance_margin || 0) + (e?.maintenance_margin || 0);
+    const combMPct  = combinedNlv > 0 ? (combMaint / combinedNlv * 100) : null;
+    barsEl.innerHTML = rows + `
+      <div class="margin-footer">
+        <div class="margin-footer-left">Combined NLV ${_fmtMv(combinedNlv)}
+          · Schwab <span style="color:rgba(72,136,232,0.9)">■</span>
+          · E-Trade <span style="color:rgba(160,100,220,0.9)">■</span></div>
+        <div class="margin-footer-right">
+          <span class="margin-badge">${_fmtMv(combMaint)} / ${combMPct != null ? combMPct.toFixed(1) + '%' : '—'}</span>
+          <span class="margin-source">combined maintenance</span>
+        </div>
+      </div>`;
+    return;
+  }
+
+  // ── Schwab view (default) ──
+  const data = _posCache.schwab;
+  if (!data) { barsEl.innerHTML = '<div class="snapshot-unavail">Schwab not connected</div>'; return; }
+  const positions = data.positions || [];
+  const summary   = data.summary   || {};
+  const nlv       = summary.nlv    || 0;
+  if (!positions.length) { barsEl.innerHTML = '<div class="snapshot-unavail">No positions found</div>'; return; }
+  const maxAbs = Math.max(...positions.map(p => Math.abs(p.market_value || 0)), 1);
+  const ref = { i: 0 };
+  const rows = positions.map(pos => {
+    const mv = pos.market_value || 0;
+    const label = pos.symbol === 'SPX Options' ? 'SPX spread' : pos.symbol.substring(0, 10);
+    return _posBarRow(label, mv, pos.unrealized_pnl, Math.abs(mv) / maxAbs * 100, _schwabPosColor(pos, ref), nlv);
+  }).join('');
+  const maint = summary.maintenance_margin, mPct = summary.margin_pct_nlv;
+  const totalCash = summary.total_cash_mv,  cashPct = summary.total_cash_pct;
+  const cashFooter = totalCash > 1
+    ? `<div class="margin-footer" style="margin-top:4px">
+        <div class="margin-footer-left" style="color:rgba(32,188,164,0.9)">Cash + Cash ETF + Money Market</div>
+        <div class="margin-footer-right">
+          <span class="margin-badge" style="background:rgba(32,188,164,0.15);color:rgba(32,188,164,0.9);border-color:rgba(32,188,164,0.3)">${_fmtMv(totalCash)} / ${cashPct != null ? cashPct.toFixed(1) + '%' : '—'}</span>
+        </div>
+      </div>` : '';
+  barsEl.innerHTML = rows + `
+    <div class="margin-footer">
+      <div class="margin-footer-left">NLV ${_fmtMv(nlv)} · Maintenance margin (Schwab PM)</div>
+      <div class="margin-footer-right">
+        <span class="margin-badge">${_fmtMv(maint)} / ${mPct != null ? mPct.toFixed(1) + '%' : '—'}</span>
+        <span class="margin-source">account-level · not per-position</span>
+      </div>
+    </div>` + cashFooter;
 }
 
 // ── Manual Schwab sync ───────────────────────────────────────────────────────
