@@ -162,6 +162,16 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 }
 
 .footer { text-align: center; padding: 20px 0 0; font-size: 0.65rem; color: var(--text-muted); }
+.cache-badge {
+  font-family: var(--f-mono); font-size: 0.58rem; color: var(--text-muted);
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.cache-refresh {
+  font-family: var(--f-ui); font-size: 0.60rem; color: var(--text-2);
+  background: transparent; border: 1px solid var(--border-2); border-radius: 4px;
+  padding: 2px 7px; cursor: pointer; transition: 0.12s;
+}
+.cache-refresh:hover { color: var(--text); background: var(--surface-hi); }
 </style>
 </head>
 <body>
@@ -215,7 +225,8 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
       <option value="1" selected>Hybrid (actual 2022+ / BS fallback)</option>
       <option value="0">Black-Scholes only</option>
     </select>
-    <button id="run-btn" class="run-btn" onclick="runBacktest()">Run Backtest</button>
+    <button id="run-btn" class="run-btn" onclick="runBacktest(false)">Run Backtest</button>
+    <span id="cache-status"></span>
   </div>
 
   <div id="pricing-note" class="pricing-note" style="display:none"></div>
@@ -617,99 +628,138 @@ function buildEquityChart(filtered, baseline) {
   });
 }
 
-async function runBacktest() {
-  const btn   = document.getElementById('run-btn');
-  const area  = document.getElementById('body-area');
-  const start = document.getElementById('ctrl-start').value;
+const _BT_SS_PREFIX = 'es_bt_v1:';
+const _BT_SS_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+function _btCacheKey(start, hybrid) { return _BT_SS_PREFIX + start + ':' + hybrid; }
+
+function _btSaveCache(start, hybrid, data) {
+  try {
+    sessionStorage.setItem(_btCacheKey(start, hybrid), JSON.stringify({ ts: Date.now(), data }));
+  } catch(_) {}
+}
+
+function _btLoadCache(start, hybrid) {
+  try {
+    const raw = sessionStorage.getItem(_btCacheKey(start, hybrid));
+    if (!raw) return null;
+    const entry = JSON.parse(raw);
+    if (Date.now() - entry.ts > _BT_SS_TTL_MS) { sessionStorage.removeItem(_btCacheKey(start, hybrid)); return null; }
+    return entry;
+  } catch(_) { return null; }
+}
+
+function _btShowCacheBadge(ts) {
+  const el = document.getElementById('cache-status');
+  if (!el) return;
+  const age = Math.round((Date.now() - ts) / 60000);
+  const ageStr = age < 1 ? 'just now' : age + ' min ago';
+  el.innerHTML = `<span class="cache-badge">Cached · ${ageStr} <button class="cache-refresh" onclick="runBacktest(false)">↻ Refresh</button></span>`;
+}
+
+function _btClearCacheBadge() {
+  const el = document.getElementById('cache-status');
+  if (el) el.innerHTML = '';
+}
+
+async function _renderBacktestResult(data, start) {
+  const area     = document.getElementById('body-area');
+  const filtered = data.filtered;
+  const baseline  = data.baseline;
+
+  const note = document.getElementById('pricing-note');
+  const fi = filtered?.summary;
+  if (fi?.actual_market_entries != null) {
+    note.style.display = 'block';
+    note.textContent = `Pricing: ${fi.actual_market_entries} entries used actual SPX option prices (q041_historical), ${fi.bs_fallback_entries} used Black-Scholes fallback. Underlying: SPX options as /ES proxy (same underlying, SPX $100/pt multiplier used for PnL).`;
+  }
+
+  let html = '';
+  html += `
+    <div class="price-chart-hd">
+      <div class="section-title">SPX Price — /ES Trade Entry / Exit</div>
+      <div class="overlay-bar">
+        <span class="ctrl-label-sm">Overlay:</span>
+        <button class="overlay-btn active" id="ovr-none"  onclick="setEsOverlay('none', this)">None</button>
+        <button class="overlay-btn" id="ovr-pnl"   onclick="setEsOverlay('pnl',   this)">Cum. P&amp;L</button>
+        <button class="overlay-btn" id="ovr-dd"    onclick="setEsOverlay('dd',    this)">Drawdown</button>
+        <button class="overlay-btn" id="ovr-vix"   onclick="setEsOverlay('vix',   this)">VIX</button>
+        <button class="overlay-btn" id="ovr-ivr"   onclick="setEsOverlay('ivr',   this)">IV Rank</button>
+        <button class="overlay-btn" id="ovr-evsig" onclick="setEsOverlay('entry_vix', this)">Entry VIX</button>
+      </div>
+    </div>
+    <div class="price-chart-wrap">
+      <canvas id="es-price-chart" class="chart-canvas" height="220"></canvas>
+    </div>
+    <div class="es-window">
+      <div class="es-window-range" id="es-window-range">—</div>
+      <input type="range" min="0" max="0" value="0" step="1" id="es-window-slider" class="es-window-slider" oninput="setEsWindowStart(this.value)">
+    </div>
+    <div class="es-window-scale">
+      <span id="es-window-min">—</span>
+      <span id="es-window-max">—</span>
+    </div>
+    <div class="equity-legend">
+      <span><span class="eq-arrow" style="color:#42CC7C">▲</span> Open — profit</span>
+      <span><span class="eq-arrow" style="color:#42CC7C">▼</span> Close — profit</span>
+      <span><span class="eq-arrow" style="color:#E04862">▲</span> Open — loss</span>
+      <span><span class="eq-arrow" style="color:#E04862">▼</span> Close — loss</span>
+    </div>`;
+
+  html += `
+    <div class="chart-wrap">
+      <div class="chart-title">
+        Portfolio Equity (${data.start_date} — today)
+        <div class="chart-legend">
+          <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#E08040"></div>Trend Filter ON</div>
+          <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#4888E8"></div>No Filter</div>
+        </div>
+      </div>
+      <canvas id="equity-chart" class="chart-canvas" height="180"></canvas>
+    </div>`;
+
+  if (filtered) html += renderMetrics(filtered.summary, 'Trend Filter ON — /ES Short Put 45d Δ0.20', 'orange');
+  if (baseline)  html += renderMetrics(baseline.summary,  'Baseline — No Filter',  'blue');
+  if (filtered) {
+    html += '<div class="section-label">Trade Log — Trend Filter ON</div>';
+    html += renderTradeTable(filtered.trades);
+  }
+
+  area.innerHTML = html;
+  await loadEsSignalData(start);
+  buildEsChartData(filtered?.trades || []);
+  renderEsPriceChart();
+  initEsWindowSlider();
+  buildEquityChart(filtered, baseline);
+}
+
+async function runBacktest(fromCache = true) {
+  const btn    = document.getElementById('run-btn');
+  const start  = document.getElementById('ctrl-start').value;
   const hybrid = document.getElementById('ctrl-hybrid').value;
 
+  if (fromCache) {
+    const cached = _btLoadCache(start, hybrid);
+    if (cached) {
+      await _renderBacktestResult(cached.data, start);
+      _btShowCacheBadge(cached.ts);
+      return;
+    }
+  }
+
+  _btClearCacheBadge();
   btn.disabled = true;
   btn.textContent = 'Running…';
-  area.innerHTML = '<div class="loading-msg">Running backtest — this may take 10–15 seconds…</div>';
+  document.getElementById('body-area').innerHTML = '<div class="loading-msg">Running backtest — this may take 10–15 seconds…</div>';
 
   try {
-    const url = `/api/es/backtest?mode=both&start=${start}&hybrid=${hybrid}`;
-    const res = await fetch(url);
+    const res  = await fetch(`/api/es/backtest?mode=both&start=${start}&hybrid=${hybrid}`);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-
-    const filtered = data.filtered;
-    const baseline  = data.baseline;
-
-    // Pricing note
-    const note = document.getElementById('pricing-note');
-    const fi = filtered?.summary;
-    if (fi?.actual_market_entries != null) {
-      note.style.display = 'block';
-      note.textContent = `Pricing: ${fi.actual_market_entries} entries used actual SPX option prices (q041_historical), ${fi.bs_fallback_entries} used Black-Scholes fallback. Underlying: SPX options as /ES proxy (same underlying, SPX $100/pt multiplier used for PnL).`;
-    }
-
-    let html = '';
-
-    // ── Price chart section ──
-    html += `
-      <div class="price-chart-hd">
-        <div class="section-title">SPX Price — /ES Trade Entry / Exit</div>
-        <div class="overlay-bar">
-          <span class="ctrl-label-sm">Overlay:</span>
-          <button class="overlay-btn active" id="ovr-none"  onclick="setEsOverlay('none', this)">None</button>
-          <button class="overlay-btn" id="ovr-pnl"   onclick="setEsOverlay('pnl',   this)">Cum. P&amp;L</button>
-          <button class="overlay-btn" id="ovr-dd"    onclick="setEsOverlay('dd',    this)">Drawdown</button>
-          <button class="overlay-btn" id="ovr-vix"   onclick="setEsOverlay('vix',   this)">VIX</button>
-          <button class="overlay-btn" id="ovr-ivr"   onclick="setEsOverlay('ivr',   this)">IV Rank</button>
-          <button class="overlay-btn" id="ovr-evsig" onclick="setEsOverlay('entry_vix', this)">Entry VIX</button>
-        </div>
-      </div>
-      <div class="price-chart-wrap">
-        <canvas id="es-price-chart" class="chart-canvas" height="240"></canvas>
-      </div>
-      <div class="es-window">
-        <div class="es-window-range" id="es-window-range">—</div>
-        <input type="range" min="0" max="0" value="0" step="1" id="es-window-slider" class="es-window-slider" oninput="setEsWindowStart(this.value)">
-      </div>
-      <div class="es-window-scale">
-        <span id="es-window-min">—</span>
-        <span id="es-window-max">—</span>
-      </div>
-      <div class="equity-legend">
-        <span><span class="eq-arrow" style="color:#42CC7C">▲</span> Open — profit</span>
-        <span><span class="eq-arrow" style="color:#42CC7C">▼</span> Close — profit</span>
-        <span><span class="eq-arrow" style="color:#E04862">▲</span> Open — loss</span>
-        <span><span class="eq-arrow" style="color:#E04862">▼</span> Close — loss</span>
-      </div>`;
-
-    // ── Equity curve chart ──
-    html += `
-      <div class="chart-wrap">
-        <div class="chart-title">
-          Portfolio Equity (${data.start_date} — today)
-          <div class="chart-legend">
-            <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#E08040"></div>Trend Filter ON</div>
-            <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#4888E8"></div>No Filter</div>
-          </div>
-        </div>
-        <canvas id="equity-chart" class="chart-canvas" height="180"></canvas>
-      </div>`;
-
-    if (filtered) html += renderMetrics(filtered.summary, 'Trend Filter ON — /ES Short Put 45d Δ0.20', 'orange');
-    if (baseline)  html += renderMetrics(baseline.summary,  'Baseline — No Filter',  'blue');
-
-    if (filtered) {
-      html += '<div class="section-label">Trade Log — Trend Filter ON</div>';
-      html += renderTradeTable(filtered.trades);
-    }
-
-    area.innerHTML = html;
-
-    // Load signal history and build price chart, then build equity chart
-    await loadEsSignalData(start);
-    buildEsChartData(filtered?.trades || []);
-    renderEsPriceChart();
-    initEsWindowSlider();
-    buildEquityChart(filtered, baseline);
-
+    _btSaveCache(start, hybrid, data);
+    await _renderBacktestResult(data, start);
   } catch (e) {
-    area.innerHTML = `<div class="error-msg">Error: ${e.message}</div>`;
+    document.getElementById('body-area').innerHTML = `<div class="error-msg">Error: ${e.message}</div>`;
   } finally {
     btn.disabled = false;
     btn.textContent = 'Run Backtest';
@@ -717,6 +767,8 @@ async function runBacktest() {
 }
 
 document.getElementById('nav-date').textContent = new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+// Auto-load on page visit — server has in-memory cache for default params
+runBacktest(true);
 </script>
 </body>
 </html>
