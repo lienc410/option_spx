@@ -1,11 +1,29 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-07 (R-20260507-05)
+Last Updated: 2026-05-08 (R-20260508-01)
 Owner: Planner or PM
 
 ---
 
 ## Entries
+
+### R-20260508-01 — PM-accurate margin breakdown: homepage BP must use PM-style max-loss/equity proxies, not Reg-T spread math
+
+- Topic: PM-facing portfolio margin decomposition on the homepage and command-center surfaces.
+- Findings:
+  - The previous homepage BP display materially overstated usage (`~33.6%`) because it treated the SPX spread like a Reg-T debit `(width - credit) * 100` object. For the current Schwab PM account, the practical approximation is much closer to **max-loss**: SPX spread BP should be proxied as `width * 100 * contracts`.
+  - For equities, the most useful operational proxy is an **equity PM haircut** around `market_value * 0.85`, i.e. an implied `15%` haircut, derived from reconciling the TOS margin screenshot against the Schwab account-level maintenance total.
+  - Schwab’s API is not giving a reliable per-position PM decomposition: `maintenanceRequirement` is effectively zero at the position level, so the only trustworthy maintenance number is the **account-level total**. Any portfolio surface that wants rail/bucket breakdown must therefore infer it from account totals plus strategy-specific proxies rather than expect per-position truth from the broker payload.
+- Risks / Counterarguments:
+  - These are still operational proxies, not broker-certified per-position PM formulas. They are good enough for homepage / command-center truthfulness and for research-facing BP reasoning, but should not be mistaken for an exact broker liquidation model.
+  - The approximation is currently strongest for the present SPX spread + equity mix; if the live book changes materially, the decomposition assumptions may need to be revisited.
+- Confidence: medium-high for current operational use. Strong enough to replace the old homepage display and to serve as the default PM-facing BP interpretation layer.
+- Next Tests: validate the proxy again after the next meaningful live position mix change, especially if `/ES` and SPX options coexist more actively in the same BP pool.
+- Recommendation: treat the PM-aware homepage decomposition as canonical for UI and planning purposes: SPX spread BP via `width * 100`, equity margin as `maintenance_total - spx_max_loss`, and cash / money-market / cash-ETF buckets explicitly separated.
+- Related: `SPEC-087`, `Q012`
+- See: `schwab/client.py`, `web/portfolio_surface.py`, `web/templates/portfolio_home.html`
+
+---
 
 ### R-20260507-05 — SPEC-086 DONE: /ES short put credit stop monitor live; B1 closed
 
