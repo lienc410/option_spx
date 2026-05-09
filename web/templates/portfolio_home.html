@@ -1056,6 +1056,146 @@ async function loadQ041() {
 }
 
 // ── Portfolio Snapshot ────────────────────────────────────────────────────────
+let _snapshotCache = null;
+let _marginView = 'all';
+
+function setMarginView(v) {
+  _marginView = v;
+  if (_snapshotCache) _renderMarginAllocation(_snapshotCache);
+}
+
+function _renderMarginAllocation(data) {
+  const el = document.getElementById('margin-alloc');
+  if (!el) return;
+  const view    = _marginView;
+  const buckets = data.bp_usage_by_bucket || {};
+  const accounts = data.account_breakdown || {};
+
+  const spxW  = Math.min(typeof buckets.spx_live_bp_pct      === 'number' ? buckets.spx_live_bp_pct      : 0, 100);
+  const eqW   = Math.min(typeof buckets.equity_margin_bp_pct  === 'number' ? buckets.equity_margin_bp_pct  : 0, 100);
+  const etW   = Math.min(typeof buckets.etrade_maintenance_bp_pct === 'number' ? buckets.etrade_maintenance_bp_pct : 0, 100);
+  const q1W   = Math.min(typeof buckets.q041_tier1_bp_pct     === 'number' ? buckets.q041_tier1_bp_pct     : 0, 100);
+  const q2W   = Math.min(typeof buckets.q041_tier2_bp_pct     === 'number' ? buckets.q041_tier2_bp_pct     : 0, 100);
+  const q3W   = Math.min(typeof buckets.q041_tier3_bp_pct     === 'number' ? buckets.q041_tier3_bp_pct     : 0, 100);
+  const q041W = Math.min(q1W + q2W + q3W, 100);
+
+  const eqDollars = buckets.equity_margin_dollars;
+  const eqNote = typeof eqDollars === 'number' ? fmtDollars(eqDollars) + ' (15% haircut)' : '15% haircut';
+
+  function barHtml(label, pct, barClass, note) {
+    const w = typeof pct === 'number' ? Math.min(Math.max(pct, 0), 100).toFixed(1) : '0';
+    const d = typeof pct === 'number' ? pct.toFixed(1) + '%' : '—';
+    const n = note ? `<span class="bp-bucket-note">${note}</span>` : '';
+    return `<div class="bp-bucket-row">
+      <div class="bp-bucket-label">${label}${n}</div>
+      <div class="bp-bucket-bar-wrap"><div class="bp-bucket-bar ${barClass}" style="width:${w}%"></div></div>
+      <div class="bp-bucket-pct">${d}</div>
+    </div>`;
+  }
+
+  function tab(v, label) {
+    return `<button class="pos-view-tab ${view===v?'active':''}" onclick="setMarginView('${v}')">${label}</button>`;
+  }
+
+  let barSegments, legendItems, bucketRows, railCards, noteHtml = '';
+
+  if (view === 'schwab') {
+    const idleW = Math.max(100 - Math.min(spxW + eqW + q041W, 100), 0);
+    barSegments = `
+      <div class="bp-seg bp-seg-spx"    style="width:${spxW.toFixed(1)}%"></div>
+      <div class="bp-seg bp-seg-equity" style="width:${eqW.toFixed(1)}%"></div>
+      <div class="bp-seg bp-seg-q041"   style="width:${q041W.toFixed(1)}%"></div>`;
+    legendItems = `
+      <div class="bp-legend-item"><div class="bp-legend-dot dot-spx"></div>SPX ${spxW.toFixed(1)}%</div>
+      <div class="bp-legend-item"><div class="bp-legend-dot dot-equity"></div>Equity ${eqW.toFixed(1)}%</div>
+      <div class="bp-legend-item"><div class="bp-legend-dot dot-q041"></div>Q041 ${q041W.toFixed(1)}%</div>
+      <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>`;
+    bucketRows =
+      barHtml('SPX Live', buckets.spx_live_bp_pct, 'bar-spx', 'PM max-loss') +
+      barHtml('Equity Margin', buckets.equity_margin_bp_pct, 'bar-equity', eqNote) +
+      barHtml('Q041 Tier 1', buckets.q041_tier1_bp_pct, 'bar-q041', 'paper') +
+      barHtml('Q041 Tier 2', buckets.q041_tier2_bp_pct, 'bar-q041', 'paper') +
+      barHtml('Q041 Tier 3', buckets.q041_tier3_bp_pct, 'bar-q041', 'paper');
+    railCards = `
+      <div class="account-rail-card">
+        <div class="account-rail-title">Schwab</div>
+        <div class="account-rail-line"><span>NLV</span><span>${fmtDollars(accounts.schwab_nlv)}</span></div>
+        <div class="account-rail-line"><span>Maint</span><span>${fmtDollars(accounts.schwab_maintenance_margin)}</span></div>
+      </div>`;
+
+  } else if (view === 'etrade') {
+    const idleW = Math.max(100 - etW, 0);
+    barSegments = `<div class="bp-seg bp-seg-es" style="width:${etW.toFixed(1)}%"></div>`;
+    legendItems = `
+      <div class="bp-legend-item"><div class="bp-legend-dot dot-es"></div>E-Trade ${etW.toFixed(1)}%</div>
+      <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>`;
+    bucketRows = barHtml('E-Trade PM', buckets.etrade_maintenance_bp_pct, 'bar-etrade', 'account maintenance');
+    railCards = typeof accounts.etrade_nlv === 'number'
+      ? `<div class="account-rail-card">
+          <div class="account-rail-title">E-Trade</div>
+          <div class="account-rail-line"><span>NLV</span><span>${fmtDollars(accounts.etrade_nlv)}</span></div>
+          <div class="account-rail-line"><span>Maint</span><span>${fmtDollars(accounts.etrade_maintenance_margin)}</span></div>
+        </div>`
+      : `<div class="account-rail-card"><div class="account-rail-unavail">E-Trade temporarily unavailable</div></div>`;
+
+  } else {
+    // All
+    const realUsed = Math.min(spxW + eqW + etW, 100);
+    const idleW    = Math.max(100 - Math.min(realUsed + q041W, 100), 0);
+    barSegments = `
+      <div class="bp-seg bp-seg-spx"    style="width:${spxW.toFixed(1)}%"></div>
+      <div class="bp-seg bp-seg-equity" style="width:${eqW.toFixed(1)}%"></div>
+      <div class="bp-seg bp-seg-es"     style="width:${etW.toFixed(1)}%"></div>
+      <div class="bp-seg bp-seg-q041"   style="width:${q041W.toFixed(1)}%"></div>`;
+    legendItems = `
+      <div class="bp-legend-item"><div class="bp-legend-dot dot-spx"></div>SPX ${spxW.toFixed(1)}%</div>
+      <div class="bp-legend-item"><div class="bp-legend-dot dot-equity"></div>Equity ${eqW.toFixed(1)}%</div>
+      <div class="bp-legend-item"><div class="bp-legend-dot dot-es"></div>E-Trade ${etW.toFixed(1)}%</div>
+      <div class="bp-legend-item"><div class="bp-legend-dot dot-q041"></div>Q041 ${q041W.toFixed(1)}%</div>
+      <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>`;
+    bucketRows =
+      barHtml('SPX Live', buckets.spx_live_bp_pct, 'bar-spx', 'PM max-loss') +
+      barHtml('Equity Margin', buckets.equity_margin_bp_pct, 'bar-equity', eqNote) +
+      barHtml('E-Trade PM', buckets.etrade_maintenance_bp_pct, 'bar-etrade', 'account maintenance') +
+      barHtml('Q041 Tier 1', buckets.q041_tier1_bp_pct, 'bar-q041', 'paper') +
+      barHtml('Q041 Tier 2', buckets.q041_tier2_bp_pct, 'bar-q041', 'paper') +
+      barHtml('Q041 Tier 3', buckets.q041_tier3_bp_pct, 'bar-q041', 'paper');
+    railCards = `
+      <div class="account-rail-card">
+        <div class="account-rail-title">Schwab</div>
+        <div class="account-rail-line"><span>NLV</span><span>${fmtDollars(accounts.schwab_nlv)}</span></div>
+        <div class="account-rail-line"><span>Maint</span><span>${fmtDollars(accounts.schwab_maintenance_margin)}</span></div>
+      </div>
+      <div class="account-rail-card">
+        <div class="account-rail-title">E-Trade</div>
+        ${typeof accounts.etrade_nlv === 'number'
+          ? `<div class="account-rail-line"><span>NLV</span><span>${fmtDollars(accounts.etrade_nlv)}</span></div>
+             <div class="account-rail-line"><span>Maint</span><span>${fmtDollars(accounts.etrade_maintenance_margin)}</span></div>`
+          : `<div class="account-rail-unavail">E-Trade temporarily unavailable</div>`}
+      </div>
+      <div class="account-rail-card">
+        <div class="account-rail-title">Combined PM</div>
+        <div class="account-rail-line"><span>Basis</span><span>${fmtDollars(data.bp_basis)}</span></div>
+        <div class="account-rail-line"><span>Maint</span><span>${fmtDollars(accounts.combined_maintenance_margin)}</span></div>
+        <div class="account-rail-note">Read-only aggregate PM maintenance across both rails.</div>
+      </div>`;
+    noteHtml = '<div class="snapshot-note">Schwab + E-Trade maintenance shown separately; Q041 remains paper-only.</div>';
+  }
+
+  el.innerHTML = `
+    <div class="bp-composite-wrap">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div class="bp-composite-label">Margin Allocation (% NLV)</div>
+        <div class="pos-view-tabs">${tab('all','All')}${tab('schwab','Schwab')}${tab('etrade','E-Trade')}</div>
+      </div>
+      <div class="bp-composite-track">${barSegments}</div>
+      <div class="bp-composite-legend">${legendItems}</div>
+    </div>
+    <div class="bp-buckets">${bucketRows}</div>
+    <div class="account-rail-grid">${railCards}</div>
+    ${noteHtml}`;
+}
+
 async function loadSnapshot() {
   const body = document.getElementById('snapshot-body');
   try {
@@ -1063,41 +1203,14 @@ async function loadSnapshot() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
+    _snapshotCache = data;
 
-    const buckets   = data.bp_usage_by_bucket || {};
     const totalReal = typeof data.total_real_margin_pct === 'number' ? data.total_real_margin_pct : null;
     const idlePct   = typeof data.idle_capacity_pct === 'number' ? data.idle_capacity_pct : null;
     const rails     = data.rails || {};
     const spxOpen   = (rails.spx_live || {}).status === 'open' ? 1 : 0;
     const q041Pos   = ((rails.q041_paper || {}).current_paper_positions || []).length;
     const openCount = spxOpen + q041Pos;
-
-    function barHtml(label, pct, barClass, note) {
-      const w = typeof pct === 'number' ? Math.min(Math.max(pct, 0), 100).toFixed(1) : '0';
-      const d = typeof pct === 'number' ? pct.toFixed(1) + '%' : '—';
-      const n = note ? `<span class="bp-bucket-note">${note}</span>` : '';
-      return `<div class="bp-bucket-row">
-        <div class="bp-bucket-label">${label}${n}</div>
-        <div class="bp-bucket-bar-wrap"><div class="bp-bucket-bar ${barClass}" style="width:${w}%"></div></div>
-        <div class="bp-bucket-pct">${d}</div>
-      </div>`;
-    }
-
-    const spxW    = typeof buckets.spx_live_bp_pct     === 'number' ? Math.min(buckets.spx_live_bp_pct,     100) : 0;
-    const eqW     = typeof buckets.equity_margin_bp_pct === 'number' ? Math.min(buckets.equity_margin_bp_pct, 100) : 0;
-    const q1W     = typeof buckets.q041_tier1_bp_pct    === 'number' ? Math.min(buckets.q041_tier1_bp_pct,    100) : 0;
-    const q2W     = typeof buckets.q041_tier2_bp_pct    === 'number' ? Math.min(buckets.q041_tier2_bp_pct,    100) : 0;
-    const q3W     = typeof buckets.q041_tier3_bp_pct    === 'number' ? Math.min(buckets.q041_tier3_bp_pct,    100) : 0;
-    const etW     = typeof buckets.etrade_maintenance_bp_pct === 'number' ? Math.min(buckets.etrade_maintenance_bp_pct, 100) : 0;
-    const q041W   = Math.min(q1W + q2W + q3W, 100);
-    const realUsed = Math.min(spxW + eqW + etW, 100);
-    const idleW   = Math.max(100 - Math.min(realUsed + q041W, 100), 0);
-    const accounts = data.account_breakdown || {};
-
-    const eqDollars = buckets.equity_margin_dollars;
-    const eqNote = typeof eqDollars === 'number'
-      ? fmtDollars(eqDollars) + ' (15% haircut)'
-      : '15% haircut';
 
     body.innerHTML = `
       <div class="snapshot-grid">
@@ -1114,53 +1227,9 @@ async function loadSnapshot() {
           <div class="snapshot-val">${openCount}</div>
         </div>
       </div>
-      <div class="bp-composite-wrap">
-        <div class="bp-composite-label">Margin Allocation (% NLV)</div>
-        <div class="bp-composite-track">
-          <div class="bp-seg bp-seg-spx"    style="width:${spxW.toFixed(1)}%"></div>
-          <div class="bp-seg bp-seg-equity" style="width:${eqW.toFixed(1)}%"></div>
-          <div class="bp-seg bp-seg-es"     style="width:${etW.toFixed(1)}%"></div>
-          <div class="bp-seg bp-seg-q041"   style="width:${q041W.toFixed(1)}%"></div>
-        </div>
-        <div class="bp-composite-legend">
-          <div class="bp-legend-item"><div class="bp-legend-dot dot-spx"></div>SPX ${spxW.toFixed(1)}%</div>
-          <div class="bp-legend-item"><div class="bp-legend-dot dot-equity"></div>Equity ${eqW.toFixed(1)}%</div>
-          <div class="bp-legend-item"><div class="bp-legend-dot dot-es"></div>E-Trade ${etW.toFixed(1)}%</div>
-          <div class="bp-legend-item"><div class="bp-legend-dot dot-q041"></div>Q041 ${q041W.toFixed(1)}%</div>
-          <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>
-        </div>
-      </div>
-      <div class="bp-buckets">
-        ${barHtml('SPX Live', buckets.spx_live_bp_pct, 'bar-spx', 'PM max-loss')}
-        ${barHtml('Equity Margin', buckets.equity_margin_bp_pct, 'bar-equity', eqNote)}
-        ${barHtml('E-Trade PM', buckets.etrade_maintenance_bp_pct, 'bar-etrade', 'account maintenance')}
-        ${barHtml('Q041 Tier 1', buckets.q041_tier1_bp_pct, 'bar-q041', 'paper')}
-        ${barHtml('Q041 Tier 2', buckets.q041_tier2_bp_pct, 'bar-q041', 'paper')}
-        ${barHtml('Q041 Tier 3', buckets.q041_tier3_bp_pct, 'bar-q041', 'paper')}
-      </div>
-      <div class="account-rail-grid">
-        <div class="account-rail-card">
-          <div class="account-rail-title">Schwab</div>
-          <div class="account-rail-line"><span>NLV</span><span>${fmtDollars(accounts.schwab_nlv)}</span></div>
-          <div class="account-rail-line"><span>Maint</span><span>${fmtDollars(accounts.schwab_maintenance_margin)}</span></div>
-        </div>
-        <div class="account-rail-card">
-          <div class="account-rail-title">E-Trade</div>
-          ${
-            typeof accounts.etrade_nlv === 'number'
-              ? `<div class="account-rail-line"><span>NLV</span><span>${fmtDollars(accounts.etrade_nlv)}</span></div>
-                 <div class="account-rail-line"><span>Maint</span><span>${fmtDollars(accounts.etrade_maintenance_margin)}</span></div>`
-              : `<div class="account-rail-unavail">E-Trade temporarily unavailable</div>`
-          }
-        </div>
-        <div class="account-rail-card">
-          <div class="account-rail-title">Combined PM</div>
-          <div class="account-rail-line"><span>Basis</span><span>${fmtDollars(data.bp_basis)}</span></div>
-          <div class="account-rail-line"><span>Maint</span><span>${fmtDollars(accounts.combined_maintenance_margin)}</span></div>
-          <div class="account-rail-note">Read-only aggregate PM maintenance across both rails.</div>
-        </div>
-      </div>
-      <div class="snapshot-note">Schwab + E-Trade maintenance shown separately; Q041 remains paper-only.</div>`;
+      <div id="margin-alloc"></div>`;
+
+    _renderMarginAllocation(data);
   } catch (_) {
     body.innerHTML = '<div class="snapshot-unavail">Portfolio data unavailable</div>';
   }
