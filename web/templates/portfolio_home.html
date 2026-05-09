@@ -1232,6 +1232,7 @@ async function loadPositionComposition() {
         positions: pos.positions,
         nlv: bal.net_liquidation,
         maintenance_margin: bal.maintenance_margin,
+        cash_balance: bal.cash_balance || 0,
         margin_pct_nlv: bal.net_liquidation > 0 && bal.maintenance_margin > 0
           ? bal.maintenance_margin / bal.net_liquidation * 100 : null,
       };
@@ -1320,9 +1321,7 @@ function renderPositionBars() {
       return _posBarRow((pos.symbol || '—').substring(0, 10), mv, pos.unrealized_pnl ?? null,
         Math.abs(mv) / maxAbs * 100, _etradePosColor(pos, ref), nlv);
     }).join('');
-    const etCashMv = (d.positions || [])
-      .filter(p => _CASH_SYMBOLS.has(p.symbol))
-      .reduce((sum, p) => sum + Math.abs(p.market_value || 0), 0);
+    const etCashMv = d.cash_balance || 0;
     const etCashPct = nlv > 0 && etCashMv > 0 ? etCashMv / nlv * 100 : null;
     const cashFooterET = `<div class="margin-footer" style="margin-top:4px">
         <div class="margin-footer-left" style="color:rgba(32,188,164,0.9)">Cash + Cash ETF + Money Market</div>
@@ -1417,9 +1416,7 @@ function renderPositionBars() {
     const combMaint = (s?.summary?.maintenance_margin || 0) + (e?.maintenance_margin || 0);
     const combMPct  = combinedNlv > 0 ? (combMaint / combinedNlv * 100) : null;
     const schwabCashAll = s?.summary?.total_cash_mv || 0;
-    const etCashAll = (e?.positions || [])
-      .filter(p => _CASH_SYMBOLS.has(p.symbol))
-      .reduce((sum, p) => sum + Math.abs(p.market_value || 0), 0);
+    const etCashAll = e?.cash_balance || 0;
     const combinedCash = schwabCashAll + etCashAll;
     const combinedCashPct = combinedNlv > 0 && combinedCash > 0 ? combinedCash / combinedNlv * 100 : null;
     const cashFooterAll = `<div class="margin-footer" style="margin-top:4px">
