@@ -47,7 +47,7 @@ from strategy.selector import (
 from strategy.catalog import manual_entry_options, strategy_descriptor
 from strategy.es_params import DEFAULT_ES_PARAMS as _ES_P
 from strategy.state import (
-    read_state, write_state, close_position, roll_position, add_note,
+    read_state, read_all_positions, write_state, close_position, roll_position, add_note,
 )
 from backtest.engine import run_backtest, compute_metrics
 from signals.intraday import (
@@ -748,11 +748,26 @@ def _format_position(state: dict) -> str:
 
 # ── Command handlers ───────────────────────────────────────────────────────────
 
+def _account_keyboard(mode: str) -> InlineKeyboardMarkup:
+    """Inline keyboard for account selection. mode: 'enter' | 'close'."""
+    if mode == "close":
+        return InlineKeyboardMarkup([[
+            InlineKeyboardButton("Schwab",  callback_data="aclose:schwab"),
+            InlineKeyboardButton("E-Trade", callback_data="aclose:etrade"),
+            InlineKeyboardButton("Both",    callback_data="aclose:all"),
+        ]])
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("Schwab",  callback_data="aenter:schwab"),
+        InlineKeyboardButton("E-Trade", callback_data="aenter:etrade"),
+        InlineKeyboardButton("Both",    callback_data="aenter:both"),
+    ]])
+
+
 async def cmd_entered(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Record a new position.
-      /entered         → use current recommendation (auto)
-      /entered manual  → show strategy keyboard for manual selection
+      /entered         → use current recommendation (auto) → asks account
+      /entered manual  → show strategy keyboard → asks account
     """
     args = ctx.args or []
     if args and args[0].lower() == "manual":
@@ -772,16 +787,44 @@ async def cmd_entered(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                 parse_mode=ParseMode.HTML,
             )
             return
-        write_state(rec.strategy.value, rec.underlying, strategy_key=rec.strategy_key)
+        ctx.user_data["pending_entry"] = {
+            "strategy": rec.strategy.value,
+            "underlying": rec.underlying,
+            "strategy_key": rec.strategy_key,
+        }
         await update.message.reply_text(
-            f"✅ <b>Position recorded</b>\n"
-            f"Strategy: <b>{_h(rec.strategy.value)}</b> on <code>{_h(rec.underlying)}</code>\n"
-            f"<i>Use /entered manual to record a different strategy.</i>",
+            f"Strategy: <b>{_h(rec.strategy.value)}</b> — which account?",
             parse_mode=ParseMode.HTML,
+            reply_markup=_account_keyboard("enter"),
         )
     except Exception as e:
         log.exception("cmd_entered failed")
         await update.message.reply_text(f"⚠️ Error: {e}")
+
+
+async def handle_entry_account_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Callback: account selection after /entered."""
+    query = update.callback_query
+    await query.answer()
+    _, account = query.data.split(":", 1)
+    pending = ctx.user_data.get("pending_entry")
+    if not pending:
+        await query.edit_message_text("⚠️ Session expired — run /entered again.")
+        return
+    accounts = ["schwab", "etrade"] if account == "both" else [account]
+    for acct in accounts:
+        write_state(
+            pending["strategy"], pending["underlying"],
+            strategy_key=pending["strategy_key"], account=acct,
+        )
+    ctx.user_data.pop("pending_entry", None)
+    acct_label = "Schwab + E-Trade" if account == "both" else account.capitalize()
+    await query.edit_message_text(
+        f"✅ <b>Position recorded</b> [{acct_label}]\n"
+        f"Strategy: <b>{_h(pending['strategy'])}</b> on <code>{_h(pending['underlying'])}</code>\n"
+        f"<i>Use /note to add details, /closed when done.</i>",
+        parse_mode=ParseMode.HTML,
+    )
 
 
 _VALID_MANUAL_PAIRS = {(k, u) for k, _, u in _MANUAL_ENTRY_OPTIONS}
@@ -789,7 +832,7 @@ _MANUAL_NAME_BY_KEY = {k: n for k, n, _ in _MANUAL_ENTRY_OPTIONS}
 
 
 async def handle_manual_entry(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Callback for inline keyboard strategy selection in /entered manual."""
+    """Callback for inline keyboard strategy selection in /entered manual → asks account."""
     query = update.callback_query
     await query.answer()
     _, strategy_key, underlying = query.data.split(":", 2)
@@ -798,16 +841,48 @@ async def handle_manual_entry(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
         return
     try:
         strategy = _MANUAL_NAME_BY_KEY[strategy_key]
-        write_state(strategy, underlying, strategy_key=strategy_key)
+        ctx.user_data["pending_entry"] = {
+            "strategy": strategy,
+            "underlying": underlying,
+            "strategy_key": strategy_key,
+        }
         await query.edit_message_text(
-            f"✅ <b>Position recorded (manual)</b>\n"
-            f"Strategy: <b>{_h(strategy)}</b> on <code>{_h(underlying)}</code>\n"
-            f"<i>Use /rolled to log a roll, /note to add a remark, /closed when done.</i>",
+            f"Strategy: <b>{_h(strategy)}</b> — which account?",
             parse_mode=ParseMode.HTML,
+            reply_markup=_account_keyboard("enter"),
         )
     except Exception as e:
         log.exception("handle_manual_entry failed")
-        await query.edit_message_text(f"⚠️ Error recording position: {e}")
+        await query.edit_message_text(f"⚠️ Error: {e}")
+
+
+async def _do_close_and_rescan(
+    reply_fn,
+    state: dict,
+    note: str | None,
+    account: str | None,
+) -> None:
+    """Close position and send re-entry scan. Shared by cmd_closed and handle_close_account_cb."""
+    close_position(note=note, account=account)
+    acct_label = f" [{account.capitalize()}]" if account else ""
+    note_line = f"\nNote: <i>{_h(note)}</i>" if note else ""
+    await reply_fn(
+        f"✅ <b>Position closed</b>{acct_label}\n"
+        f"Strategy: <b>{_h(state['strategy'])}</b> on <code>{_h(state['underlying'])}</code>\n"
+        f"Opened: <code>{_h(state.get('opened_at', '?'))}</code>{note_line}",
+        parse_mode=ParseMode.HTML,
+    )
+    # Only run re-scan when strategy is fully closed (no accounts remain)
+    if read_state() is None:
+        try:
+            rec = get_recommendation(use_intraday=is_market_open())
+            _safe_append_recommendation_event(rec=rec, source="post_close_rescan", mode="intraday")
+            await reply_fn(
+                "🔄 <b>Re-entry scan</b> — fresh recommendation:\n\n" + _format_recommendation(rec),
+                parse_mode=ParseMode.HTML,
+            )
+        except Exception:
+            log.exception("_do_close_and_rescan: rescan failed (non-fatal)")
 
 
 async def cmd_closed(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -816,8 +891,8 @@ async def cmd_closed(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
       /closed               → no reason recorded
       /closed 60pct profit  → stores the note alongside the close
 
-    After confirming close, immediately push a fresh recommendation
-    so the user sees today's re-entry signal without running /today.
+    When multiple accounts are open, asks which account to close.
+    After fully closing, immediately pushes a fresh recommendation.
     """
     note = " ".join(ctx.args) if ctx.args else None
     try:
@@ -825,28 +900,40 @@ async def cmd_closed(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if state is None:
             await update.message.reply_text("ℹ️ No open position on record to close.")
             return
-        close_position(note=note)
-        note_line = f"\nNote: <i>{_h(note)}</i>" if note else ""
-        await update.message.reply_text(
-            f"✅ <b>Position closed</b>\n"
-            f"Strategy: <b>{_h(state['strategy'])}</b> on <code>{_h(state['underlying'])}</code>\n"
-            f"Opened: <code>{_h(state.get('opened_at', '?'))}</code>{note_line}",
-            parse_mode=ParseMode.HTML,
-        )
-        # Auto re-scan and push fresh recommendation right after close
-        try:
-            rec = get_recommendation(use_intraday=is_market_open())
-            _safe_append_recommendation_event(rec=rec, source="post_close_rescan", mode="intraday")
+        all_pos = read_all_positions()
+        positions = (all_pos or {}).get("positions", [])
+        if len(positions) > 1:
+            ctx.user_data["pending_close_note"] = note
+            accounts = ", ".join(p.get("account", "?").capitalize() for p in positions)
             await update.message.reply_text(
-                "🔄 <b>Re-entry scan</b> — fresh recommendation:\n\n"
-                + _format_recommendation(rec),
+                f"<b>{_h(state['strategy'])}</b> open in: {accounts}\nWhich account to close?",
                 parse_mode=ParseMode.HTML,
+                reply_markup=_account_keyboard("close"),
             )
-        except Exception:
-            log.exception("cmd_closed: post-close rescan failed (non-fatal)")
+            return
+        await _do_close_and_rescan(update.message.reply_text, state, note, account=None)
     except Exception as e:
         log.exception("cmd_closed failed")
         await update.message.reply_text(f"⚠️ Error: {e}")
+
+
+async def handle_close_account_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Callback: account selection after /closed with multiple open legs."""
+    query = update.callback_query
+    await query.answer()
+    _, account_raw = query.data.split(":", 1)
+    account = None if account_raw == "all" else account_raw
+    state = read_state()
+    if state is None:
+        await query.edit_message_text("ℹ️ No open position found.")
+        return
+    note = ctx.user_data.pop("pending_close_note", None)
+    await _do_close_and_rescan(
+        query.edit_message_text, state, note, account=account,
+    )
+    if read_state() is not None:
+        # Re-scan only fires when fully closed; for partial close, confirm leg removed
+        pass
 
 
 async def cmd_rolled(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1150,7 +1237,9 @@ def main() -> None:
     app.add_handler(CommandHandler("status",   cmd_status))
     app.add_handler(CommandHandler("help",     cmd_help))
     app.add_handler(CommandHandler("start",    cmd_help))
-    app.add_handler(CallbackQueryHandler(handle_manual_entry, pattern=r"^enter:"))
+    app.add_handler(CallbackQueryHandler(handle_manual_entry,     pattern=r"^enter:"))
+    app.add_handler(CallbackQueryHandler(handle_entry_account_cb, pattern=r"^aenter:"))
+    app.add_handler(CallbackQueryHandler(handle_close_account_cb, pattern=r"^aclose:"))
 
     print("\n🤖 Bot running. Commands: /today /entered /position /rolled /note /closed /status /backtest /help")
     print("   Press Ctrl+C to stop.\n")

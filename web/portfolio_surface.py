@@ -411,9 +411,10 @@ def _schwab_spx_bp_from_positions() -> dict | None:
 
 def portfolio_summary_payload() -> dict:
     from strategy.selector import DEFAULT_PARAMS
-    from strategy.state import read_state
+    from strategy.state import read_state, read_all_positions
 
     current_position = read_state()
+    all_positions_state = read_all_positions()
     q041 = _safe_q041_snapshot()
 
     # Prefer combined live account NLV when available; otherwise fall back to Schwab or strategy default.
@@ -426,8 +427,14 @@ def portfolio_summary_payload() -> dict:
     combined_nlv = (live_nlv or 0.0) + (etrade_nlv or 0.0)
     basis = combined_nlv if combined_nlv > 0 else (live_nlv if live_nlv is not None else float(DEFAULT_PARAMS.initial_equity))
 
-    spx_usage = _estimate_spx_bp_usage(current_position, basis)
-    # Fallback: if state has no position but Schwab shows live SPX options, compute from live
+    # Compute SPX/option margin per account using state positions when available.
+    positions_list = (all_positions_state or {}).get("positions", [])
+
+    schwab_pos = next((p for p in positions_list if p.get("account") == "schwab"), current_position)
+    etrade_pos = next((p for p in positions_list if p.get("account") == "etrade"), None)
+
+    spx_usage = _estimate_spx_bp_usage(schwab_pos, basis)
+    # Fallback: if state has no Schwab position but Schwab shows live SPX options, compute from live
     if spx_usage.get("status") == "none":
         live_spx = _schwab_spx_bp_from_positions()
         if live_spx:
@@ -440,13 +447,24 @@ def portfolio_summary_payload() -> dict:
     spx_dollars = _num(spx_usage.get("bp_usage_dollars")) or 0.0
     spx_pct = _num(spx_usage.get("bp_usage_pct")) or 0.0
 
-    # Equity margin: Schwab total maintenance minus SPX spread max-loss.
-    # Residual reflects the PM 15% haircut on Schwab-held equity positions.
+    # E-Trade option margin: if user holds options in E-Trade, estimate from state position.
+    etrade_options_usage = _estimate_spx_bp_usage(etrade_pos, basis) if etrade_pos else None
+    etrade_options_dollars = _num((etrade_options_usage or {}).get("bp_usage_dollars")) or 0.0
+
+    # Equity margin: Schwab total maintenance minus Schwab option spread max-loss.
     equity_margin_dollars: float | None = None
     equity_margin_pct: float | None = None
     if live_maint is not None and basis > 0:
         equity_margin_dollars = round(max(0.0, live_maint - spx_dollars), 2)
         equity_margin_pct = round(equity_margin_dollars / basis * 100.0, 2)
+
+    # E-Trade margin: split into option portion (from state) and equity residual.
+    etrade_options_pct = round(etrade_options_dollars / basis * 100.0, 2) if basis > 0 and etrade_options_dollars > 0 else 0.0
+    etrade_equity_dollars: float | None = None
+    etrade_equity_pct: float | None = None
+    if etrade_maint is not None and basis > 0:
+        etrade_equity_dollars = round(max(0.0, float(etrade_maint) - etrade_options_dollars), 2)
+        etrade_equity_pct = round(etrade_equity_dollars / basis * 100.0, 2)
     etrade_margin_pct = round(float(etrade_maint) / basis * 100.0, 2) if etrade_maint is not None and basis > 0 else None
 
     q041_total = _num(q041.get("bp_usage", {}).get("total_q041_bp_pct"))
@@ -479,6 +497,9 @@ def portfolio_summary_payload() -> dict:
             "equity_margin_dollars": equity_margin_dollars,
             "etrade_maintenance_bp_pct": etrade_margin_pct,
             "etrade_maintenance_dollars": etrade_maint,
+            "etrade_options_bp_pct": etrade_options_pct if etrade_options_dollars > 0 else None,
+            "etrade_equity_bp_pct": etrade_equity_pct,
+            "etrade_equity_dollars": etrade_equity_dollars,
             "q041_tier1_bp_pct": q041.get("bp_usage", {}).get("tier1_bp_pct"),
             "q041_tier2_bp_pct": q041.get("bp_usage", {}).get("tier2_bp_pct"),
             "q041_tier3_bp_pct": q041.get("bp_usage", {}).get("tier3_bp_pct"),

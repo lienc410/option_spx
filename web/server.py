@@ -570,7 +570,7 @@ def api_q041_backtest():
 
 @app.route("/api/position")
 def api_position():
-    from strategy.state import read_state
+    from strategy.state import read_state, read_all_positions
     from strategy.catalog import strategy_descriptor
     from schwab.client import live_position_snapshot
     state = read_state()
@@ -581,7 +581,14 @@ def api_position():
             state["strategy_meta"] = asdict(strategy_descriptor(state["strategy_key"]))
         except Exception:
             pass
-    return jsonify({"open": True, **state, "schwab_live": live_position_snapshot(state)})
+    all_pos = read_all_positions()
+    positions = (all_pos or {}).get("positions", [])
+    return jsonify({
+        "open": True,
+        **state,
+        "positions": positions,
+        "schwab_live": live_position_snapshot(state),
+    })
 
 
 def _now_et_iso() -> str:
@@ -792,7 +799,8 @@ def api_position_open():
         "trend_signal": body.get("trend_signal"),
         "paper_trade": paper_trade,
     }
-    write_state(desc.name, body.get("underlying", desc.underlying), strategy_key=strategy_key, **state_payload)
+    account = str(body.get("account") or "schwab").strip().lower()
+    write_state(desc.name, body.get("underlying", desc.underlying), strategy_key=strategy_key, account=account, **state_payload)
     append_event({
         "id": trade_id,
         "event": "open",
@@ -1087,28 +1095,45 @@ def api_es_position_open_draft():
 @app.route("/api/position/close", methods=["POST"])
 def api_position_close():
     from logs.trade_log_io import append_event
-    from strategy.state import close_position, read_state
+    from strategy.state import close_position, read_state, read_all_positions
 
     body = flask_req.get_json(force=True) or {}
+    # account=None → close all; account="schwab"/"etrade" → close one leg
+    account = body.get("account") or None
+    if account:
+        account = str(account).strip().lower()
+
     state = read_state()
     if not state:
         return jsonify({"error": "No open position"}), 400
-    entry_premium = state.get("actual_premium")
+
+    # Use the specific account's position data for PnL calc if account specified
+    if account:
+        all_pos = read_all_positions()
+        leg = next(
+            (p for p in (all_pos or {}).get("positions", []) if p.get("account") == account),
+            state,
+        )
+    else:
+        leg = state
+
+    entry_premium = leg.get("actual_premium")
     exit_premium = body.get("exit_premium")
     actual_pnl = None
     model_pnl = None
     try:
         if entry_premium is not None and exit_premium not in (None, ""):
-            actual_pnl = round((float(entry_premium) - float(exit_premium)) * float(state.get("contracts", 1)) * 100, 2)
-        model_prem = state.get("model_premium")
+            actual_pnl = round((float(entry_premium) - float(exit_premium)) * float(leg.get("contracts", 1)) * 100, 2)
+        model_prem = leg.get("model_premium")
         if model_prem is not None and exit_premium not in (None, ""):
-            model_pnl = round((float(model_prem) - float(exit_premium)) * float(state.get("contracts", 1)) * 100, 2)
+            model_pnl = round((float(model_prem) - float(exit_premium)) * float(leg.get("contracts", 1)) * 100, 2)
     except (TypeError, ValueError):
         actual_pnl = None
         model_pnl = None
 
     close_position(
         note=body.get("note"),
+        account=account,
         exit_premium=body.get("exit_premium"),
         exit_spx=body.get("exit_spx"),
         exit_reason=body.get("exit_reason"),

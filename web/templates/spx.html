@@ -1141,11 +1141,34 @@ function renderPosition(p) {
     </div>` : '';
   const dteLine = dteEstimate(meta, p);
   CURRENT_POS = p;
+  // Per-account position rows
+  const positions = p.positions || [];
+  const acctBadge = (acct) => {
+    const color = acct === 'etrade' ? 'var(--orange)' : 'var(--blue)';
+    const label = acct === 'etrade' ? 'E-Trade' : 'Schwab';
+    return `<span style="font-family:var(--f-ui);font-size:0.60rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:${color};background:rgba(72,136,232,0.10);border:1px solid rgba(72,136,232,0.25);padding:1px 6px;border-radius:4px">${label}</span>`;
+  };
+  const posRows = positions.length > 0
+    ? positions.map(pos => {
+        const acct = pos.account || 'schwab';
+        const strikes = pos.short_strike ? `${pos.short_strike}/${pos.long_strike || '—'}` : '—';
+        const prem = pos.actual_premium != null ? `$${Number(pos.actual_premium).toFixed(2)}` : '—';
+        const contracts = pos.contracts || 1;
+        const openedAt = pos.opened_at || p.opened_at;
+        return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid var(--border)">
+          ${acctBadge(acct)}
+          <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-2)">${strikes}</span>
+          <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-muted)">${contracts}× @ ${prem}</span>
+          <span style="font-family:var(--f-ui);font-size:0.65rem;color:var(--text-muted);margin-left:auto">opened ${openedAt}</span>
+        </div>`;
+      }).join('')
+    : '';
   panel.innerHTML = `
     <div class="pos-dot"></div>
     <div class="pos-body">
       <div class="pos-name">${strategyName}${paperBadge} <span style="color:var(--text-muted);font-weight:400">on ${p.underlying}</span></div>
       <div class="pos-meta">Opened ${p.opened_at}${dteLine ? '  ·  ' + dteLine : ''}${rollLine}</div>
+      ${posRows}
       ${notesHtml}
       ${liveHtml}
     </div>`;
@@ -1420,6 +1443,14 @@ function openTradeModal(kind) {
           <input id="open-underlying" class="modal-input" value="${CURRENT_REC?.underlying || 'SPX'}">
         </div>
         <div class="modal-field">
+          <label class="modal-label">Account</label>
+          <select id="open-account" class="modal-select">
+            <option value="schwab">Schwab</option>
+            <option value="etrade">E-Trade</option>
+            <option value="both">Both (same params)</option>
+          </select>
+        </div>
+        <div class="modal-field">
           <label class="modal-label">Expiry</label>
           <input id="open-expiry" class="modal-input" type="date" value="${plusDays(dteDefault(STRATEGY_META[CURRENT_REC?.strategy_key] || {}))}" oninput="this.dataset.locked='1'">
         </div>
@@ -1488,8 +1519,17 @@ function openTradeModal(kind) {
     loadOpenDraft();
   } else if (kind === 'close') {
     title.textContent = 'Close Position';
+    const _openAccounts = (CURRENT_POS?.positions || []).map(pos => pos.account || 'schwab');
+    const _acctOptions = [
+      ..._openAccounts.map(a => `<option value="${a}">${a.charAt(0).toUpperCase() + a.slice(1)}</option>`),
+      ...(_openAccounts.length > 1 ? ['<option value="all">Both (all)</option>'] : []),
+    ].join('');
     body.innerHTML = modalShell(`
       <div class="modal-grid">
+        <div class="modal-field">
+          <label class="modal-label">Account</label>
+          <select id="close-account" class="modal-select">${_acctOptions || '<option value="schwab">Schwab</option>'}</select>
+        </div>
         <div class="modal-field">
           <label class="modal-label">Exit Premium</label>
           <input id="close-exit-premium" class="modal-input" type="number" step="0.01" oninput="updateCloseDerivedFields()">
@@ -1635,7 +1675,8 @@ async function postJson(url, payload) {
 
 async function submitOpenPosition() {
   const strategyKey = document.getElementById('open-strategy-key').value;
-  const payload = {
+  const accountSel = document.getElementById('open-account')?.value || 'schwab';
+  const basePayload = {
     strategy_key: strategyKey,
     underlying: document.getElementById('open-underlying').value || 'SPX',
     short_strike: Number(document.getElementById('open-short-strike').value || 0),
@@ -1653,19 +1694,27 @@ async function submitOpenPosition() {
     paper_trade: !!document.getElementById('open-paper-trade')?.checked,
     note: document.getElementById('open-note').value || '',
   };
-  const data = await postJson('/api/position/open', payload);
-  if (data.error) return showTradeModalMessage(data.error, true);
-  showTradeModalMessage(`Opened trade ${data.trade_id}`);
+  const accounts = accountSel === 'both' ? ['schwab', 'etrade'] : [accountSel];
+  let lastData = null;
+  for (const acct of accounts) {
+    lastData = await postJson('/api/position/open', { ...basePayload, account: acct });
+    if (lastData.error) return showTradeModalMessage(lastData.error, true);
+  }
+  const label = accountSel === 'both' ? 'Schwab + E-Trade' : accountSel.charAt(0).toUpperCase() + accountSel.slice(1);
+  showTradeModalMessage(`Opened [${label}] trade ${lastData.trade_id}`);
   await loadPosition();
   setTimeout(closeTradeModal, 400);
 }
 
 async function submitClosePosition() {
+  const accountSel = document.getElementById('close-account')?.value || null;
+  const account = (accountSel === 'all' || !accountSel) ? null : accountSel;
   const payload = {
     exit_premium: Number(document.getElementById('close-exit-premium').value || 0),
     exit_spx: CURRENT_REC?.trend_snapshot?.spx ?? null,
     exit_reason: document.getElementById('close-reason').value,
     note: document.getElementById('close-note').value || '',
+    account: account,
   };
   const data = await postJson('/api/position/close', payload);
   if (data.error) return showTradeModalMessage(data.error, true);
