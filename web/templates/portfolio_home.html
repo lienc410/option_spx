@@ -442,7 +442,7 @@ body {
 .bp-buckets { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 4px; }
 .bp-bucket-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
 .bp-bucket-label { font-family: var(--f-ui); font-size: 0.68rem; color: var(--text-2); min-width: 160px; }
-.bp-bucket-note { font-size: 0.60rem; color: var(--text-muted); margin-left: 4px; }
+.bp-bucket-note { display: block; font-size: 0.58rem; color: var(--text-muted); margin-top: 1px; }
 .bp-bucket-bar-wrap { flex: 1; height: 6px; background: var(--border-2); border-radius: 9999px; overflow: hidden; }
 .bp-bucket-bar { height: 100%; border-radius: 9999px; transition: width 0.45s ease; }
 .bar-spx    { background: var(--gold); }
@@ -1024,7 +1024,7 @@ function _renderMarginAllocation(data) {
 
   const eqNote = eqDollars > 0 ? fmtDollars(eqDollars) + ' (15% haircut)' : '15% haircut';
   const allEqNote = (eqDollars + etEqDollars) > 0
-    ? fmtDollars(eqDollars + etEqDollars) + ' (Schwab + E-Trade, 15% haircut)' : '15% haircut';
+    ? fmtDollars(eqDollars + etEqDollars) + ' · combined' : 'combined';
 
   function barHtml(label, pct, barClass, note) {
     const w = typeof pct === 'number' ? Math.min(Math.max(pct, 0), 100).toFixed(1) : '0';
