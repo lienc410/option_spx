@@ -280,6 +280,63 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 }
 .overlay-btn:hover  { color: var(--text); border-color: var(--text-2); background: var(--surface-hi); }
 .overlay-btn.active { color: var(--gold); background: var(--gold-bg); border-color: var(--gold-border); }
+.spx-aux-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-2);
+  background: rgba(19,23,40,0.78);
+  color: var(--text-2);
+  font-family: var(--f-mono);
+  font-size: 0.64rem;
+  transition: all .12s;
+}
+.spx-aux-toggle:hover {
+  color: var(--text);
+  border-color: rgba(224,128,64,0.30);
+}
+.spx-aux-toggle input {
+  accent-color: var(--orange);
+}
+.q019-flip-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: rgba(224,128,64,0.22);
+  border: 1px solid rgba(224,128,64,0.58);
+  box-shadow: 0 0 0 1px rgba(8,10,19,0.45) inset;
+}
+.q019-flip-tooltip {
+  position: absolute;
+  z-index: 5;
+  min-width: 220px;
+  max-width: 280px;
+  pointer-events: none;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(224,128,64,0.22);
+  background: rgba(13,16,32,0.96);
+  color: var(--text);
+  box-shadow: 0 14px 34px rgba(0,0,0,0.30);
+}
+.q019-flip-tooltip-title {
+  color: #F0C277;
+  font-size: 0.69rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.q019-flip-tooltip-line {
+  font-family: var(--f-mono);
+  font-size: 0.66rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+.q019-flip-tooltip-line.muted {
+  color: var(--text-2);
+}
 .spx-band-note {
   margin-top: 10px;
   font-size: 0.64rem;
@@ -1009,10 +1066,15 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
           <button class="overlay-btn" id="ovr-ivr"  onclick="setSpxOverlay('ivr',  this)">IV Rank</button>
           <button class="overlay-btn" id="ovr-ivp"  onclick="setSpxOverlay('ivp',  this)">IV %ile</button>
           <button class="overlay-btn" id="ovr-trend" onclick="setSpxOverlay('trend', this)">SPX Trend</button>
+          <label class="spx-aux-toggle">
+            <input type="checkbox" id="q019-flip-toggle" onchange="toggleQ019FlipDays(this.checked)">
+            <span>Show Q019 VIX Flip Days</span>
+          </label>
         </div>
       </div>
       <div class="chart-wrap" style="height:260px">
         <canvas id="spx-price-chart"></canvas>
+        <div class="q019-flip-tooltip hidden" id="q019-flip-tooltip"></div>
       </div>
       <div class="spx-window">
         <div class="spx-window-head">
@@ -1041,6 +1103,7 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
         <span class="eq-leg-item"><span class="eq-arrow" style="color:#42CC7C">▼</span> Close — 盈利</span>
         <span class="eq-leg-item"><span class="eq-arrow" style="color:#E04862">▲</span> Open — 亏损</span>
         <span class="eq-leg-item"><span class="eq-arrow" style="color:#E04862">▼</span> Close — 亏损</span>
+        <span class="eq-leg-item hidden" id="q019-flip-legend"><span class="q019-flip-swatch"></span> Q019 VIX Flip Day (Signal changed)</span>
       </div>
     </div>
 
@@ -1185,6 +1248,8 @@ let _productionTrades = [];
 let _productionSigMap = {};
 let _researchViews = {};
 let _activeResearchView = 'production';
+let _q019FlipDays = [];
+let _showQ019FlipDays = false;
 
 // ── Auto-search grid config ─────────────────────────────────────────────────
 const AUTO_PARAMS = [
@@ -1886,6 +1951,51 @@ async function fetchJsonOrThrow(url, options) {
     throw new Error(data?.error || `${url} failed (${res.status})`);
   }
   return data;
+}
+function updateQ019FlipLegend() {
+  const legend = document.getElementById('q019-flip-legend');
+  if (!legend) return;
+  const shouldShow = _showQ019FlipDays && (_q019FlipDays?.length || 0) > 0;
+  legend.classList.toggle('hidden', !shouldShow);
+}
+function hideQ019FlipTooltip() {
+  const el = document.getElementById('q019-flip-tooltip');
+  if (!el) return;
+  el.classList.add('hidden');
+  el.innerHTML = '';
+}
+function showQ019FlipTooltip(chart, hit) {
+  const el = document.getElementById('q019-flip-tooltip');
+  if (!el || !chart || !hit?.flip) return;
+  const flip = hit.flip;
+  el.innerHTML = `
+    <div class="q019-flip-tooltip-title">Q019 VIX flip day · ${flip.date || '—'}</div>
+    <div class="q019-flip-tooltip-line">Signal 1 (open): VIX ${fmtNum(flip.vix_signal1, 1)} → ${flip.rec_signal1 || '—'}</div>
+    <div class="q019-flip-tooltip-line">Signal 2 (stable): VIX ${fmtNum(flip.vix_signal2, 1)} → ${flip.rec_signal2 || '—'} (changed)</div>
+    <div class="q019-flip-tooltip-line muted">Settled after: ${flip.elapsed_min ?? '—'} min</div>
+  `;
+  const wrap = chart.canvas.parentElement;
+  if (!wrap) return;
+  const wrapRect = wrap.getBoundingClientRect();
+  const anchorX = Math.min(hit.anchorX + 14, chart.chartArea.right - 12);
+  const anchorY = Math.max(hit.anchorY - 14, chart.chartArea.top + 8);
+  el.classList.remove('hidden');
+  const elRect = el.getBoundingClientRect();
+  const maxLeft = wrapRect.width - elRect.width - 8;
+  const left = Math.max(8, Math.min(anchorX, maxLeft));
+  const top = Math.max(8, anchorY - elRect.height);
+  el.style.left = `${left}px`;
+  el.style.top = `${top}px`;
+}
+async function loadQ019FlipDays() {
+  try {
+    const data = await fetchJsonOrThrow('/api/q019/flip-days');
+    _q019FlipDays = Array.isArray(data) ? data : [];
+  } catch (_) {
+    _q019FlipDays = [];
+  }
+  updateQ019FlipLegend();
+  renderSpxChart();
 }
 async function loadSignalHistory(start = '') {
   const queryStart = start || elValue('inp-start', '') || '2000-01-01';
@@ -2595,6 +2705,31 @@ function filterTradeLog(strat, allTrades, sigMap, trendLabel, trendColor) {
 }
 
 // ── SPX Price Chart ─────────────────────────────────────────────────────
+function buildQ019FlipHits(visibleRows, pts, chartArea) {
+  if (!_showQ019FlipDays || !_q019FlipDays.length || !pts.length) return [];
+  const indexByDate = new Map(visibleRows.map((row, idx) => [row.date, idx]));
+  const hits = [];
+  _q019FlipDays.forEach(flip => {
+    const idx = indexByDate.get(flip.date);
+    if (idx == null) return;
+    const pt = pts[idx];
+    if (!pt) return;
+    const prev = pts[idx - 1];
+    const next = pts[idx + 1];
+    const left = prev ? (prev.x + pt.x) / 2 : chartArea.left;
+    const right = next ? (pt.x + next.x) / 2 : chartArea.right;
+    if (right <= left) return;
+    hits.push({
+      flip,
+      left,
+      right,
+      anchorX: pt.x,
+      anchorY: chartArea.top + 16,
+    });
+  });
+  return hits;
+}
+
 function renderSpxChart() {
   if (!_spxChartData || !_spxFullSigData.length) return;
   const { events, ptRadius, ptColors, ptRotation, siblingIdx, isResearch } = _spxChartData;
@@ -2878,7 +3013,70 @@ function renderSpxChart() {
     },
   };
 
+  let _q019HoveredHit = null;
+  const q019FlipPlugin = {
+    id: 'q019FlipDays',
+    beforeDatasetsDraw(chart) {
+      if (!_showQ019FlipDays) return;
+      const meta = chart.getDatasetMeta(0);
+      const pts = meta?.data || [];
+      if (!pts.length) return;
+      const hits = buildQ019FlipHits(visibleRows, pts, chart.chartArea);
+      chart.$q019FlipHits = hits;
+      const { ctx, chartArea } = chart;
+      ctx.save();
+      hits.forEach(hit => {
+        ctx.fillStyle = 'rgba(224,128,64,0.16)';
+        ctx.fillRect(hit.left, chartArea.top, hit.right - hit.left, chartArea.bottom - chartArea.top);
+        ctx.strokeStyle = 'rgba(240,194,119,0.42)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(hit.left, chartArea.top + 0.5);
+        ctx.lineTo(hit.right, chartArea.top + 0.5);
+        ctx.stroke();
+      });
+      ctx.restore();
+    },
+    afterEvent(chart, args) {
+      if (!_showQ019FlipDays) {
+        if (_q019HoveredHit) {
+          _q019HoveredHit = null;
+          hideQ019FlipTooltip();
+          args.changed = true;
+        }
+        return;
+      }
+      const evt = args.event;
+      const hits = chart.$q019FlipHits || [];
+      const nextHit = evt?.inChartArea
+        ? hits.find(hit => evt.x >= hit.left && evt.x <= hit.right)
+        : null;
+      if (nextHit !== _q019HoveredHit) {
+        _q019HoveredHit = nextHit || null;
+        if (_q019HoveredHit) showQ019FlipTooltip(chart, _q019HoveredHit);
+        else hideQ019FlipTooltip();
+        args.changed = true;
+      } else if (_q019HoveredHit && evt?.inChartArea) {
+        _q019HoveredHit.anchorX = evt.x;
+        _q019HoveredHit.anchorY = evt.y;
+        showQ019FlipTooltip(chart, _q019HoveredHit);
+      }
+    },
+    afterDraw(chart) {
+      if (!_showQ019FlipDays || !_q019HoveredHit) return;
+      const { ctx, chartArea } = chart;
+      ctx.save();
+      ctx.fillStyle = 'rgba(240,194,119,0.12)';
+      ctx.fillRect(_q019HoveredHit.left, chartArea.top, _q019HoveredHit.right - _q019HoveredHit.left, chartArea.bottom - chartArea.top);
+      ctx.strokeStyle = 'rgba(240,194,119,0.78)';
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(_q019HoveredHit.left + 0.5, chartArea.top + 0.5, (_q019HoveredHit.right - _q019HoveredHit.left) - 1, (chartArea.bottom - chartArea.top) - 1);
+      ctx.restore();
+    },
+  };
+
   if (spxChart) { spxChart.destroy(); spxChart = null; }
+  hideQ019FlipTooltip();
 
   const scales = {
     x: {
@@ -2918,7 +3116,7 @@ function renderSpxChart() {
 
   const ctx2 = document.getElementById('spx-price-chart').getContext('2d');
   spxChart = new Chart(ctx2, {
-    plugins: [spxSignalBandsPlugin, spxSiblingPlugin],
+    plugins: [spxSignalBandsPlugin, q019FlipPlugin, spxSiblingPlugin],
     type: 'line',
     data: { datasets },
     options: {
@@ -2999,6 +3197,11 @@ function setSpxOverlay(type, btn) {
   btn.classList.add('active');
   renderSpxChart();
 }
+function toggleQ019FlipDays(checked) {
+  _showQ019FlipDays = !!checked;
+  updateQ019FlipLegend();
+  renderSpxChart();
+}
 
 // ── Run backtest ───────────────────────────────────────────────────────
 async function runBacktest() {
@@ -3055,6 +3258,7 @@ document.querySelectorAll('.param-input').forEach(el => {
   } catch (_) {
     _researchViews = {};
   }
+  await loadQ019FlipDays();
   let cached = null;
   try {
     cached = await loadCachedResult();
