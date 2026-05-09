@@ -69,6 +69,14 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .chart-legend-line { width:14px;height:2px;border-radius:2px; }
 
 /* Overlay toggles */
+.metric-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:20px; }
+.metric-card { background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:14px 16px; }
+.metric-label { font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:6px; }
+.metric-value { font-family:var(--f-mono);font-size:1.05rem;color:var(--text); }
+.metric-value.up   { color:var(--green); }
+.metric-value.down { color:var(--red); }
+.metric-value.warn { color:var(--orange); }
+.metric-sub { font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2);margin-top:3px;line-height:1.4; }
 .overlay-toggles { display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px; }
 .range-btns { display:flex;gap:4px;align-items:center; }
 .range-btn { font-family:var(--f-mono);font-size:0.60rem;padding:2px 9px;border-radius:4px;border:1px solid var(--border-2);background:none;color:var(--text-2);cursor:pointer;transition:0.12s; }
@@ -172,6 +180,98 @@ function fmtD(n) {
 function destroyCharts() {
   Object.values(charts).forEach(c => { try { c.destroy(); } catch(_){} });
   charts = {};
+}
+
+// ── Metric computation ───────────────────────────────────────────────────────
+function computeMetrics(s) {
+  const trades = s.trades || [];
+  const equity = s.equity_curve || [];
+
+  const sorted = [...trades].sort((a,b) => a.entry_date < b.entry_date ? -1 : 1);
+  const firstDate = sorted[0]?.entry_date?.slice(0,10) || '—';
+  const lastDate  = sorted[sorted.length-1]?.exit_date?.slice(0,10) || '—';
+
+  const wins   = trades.filter(t => t.pnl > 0);
+  const losses  = trades.filter(t => t.pnl <= 0);
+  const avgWin  = wins.length   ? wins.reduce((s,t)=>s+t.pnl,0) / wins.length   : null;
+  const avgLoss = losses.length ? losses.reduce((s,t)=>s+t.pnl,0) / losses.length : null;
+  const expectancy = trades.length ? s.total_pnl / trades.length : null;
+
+  const initEq = equity[0]?.equity || 50000;
+  const years  = firstDate !== '—' && lastDate !== '—'
+    ? Math.max((new Date(lastDate) - new Date(firstDate)) / (365.25*24*3600*1000), 0.01)
+    : null;
+  const annROE = years && initEq > 0 ? s.total_pnl / initEq / years * 100 : null;
+
+  let peak = -Infinity, maxDD = 0;
+  for (const e of equity) { peak = Math.max(peak, e.equity); maxDD = Math.min(maxDD, e.equity - peak); }
+
+  let sharpe = null;
+  if (equity.length > 4) {
+    const rets = [];
+    for (let i=1;i<equity.length;i++) {
+      const p=equity[i-1].equity, c=equity[i].equity;
+      if (p>0 && c !== p) rets.push((c-p)/p);
+    }
+    if (rets.length > 1) {
+      const mean = rets.reduce((s,r)=>s+r,0)/rets.length;
+      const std  = Math.sqrt(rets.reduce((s,r)=>s+(r-mean)**2,0)/rets.length);
+      if (std > 0) sharpe = mean/std * Math.sqrt(52);
+    }
+  }
+
+  return { firstDate, lastDate, avgWin, avgLoss, expectancy, annROE, maxDD, sharpe };
+}
+
+function buildMetricCards(s) {
+  const m = computeMetrics(s);
+  const wr = s.win_rate_pct?.toFixed(1) + '%';
+  const pnlStr = fmtD(s.total_pnl);
+  const annStr = m.annROE != null ? (m.annROE>=0?'+':'')+m.annROE.toFixed(1)+'%' : '—';
+  const ddStr  = m.maxDD < 0 ? '-$'+Math.round(Math.abs(m.maxDD)).toLocaleString() : '$0';
+  const shpStr = m.sharpe != null ? m.sharpe.toFixed(2) : '—';
+  const exStr  = m.expectancy != null ? fmtD(m.expectancy) : '—';
+  const winAvg = m.avgWin  != null ? '+$'+Math.round(m.avgWin).toLocaleString()  : '—';
+  const lossAvg= m.avgLoss != null ? '-$'+Math.round(Math.abs(m.avgLoss)).toLocaleString() : '—';
+  const initEq = (s.equity_curve?.[0]?.equity || 50000) / 1000;
+
+  return `<div class="metric-grid">
+    <div class="metric-card">
+      <div class="metric-label">Total Trades</div>
+      <div class="metric-value">${s.n_trades}</div>
+      <div class="metric-sub">${m.firstDate} → ${m.lastDate}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Win Rate</div>
+      <div class="metric-value ${s.win_rate_pct>=80?'up':'warn'}">${wr}</div>
+      <div class="metric-sub">Stop rate ${s.stop_rate_pct?.toFixed(1)}%</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Avg Win / Loss</div>
+      <div class="metric-value up" style="font-size:0.88rem">${winAvg}</div>
+      <div class="metric-sub" style="color:var(--red)">${lossAvg}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Expectancy</div>
+      <div class="metric-value ${m.expectancy>=0?'up':'down'}">${exStr}</div>
+      <div class="metric-sub">per trade</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Total P&L</div>
+      <div class="metric-value ${s.total_pnl>0?'up':'down'}">${pnlStr}</div>
+      <div class="metric-sub">Ann. ROE ${annStr} on $${initEq.toFixed(0)}k</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Max Drawdown</div>
+      <div class="metric-value ${m.maxDD<-5000?'down':'warn'}">${ddStr}</div>
+      <div class="metric-sub">peak-to-trough</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Sharpe Ratio</div>
+      <div class="metric-value ${m.sharpe!=null&&m.sharpe>=2?'up':m.sharpe>=1?'warn':'down'}">${shpStr}</div>
+      <div class="metric-sub">annualized</div>
+    </div>
+  </div>`;
 }
 
 // ── Chart: Price + Entry/Exit overlay ────────────────────────────────────────
@@ -576,6 +676,8 @@ function render(data) {
     const ovId = `ov-${s.symbol}`;
     return `
     <div class="tab-panel${i===0?' active':''}" data-sym="${s.symbol}">
+
+      ${buildMetricCards(s)}
 
       <!-- Price overlay chart -->
       <div class="chart-wrap">
