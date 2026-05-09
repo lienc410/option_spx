@@ -1,11 +1,36 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-09 (R-20260509-06: 2nd Quant adjustments — audit + revised C3 trigger + wording)
+Last Updated: 2026-05-09 (R-20260509-07: Tier-3+ VIX term structure DROP; Q053 final closure)
 Owner: Planner or PM
 
 ---
 
 ## Entries
+
+### R-20260509-07 — Q053 Tier-3+ VIX Term Structure Test: DROP; Q053 final closure with 2nd Quant APPROVE
+
+- Topic: PM-authorised narrow Tier-2 signal test before any C3 engineering. Question: does VIX term structure (VIX − VIX3M spread) provide grinding-decline detection materially better than R1 (VIX 30d MA ≥ 22 + VIX 60d max < 35)?
+- Findings:
+  - **Verdict: DROP term-structure signal family.** 8/8 candidate signals tested (TS1–TS4 spread thresholds; TS6/TS7 R1+spread combined; TS8 5d-smoothed spread). None achieved ≥3/4 criteria vs R1 baseline.
+  - **Best contender (TS6: R1 AND spread ≤ 0)**: scored 2/4. Marginal improvements only — FP 7.6% vs R1's 9.4%, avg flagged PnL $+2,228 vs $+2,443 ($215/trade better). 2022 loser coverage unchanged at 50%.
+  - **Structural reason (decisive)**: per-window spread distribution shows 2022 grinding-bear had **elevated VIX (median 25.5) but NORMAL contango** (mean spread -1.93, more negative than baseline -1.69; %spread>0 only 6.0% vs baseline 9.9%).
+  - **Mechanism**: VIX/VIX3M spread captures **acute spike / short-end panic** (e.g. 2011-Q3 with %spread>0=40%, 2018-Q1 with 27%, 2018-Q4 with 49%). It does NOT capture chronic grinding because grinding lifts the entire vol curve in unison — fear is priced into the medium-term, no short-end urgency anomaly emerges.
+  - **Implication**: any further VIX curve variant (VIX9D/VIX, VIX9D/VIX3M, multi-point slope) is expected to share the same limitation, since they all reflect short-end-vs-longer-end urgency rather than chronic curve elevation. Not worth testing further within the same signal family.
+- Risks / Counterarguments:
+  - Single 2022 grinding-bear sample. Future grinding regimes might differ. Current data shows no signal.
+  - Untested adjacent VIX variants (VIX9D/VIX, VIX9D/VIX3M, VIX3M/VIX6M) — but mechanism overlap suggests low ROI.
+  - TS6's marginal FP improvement (1.8pp) is real but insufficient to make R1 cost-benefit positive.
+- Confidence: high. Failure is structural (mechanism mismatch), not parametric. Two independent angles confirm: (a) 8/8 candidate scoring, (b) per-window spread distribution showing 2022 = normal contango.
+- Next Tests: NONE within this signal family. Future Tier-4 candidates (cross-asset stress: HY credit spread, rates curve, DXY+SPX, realized vs implied vol, VVIX, breadth/sector rotation) are recorded for potential future investigation but **NOT actively pursued**. They would address grinding-decline through macro risk-off mechanism rather than VIX curve shape — different mechanism, theoretically more promising for 2022-style scenarios, but require Tier-4 effort (1-2 weeks, new data sources, overfit controls).
+- Recommendation:
+  - **Q053 final closure confirmed**. C3 (regime-conditional strategy filter) remains standing architectural candidate only — does not proceed to DRAFT or engineering.
+  - Do NOT implement R1 or TS-based C3 with current cost-benefit profile.
+  - Cross-asset signal family (Tier-4) should be considered ONLY if (a) standing C3 revisit trigger from R-20260509-06 fires, OR (b) PM explicitly prioritises grinding-decline mitigation over current research lanes.
+- 2nd Quant verdict (final): **APPROVE — Q053 Tier-3+ confirms no narrow signal path remains.** "VIX term structure has been adequately tested and fails as a C3 signal family. The failure is structural: 2022-style grinding decline lifts the vol curve in contango rather than creating persistent short-end backwardation. R1 remains cost-benefit negative, and TS refinements do not materially improve it. Therefore C3 should not proceed to DRAFT or engineering."
+- Related: `Q053`, `R-20260509-06` (2nd Quant adjustments), `R-20260509-05` (C2 reversal), `R-20260509-04` (Tier 3 baseline)
+- See: `research/q053/tier3plus_term_structure.py`
+
+---
 
 ### R-20260509-06 — 2nd Quant review verdict: APPROVE WITH ADJUSTMENTS; three adjustments applied
 

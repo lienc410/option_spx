@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-05-09（Quant Researcher，`/ES` + Q053 全部 CLOSED；2nd Quant APPROVE WITH ADJUSTMENTS 已应用；C3 standing architectural candidate 保留 4 条 revisit triggers）
+最后更新：2026-05-09（Quant Researcher，`/ES` + Q053 全部 FINAL CLOSED；Tier-3+ VIX term structure DROP；C3 standing architectural candidate 保留 4 条 revisit triggers；信号宇宙近场已穷尽）
 
 ---
 
@@ -96,9 +96,11 @@
 
 - **Tier 2 结果（DONE 2026-05-09）**：模式重新定义——不是"压力=受伤"，是**"无 spike 的 grinding=受伤"**。Spike-recover（2011/2018-Q1）→ 大赚（100% WR）；Persistent grind（2015-16/2018-Q4/2022）→ 系统性亏损。最佳信号 R1（VIX 30d MA ≥ 22 + 60d max < 35）FP rate 9%，selectivity −$4k/笔；但 R4 完全 miss 2022 核心亏损（17 笔中 0 笔被 flag）。结论：简单信号无法做硬 entry-gate；需要"无回撤"时间维度组件。PM 选 Option B。
 - **Tier 3 结果（DONE 2026-05-09）**：6 个候选信号（含 "no-recovery" T2/T3 + 加 SPX drawdown 组合 + backwardation T4）全部 fail cost-benefit。最佳 T3 在 19 年损失 -$87.7k，仅换 2022 改善 +$2.7k。**简单信号家族不能 cleanly 分离 grinding-decline 与 normal-elevated-VIX trades**。但 strategy-level 视角发现 2022 损失全部集中在 put-side（BPS/IC_HV）；call-side 反而盈利。Suppress put-side 在 2022 可省 +$31k——但需要 C3 架构改动。
+- **Tier 3+ VIX term structure 测试（DONE 2026-05-09，R-20260509-07）**：8 个 VIX/VIX3M spread 信号变体全部 fail（最佳 TS6 仅 2/4 criteria 优于 R1）。**结构性原因**：2022 grinding 期间 VIX 中位数 25.5 但 spread mean -1.93（比 baseline -1.69 更负），%spread>0 仅 6.0%——curve 整体平移而非倒挂。VIX term structure 是 acute spike detector，不是 grinding detector。2nd Quant **APPROVE — DROP term-structure signal family**。详见 `research/q053/tier3plus_term_structure.py`。
+- **Q053 最终状态（2026-05-09）**：信号宇宙近场已穷尽（VIX 均值 / no-recovery / drawdown / backwardation / term structure 全部测试失败）。Q053 line 正式 CLOSED；C3 保留为 standing architectural candidate；future Tier-4 cross-asset signals（HY credit / rates curve / RV-IV / VVIX / breadth）记录在 R-20260509-07 但**不主动启动**——仅在 R-20260509-06 的 4 条 standing trigger 之一触发时重新打开。
 - **C2 反向调查（DONE 2026-05-09）**：Tier 3 怀疑 2022 worst trade（-$24,606，92% of year）是 engine sizing bug。Reproduction 证明 NOT a bug：那是正常 BPS（$23,757 credit, 6.89 contracts, 32% max-loss in 9-day SPX -4.2% drop）。"$-34 zero-credit" 是 display artifact——`Trade.entry_credit` 字段存 per-share signed index pts，不是 dollar credit。同时发现 `Trade.pnl_pct` 单位 bug（除 per-share signed 给出无意义 -72,058%）。Fast Path 修复已 commit。详见 R-20260509-05。
 - **§revisit — C3 trigger（2nd Quant 校正 R-20260509-06）**：C3（regime-conditional strategy filter）作为 standing architectural candidate 保留。**任一条件**触发即可重新打开（不需要等多个）：
-  1. PM explicit prioritization
+  1. PM explicit prioritization — **已触发 2026-05-09**：PM 选路径 2，Quant 正在测试 VIX term structure（VIX-VIX3M spread）信号，约半天出结论
   2. 又一个 2022-style calendar-year loss 出现
   3. **rolling 3-month put-side strategy PnL 在 medium-VIX (VIX 30d MA in 20-30) grinding 条件下跌破阈值**（默认：3 个月内 put-side 累计 PnL < -1.5× 历史 MAD）— **Planner 月度检查项**
   4. Q041 / Q036 部署使账户 short-premium / put-side 暴露**显著上升**（如 Q041 Tier 1 paper-trading active，或 Q036 Overlay-F shadow→active）
