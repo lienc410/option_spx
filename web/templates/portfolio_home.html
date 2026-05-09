@@ -609,7 +609,11 @@ body {
   </div>
 
   <!-- Portfolio Snapshot zone -->
-  <div class="section-label" style="margin-bottom:10px">Portfolio Snapshot</div>
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+    <div class="section-label" style="margin-bottom:0">Portfolio Snapshot</div>
+    <button id="sync-btn" onclick="syncPortfolio()" style="font-family:var(--f-ui);font-size:0.60rem;padding:2px 8px;border-radius:4px;background:transparent;border:1px solid var(--border-2);color:var(--text-2);cursor:pointer;transition:0.12s" onmouseover="this.style.color='var(--text)';this.style.background='var(--surface-hi)'" onmouseout="this.style.color='var(--text-2)';this.style.background='transparent'">↻ Sync</button>
+    <span id="sync-ts" style="font-family:var(--f-mono);font-size:0.55rem;color:var(--text-muted)"></span>
+  </div>
   <div class="snapshot-zone">
     <div id="snapshot-body">
       <div class="snapshot-unavail">Loading portfolio data…</div>
@@ -1124,9 +1128,22 @@ async function loadPositionComposition() {
   }
 }
 
+// ── Manual Schwab sync ───────────────────────────────────────────────────────
+async function syncPortfolio() {
+  const btn = document.getElementById('sync-btn');
+  const ts  = document.getElementById('sync-ts');
+  if (btn) { btn.textContent = '↻ Syncing…'; btn.disabled = true; }
+  if (ts)  ts.textContent = '';
+  await Promise.allSettled([loadSnapshot(), loadPositionComposition()]);
+  if (btn) { btn.textContent = '↻ Sync'; btn.disabled = false; }
+  if (ts)  ts.textContent = 'synced ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 (async () => {
   await Promise.allSettled([loadSpx(), loadEs(), loadQ041(), loadSnapshot(), loadPositionComposition()]);
+  const ts = document.getElementById('sync-ts');
+  if (ts) ts.textContent = 'loaded ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 })();
 </script>
 </body>
