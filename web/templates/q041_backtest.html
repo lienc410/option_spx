@@ -70,6 +70,10 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 
 /* Overlay toggles */
 .overlay-toggles { display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px; }
+.range-btns { display:flex;gap:4px;align-items:center; }
+.range-btn { font-family:var(--f-mono);font-size:0.60rem;padding:2px 9px;border-radius:4px;border:1px solid var(--border-2);background:none;color:var(--text-2);cursor:pointer;transition:0.12s; }
+.range-btn:hover { color:var(--text);border-color:var(--border-2); }
+.range-btn.active { background:var(--surface-hi);color:var(--text);border-color:var(--border-2); }
 .overlay-toggle { display:flex;align-items:center;gap:4px;font-family:var(--f-ui);font-size:0.62rem;color:var(--text-2);cursor:pointer;user-select:none; }
 .overlay-toggle input { accent-color:var(--blue);cursor:pointer; }
 
@@ -308,6 +312,8 @@ function buildPriceOverlay(canvasId, sleeve, overlayState) {
     },
   ];
 
+  const _fullDatasets = datasets.map(ds => [...ds.data]);
+
   charts[canvasId] = new Chart(canvas, {
     type: 'line',
     data: { datasets },
@@ -366,6 +372,34 @@ function buildPriceOverlay(canvasId, sleeve, overlayState) {
         },
       },
     },
+  });
+  charts[canvasId]._fullData = _fullDatasets;
+}
+
+function setOverlayRange(sym, range) {
+  const id = `ov-${sym}`;
+  const c = charts[id];
+  if (!c || !c._fullData) return;
+
+  // Compute cutoff date string
+  const now = new Date();
+  let cutoff = null;
+  if (range === '1yr') cutoff = new Date(now.getFullYear()-1, now.getMonth(), now.getDate());
+  else if (range === '3yr') cutoff = new Date(now.getFullYear()-3, now.getMonth(), now.getDate());
+  else if (range === '5yr') cutoff = new Date(now.getFullYear()-5, now.getMonth(), now.getDate());
+  const cutStr = cutoff ? cutoff.toISOString().slice(0,10) : null;
+
+  // Filter each dataset by x (date string)
+  c.data.datasets.forEach((ds, i) => {
+    const full = c._fullData[i];
+    if (!full) return;
+    ds.data = cutStr ? full.filter(p => (p.x || '') >= cutStr) : full;
+  });
+  c.update();
+
+  // Update button active states
+  document.querySelectorAll(`.range-btn[data-sym="${sym}"]`).forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.range === range);
   });
 }
 
@@ -547,15 +581,23 @@ function render(data) {
           <span class="chart-title">${s.symbol} · 价格 + 进出场标记</span>
           <span style="font-family:var(--f-mono);font-size:0.62rem;color:var(--text-2)">▲ Entry · ▼ Exit (绿=profit / 红=stop)</span>
         </div>
-        <div class="overlay-toggles">
-          <label class="overlay-toggle">
-            <input type="checkbox" id="tog-pnl-${s.symbol}" checked onchange="toggleOverlay('${ovId}',_sleeves['${s.symbol}'],'pnl',this.checked)">
-            <span style="color:rgba(201,168,64,0.85)">Cum. P&L</span>
-          </label>
-          <label class="overlay-toggle">
-            <input type="checkbox" id="tog-dd-${s.symbol}" onchange="toggleOverlay('${ovId}',_sleeves['${s.symbol}'],'dd',this.checked)">
-            <span style="color:rgba(224,72,98,0.75)">Drawdown</span>
-          </label>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+          <div class="overlay-toggles" style="margin-bottom:0">
+            <label class="overlay-toggle">
+              <input type="checkbox" id="tog-pnl-${s.symbol}" checked onchange="toggleOverlay('${ovId}',_sleeves['${s.symbol}'],'pnl',this.checked)">
+              <span style="color:rgba(201,168,64,0.85)">Cum. P&L</span>
+            </label>
+            <label class="overlay-toggle">
+              <input type="checkbox" id="tog-dd-${s.symbol}" onchange="toggleOverlay('${ovId}',_sleeves['${s.symbol}'],'dd',this.checked)">
+              <span style="color:rgba(224,72,98,0.75)">Drawdown</span>
+            </label>
+          </div>
+          <div class="range-btns">
+            <button class="range-btn" data-sym="${s.symbol}" data-range="1yr" onclick="setOverlayRange('${s.symbol}','1yr')">1yr</button>
+            <button class="range-btn" data-sym="${s.symbol}" data-range="3yr" onclick="setOverlayRange('${s.symbol}','3yr')">3yr</button>
+            <button class="range-btn" data-sym="${s.symbol}" data-range="5yr" onclick="setOverlayRange('${s.symbol}','5yr')">5yr</button>
+            <button class="range-btn active" data-sym="${s.symbol}" data-range="all" onclick="setOverlayRange('${s.symbol}','all')">All</button>
+          </div>
         </div>
         <canvas id="${ovId}" height="240" style="width:100%"></canvas>
       </div>
