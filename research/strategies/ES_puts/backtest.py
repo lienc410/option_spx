@@ -39,24 +39,24 @@ from signals.trend import (
     TrendSignal,
 )
 from signals.vix_regime import fetch_vix_history
+from strategy.es_params import DEFAULT_ES_PARAMS as _ES
 
-# ─── Parameters (shared across phases) ───────────────────────────────────────
+# ─── Parameters (single source: strategy/es_params.py) ───────────────────────
+# Edit EsShortPutParams there; values here shadow them as module-level names
+# so the rest of this file requires no structural changes.
 
-TARGET_DELTA   = 0.20    # 20-delta short put
-STOP_MULT      = 4.0     # stop when put ≥ 4× entry premium (= -300% on credit)
-# ALIGNMENT-NOTE: live bot triggers at mark/entry ≥ 3.0 (loss = 2× credit), backtest stops at 4× (loss = 3× credit).
-# Decide: should STOP_MULT become 3.0 to match live, or should bot trigger at 4× to match backtest?
-PROFIT_TARGET  = 0.10    # close when put ≤ 10% of entry premium (= +90% profit)
-GAMMA_DTE      = 5       # close early if DTE ≤ this
+TARGET_DELTA   = _ES.target_delta   # 0.20 — 20-delta short put
+STOP_MULT      = _ES.stop_mult      # 3.0  — stop when mark ≥ 3× entry premium
+#   mark/entry ≥ 3.0 → loss = 2× credit. Matches bot trigger (SPEC-086).
+PROFIT_TARGET  = _ES.profit_target  # 0.10 — close when mark ≤ 10% of entry (= +90% captured)
+GAMMA_DTE      = _ES.gamma_dte      # 5    — force-close if DTE ≤ this
 SPX_MULTIPLIER = 100
 WARMUP_DAYS    = 64
 
 # Phase 1
-P1_ENTRY_DTE      = 45
+P1_ENTRY_DTE      = _ES.entry_dte        # 45
 P1_INITIAL_EQUITY = 500_000.0
-P1_BP_TARGET      = 0.10   # 10% per position (single slot)
-# ALIGNMENT-NOTE: live trading uses _ES_BP_LIMIT_FRACTION = 0.20 (web/server.py:43).
-# Backtest calibrated at 10%. Live trades at 20% = 2× the backtested sizing. Consider re-running at 0.20.
+P1_N_CONTRACTS    = _ES.n_contracts      # 1 — fixed single-slot, matches production rule
 
 # Phase 2 — staggered DTE ladder
 P2_DTE_SLOTS      = [21, 28, 35, 42, 49]   # one concurrent position per slot
@@ -336,7 +336,7 @@ def run_phase1(
                 k    = find_strike_for_delta(spx, P1_ENTRY_DTE, sig, TARGET_DELTA, False)
                 prem = put_price(spx, k, P1_ENTRY_DTE, sig)
                 if prem > 0.5:
-                    n = _contracts(equity, P1_BP_TARGET, spx, k, prem)
+                    n = float(P1_N_CONTRACTS)
                     positions[P1_ENTRY_DTE] = PutPosition(
                         slot=P1_ENTRY_DTE, entry_date=dstr, expiry_dte=P1_ENTRY_DTE,
                         strike=k, entry_premium=prem, entry_spx=spx, entry_vix=vix,
@@ -432,7 +432,7 @@ def run_phase1_hybrid(
                     prem = put_price(spx, k, P1_ENTRY_DTE, sig)
                     bs_hits += 1
                 if prem > 0.5:
-                    n = _contracts(equity, P1_BP_TARGET, spx, k, prem)
+                    n = float(P1_N_CONTRACTS)
                     positions[P1_ENTRY_DTE] = PutPosition(
                         slot=P1_ENTRY_DTE, entry_date=dstr, expiry_dte=P1_ENTRY_DTE,
                         strike=k, entry_premium=prem, entry_spx=spx, entry_vix=vix,

@@ -45,6 +45,7 @@ from strategy.selector import (
     get_recommendation, StrategyName, Recommendation, StrategyParams,
 )
 from strategy.catalog import manual_entry_options, strategy_descriptor
+from strategy.es_params import DEFAULT_ES_PARAMS as _ES_P
 from strategy.state import (
     read_state, write_state, close_position, roll_position, add_note,
 )
@@ -313,10 +314,13 @@ def _check_es_credit_stop() -> EsStopResult:
     if mark is None:
         return EsStopResult(level=EsStopLevel.NONE)
 
+    _trigger = _ES_P.stop_mult          # 3.0 — from EsShortPutParams
+    _warn    = _ES_P.stop_mult - 1.0    # 2.0 — warn one multiple before trigger
+
     ratio = mark / entry_premium
-    if ratio >= 3.0:
+    if ratio >= _trigger:
         level = EsStopLevel.TRIGGER
-    elif ratio >= 2.0:
+    elif ratio >= _warn:
         level = EsStopLevel.WARNING
     else:
         level = EsStopLevel.NONE
@@ -324,29 +328,31 @@ def _check_es_credit_stop() -> EsStopResult:
 
 
 def _format_es_stop_alert(result: EsStopResult) -> str:
-    entry = result.entry_premium or 0.0
-    mark = result.current_mark or 0.0
-    ratio = result.ratio or 0.0
+    entry    = result.entry_premium or 0.0
+    mark     = result.current_mark or 0.0
+    ratio    = result.ratio or 0.0
+    _trigger = _ES_P.stop_mult
+    _warn    = _ES_P.stop_mult - 1.0
     if result.level == EsStopLevel.TRIGGER:
         return (
-            "🚨 <b>/ES Short Put — Credit Stop TRIGGERED [–300%]</b>\n"
+            f"🚨 <b>/ES Short Put — Credit Stop TRIGGERED [×{_trigger:.0f} mark]</b>\n"
             f"Entry premium: <code>{entry:.2f}</code> → Current mark: <code>{mark:.2f}</code>  "
             f"(<code>×{ratio:.2f}</code>)\n"
             "SPEC-061 credit stop line breached. Consider closing immediately.\n"
             "<i>/closed after exiting.</i>"
         )
     if result.level == EsStopLevel.WARNING:
-        stop_mark = entry * 3.0
+        stop_mark = entry * _trigger
         return (
-            "⚠️ <b>/ES Short Put — Stop Watch [–200%]</b>\n"
+            f"⚠️ <b>/ES Short Put — Stop Watch [×{_warn:.0f} mark]</b>\n"
             f"Entry premium: <code>{entry:.2f}</code> → Current mark: <code>{mark:.2f}</code>  "
             f"(<code>×{ratio:.2f}</code>)\n"
-            f"Credit stop is at ×3.0 (mark ≥ <code>{stop_mark:.2f}</code>).\n"
+            f"Credit stop fires at ×{_trigger:.0f} (mark ≥ <code>{stop_mark:.2f}</code>).\n"
             "Monitor closely and prepare to close if mark continues rising."
         )
     return (
-        "✅ <b>/ES Short Put — Stop watch cleared</b>\n"
-        f"Mark has fallen back below ×2.0 threshold. Current mark: <code>{mark:.2f}</code>"
+        f"✅ <b>/ES Short Put — Stop watch cleared</b>\n"
+        f"Mark has fallen back below ×{_warn:.0f} threshold. Current mark: <code>{mark:.2f}</code>"
     )
 
 

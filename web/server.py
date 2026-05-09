@@ -40,7 +40,8 @@ _CACHE_TTL = 300  # 5 minutes
 _SIGNALS_CACHE_TTL = 3600  # 1 hour
 _STATS_SCHEMA_VERSION = "v2"
 _ES_BP_PER_CONTRACT = 20_529.0
-_ES_BP_LIMIT_FRACTION = 0.20
+from strategy.es_params import DEFAULT_ES_PARAMS as _ES_PARAMS
+_ES_BP_LIMIT_FRACTION = _ES_PARAMS.bp_limit_fraction  # 0.20 — sourced from EsShortPutParams
 
 # ── Disk cache for backtest stats (survives restarts) ────────────────────────
 _STATS_DISK_CACHE = Path(__file__).parent.parent / "data" / "backtest_stats_cache.json"
@@ -316,6 +317,22 @@ def api_es_position():
         })
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/es/stressed-span")
+def api_es_stressed_span():
+    from web.portfolio_surface import es_stressed_span_payload
+
+    try:
+        return jsonify(es_stressed_span_payload())
+    except Exception as exc:
+        return jsonify({
+            "surface": "es_stressed_span",
+            "status": "unavailable",
+            "stress_band": "unavailable",
+            "has_es_live_position": False,
+            "error": str(exc),
+        })
 
 
 @app.route("/api/strategy-catalog")
