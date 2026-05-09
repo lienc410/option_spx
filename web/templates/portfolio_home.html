@@ -995,7 +995,19 @@ function _renderMarginAllocation(data) {
   const view    = _accountView;
   const buckets = data.bp_usage_by_bucket || {};
   const accounts = data.account_breakdown || {};
+  const rails   = data.rails || {};
 
+  // Dollar amounts for per-account-NLV recalculation
+  const spxDollars = typeof rails.spx_live?.bp_usage?.bp_usage_dollars === 'number'
+                     ? rails.spx_live.bp_usage.bp_usage_dollars : 0;
+  const eqDollars  = typeof buckets.equity_margin_dollars        === 'number' ? buckets.equity_margin_dollars        : 0;
+  const etDollars  = typeof buckets.etrade_maintenance_dollars   === 'number' ? buckets.etrade_maintenance_dollars   : 0;
+  const schwabNlv  = typeof accounts.schwab_nlv  === 'number' ? accounts.schwab_nlv  : 0;
+  const etradeNlv  = typeof accounts.etrade_nlv  === 'number' ? accounts.etrade_nlv  : 0;
+  // _rpct: recompute pct against a specific NLV denominator
+  const _rpct = (d, n) => n > 0 ? Math.min(Math.max(d / n * 100, 0), 100) : 0;
+
+  // "All" view: backend already uses combined_nlv as denominator — use directly
   const spxW  = Math.min(typeof buckets.spx_live_bp_pct      === 'number' ? buckets.spx_live_bp_pct      : 0, 100);
   const eqW   = Math.min(typeof buckets.equity_margin_bp_pct  === 'number' ? buckets.equity_margin_bp_pct  : 0, 100);
   const etW   = Math.min(typeof buckets.etrade_maintenance_bp_pct === 'number' ? buckets.etrade_maintenance_bp_pct : 0, 100);
@@ -1004,8 +1016,7 @@ function _renderMarginAllocation(data) {
   const q3W   = Math.min(typeof buckets.q041_tier3_bp_pct     === 'number' ? buckets.q041_tier3_bp_pct     : 0, 100);
   const q041W = Math.min(q1W + q2W + q3W, 100);
 
-  const eqDollars = buckets.equity_margin_dollars;
-  const eqNote = typeof eqDollars === 'number' ? fmtDollars(eqDollars) + ' (15% haircut)' : '15% haircut';
+  const eqNote = eqDollars > 0 ? fmtDollars(eqDollars) + ' (15% haircut)' : '15% haircut';
 
   function barHtml(label, pct, barClass, note) {
     const w = typeof pct === 'number' ? Math.min(Math.max(pct, 0), 100).toFixed(1) : '0';
@@ -1021,19 +1032,22 @@ function _renderMarginAllocation(data) {
   let barSegments, legendItems, bucketRows, railCards, noteHtml = '';
 
   if (view === 'schwab') {
-    const idleW = Math.max(100 - Math.min(spxW + eqW + q041W, 100), 0);
+    // Recalculate SPX and Equity % against Schwab NLV (not combined NLV)
+    const spxWs  = _rpct(spxDollars, schwabNlv);
+    const eqWs   = _rpct(eqDollars,  schwabNlv);
+    const idleW  = Math.max(100 - Math.min(spxWs + eqWs + q041W, 100), 0);
     barSegments = `
-      <div class="bp-seg bp-seg-spx"    style="width:${spxW.toFixed(1)}%"></div>
-      <div class="bp-seg bp-seg-equity" style="width:${eqW.toFixed(1)}%"></div>
+      <div class="bp-seg bp-seg-spx"    style="width:${spxWs.toFixed(1)}%"></div>
+      <div class="bp-seg bp-seg-equity" style="width:${eqWs.toFixed(1)}%"></div>
       <div class="bp-seg bp-seg-q041"   style="width:${q041W.toFixed(1)}%"></div>`;
     legendItems = `
-      <div class="bp-legend-item"><div class="bp-legend-dot dot-spx"></div>SPX ${spxW.toFixed(1)}%</div>
-      <div class="bp-legend-item"><div class="bp-legend-dot dot-equity"></div>Equity ${eqW.toFixed(1)}%</div>
+      <div class="bp-legend-item"><div class="bp-legend-dot dot-spx"></div>SPX ${spxWs.toFixed(1)}%</div>
+      <div class="bp-legend-item"><div class="bp-legend-dot dot-equity"></div>Equity ${eqWs.toFixed(1)}%</div>
       <div class="bp-legend-item"><div class="bp-legend-dot dot-q041"></div>Q041 ${q041W.toFixed(1)}%</div>
       <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>`;
     bucketRows =
-      barHtml('SPX Live', buckets.spx_live_bp_pct, 'bar-spx', 'PM max-loss') +
-      barHtml('Equity Margin', buckets.equity_margin_bp_pct, 'bar-equity', eqNote) +
+      barHtml('SPX Live', spxWs, 'bar-spx', 'PM max-loss') +
+      barHtml('Equity Margin', eqWs, 'bar-equity', eqNote) +
       barHtml('Q041 Tier 1', buckets.q041_tier1_bp_pct, 'bar-q041', 'paper') +
       barHtml('Q041 Tier 2', buckets.q041_tier2_bp_pct, 'bar-q041', 'paper') +
       barHtml('Q041 Tier 3', buckets.q041_tier3_bp_pct, 'bar-q041', 'paper');
@@ -1043,18 +1057,20 @@ function _renderMarginAllocation(data) {
         <div class="account-rail-line"><span>NLV</span><span>${fmtDollars(accounts.schwab_nlv)}</span></div>
         <div class="account-rail-line"><span>Maint</span><span>${fmtDollars(accounts.schwab_maintenance_margin)}</span></div>
       </div>`;
-    if (typeof accounts.etrade_nlv === 'number') {
-      noteHtml = '<div class="snapshot-note">% 基于 combined NLV (Schwab + E-Trade)，非仅 Schwab NLV。</div>';
+    if (etradeNlv > 0) {
+      noteHtml = '<div class="snapshot-note">SPX/Equity % 基于 Schwab NLV；Q041 % 基于 combined NLV（paper 追踪）。</div>';
     }
 
   } else if (view === 'etrade') {
-    const idleW = Math.max(100 - etW, 0);
-    barSegments = `<div class="bp-seg bp-seg-es" style="width:${etW.toFixed(1)}%"></div>`;
+    // Recalculate E-Trade % against E-Trade NLV (not combined NLV)
+    const etWe  = _rpct(etDollars, etradeNlv);
+    const idleW = Math.max(100 - etWe, 0);
+    barSegments = `<div class="bp-seg bp-seg-es" style="width:${etWe.toFixed(1)}%"></div>`;
     legendItems = `
-      <div class="bp-legend-item"><div class="bp-legend-dot dot-es"></div>E-Trade ${etW.toFixed(1)}%</div>
+      <div class="bp-legend-item"><div class="bp-legend-dot dot-es"></div>E-Trade ${etWe.toFixed(1)}%</div>
       <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>`;
-    bucketRows = barHtml('E-Trade PM', buckets.etrade_maintenance_bp_pct, 'bar-etrade', 'account maintenance');
-    railCards = typeof accounts.etrade_nlv === 'number'
+    bucketRows = barHtml('E-Trade PM', etWe, 'bar-etrade', 'account maintenance');
+    railCards = etradeNlv > 0
       ? `<div class="account-rail-card">
           <div class="account-rail-title">E-Trade</div>
           <div class="account-rail-line"><span>NLV</span><span>${fmtDollars(accounts.etrade_nlv)}</span></div>
