@@ -1,11 +1,49 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-09 (R-20260509-05: C2 reversal — no engine bug; Trade.pnl_pct fixed)
+Last Updated: 2026-05-09 (R-20260509-06: 2nd Quant adjustments — audit + revised C3 trigger + wording)
 Owner: Planner or PM
 
 ---
 
 ## Entries
+
+### R-20260509-06 — 2nd Quant review verdict: APPROVE WITH ADJUSTMENTS; three adjustments applied
+
+- Topic: 2nd Quant reviewed the full Q053 chain (R-20260509-02 through R-20260509-05) per `task/q053_full_session_2nd_quant_review_packet_2026-05-09.md`. Verdict: **APPROVE WITH ADJUSTMENTS**. All Q1-Q7 PASS individually; three adjustments required before final closure.
+- Findings (per-question PASS/REVISE/REJECT):
+  - **Q1 (5 principles)**: PASS with wording discipline. Principle 1 should clarify "lagging price/trend exits are unreliable as PRIMARY risk controls for IV-driven losses" rather than implying all technical signals are useless. Principle 3 should explicitly bind to "spread-based strategies; for spread-based, stop should attach to risk budget / max loss, not credit multiples."
+  - **Q2 (7 actions)**: PASS. Decomposition correct. Minor improvement: REVIEW_TEMPLATE §6.1 should say "when applicable" to allow exemption for fully-automated EOD-only paths.
+  - **Q3 (Tier 1+2 sample size)**: PASS with confidence caveat. 2022 finding is "evidence of vulnerability", NOT "statistical proof of universal regime rule". Pattern (3/3 grinding lose, 2/2 spike-recover win) is directionally reliable, statistically still weak — supports research conclusion, does NOT support direct production C3 rule.
+  - **Q4 (Tier 3 signal verdict)**: PASS, but **do not over-close the signal universe**. Conclusion is "current tested VIX/SPX-drawdown signal family fails cost-benefit"; we did NOT test cross-asset signals (credit spreads, rates curve, sector breadth, liquidity stress, realized-vol term structure, cross-asset risk-off). The boundary matters.
+  - **Q5 (C2 reversal)**: PASS. Reproduction methodology sound. "No engine bug, normal BPS regime loss" is correct.
+  - **Q6 (pnl_pct fix)**: PASS with lightweight audit requested (now done — see this entry).
+  - **Q7 (Q053 closure)**: PASS with adjusted revisit trigger. Original "another 2022-style year OR PM prioritization" too lax/too late.
+- **Adjustments applied (this entry)**:
+  - **Adjustment 1 — `entry_credit` consumer audit (Q6 follow-up)**:
+    Audit results embedded in `backtest/engine.py:96-130` Trade dataclass docstring.
+    - Math consumers (3) — all CORRECT use of signed per-share index points: `scripts/export_backtest_trade_detail.py:214` (price calc), `scripts/export_backtest_trade_detail.py:294` (`net_option_px_enter` field), `backtest/prototype/SPEC-030_intraday_stop.py:116, 164`.
+    - Display consumers (2) — emit raw value with key "entry_credit" in JSON: `web/server.py:1548` (API), `backtest/research_views.py:43` (research view). External readers (frontend, downstream tools) may misinterpret as dollar-credit. **Future cleanup task**: rename JSON key OR add parallel dollar-credit field. Not Fast Path — needs coordinated frontend update.
+  - **Adjustment 2 — Revised C3 revisit trigger (Q7 follow-up)**: replace prior single-condition trigger with four conditions, ANY of which reopens C3:
+    1. PM explicitly prioritizes regime-conditional strategy filter
+    2. Another 2022-style calendar-year loss emerges
+    3. Rolling 3-month put-side strategy PnL falls below defined threshold (default: -1.5× per-strategy historical MAD over 3 months) in medium-VIX (VIX 30d MA in 20-30) grinding conditions
+    4. Q041 / Q036 deployment increases account-level short-premium / put-side exposure materially (e.g., post-Q041 Tier 1 paper-trading activation, OR post-Q036 Overlay-F shadow→active transition)
+    Trigger 3 is the standing automated check that must be applied monthly by Planner; trigger 4 is event-driven on spec progression. Triggers 1-2 are PM-driven.
+  - **Adjustment 3 — Tier 3 conclusion wording boundary (Q4 follow-up)**: amend the Tier 3 verdict in R-20260509-04 to read:
+    > "The tested VIX-persistence + SPX-drawdown signal family failed cost-benefit. We did NOT evaluate cross-asset signals (credit spreads, rates curve, sector breadth, liquidity stress, realized-vol term structure, cross-asset risk-off). Future C3 reopening should consider these untested families before concluding 'no signal exists'."
+    Wording correction is documented here; the original R-20260509-04 entry remains as historical record (not retroactively edited).
+- Risks / Counterarguments:
+  - The display-consumer JSON key issue (audit finding) is a real semantic risk for any external code reading `entry_credit` from API. Documented but not yet fixed; downstream consumers may continue mis-interpreting.
+  - Revised C3 trigger 3 (rolling 3-month threshold) requires Planner to define "MAD threshold" precisely; current parameter is approximate.
+- Confidence: high on all adjustments. 2nd Quant review was thorough.
+- Recommendation:
+  - Q053 line now formally CLOSED with these three adjustments applied.
+  - Carry forward as standing reference: 5 principles, 3 calibrations, A1 tool, REVIEW_TEMPLATE §6.1 checks, revised C3 trigger.
+  - Planner should add monthly check for revised C3 Trigger 3 (rolling 3-month put-side PnL vs threshold) to PROJECT_STATUS update workflow.
+- Related: `R-20260509-05`, `R-20260509-04`, `R-20260509-03`, `R-20260509-02`
+- See: `task/q053_full_session_2nd_quant_review_packet_2026-05-09.md`, `backtest/engine.py:96-130`
+
+---
 
 ### R-20260509-05 — C2 investigation reverses prior hypothesis: 2022 weakness is genuinely regime-driven; Trade.pnl_pct unit bug fixed
 

@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-05-09（Quant Researcher，`/ES` Q012/Q051/Q052 全部正式 closed；研究吸收沉淀为 5 must-absorb principles + 3 calibrations + 3 action items；Q053 Grinding Decline Regime Review 开启）
+最后更新：2026-05-09（Quant Researcher，`/ES` + Q053 全部 CLOSED；2nd Quant APPROVE WITH ADJUSTMENTS 已应用；C3 standing architectural candidate 保留 4 条 revisit triggers）
 
 ---
 
@@ -71,7 +71,7 @@
 
 ### Q053 — Main Strategy Performance in Grinding-Decline Regimes (2018-Q4 / 2022)
 
-- **状态**：open（new research lane opened from `/ES` closure absorption, 2026-05-09）
+- **状态**：**CLOSED 2026-05-09**（Tier 1+2+3 完成；C2 反向调查；2nd Quant APPROVE WITH ADJUSTMENTS — R-20260509-06）。C3 (regime-conditional strategy filter) 保留为 standing architectural candidate，触发条件见下方 §revisit。
 - **内容**：`/ES` 5 轮研究反复显示，short premium 策略最难受的环境不是 2008/2020 风格的 VIX spike + crash，而是 **2018-Q4 / 2022 风格的 medium-VIX grinding decline**。关键特征：VIX 在 20-30 区间持续数月，从未触发 EXTREME_VOL gate，但 IV 缓慢扩张 + 缓慢下跌持续磨损 short premium 仓位；spike-based hedge（Overlay-F / BSH）在这类环境下不赔付。这套约束几乎确定也存在于主策略（BPS / IC / BCD），因为它们同样依赖 EXTREME_VOL gate 作为高 VIX 拒绝层，对 grinding decline 没有专门 detect 机制
 - **核心研究问题**：主策略在 2018-Q4 和 2022 全年的实际表现是怎样的？信号路由是否被 "grinding without spike" 模式系统性误导？现有 risk_score / regime gate 是否对中等 VIX 持续磨损环境有合理的保护？
 - **不重复的研究范围**：
@@ -84,12 +84,27 @@
   - 计算 PnL / drawdown / WR / stop rate / regime distribution per window
   - 与全样本均值对比，识别系统性偏差
   - 输出"grinding decline 是否是主策略隐蔽弱点"的明确判断
-- **可选 Tier 2 范围**（仅在 Tier 1 显示弱点时）：
-  - 2011-Q3、2015-Q3-2016-Q1、2018-Q1 mini stress windows
-  - 设计候选检测 signal（如 VIX 滚动均值超 22 持续 30+ 天）
-  - 作为 candidate research，不直接进 Spec
-- **来源**：R-20260509-02 `/ES` research absorption；2nd Quant 标记为 "/ES closure 最大的副产品"
-- **优先级**：在 Q041 paper-trading 工作之后，新 alpha-search 之前
+- **Tier 1 结果（DONE 2026-05-09）**：
+
+  | 窗口 | n | 总 PnL | WR | Avg PnL/笔 | Stop rate | vs baseline |
+  |---|---|---|---|---|---|---|
+  | Baseline (Other) | 260 | +$1,701,931 | 76.9% | +$6,546 | 0.8% | — |
+  | 2018-Q4 | 4 | +$10,074 | 75.0% | +$2,518 | 0.0% | −61% Avg |
+  | 2022 grinding bear | 18 | **−$26,778** | **55.6%** | −$1,488 | 0.0% | −123% |
+
+  关键发现：（1）**2022 全年亏损 −$26.8k**，WR 跌 21.4pp；（2）stop rate 0.0%——`pnl_ratio` 止损机制在 grinding decline 中完全没触发，仓位仍系统性磨损；（3）损失集中在 BPS / IC_HV / BPS_HV，与 `/ES` 研究的 short premium 受伤模式一致。结论：**grinding decline 是主策略实证确认的隐藏弱点**，Tier 2 扩展合理。详见 `RESEARCH_LOG.md R-20260509-03`。
+
+- **Tier 2 结果（DONE 2026-05-09）**：模式重新定义——不是"压力=受伤"，是**"无 spike 的 grinding=受伤"**。Spike-recover（2011/2018-Q1）→ 大赚（100% WR）；Persistent grind（2015-16/2018-Q4/2022）→ 系统性亏损。最佳信号 R1（VIX 30d MA ≥ 22 + 60d max < 35）FP rate 9%，selectivity −$4k/笔；但 R4 完全 miss 2022 核心亏损（17 笔中 0 笔被 flag）。结论：简单信号无法做硬 entry-gate；需要"无回撤"时间维度组件。PM 选 Option B。
+- **Tier 3 结果（DONE 2026-05-09）**：6 个候选信号（含 "no-recovery" T2/T3 + 加 SPX drawdown 组合 + backwardation T4）全部 fail cost-benefit。最佳 T3 在 19 年损失 -$87.7k，仅换 2022 改善 +$2.7k。**简单信号家族不能 cleanly 分离 grinding-decline 与 normal-elevated-VIX trades**。但 strategy-level 视角发现 2022 损失全部集中在 put-side（BPS/IC_HV）；call-side 反而盈利。Suppress put-side 在 2022 可省 +$31k——但需要 C3 架构改动。
+- **C2 反向调查（DONE 2026-05-09）**：Tier 3 怀疑 2022 worst trade（-$24,606，92% of year）是 engine sizing bug。Reproduction 证明 NOT a bug：那是正常 BPS（$23,757 credit, 6.89 contracts, 32% max-loss in 9-day SPX -4.2% drop）。"$-34 zero-credit" 是 display artifact——`Trade.entry_credit` 字段存 per-share signed index pts，不是 dollar credit。同时发现 `Trade.pnl_pct` 单位 bug（除 per-share signed 给出无意义 -72,058%）。Fast Path 修复已 commit。详见 R-20260509-05。
+- **§revisit — C3 trigger（2nd Quant 校正 R-20260509-06）**：C3（regime-conditional strategy filter）作为 standing architectural candidate 保留。**任一条件**触发即可重新打开（不需要等多个）：
+  1. PM explicit prioritization
+  2. 又一个 2022-style calendar-year loss 出现
+  3. **rolling 3-month put-side strategy PnL 在 medium-VIX (VIX 30d MA in 20-30) grinding 条件下跌破阈值**（默认：3 个月内 put-side 累计 PnL < -1.5× 历史 MAD）— **Planner 月度检查项**
+  4. Q041 / Q036 部署使账户 short-premium / put-side 暴露**显著上升**（如 Q041 Tier 1 paper-trading active，或 Q036 Overlay-F shadow→active）
+  
+  Trigger 3 由 Planner 加入 PROJECT_STATUS 月度更新流程；Trigger 4 由 spec 进展事件触发；Trigger 1-2 由 PM 决定。
+- **来源**：R-20260509-02/03/04/05/06
 - **不在范围**：
   - 任何指向 `/ES` 重启的内容（Q012/Q051/Q052 已正式 closed）
   - Q036 Overlay-F 的重新评估（那是一个独立 revisit gate）
@@ -109,10 +124,28 @@
   6. Overlay-F scale-dependence 是 **revisit hypothesis**，不是 conclusion。Trigger：主策略 BP 利用率 > 25-30% NLV 后重新评估 Q036
   7. 资本效率必须用 **stress-capital basis** 评估，不是 entry-margin% — `/ES vs SPX BPS` 的真实差异在 stress capital，不在 entry BP
   8. 任何依赖 PM 人工执行的规则必须明确测试 **T+0 / T+1 / T+2** delay sensitivity
-- **三个 action items**：
-  - **A1（工具）**：构建 `iv_expansion_stress_test` 框架（Phase A SPAN 模型泛化），作为新 short-premium spec 评审强制工具
-  - **A2（研究）**：Q053 — Grinding Decline Regime Review（已开）
-  - **A3（治理）**：Q041 SPX CSP paper-trading activation 前必须附 IV-expansion stress appendix（用 A1 工具）
+- **七个 action items**（修正：原漏记 4 条治理 codification 动作——原则不写入正式文档等于没有）：
+
+  **待推进（3 项，Quant 执行）**
+
+  | Action | 类型 | 依赖 | 工作量 | 状态 |
+  |---|---|---|---|---|
+  | **A1** 构建 `iv_expansion_stress_test` 工具 | Quant 原型 | 无（Phase A 已有） | Tier 1 / 半天 | ✅ DONE 2026-05-09 — `research/tools/iv_expansion_stress_test.py` |
+  | **A2** Q053 Grinding Decline Regime Review | Quant 研究 | 主策略历史 trade record | Tier 1 / 一天 | ✅ DONE 2026-05-09 — Tier 1 完成；2022 亏损 -$26.8k 已证实；Tier 2 待启动 |
+  | **A3** Q041 SPX CSP IV-expansion stress appendix | 治理附件 | A1 就绪 | 30 分钟 | ✅ DONE 2026-05-09 — `doc/q041_execution_prep_packet_2026-05-05.md §11` |
+
+  依赖关系：`A1 → A3`；`A2` 独立可并行。
+
+  **待触发（4 项，非待办）**
+
+  | Action | 触发条件 | 落地文件 |
+  |---|---|---|
+  | **A4** 5 条 Short-Premium Principles | 下次 short-premium spec 评审时引用 | `QUANT_RESEARCHER.md` |
+  | **A5** Overlay-F revisit gate | 主策略 60 日均 BP 利用率 ≥ 25% NLV | `Q036 §revisit gate` |
+  | **A6** stress-capital basis 评估 | 下次 short-premium spec 评审 §6.1 | `REVIEW_TEMPLATE.md §6.1` |
+  | **A7** T+0/T+1/T+2 delay sensitivity | 下次依赖人工执行的 spec 评审 §6.1 | `REVIEW_TEMPLATE.md §6.1` |
+
+  **Planner 月度监控义务（来自 Quant 建议）**：月度 PROJECT_STATUS 更新时检查主策略 60 日 BP 利用率；穿越 25% NLV 时通知 PM/Quant 评估 Q036。
 - **来源**：R-20260509-02；2nd Quant PASS verdict
 - **不在范围**：本节是 standing reference，不是研究问题；不应被当作开放任务
 
@@ -211,7 +244,14 @@
 - **来源**：PM 对 `2026-03` 真实 double-spike case 的语义复盘，2026-04-20
 
 ### Q036 — Idle BP Deployment / Capital Allocation：在组合级资本池下，是否应将持久闲置 BP 受控部署，以合理提高账户级 ROE
-- **状态**：resolved（方向层面；HC PM 已接受 MC 侧更接近 escalate / productization-stack 的方向）
+- **状态**：shadow / hold（生产 posture 维持 shadow，但已绑定 revisit gate；详见 2026-05-09 Overlay-F revisit gate 条件）
+- **2026-05-09 Overlay-F revisit gate condition（来自 R-20260509-02 Action A5）**：
+  - **trigger**：主策略账户级 BP 利用率（time-weighted average，过去 60 个交易日）≥ **25% NLV**（softer trigger）或 ≥ **30% NLV**（harder trigger）
+  - **rationale**：`/ES` 研究证明 BSH 类 hedge 是 scale-dependent；当前 Q036 Overlay-F 边际贡献 +0.074pp 低，**部分原因可能是**主策略 BP 利用率结构性偏低（SPEC-084 后 ~16% NLV），hedge cost 相对 theta 收入比例不经济
+  - **不能直接类比 `/ES` BSH**：Overlay-F 是 sizing 而非 hedge cost，scale-dependence 的具体机制可能不同。所以这是 **revisit hypothesis**，不是 conclusion
+  - **触发后应该做的研究**：在新 BP 利用率水平下，重新评估 Overlay-F 在 idle-BP 不再"持久且足够大"时的真实经济性。可能结论是"现在 idle BP 已经被 Q041 占用，Overlay-F 失去意义"——也可能是"在更高 BP 利用率下，Overlay-F 边际贡献从 +0.074pp 上升到有意义的水平"
+  - **不要在 BP 25% 之前重开 Overlay-F 研究**：维持当前 shadow 观察 + 不升级 active 的状态
+  - **触发监测责任**：Planner 在每月 PROJECT_STATUS 更新时检查主策略 BP 利用率；当 60 日均值首次穿越 25% 时通知 PM/Quant 评估
 - **内容**：PM 已明确项目顶层 objective 重置为：**首要目标是合理最大化账户级 ROE**。这里的 “合理” 明确包含：控制风险暴露、避免大回撤、避免 margin stress / forced liquidation risk、避免坏 regime 下的隐藏集中。这个目标**不同于**单纯最大化 `Sharpe`、`PnL/BP-day`、或某条规则的语义纯度。由此产生一个新问题：当 baseline rule 与 baseline size 已经应用后，如果账户仍有显著 idle BP，是否应通过受控 capital-deployment overlay 来提高账户级 ROE
 - **为什么这不是 `Q021` 继续延长**：`Q021` 已经足够回答 rule-layer 问题：“`V_D` / `V_G` 等 sizing-up 变体不应替代 `V_A SPEC-066` 成为新的 canonical rule”。但这并不自动回答 capital-allocation 问题：“若 baseline 长期留有可观 idle BP，而这些 BP 没有更优用法，是否应通过 overlay 部署出去？” 这两个问题的 objective function 不同，必须分开治理
 - **当前 PM 边界**：

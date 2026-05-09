@@ -100,6 +100,18 @@ class Trade:
                                 # absolute dollar credit/debit at the position level, use
                                 # `option_premium × contracts` or `abs(entry_credit) × 100 × contracts`.
                                 # Field name is historical; do not assume "positive = credit".
+                                #
+                                # Consumer audit (R-20260509-06, 2nd Quant requested):
+                                #   ✓ math consumers use signed per-share correctly:
+                                #     - scripts/export_backtest_trade_detail.py:214 (price calc)
+                                #     - scripts/export_backtest_trade_detail.py:294 (`net_option_px_enter`)
+                                #     - backtest/prototype/SPEC-030_intraday_stop.py:116, 164
+                                #   ⚠️ display consumers emit raw value with key "entry_credit":
+                                #     - web/server.py:1548 (API JSON)
+                                #     - backtest/research_views.py:43 (research view JSON)
+                                #   downstream frontend / external readers of those JSON payloads
+                                #   may mis-interpret the value as dollar-credit. Future cleanup
+                                #   (separate task): rename JSON key or add parallel dollar-credit field.
     exit_pnl:     float = 0.0   # final P&L total in USD (positive = profit, all contracts)
     exit_reason:  str = ""      # "50pct_profit" | "stop_loss" | "expiry" | "roll_21dte" | "roll_up"
     entry_reason: str = ""

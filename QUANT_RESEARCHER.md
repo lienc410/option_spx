@@ -311,3 +311,89 @@ PM 说 `review SPEC-{id}` 时，Quant Researcher 执行：
 ---
 Status: DRAFT
 ```
+
+---
+
+## Short-Premium Risk Management Principles
+
+来源：`Q012` / `Q051` / `Q052` `/ES` 研究线 closure（5 轮研究）+ 2nd Quant review。
+适用范围：所有 short-premium 策略（BPS、IC、BCD、CSP、naked put 等）。
+
+### Principle 1 — IV expansion 比任何 lagging control 都快
+
+短期权仓位的 mark-to-market 恶化不等价格信号确认才发生：当市场对未来风险升级时，IV 立即扩张，option mark 立即跳涨，delta/vega/margin 同时恶化；price-based 趋势信号在此之后才确认。
+
+**含义（精确表述，2nd Quant 校正 R-20260509-06）**：lagging price/trend exits 在 IV-driven short-premium 损失上**作为主要风险控制**是不可靠的。这不等同于"所有技术信号都无价值"——技术信号在 entry-time gating 或作为辅助分类仍可有用。但作为 IV-driven mark deterioration 的 primary stop，它结构性慢一拍。`/ES` 研究证据（R-20260509-01）：244 笔 trend-based exits 中 84% 是亏损出场，平均 -$1,443/笔。
+
+**应用**：
+
+- 主策略风险控制必须 **entry-gated / regime-gated**，不能 retrofit 滞后 exit 来"补救"已开仓位
+- Spec 评审拒绝任何提议加入"trend-based stop"或"VIX-spike stop"作为 short-premium 仓位的 exit 层（已有 26 年数据证伪）
+- 唯一可避免 IV expansion 的执行机制是 **intraday auto-close**（当前主策略不具备，且引入需要单独 spec）
+
+### Principle 2 — `pnl_ratio`-based stop 优于 mark-multiple stop（spread-based 策略）
+
+**适用范围（精确，2nd Quant 校正 R-20260509-06）**：本原则**仅适用于 spread-based / defined-risk 策略**（BPS、IC、BCD、credit spread 等）。对于 naked options / undefined-risk 策略（如裸 put），mark-multiple stop 仍有合理性（因为没有"max loss"作为 budget anchor）。
+
+`pnl_ratio = realized_loss / max_loss_at_entry` 在不同 premium 等级下保持 scale-invariant；mark-multiple（如"close at 3× entry credit"）在低 premium 下会异常容易触发。
+
+**证据**：`/ES` H3 grid 显示 0.05 delta + 180-DTE 在 STOP=3× 下 stop rate 升至 48.9%（vs 基线 26.5%），因为 $1 premium 涨到 $3 mark 只需 $2 绝对移动。
+
+**应用**：
+
+- **对 spread-based 策略**：stop 应绑定到 risk budget / max loss，而不是 entry credit 的倍数。主策略 BPS / IC / BCD 现有 `pnl_ratio` 框架（如 `-0.50` / `-0.35`）保持不变
+- 不接受任何"简化为 mark-multiple"的 spread spec 提议（除非 PM 明确接受 trade-off）
+- BCD debit-side 已通过 SPEC-080 对齐到 `pnl_ratio` 框架，这条原则现在覆盖完整
+- **对 naked options**：本原则不适用，但 `/ES` 研究证明 naked options 的 stop methodology 本身需要更深层调整（见 R-20260509-01）
+
+### Principle 3 — 资本效率必须用 stress-capital basis 评估，不是 entry-margin %
+
+`/ES` 研究教训：
+
+- `/ES` naked put SPAN 入场约 $20k（看似便宜）
+- 但 VIX 30 时 SPAN 扩张至 $46k，VIX 60 时扩张至 $73k
+- 入场资本效率"高"等于尾部资本暴露"高"
+
+**含义**：评估新策略的 BP/notional% 比例时，必须问"在 stress scenario 下这个数字会变成多少"，而不是"入场时占多少"。
+
+**应用**：
+
+- 新 spec 评审标准比较项：必须给出 **VIX +10 / +20 / +40 shock 下** 的 stress BP
+- 不接受只给 entry BP% 的资本效率论证
+- 这条原则也是 `iv_expansion_stress_test` 工具（A1）的核心评估口径
+
+### Principle 4 — 任何依赖人工执行的规则必须明确 T+0/T+1/T+2 delay sensitivity
+
+研究层假设的"瞬时完美执行"对 alert-driven / 人工执行流程系统性高估表现。`/ES` SPEC-086 bot 在 mark=3× 发 TRIGGER，但生产实际成交可能在 3.0–4.0× 之间，研究 STOP=3.0 因此过度乐观。
+
+**适用规则类型**：
+
+- intraday alert + 人工 close（SPEC-086 类）
+- EXTREME_VOL 下人工减仓
+- hedge activation
+- 任何 stop trigger 但非 broker auto-execution
+
+**应用**：
+
+- Spec 评审强制项：明确执行假设（immediate / next close / next open / +1 day / +2 day）
+- 提供 stop / reduce / hedge activation 的 T+0 / T+1 / T+2 sensitivity 测试
+- 这条进入 `REVIEW_TEMPLATE.md` 作为 short-premium spec 的标准检查项
+
+### Principle 5 — Scale-dependent payoff family 概念
+
+某些 payoff family 只在特定账户规模下经济成立。**naked options** 需要 scale 才能让 hedge / stop 经济性闭合；**defined-risk spreads** 在所有 scale 下结构稳健。
+
+**证据**：`/ES` 研究证明 naked put thesis 在 $500k 下不可行，在 $1.5M+ 下可行（R-20260508-12）。同一 thesis、同一参数，不同 scale 给出相反结论。
+
+**应用**：
+
+- 评估新策略时显式问："这个策略在什么账户规模下经济成立？"
+- 如果答案是 "scale-dependent"，必须明确 trigger 条件（账户达到 X NLV 时再 revisit）
+- 不要把当前账户下不经济的 thesis 当作"永远否定"，也不要假设它会随账户自动激活——必须有显式 revisit gate
+
+### 这些原则的引用与维护
+
+- 引用语：在 spec / research output 中引用时使用 `QUANT_RESEARCHER.md#short-premium-risk-management-principles`
+- 维护：本节从 `/ES` 研究线（Q012/Q051/Q052）沉淀。未来 short-premium 研究若发现新的结构性原则，应在此追加（Principle 6, 7, ...）
+- 反例：本节是"以减少未来错误为目的的负面经验沉淀"，不是"灵感来源"。每条原则都对应了至少一次具体的研究失败或反直觉的实证发现
+
