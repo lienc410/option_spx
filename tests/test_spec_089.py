@@ -55,21 +55,17 @@ class _FakeAccounts:
     def get_account_balance(self, _account_id):
         return {
             "BalanceResponse": {
-                "accountValue": {"netMv": 250000},
                 "Computed": {
-                    "marginBuyingPowerDetails": {
-                        "maintenanceCall": 42000,
-                        "marginBalance": 11000,
-                        "marginBuyingPower": 90000,
-                    },
-                    "cashAvailableForInvestment": {
-                        "cashAvailableForWithdrawal": 18000,
-                    },
+                    "cashAvailableForWithdrawal": "18000",
+                    "marginBalance": "11000",
+                    "marginBuyingPower": "90000",
+                    "RealTimeValues": {"netMv": "250000"},
+                    "PortfolioMargin": {"totalMarginRqmts": "42000"},
                 },
             }
         }
 
-    def get_account_portfolio(self, _account_id):
+    def get_account_portfolio(self, _account_id, resp_format="xml"):
         return {
             "PortfolioResponse": {
                 "AccountPortfolio": [{

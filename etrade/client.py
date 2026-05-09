@@ -24,6 +24,15 @@ _ET = ZoneInfo("America/New_York")
 _CACHE: dict[str, tuple[float, Any]] = {}
 
 
+def _num(value: Any) -> float | None:
+    try:
+        if value in (None, ""):
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _ttl() -> int:
     now = datetime.now(_ET)
     if now.weekday() >= 5:
@@ -130,6 +139,14 @@ def _resolve_account_id(client: Any, account_id: str | None = None) -> str | Non
         return None
     accounts = _as_list(_dig(payload, "AccountListResponse", "Accounts", "Account"))
     for item in accounts:
+        if not isinstance(item, dict):
+            continue
+        desc = str(item.get("accountDesc") or item.get("accountName") or "").lower()
+        if "pm brokerage" in desc or desc == "pm":
+            value = item.get("accountIdKey") or item.get("accountId")
+            if value:
+                return str(value)
+    for item in accounts:
         for key in ("accountIdKey", "accountId", "account_id"):
             value = item.get(key) if isinstance(item, dict) else None
             if value:
@@ -139,20 +156,26 @@ def _resolve_account_id(client: Any, account_id: str | None = None) -> str | Non
 
 def _normalize_balance_payload(payload: dict) -> dict:
     response = _dig(payload, "BalanceResponse") or payload
-    computed = _dig(response, "Computed", "marginBuyingPowerDetails") or {}
-    account_balance = _dig(response, "Computed", "cashAvailableForInvestment") or {}
+    computed = response.get("Computed") or {}
+    realtime = computed.get("RealTimeValues") or {}
+    portfolio_margin = computed.get("PortfolioMargin") or {}
     return {
         "configured": True,
         "authenticated": True,
-        "net_liquidation": _dig(response, "accountValue", "netMv"),
-        "maintenance_margin": computed.get("maintenanceCall") or computed.get("marginBalance"),
-        "cash_balance": account_balance.get("cashAvailableForWithdrawal")
-        or account_balance.get("totalAvailableForWithdrawal"),
-        "margin_balance": computed.get("marginBalance"),
-        "option_buying_power": computed.get("optionLevel3OptionBuyingPower")
-        or computed.get("optionBuyingPower"),
-        "buying_power": computed.get("marginBuyingPower")
-        or computed.get("cashBuyingPower"),
+        "net_liquidation": _num(realtime.get("netMv") or portfolio_margin.get("liquidatingEquity")),
+        "maintenance_margin": _num(portfolio_margin.get("totalMarginRqmts")
+        or portfolio_margin.get("totalHouseRequirement")
+        or computed.get("maintenanceCall")
+        or computed.get("marginBalance")),
+        "cash_balance": _num(computed.get("cashAvailableForWithdrawal")
+        or computed.get("totalAvailableForWithdrawal")
+        or computed.get("cashBalance")),
+        "margin_balance": _num(computed.get("marginBalance")),
+        "option_buying_power": _num(computed.get("optionLevel3OptionBuyingPower")
+        or computed.get("optionBuyingPower")
+        or computed.get("marginBuyingPower")),
+        "buying_power": _num(computed.get("marginBuyingPower")
+        or computed.get("cashBuyingPower")),
         "updated_at": datetime.now(_ET).isoformat(timespec="seconds"),
         "stale": False,
         "raw": response,
@@ -223,7 +246,7 @@ def get_account_positions(account_id: str | None = None) -> dict:
         payload = {
             "configured": True,
             "authenticated": True,
-            "positions": _normalize_position_rows(client.get_account_portfolio(acct)),
+            "positions": _normalize_position_rows(client.get_account_portfolio(acct, resp_format="json")),
             "stale": False,
             "updated_at": datetime.now(_ET).isoformat(timespec="seconds"),
         }
