@@ -1022,9 +1022,8 @@ function _renderMarginAllocation(data) {
   const optionsW = Math.min(spxW + etOptW, 100);   // SPX spread + E-Trade options
   const equityW  = Math.min(eqW  + etEqW,  100);   // Schwab equity + E-Trade equity
 
-  const eqNote = eqDollars > 0 ? fmtDollars(eqDollars) + ' (15% haircut)' : '15% haircut';
-  const allEqNote = (eqDollars + etEqDollars) > 0
-    ? fmtDollars(eqDollars + etEqDollars) + ' · combined' : 'combined';
+  const eqNote    = '15% haircut';
+  const allEqNote = etradeNlv > 0 ? 'combined · 15% haircut' : '15% haircut';
 
   function barHtml(label, pct, barClass, note) {
     const w = typeof pct === 'number' ? Math.min(Math.max(pct, 0), 100).toFixed(1) : '0';
