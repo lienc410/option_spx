@@ -49,12 +49,15 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 
 .section-label { font-family:var(--f-ui);font-size:0.60rem;font-weight:700;letter-spacing:0.13em;text-transform:uppercase;color:var(--text-2);margin:28px 0 12px; }
 
-.controls { display:flex;gap:12px;align-items:center;margin-bottom:20px;flex-wrap:wrap; }
+.controls { display:flex;gap:10px;align-items:center;margin-bottom:20px;flex-wrap:wrap; }
 .ctrl-label { font-family:var(--f-ui);font-size:0.65rem;color:var(--text-2); }
 .ctrl-select { font-family:var(--f-mono);font-size:0.72rem;background:var(--surface);border:1px solid var(--border-2);border-radius:5px;padding:5px 10px;color:var(--text); }
-.run-btn { font-family:var(--f-ui);font-size:0.72rem;padding:6px 16px;border:1px solid var(--gray-border);background:var(--gray-bg);color:var(--text-2);border-radius:5px;cursor:pointer; }
-.run-btn:hover { color:var(--text);border-color:var(--border-2); }
-.run-btn:disabled { opacity:0.4;cursor:default; }
+.ctrl-btn { font-family:var(--f-ui);font-size:0.68rem;padding:5px 14px;border:1px solid var(--gray-border);background:var(--gray-bg);color:var(--text-2);border-radius:5px;cursor:pointer;transition:0.12s; }
+.ctrl-btn:hover:not(:disabled) { color:var(--text);border-color:var(--border-2); }
+.ctrl-btn:disabled { opacity:0.4;cursor:default; }
+.ctrl-btn.refresh { border-color:var(--orange-border);color:var(--orange); }
+.ctrl-btn.refresh:hover { background:var(--orange-bg); }
+.cache-info { font-family:var(--f-mono);font-size:0.58rem;color:var(--text-muted); }
 
 .chart-wrap { background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:20px;margin-bottom:16px; }
 .chart-hd { display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px; }
@@ -62,7 +65,13 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .chart-legend { display:flex;gap:14px;flex-wrap:wrap; }
 .chart-legend-item { display:flex;align-items:center;gap:5px;font-family:var(--f-mono);font-size:0.60rem;color:var(--text-2);cursor:pointer;user-select:none; }
 .chart-legend-item.muted { opacity:0.35; }
+.chart-legend-dot { width:8px;height:8px;border-radius:50%; }
 .chart-legend-line { width:14px;height:2px;border-radius:2px; }
+
+/* Overlay toggles */
+.overlay-toggles { display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px; }
+.overlay-toggle { display:flex;align-items:center;gap:4px;font-family:var(--f-ui);font-size:0.62rem;color:var(--text-2);cursor:pointer;user-select:none; }
+.overlay-toggle input { accent-color:var(--blue);cursor:pointer; }
 
 .two-col-charts { display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px; }
 
@@ -127,15 +136,16 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 
   <div class="controls">
     <span class="ctrl-label">Start</span>
-    <select id="ctrl-start" class="ctrl-select">
+    <select id="ctrl-start" class="ctrl-select" onchange="loadBacktest()">
       <option value="2022-05-06" selected>2022 (full history)</option>
       <option value="2023-01-01">2023</option>
       <option value="2024-01-01">2024</option>
     </select>
-    <button id="run-btn" class="run-btn" onclick="runBacktest()">Run Backtest</button>
+    <button id="refresh-btn" class="ctrl-btn refresh" onclick="forceRefresh()">↻ Refresh cache</button>
+    <span id="cache-info" class="cache-info"></span>
   </div>
 
-  <div id="body-area"><div class="loading-msg">Select parameters and click Run Backtest.</div></div>
+  <div id="body-area"><div class="loading-msg">Loading…</div></div>
 
 </div>
 
@@ -149,8 +159,8 @@ document.getElementById('nav-date').textContent =
 function fmtDate(s) { return s ? s.slice(0,10) : '—'; }
 function fmtD(n) {
   if (n==null) return '—';
-  const abs = Math.abs(n), sign = n<0?'-':'+';
-  return sign + '$' + (abs>=1000 ? Math.round(abs).toLocaleString() : abs.toFixed(0));
+  const abs=Math.abs(n), sign=n<0?'-':'+';
+  return sign+'$'+(abs>=1000?Math.round(abs).toLocaleString():abs.toFixed(0));
 }
 
 function destroyCharts() {
@@ -158,7 +168,222 @@ function destroyCharts() {
   charts = {};
 }
 
-// ── Chart 1: Cumulative P&L ─────────────────────────────────────────────────
+// ── Chart: Price + Entry/Exit overlay ────────────────────────────────────────
+function buildPriceOverlay(canvasId, sleeve, overlayState) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+
+  const priceData = sleeve.price_series || [];
+  if (!priceData.length) {
+    canvas.parentElement.innerHTML =
+      `<div style="padding:20px;font-family:var(--f-ui);font-size:0.65rem;color:var(--text-muted)">Price series not available.</div>`;
+    return;
+  }
+
+  const col = COLORS[sleeve.symbol] || '#C4CEEC';
+  const priceByDate = {};
+  priceData.forEach(p => { priceByDate[p.date] = p.close; });
+
+  // Build entry/exit point sets
+  const entries = [], exitWins = [], exitStops = [];
+  (sleeve.trades || []).forEach(t => {
+    const ep = priceByDate[fmtDate(t.entry_date)];
+    const xp = priceByDate[fmtDate(t.exit_date)];
+    if (ep != null) entries.push({ x: fmtDate(t.entry_date), y: ep, trade: t });
+    if (xp != null) {
+      (t.exit_reason === 'profit_target' ? exitWins : exitStops)
+        .push({ x: fmtDate(t.exit_date), y: xp, trade: t });
+    }
+  });
+
+  // Cumulative P&L from equity curve (left-aligned to 0)
+  const initEquity = (sleeve.equity_curve || [])[0]?.equity ?? 50000;
+  const pnlPoints = (sleeve.equity_curve || []).map(r => ({
+    x: r.date, y: Math.round(r.equity - initEquity)
+  }));
+
+  // Drawdown from equity curve
+  let peak = initEquity;
+  const ddPoints = (sleeve.equity_curve || []).map(r => {
+    peak = Math.max(peak, r.equity);
+    return { x: r.date, y: peak > 0 ? Math.round((r.equity - peak) / peak * 100 * 10) / 10 : 0 };
+  });
+
+  // VIX series
+  const allDates = priceData.map(p => p.date);
+  const vixByDate = {};
+  // VIX data embedded in trades — reconstruct from trades' vix_at_entry per date
+  (sleeve.trades || []).forEach(t => {
+    if (t.vix_at_entry != null) vixByDate[fmtDate(t.entry_date)] = t.vix_at_entry;
+  });
+
+  const datasets = [
+    // Price line (primary)
+    {
+      type: 'line',
+      label: `${sleeve.symbol} Close`,
+      data: priceData.map(p => ({ x: p.date, y: p.close })),
+      borderColor: col,
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      pointRadius: 0,
+      tension: 0.1,
+      yAxisID: 'yPrice',
+      order: 10,
+    },
+    // Entries: green up-triangle
+    {
+      type: 'scatter',
+      label: 'Entry',
+      data: entries,
+      backgroundColor: 'rgba(66,204,124,0.90)',
+      borderColor: 'rgba(66,204,124,0.50)',
+      borderWidth: 1,
+      pointStyle: 'triangle',
+      rotation: 0,
+      pointRadius: 7,
+      pointHoverRadius: 9,
+      yAxisID: 'yPrice',
+      order: 1,
+    },
+    // Exit wins: light green down-triangle
+    {
+      type: 'scatter',
+      label: 'Exit (profit)',
+      data: exitWins,
+      backgroundColor: 'rgba(66,204,124,0.55)',
+      borderColor: 'rgba(66,204,124,0.30)',
+      borderWidth: 1,
+      pointStyle: 'triangle',
+      rotation: 180,
+      pointRadius: 6,
+      pointHoverRadius: 8,
+      yAxisID: 'yPrice',
+      order: 2,
+    },
+    // Exit stops: red down-triangle
+    {
+      type: 'scatter',
+      label: 'Exit (stop)',
+      data: exitStops,
+      backgroundColor: 'rgba(224,72,98,0.80)',
+      borderColor: 'rgba(224,72,98,0.40)',
+      borderWidth: 1,
+      pointStyle: 'triangle',
+      rotation: 180,
+      pointRadius: 6,
+      pointHoverRadius: 8,
+      yAxisID: 'yPrice',
+      order: 3,
+    },
+    // Cumulative P&L (right axis, optional)
+    {
+      type: 'line',
+      label: 'Cum. P&L',
+      data: pnlPoints,
+      borderColor: 'rgba(201,168,64,0.70)',
+      backgroundColor: 'transparent',
+      borderWidth: 1.2,
+      borderDash: [4,3],
+      pointRadius: 0,
+      tension: 0.1,
+      yAxisID: 'yRight',
+      hidden: !overlayState.pnl,
+      order: 8,
+    },
+    // Drawdown (right axis, optional)
+    {
+      type: 'line',
+      label: 'Drawdown %',
+      data: ddPoints,
+      borderColor: 'rgba(224,72,98,0.60)',
+      backgroundColor: 'rgba(224,72,98,0.08)',
+      borderWidth: 1,
+      pointRadius: 0,
+      tension: 0.1,
+      fill: 'origin',
+      yAxisID: 'yRight',
+      hidden: !overlayState.dd,
+      order: 9,
+    },
+  ];
+
+  charts[canvasId] = new Chart(canvas, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true,
+      animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => items[0]?.label || '',
+            label: ctx => {
+              const lbl = ctx.dataset.label;
+              const raw = ctx.raw;
+              if (lbl === `${sleeve.symbol} Close`) return ` Price: ${ctx.parsed.y?.toFixed(2)}`;
+              if (lbl === 'Cum. P&L') return ` P&L: ${fmtD(ctx.parsed.y)}`;
+              if (lbl === 'Drawdown %') return ` DD: ${ctx.parsed.y?.toFixed(1)}%`;
+              if (raw?.trade) {
+                const t = raw.trade;
+                return [
+                  ` ${lbl}`,
+                  ` Strike: ${t.strike?.toFixed(0) || '—'}`,
+                  ` Premium: $${t.entry_premium?.toFixed(2) || '—'} → $${t.exit_premium?.toFixed(2) || '—'}`,
+                  ` P&L: ${fmtD(t.pnl)}`,
+                  ` DTE: ${t.dte_at_entry}→${t.dte_at_exit}d`,
+                ];
+              }
+              return ` ${lbl}: ${ctx.parsed.y}`;
+            },
+          }
+        },
+      },
+      scales: {
+        x: {
+          type: 'category',
+          ticks: {
+            color: '#606880', font: { family: 'JetBrains Mono', size: 10 },
+            maxTicksLimit: 12, maxRotation: 0,
+            callback: (v, i) => { const d = datasets[0]?.data[i]?.x; return d ? d.slice(0,7) : v; }
+          },
+          grid: { color: '#191E33' },
+        },
+        yPrice: {
+          type: 'linear', position: 'left',
+          ticks: { color: '#606880', font: { family: 'JetBrains Mono', size: 10 },
+                   callback: v => sleeve.symbol === 'SPX' ? v.toLocaleString() : '$'+v.toFixed(0) },
+          grid: { color: '#191E33' },
+        },
+        yRight: {
+          type: 'linear', position: 'right',
+          display: overlayState.pnl || overlayState.dd,
+          grid: { drawOnChartArea: false },
+          ticks: { color: '#606880', font: { family: 'JetBrains Mono', size: 10 },
+                   callback: v => v >= 0 ? '+$'+Math.round(v).toLocaleString() : '-$'+Math.round(Math.abs(v)).toLocaleString() },
+        },
+      },
+    },
+  });
+}
+
+function toggleOverlay(canvasId, sleeve, key, checked) {
+  const c = charts[canvasId];
+  if (!c) return;
+  // Dataset indices: 0=price,1=entry,2=exitWin,3=exitStop,4=pnl,5=dd
+  const idxMap = { pnl: 4, dd: 5 };
+  const idx = idxMap[key];
+  if (idx == null) return;
+  c.data.datasets[idx].hidden = !checked;
+  // Show/hide right axis
+  const anyRight = !c.data.datasets[4].hidden || !c.data.datasets[5].hidden;
+  c.options.scales.yRight.display = anyRight;
+  c.update();
+}
+
+// ── Chart: Cumulative P&L ────────────────────────────────────────────────────
 function buildPnlChart(sleeves) {
   const canvas = document.getElementById('pnl-chart');
   if (!canvas) return;
@@ -180,7 +405,7 @@ function buildPnlChart(sleeves) {
       scales: {
         x: { type:'category', ticks:{ color:'#606880', font:{family:'JetBrains Mono',size:10}, maxTicksLimit:10, maxRotation:0,
                callback:(v,i)=>{ const d=datasets[0]?.data[i]?.x; return d?d.slice(0,7):v; }}, grid:{color:'#191E33'} },
-        y: { ticks:{ color:'#606880', font:{family:'JetBrains Mono',size:10}, callback:v=>'$'+Math.round(v).toLocaleString() }, grid:{color:'#191E33'} },
+        y: { ticks:{ color:'#606880', font:{family:'JetBrains Mono',size:10}, callback:v=>(v>=0?'+':'')+' $'+Math.round(v).toLocaleString() }, grid:{color:'#191E33'} },
       },
     },
   });
@@ -194,7 +419,7 @@ function buildPnlChart(sleeves) {
   });
 }
 
-// ── Chart 2: Trade P&L waterfall ────────────────────────────────────────────
+// ── Chart: Trade P&L waterfall ────────────────────────────────────────────────
 function buildWaterfallChart(id, trades) {
   const canvas = document.getElementById(id);
   if (!canvas) return;
@@ -208,8 +433,8 @@ function buildWaterfallChart(id, trades) {
     options: {
       responsive:true, animation:false,
       plugins: { legend:{display:false}, tooltip:{callbacks:{
-        title: (items) => { const t=trades[items[0].dataIndex]; return `#${items[0].dataIndex+1} · ${fmtDate(t.entry_date)}→${fmtDate(t.exit_date)}`; },
-        label: (ctx) => { const t=trades[ctx.dataIndex]; return [` P&L: ${fmtD(t.pnl)}`, ` ${t.exit_reason}`, ` DTE ${t.dte_at_entry}→${t.dte_at_exit}d`]; },
+        title:(items)=>{ const t=trades[items[0].dataIndex]; return `#${items[0].dataIndex+1} · ${fmtDate(t.entry_date)}→${fmtDate(t.exit_date)}`; },
+        label:(ctx)=>{ const t=trades[ctx.dataIndex]; return [` P&L: ${fmtD(t.pnl)}`, ` ${t.exit_reason}`, ` DTE ${t.dte_at_entry}→${t.dte_at_exit}d`]; },
       }}},
       scales: {
         x: { display:false },
@@ -219,96 +444,56 @@ function buildWaterfallChart(id, trades) {
   });
 }
 
-// ── Chart 3: DTE at exit histogram ───────────────────────────────────────────
+// ── Chart: DTE at exit histogram ────────────────────────────────────────────
 function buildDteChart(id, trades) {
   const canvas = document.getElementById(id);
   if (!canvas) return;
-  const bins = [0,4,8,12,16,20,30,99];
-  const labels = bins.slice(0,-1).map((b,i)=>`${b}–${bins[i+1]-1}d`);
-  const counts = new Array(bins.length-1).fill(0);
-  trades.forEach(t => {
-    const v = t.dte_at_exit ?? 0;
-    for (let i=0;i<bins.length-1;i++) if (v>=bins[i] && v<bins[i+1]) { counts[i]++; break; }
-  });
-  charts[id] = new Chart(canvas, {
-    type:'bar',
-    data:{ labels, datasets:[{ data:counts, backgroundColor:'rgba(72,136,232,0.55)', borderRadius:3 }]},
-    options:{
-      responsive:true, animation:false,
-      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>`${ctx.parsed.y} trades`}} },
-      scales:{
-        x:{ ticks:{color:'#606880',font:{family:'JetBrains Mono',size:9},maxRotation:0}, grid:{color:'#191E33'} },
-        y:{ ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},stepSize:1}, grid:{color:'#191E33'} },
-      },
-    },
-  });
+  const bins=[0,4,8,12,16,20,30,99];
+  const labels=bins.slice(0,-1).map((b,i)=>`${b}–${bins[i+1]-1}d`);
+  const counts=new Array(bins.length-1).fill(0);
+  trades.forEach(t=>{const v=t.dte_at_exit??0;for(let i=0;i<bins.length-1;i++)if(v>=bins[i]&&v<bins[i+1]){counts[i]++;break;}});
+  charts[id]=new Chart(canvas,{type:'bar',data:{labels,datasets:[{data:counts,backgroundColor:'rgba(72,136,232,0.55)',borderRadius:3}]},
+    options:{responsive:true,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.parsed.y} trades`}}},
+      scales:{x:{ticks:{color:'#606880',font:{family:'JetBrains Mono',size:9},maxRotation:0},grid:{color:'#191E33'}},
+        y:{ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},stepSize:1},grid:{color:'#191E33'}}}}});
 }
 
-// ── Chart 4: P&L vs days held scatter ───────────────────────────────────────
+// ── Chart: P&L vs days held scatter ─────────────────────────────────────────
 function buildScatterChart(id, trades) {
-  const canvas = document.getElementById(id);
-  if (!canvas) return;
-  const pts = trades.map(t => ({ x:(t.dte_at_entry||0)-(t.dte_at_exit||0), y:t.pnl, r:t.exit_reason }));
-  charts[id] = new Chart(canvas, {
-    type:'scatter',
-    data:{ datasets:[{
-      data: pts,
-      backgroundColor: pts.map(p=>p.r==='profit_target'?'rgba(66,204,124,0.55)':'rgba(224,72,98,0.55)'),
-      pointRadius:4, pointHoverRadius:6,
-    }]},
-    options:{
-      responsive:true, animation:false,
-      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>`${ctx.parsed.x}d held · ${fmtD(ctx.parsed.y)}`}} },
-      scales:{
-        x:{ title:{display:true,text:'Days Held',color:'#606880',font:{size:10}},
-            ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10}}, grid:{color:'#191E33'} },
-        y:{ ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},callback:v=>'$'+Math.round(v).toLocaleString()}, grid:{color:'#191E33'} },
-      },
-    },
-  });
+  const canvas=document.getElementById(id);
+  if(!canvas)return;
+  const pts=trades.map(t=>({x:(t.dte_at_entry||0)-(t.dte_at_exit||0),y:t.pnl,r:t.exit_reason}));
+  charts[id]=new Chart(canvas,{type:'scatter',data:{datasets:[{data:pts,
+    backgroundColor:pts.map(p=>p.r==='profit_target'?'rgba(66,204,124,0.55)':'rgba(224,72,98,0.55)'),pointRadius:4,pointHoverRadius:6}]},
+    options:{responsive:true,animation:false,plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:ctx=>`${ctx.parsed.x}d held · ${fmtD(ctx.parsed.y)}`}}},
+      scales:{x:{title:{display:true,text:'Days Held',color:'#606880',font:{size:10}},
+        ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10}},grid:{color:'#191E33'}},
+        y:{ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},callback:v=>'$'+Math.round(v).toLocaleString()},grid:{color:'#191E33'}}}}});
 }
 
-// ── Chart 5: VIX at entry histogram ──────────────────────────────────────────
+// ── Chart: VIX at entry histogram ────────────────────────────────────────────
 function buildVixChart(id, trades) {
-  const canvas = document.getElementById(id);
-  if (!canvas) return;
-  const withVix = trades.filter(t => t.vix_at_entry != null);
-  if (!withVix.length) {
-    canvas.parentElement.style.display = 'none';
-    canvas.parentElement.insertAdjacentHTML('afterend',
-      `<div style="font-family:var(--f-ui);font-size:0.65rem;color:var(--text-muted);padding:12px 0">VIX at entry: no data for this window.</div>`);
-    return;
-  }
-  const bins = [10,15,20,25,30,35,99];
-  const labels = ['10–14','15–19','20–24','25–29','30–34','35+'];
-  const winCts=new Array(6).fill(0), lossCts=new Array(6).fill(0);
-  withVix.forEach(t => {
-    const v=t.vix_at_entry, win=t.exit_reason==='profit_target';
-    for (let i=0;i<bins.length-1;i++) if (v>=bins[i]&&v<bins[i+1]) { (win?winCts:lossCts)[i]++; break; }
-  });
-  charts[id] = new Chart(canvas, {
-    type:'bar',
-    data:{ labels, datasets:[
-      { label:'Win',  data:winCts,  backgroundColor:'rgba(66,204,124,0.65)', borderRadius:2 },
-      { label:'Loss', data:lossCts, backgroundColor:'rgba(224,72,98,0.65)',  borderRadius:2 },
-    ]},
-    options:{
-      responsive:true, animation:false,
-      plugins:{
-        legend:{ display:true, labels:{color:'#606880',font:{family:'DM Sans',size:11},boxWidth:10,boxHeight:10} },
-        tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y} trades`}},
-      },
-      scales:{
-        x:{ stacked:true, ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10}}, grid:{color:'#191E33'} },
-        y:{ stacked:true, ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},stepSize:5}, grid:{color:'#191E33'} },
-      },
-    },
-  });
+  const canvas=document.getElementById(id);
+  if(!canvas)return;
+  const withVix=trades.filter(t=>t.vix_at_entry!=null);
+  if(!withVix.length){canvas.parentElement.style.display='none';return;}
+  const bins=[10,15,20,25,30,35,99],labels=['10–14','15–19','20–24','25–29','30–34','35+'];
+  const wc=new Array(6).fill(0),lc=new Array(6).fill(0);
+  withVix.forEach(t=>{const v=t.vix_at_entry,win=t.exit_reason==='profit_target';
+    for(let i=0;i<bins.length-1;i++)if(v>=bins[i]&&v<bins[i+1]){(win?wc:lc)[i]++;break;}});
+  charts[id]=new Chart(canvas,{type:'bar',data:{labels,datasets:[
+    {label:'Win',data:wc,backgroundColor:'rgba(66,204,124,0.65)',borderRadius:2},
+    {label:'Loss',data:lc,backgroundColor:'rgba(224,72,98,0.65)',borderRadius:2}]},
+    options:{responsive:true,animation:false,plugins:{legend:{display:true,labels:{color:'#606880',font:{family:'DM Sans',size:11},boxWidth:10,boxHeight:10}},
+      tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y} trades`}}},
+      scales:{x:{stacked:true,ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10}},grid:{color:'#191E33'}},
+        y:{stacked:true,ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},stepSize:5},grid:{color:'#191E33'}}}}});
 }
 
-// ── Trade log ────────────────────────────────────────────────────────────────
+// ── Trade log table ──────────────────────────────────────────────────────────
 function tradeTable(trades) {
-  const rows = trades.slice(0,300).map(t => `
+  const rows=trades.slice(0,300).map(t=>`
     <div class="trade-row">
       <span>${fmtDate(t.entry_date)}</span><span>${fmtDate(t.exit_date)}</span>
       <span>${t.dte_at_entry}d→${t.dte_at_exit}d</span><span>${t.strike?.toFixed(0)||'—'}</span>
@@ -327,115 +512,166 @@ function showTab(sym) {
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.dataset.sym===sym));
 }
 
-// ── Main ─────────────────────────────────────────────────────────────────────
-async function runBacktest() {
-  const btn   = document.getElementById('run-btn');
-  const area  = document.getElementById('body-area');
-  const start = document.getElementById('ctrl-start').value;
-  btn.disabled = true; btn.textContent = 'Running…';
-  area.innerHTML = '<div class="loading-msg">Running Q041 sleeve backtests…</div>';
-  destroyCharts();
+// ── Render ────────────────────────────────────────────────────────────────────
+function render(data) {
+  const legendHtml = data.sleeves.map(s =>
+    `<div class="chart-legend-item pnl-legend-item">
+      <div class="chart-legend-line" style="background:${COLORS[s.symbol]||'#C4CEEC'}"></div>${s.symbol}
+    </div>`).join('');
 
+  let html = `
+    <div class="section-label">累计 P&L（从 0 开始）</div>
+    <div class="chart-wrap">
+      <div class="chart-hd">
+        <span class="chart-title">Cumulative P&L per sleeve · ${data.start_date} → today</span>
+        <div class="chart-legend">${legendHtml}</div>
+      </div>
+      <canvas id="pnl-chart" height="180" style="width:100%"></canvas>
+    </div>
+
+    <div class="section-label">标的价格 + 进出场 · 逐笔分析</div>
+    <div class="tabs-row">` +
+    data.sleeves.map((s,i)=>
+      `<button class="tab-btn${i===0?' active':''}" data-sym="${s.symbol}" onclick="showTab('${s.symbol}')">${s.symbol} (${s.n_trades})</button>`
+    ).join('') + `</div>`;
+
+  html += data.sleeves.map((s,i) => {
+    const col = COLORS[s.symbol]||'#C4CEEC';
+    const ovId = `ov-${s.symbol}`;
+    return `
+    <div class="tab-panel${i===0?' active':''}" data-sym="${s.symbol}">
+
+      <!-- Price overlay chart -->
+      <div class="chart-wrap">
+        <div class="chart-hd">
+          <span class="chart-title">${s.symbol} · 价格 + 进出场标记</span>
+          <span style="font-family:var(--f-mono);font-size:0.62rem;color:var(--text-2)">▲ Entry · ▼ Exit (绿=profit / 红=stop)</span>
+        </div>
+        <div class="overlay-toggles">
+          <label class="overlay-toggle">
+            <input type="checkbox" id="tog-pnl-${s.symbol}" checked onchange="toggleOverlay('${ovId}',_sleeves['${s.symbol}'],'pnl',this.checked)">
+            <span style="color:rgba(201,168,64,0.85)">Cum. P&L</span>
+          </label>
+          <label class="overlay-toggle">
+            <input type="checkbox" id="tog-dd-${s.symbol}" onchange="toggleOverlay('${ovId}',_sleeves['${s.symbol}'],'dd',this.checked)">
+            <span style="color:rgba(224,72,98,0.75)">Drawdown</span>
+          </label>
+        </div>
+        <canvas id="${ovId}" height="240" style="width:100%"></canvas>
+      </div>
+
+      <!-- Waterfall + DTE/Scatter -->
+      <div class="chart-wrap">
+        <div class="chart-hd">
+          <span class="chart-title">${s.symbol} · 逐笔 P&L（时间序列）</span>
+          <span style="font-family:var(--f-mono);font-size:0.62rem;color:var(--text-2)">WR ${s.win_rate_pct.toFixed(1)}% · Stop ${s.stop_rate_pct.toFixed(1)}%</span>
+        </div>
+        <canvas id="wf-${s.symbol}" height="100" style="width:100%"></canvas>
+      </div>
+
+      <div class="two-col-charts">
+        <div class="chart-wrap" style="margin-bottom:0">
+          <div class="chart-title" style="margin-bottom:12px">DTE at Exit 分布</div>
+          <canvas id="dte-${s.symbol}" height="150" style="width:100%"></canvas>
+        </div>
+        <div class="chart-wrap" style="margin-bottom:0">
+          <div class="chart-title" style="margin-bottom:12px">P&L vs 持仓天数</div>
+          <canvas id="sc-${s.symbol}" height="150" style="width:100%"></canvas>
+        </div>
+      </div>
+
+      <div class="section-label" style="margin-top:20px">VIX at Entry 分布</div>
+      <div class="chart-wrap">
+        <div class="chart-title" style="margin-bottom:12px">${s.symbol} · VIX 入场分布（win / loss 分层）</div>
+        <canvas id="vix-${s.symbol}" height="120" style="width:100%"></canvas>
+      </div>
+
+      <div class="section-label" style="margin-top:20px">Trade Log</div>
+      ${tradeTable(s.trades)}
+    </div>`;
+  }).join('');
+
+  // Tier 2 comparison
+  const t2 = data.sleeves.filter(s=>s.symbol!=='SPX');
+  if (t2.length >= 2) {
+    html += `<div class="section-label" style="margin-top:32px">Tier 2 · GOOGL vs AMZN 对比</div>
+      <div class="tier2-compare">` + t2.map(s=>{
+        const trades=s.trades||[];
+        const worst=trades.length?Math.min(...trades.map(t=>t.pnl)):null;
+        const avg=s.n_trades>0?s.total_pnl/s.n_trades:null;
+        const col=COLORS[s.symbol]||'#C4CEEC';
+        return `<div class="compare-card" style="border-top:3px solid ${col}">
+          <div class="compare-hd"><span class="compare-sym" style="color:${col}">${s.symbol}</span><span style="font-family:var(--f-ui);font-size:0.60rem;color:var(--text-muted)">Tier 2 CSP</span></div>
+          <div class="compare-rows">
+            <div class="compare-row"><span class="compare-lbl">Win Rate</span><span class="compare-val ${s.win_rate_pct>=80?'up':'warn'}">${s.win_rate_pct.toFixed(1)}%</span></div>
+            <div class="compare-row"><span class="compare-lbl">Stop Rate</span><span class="compare-val ${s.stop_rate_pct>20?'down':'dim'}">${s.stop_rate_pct.toFixed(1)}%</span></div>
+            <div class="compare-row"><span class="compare-lbl">Total P&L</span><span class="compare-val ${s.total_pnl>0?'up':'down'}">${fmtD(s.total_pnl)}</span></div>
+            <div class="compare-row"><span class="compare-lbl">Avg / trade</span><span class="compare-val ${avg>=0?'up':'down'}">${fmtD(avg)}</span></div>
+            <div class="compare-row"><span class="compare-lbl">N Trades</span><span class="compare-val dim">${s.n_trades}</span></div>
+            <div class="compare-row"><span class="compare-lbl">Worst trade</span><span class="compare-val down">${fmtD(worst)}</span></div>
+          </div>
+        </div>`;
+      }).join('') + `</div>`;
+  }
+
+  document.getElementById('body-area').innerHTML = html;
+
+  // Store sleeves for overlay toggle callbacks
+  window._sleeves = {};
+  data.sleeves.forEach(s => { window._sleeves[s.symbol] = s; });
+
+  // Build all charts
+  buildPnlChart(data.sleeves);
+  data.sleeves.forEach(s => {
+    buildPriceOverlay(`ov-${s.symbol}`, s, { pnl: true, dd: false });
+    buildWaterfallChart(`wf-${s.symbol}`, s.trades);
+    buildDteChart(`dte-${s.symbol}`, s.trades);
+    buildScatterChart(`sc-${s.symbol}`, s.trades);
+    buildVixChart(`vix-${s.symbol}`, s.trades);
+  });
+}
+
+// ── Data loading ──────────────────────────────────────────────────────────────
+async function loadBacktest() {
+  const area = document.getElementById('body-area');
+  const info = document.getElementById('cache-info');
+  const start = document.getElementById('ctrl-start').value;
+  area.innerHTML = '<div class="loading-msg">Loading…</div>';
+  destroyCharts();
+  info.textContent = '';
   try {
     const res  = await fetch(`/api/q041/backtest?start=${start}`);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-
-    // 1. Cumulative P&L chart
-    const legendHtml = data.sleeves.map(s =>
-      `<div class="chart-legend-item pnl-legend-item" data-sym="${s.symbol}">
-        <div class="chart-legend-line" style="background:${COLORS[s.symbol]||'#C4CEEC'}"></div>${s.symbol}
-      </div>`).join('');
-
-    let html = `
-      <div class="section-label">累计 P&L（从 0 开始）</div>
-      <div class="chart-wrap">
-        <div class="chart-hd">
-          <span class="chart-title">Cumulative P&L per sleeve · ${data.start_date} → today</span>
-          <div class="chart-legend">${legendHtml}</div>
-        </div>
-        <canvas id="pnl-chart" height="200" style="width:100%"></canvas>
-      </div>`;
-
-    // 2. Per-sleeve tabs
-    html += `
-      <div class="section-label">逐笔分析（per sleeve）</div>
-      <div class="tabs-row">` +
-      data.sleeves.map((s,i) =>
-        `<button class="tab-btn${i===0?' active':''}" data-sym="${s.symbol}" onclick="showTab('${s.symbol}')">${s.symbol} (${s.n_trades})</button>`
-      ).join('') + `</div>`;
-
-    html += data.sleeves.map((s,i) => `
-      <div class="tab-panel${i===0?' active':''}" data-sym="${s.symbol}">
-        <div class="chart-wrap">
-          <div class="chart-hd">
-            <span class="chart-title">${s.symbol} · 逐笔 P&L（时间序列）— 绿=profit target · 红=stop</span>
-            <span style="font-family:var(--f-mono);font-size:0.62rem;color:var(--text-2)">WR ${s.win_rate_pct.toFixed(1)}% · Stop ${s.stop_rate_pct.toFixed(1)}%</span>
-          </div>
-          <canvas id="wf-${s.symbol}" height="110" style="width:100%"></canvas>
-        </div>
-        <div class="two-col-charts">
-          <div class="chart-wrap" style="margin-bottom:0">
-            <div class="chart-title" style="margin-bottom:12px">DTE at Exit 分布 — 平仓时剩余天数</div>
-            <canvas id="dte-${s.symbol}" height="150" style="width:100%"></canvas>
-          </div>
-          <div class="chart-wrap" style="margin-bottom:0">
-            <div class="chart-title" style="margin-bottom:12px">P&L vs 持仓天数 — 绿=win · 红=stop</div>
-            <canvas id="sc-${s.symbol}" height="150" style="width:100%"></canvas>
-          </div>
-        </div>
-        <div class="section-label" style="margin-top:20px">VIX at Entry 分布</div>
-        <div class="chart-wrap">
-          <div class="chart-title" style="margin-bottom:12px">${s.symbol} · 入场时 VIX 水位分布（win / loss 分层）</div>
-          <canvas id="vix-${s.symbol}" height="130" style="width:100%"></canvas>
-        </div>
-        <div class="section-label" style="margin-top:20px">Trade Log</div>
-        ${tradeTable(s.trades)}
-      </div>`).join('');
-
-    // 3. Tier 2 comparison
-    const t2 = data.sleeves.filter(s => s.symbol !== 'SPX');
-    if (t2.length >= 2) {
-      html += `<div class="section-label" style="margin-top:32px">Tier 2 · GOOGL vs AMZN 对比</div>
-        <div class="tier2-compare">` + t2.map(s => {
-          const trades = s.trades||[];
-          const worst = trades.length ? Math.min(...trades.map(t=>t.pnl)) : null;
-          const avg = s.n_trades>0 ? s.total_pnl/s.n_trades : null;
-          const col = COLORS[s.symbol]||'#C4CEEC';
-          return `<div class="compare-card" style="border-top:3px solid ${col}">
-            <div class="compare-hd">
-              <span class="compare-sym" style="color:${col}">${s.symbol}</span>
-              <span style="font-family:var(--f-ui);font-size:0.60rem;color:var(--text-muted)">Tier 2 CSP</span>
-            </div>
-            <div class="compare-rows">
-              <div class="compare-row"><span class="compare-lbl">Win Rate</span><span class="compare-val ${s.win_rate_pct>=80?'up':'warn'}">${s.win_rate_pct.toFixed(1)}%</span></div>
-              <div class="compare-row"><span class="compare-lbl">Stop Rate</span><span class="compare-val ${s.stop_rate_pct>20?'down':'dim'}">${s.stop_rate_pct.toFixed(1)}%</span></div>
-              <div class="compare-row"><span class="compare-lbl">Total P&L</span><span class="compare-val ${s.total_pnl>0?'up':'down'}">${fmtD(s.total_pnl)}</span></div>
-              <div class="compare-row"><span class="compare-lbl">Avg / trade</span><span class="compare-val ${avg>=0?'up':'down'}">${fmtD(avg)}</span></div>
-              <div class="compare-row"><span class="compare-lbl">N Trades</span><span class="compare-val dim">${s.n_trades}</span></div>
-              <div class="compare-row"><span class="compare-lbl">Worst trade</span><span class="compare-val down">${fmtD(worst)}</span></div>
-            </div>
-          </div>`;
-        }).join('') + `</div>`;
+    if (data._cached_at) {
+      info.textContent = `Cached · ${data._cached_at.slice(0,10)}`;
     }
-
-    area.innerHTML = html;
-
-    // Build all charts after DOM render
-    buildPnlChart(data.sleeves);
-    data.sleeves.forEach(s => {
-      buildWaterfallChart(`wf-${s.symbol}`,  s.trades);
-      buildDteChart(`dte-${s.symbol}`,        s.trades);
-      buildScatterChart(`sc-${s.symbol}`,     s.trades);
-      buildVixChart(`vix-${s.symbol}`,        s.trades);
-    });
-
+    render(data);
   } catch (e) {
     area.innerHTML = `<div class="error-msg">Error: ${e.message}</div>`;
-  } finally {
-    btn.disabled = false; btn.textContent = 'Run Backtest';
   }
 }
+
+async function forceRefresh() {
+  const btn  = document.getElementById('refresh-btn');
+  const info = document.getElementById('cache-info');
+  const start = document.getElementById('ctrl-start').value;
+  btn.disabled = true; btn.textContent = '↻ Refreshing…';
+  info.textContent = 'Recomputing (~20s)…';
+  try {
+    const r = await fetch(`/api/q041/backtest/refresh?start=${start}`, { method: 'POST' });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    await loadBacktest();
+  } catch (e) {
+    info.textContent = `Error: ${e.message}`;
+  } finally {
+    btn.disabled = false; btn.textContent = '↻ Refresh cache';
+  }
+}
+
+// Auto-load on page open
+loadBacktest();
 </script>
 </body>
 </html>

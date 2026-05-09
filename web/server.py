@@ -493,6 +493,50 @@ _ES_BT_CACHE: dict = {}
 _Q041_BT_CACHE: dict = {}
 _VIX_BY_DATE: dict | None = None
 
+_Q041_DISK_CACHE_PATH = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "data", "q041_backtest_cache.json")
+)
+_Q041_SCRIPT_PATH = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "research", "strategies", "q041_csp_backtest.py")
+)
+
+
+def _q041_script_mtime() -> str:
+    try:
+        return str(int(os.path.getmtime(_Q041_SCRIPT_PATH)))
+    except OSError:
+        return "0"
+
+
+def _q041_disk_cache_key(start_date: str) -> str:
+    return f"{start_date}__{_q041_script_mtime()}"
+
+
+def _load_q041_disk_cache(start_date: str) -> dict | None:
+    try:
+        with open(_Q041_DISK_CACHE_PATH, "r") as f:
+            store = json.load(f)
+        entry = store.get(_q041_disk_cache_key(start_date))
+        return entry if isinstance(entry, dict) else None
+    except Exception:
+        return None
+
+
+def _save_q041_disk_cache(start_date: str, payload: dict) -> None:
+    try:
+        try:
+            with open(_Q041_DISK_CACHE_PATH, "r") as f:
+                store = json.load(f)
+        except Exception:
+            store = {}
+        store[_q041_disk_cache_key(start_date)] = payload
+        tmp = _Q041_DISK_CACHE_PATH + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(store, f)
+        os.replace(tmp, _Q041_DISK_CACHE_PATH)
+    except Exception:
+        pass
+
 
 def _get_vix_by_date() -> dict:
     global _VIX_BY_DATE
@@ -515,7 +559,41 @@ def _get_vix_by_date() -> dict:
     return _VIX_BY_DATE
 
 
+def _fetch_price_series(symbol: str, start_date: str) -> list[dict]:
+    """Fetch daily closes for a symbol from yfinance, starting from start_date."""
+    try:
+        import yfinance as yf
+        import pandas as pd
+        yt = "^GSPC" if symbol == "SPX" else symbol
+        df = yf.Ticker(yt).history(period="max", interval="1d")
+        idx = df.index
+        df.index = pd.to_datetime(idx.date if hasattr(idx, "date") else idx).normalize()
+        closes = df["Close"].sort_index()
+        closes = closes[closes.index >= pd.Timestamp(start_date)]
+        return [{"date": str(d.date()), "close": round(float(v), 2)} for d, v in closes.items()]
+    except Exception:
+        return []
+
+
+def _enrich_payload(payload: dict, start_date: str) -> None:
+    """Add vix_at_entry per trade and price_series per sleeve."""
+    vix = _get_vix_by_date()
+    for sleeve in payload.get("sleeves", []):
+        sym = sleeve.get("symbol", "")
+        # VIX enrichment
+        for trade in sleeve.get("trades", []):
+            d = (trade.get("entry_date") or "")[:10]
+            trade["vix_at_entry"] = vix.get(d)
+        # Price series
+        sleeve["price_series"] = _fetch_price_series(sym, start_date)
+
+    # Cache metadata
+    payload["_cached_at"] = datetime.now().isoformat(timespec="seconds")
+    payload["_cache_key"] = _q041_disk_cache_key(start_date)
+
+
 def _enrich_trades_with_vix(payload: dict) -> None:
+    """Backward-compat shim used by warmup; full enrichment now via _enrich_payload."""
     vix = _get_vix_by_date()
     for sleeve in payload.get("sleeves", []):
         for trade in sleeve.get("trades", []):
@@ -523,14 +601,25 @@ def _enrich_trades_with_vix(payload: dict) -> None:
             trade["vix_at_entry"] = vix.get(d)
 
 
+def _build_q041_payload(start_date: str) -> dict:
+    from research.strategies.q041_csp_backtest import run_q041_backtest
+    payload = run_q041_backtest(start_date=start_date)
+    _enrich_payload(payload, start_date)
+    return payload
+
+
 def _warmup_backtest_caches() -> None:
     """Pre-compute backtest caches in background thread on server start.
-    Prevents first-user Cloudflare timeout (~20s cold start)."""
+    Loads from disk if available; otherwise computes and saves."""
     try:
-        from research.strategies.q041_csp_backtest import run_q041_backtest
-        payload = run_q041_backtest(start_date="2022-05-06")
-        _enrich_trades_with_vix(payload)
-        _Q041_BT_CACHE["2022-05-06"] = payload
+        start = "2022-05-06"
+        cached = _load_q041_disk_cache(start)
+        if cached:
+            _Q041_BT_CACHE[start] = cached
+        else:
+            payload = _build_q041_payload(start)
+            _Q041_BT_CACHE[start] = payload
+            _save_q041_disk_cache(start, payload)
     except Exception:
         pass
     try:
@@ -651,15 +740,31 @@ def api_es_backtest():
 @app.route("/api/q041/backtest")
 def api_q041_backtest():
     start_date = flask_req.args.get("start", "2022-05-06")
-    cache_key  = start_date
-    if cache_key in _Q041_BT_CACHE:
-        return jsonify(_Q041_BT_CACHE[cache_key])
+    if start_date in _Q041_BT_CACHE:
+        return jsonify(_Q041_BT_CACHE[start_date])
+    # Try disk cache first
+    cached = _load_q041_disk_cache(start_date)
+    if cached:
+        _Q041_BT_CACHE[start_date] = cached
+        return jsonify(cached)
     try:
-        from research.strategies.q041_csp_backtest import run_q041_backtest
-        payload = run_q041_backtest(start_date=start_date)
-        _enrich_trades_with_vix(payload)
-        _Q041_BT_CACHE[cache_key] = payload
+        payload = _build_q041_payload(start_date)
+        _Q041_BT_CACHE[start_date] = payload
+        _save_q041_disk_cache(start_date, payload)
         return jsonify(payload)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/q041/backtest/refresh", methods=["POST"])
+def api_q041_backtest_refresh():
+    """Force recompute, bypass both memory and disk cache."""
+    start_date = flask_req.args.get("start", "2022-05-06")
+    try:
+        payload = _build_q041_payload(start_date)
+        _Q041_BT_CACHE[start_date] = payload
+        _save_q041_disk_cache(start_date, payload)
+        return jsonify({"ok": True, "cached_at": payload.get("_cached_at")})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 
