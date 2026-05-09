@@ -1,11 +1,86 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-09 (R-20260509-07: Tier-3+ VIX term structure DROP; Q053 final closure)
+Last Updated: 2026-05-09 (R-20260509-08: Q019 Tier 1+2 + 2nd Quant APPROVE; Tier 2.5 next gate)
 Owner: Planner or PM
 
 ---
 
 ## Entries
+
+### R-20260509-08 — Q019 Tier 1 + Tier 2 done; 2nd Quant APPROVE; Tier 2.5 mixed-mode is next gate
+
+- Topic: PM-authorised Tier 1 + Tier 2 to quantify the close-based (backtest) vs open-based (live) VIX timing convention impact. 2nd Quant reviewed full chain and approved with two specific wording revisions.
+- Findings (Tier 1 — selector-level scan, 4868 days 2007-2026):
+  - Regime flip rate: **9.48%** — replicates MC's prior 27y measurement of 9.71% (Δ 0.23pp)
+  - Strategy flip rate: 14.56%; Position-action flip: 12.75%
+  - VIX bucket concentration: VIX 20-25 (straddling HIGH_VOL=22 threshold) accounts for 44% of regime flips while representing 18% of days; flip rate 23.1% in this bucket
+  - 60% of strategy flips are "active ↔ Reduce/Wait" — the more concerning category since open vs close changes "trade or not" decision
+- Findings (Tier 2 — full backtest comparison, 19.3y, $500k start):
+  - **UPPER BOUND** test (full VIX series substituted with opens, including 5d MA / IV history / peak_10d):
+    - Trades: 282 → 271 (-11)
+    - Win rate: 75.5% → 71.6% (-3.95pp)
+    - Total PnL: $1,684,057 → $1,205,629 (-$478,428, **-28.4%**)
+    - **AnnROE: 7.92% → 6.55% (-1.37pp)**
+    - MaxDD: 7.92% → 12.37% (+4.45pp)
+    - Worst trade: -$44,117 → -$55,489 (-$11,373)
+    - Trade overlap: only 19.9% same-date+strategy
+  - Per-strategy: BCD has +5 trades but -$204k PnL (counter-intuitive — open-substitution routes BCD into more low-quality entries, consistent with threshold concentration)
+  - Per-year hot spots: 2018/2019/2021 each lose $77-109k under open path (years with extended VIX 15-25 ranges)
+  - Caveat: this is a deliberate UPPER BOUND. Live uses close-based 5d MA / IV history with intraday-current VIX. Real live impact is bounded above by -1.37pp; lies somewhere in [0, -1.37pp].
+- 2nd Quant verdict:
+  - **APPROVE** Tier 1 + Tier 2 methodology as sound; **APPROVE** Tier 2.5 mixed-mode as the right next gate before any production decision
+  - Q1 (Tier 1 methodology): PASS
+  - Q2 (MC replication 9.48% vs 9.71%): PASS — convergence is meaningful, not coincidental
+  - Q3 (Tier 2 upper-bound interpretation): PASS with caveat — rolling-stat changes may not be entirely minor; threshold systems still vulnerable to smoothed-field flips near cutoffs; that is exactly why Tier 2.5 is necessary
+  - Q4 (Tier 2.5 worth doing): PASS — strongly support, decision stakes too large to skip
+  - Q5 (per-year concentration interpretation): **REVISE** wording slightly. The 2018/2019/2021 effect is "likely threshold-structural in prolonged VIX 15-25 regimes, but year-level magnitude is path-dependent and should be confirmed by Tier 2.5" (not yet "reliable structural proof")
+  - Q6 (Path C risk): **REVISE** — Path C risk lower than originally described. Intraday alerts (SPEC-086 etc.) remain independent, so switching daily-recommendation VIX to close-based does NOT disable spike monitoring. Real Path C tradeoff is narrower: aligns with backtest convention vs may make daily recommendation less responsive to genuine regime shifts. Path C is more viable than originally framed but still not default until Tier 2.5.
+- Quant adjustments applied:
+  - Q5 wording softened in this entry (no longer claiming "structural proof"; framed as "likely structural, path-dependent magnitude")
+  - Q6 wording corrected: Path C does not impair intraday alerting; only affects daily recommendation responsiveness
+- 2nd Quant additional contribution — **NEW Path D candidate (threshold hysteresis / buffer)**:
+  - Tier 1 shows the core problem is threshold straddling around VIX 15 and 22
+  - Hysteresis rule could preserve intraday responsiveness while reducing noisy open-vs-close flips
+  - Example: HIGH_VOL enters only if VIX > 22.5, exits only if VIX < 21.5
+  - Or: "If current VIX is within ±0.5 of threshold, defer to close-based regime context"
+  - To be explored ONLY if Tier 2.5 confirms material impact
+  - Not a replacement for Path C; an additional candidate to evaluate alongside C
+- Decision matrix for Tier 2.5 outcome:
+  - |ΔAnnROE| < 0.5pp → document negligible, no change (Path A)
+  - 0.5pp ≤ |ΔAnnROE| < 1.0pp → MARGINAL, PM decides A vs C vs D (hysteresis)
+  - |ΔAnnROE| ≥ 1.0pp → MATERIAL — most error from current-VIX substitution, evaluate Path C and Path D in parallel
+- Risks / Counterarguments:
+  - Tier 2 was a single full-substitution test; Tier 2.5 result could surprise either direction
+  - Real intraday VIX behavior may not exactly match the "open" proxy (live systems use first 1h-bar or current quote, not pure open print)
+  - Path D (hysteresis) is conceptually attractive but adds parameter complexity; threshold buffer values would need their own backtest validation
+- Confidence: high on Tier 1+2 findings; medium on Tier 2.5 outcome direction (could be NEGLIGIBLE if rolling-stat substitution is the dominant component, or MATERIAL if current-VIX flip is the main driver)
+- Next Tests:
+  - **Tier 2.5 mixed-mode (PM authorisation pending)**: modify engine so `vix` (current decision) = open while `vix_window` (5d MA, IV history, peak_10d) stays close-based. ~1 day work. Single-line engine modification with monkey-patch wrapper.
+- Recommendation:
+  - **Do not decide Path A / C / D yet**. Wait for Tier 2.5 outcome.
+  - If PM authorises, Tier 2.5 should be next active research item (ahead of Q041 paper-trading).
+  - If PM defers Tier 2.5, document Q019 as "open with quantified upper bound" — known divergence ≤ -1.37pp AnnROE; production decision deferred.
+- Related: `Q019`, `R-20260509-07` (Q053 closure prior), MC's prior 9.71% reference in `sync/open_questions.md`
+- See: `research/q019/close_vs_open_sensitivity.py` (Tier 1), `research/q019/tier2_close_vs_open_backtest.py` (Tier 2), `task/q019_close_vs_open_2nd_quant_review_packet_2026-05-09.md` (review packet)
+
+---
+
+### R-20260509-08 — Q039 refresh post-SPEC-084: HC vs MC IC regular gap attribution unchanged; bp_target lift confirmed orthogonal to selector
+
+- Topic: Q039 refresh — re-ran HC backtest with current production params (post-SPEC-084 bp_target_normal 0.10→0.15) to verify whether the IC regular HC 13 vs MC 6 gap or its attribution has changed.
+- Findings:
+  - Trade list and bucket attribution **identical** to original §3-§5 analysis:
+    - HC 13 / MC 6 / shared 2 / HC-only 11 / MC-only 4 (same dates)
+    - 9/11 HC-only = high-IVP fallback/gate (82% of gap explained)
+    - 1/11 = valid trade MC-missing (2023-10-04)
+    - 1/11 = low-IV bug candidate (2023-11-03)
+    - 0/11 = slot blocking
+  - **SPEC-084 is confirmed orthogonal to IC regular eligibility**:  acts at the sizing layer within an already-opened slot; IC regular selection happens at the strategy-routing layer. The two layers do not interact for eligibility determination.
+- Confidence: high. Attribution is stable across param changes.
+- Recommendation: Q039 remains research-only residual. Narrow attribution is sufficient. No upgrade to parity investigation warranted.
+- Related: , , 
+
+---
 
 ### R-20260509-07 — Q053 Tier-3+ VIX Term Structure Test: DROP; Q053 final closure with 2nd Quant APPROVE
 
