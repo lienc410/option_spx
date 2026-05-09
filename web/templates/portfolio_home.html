@@ -1249,17 +1249,28 @@ function _fmtMv(v) {
   return sign + '$' + abs.toFixed(0);
 }
 
-// Color scheme (S=dark, E=light): gold=options, green=equity/ETF, gray=cash
+// Color scheme (S=dark, E=light): gold=options, green=equity ETF, blue=individual stock, gray=cash
 const _CASH_SYMBOLS = new Set(['BOXX','SGOV','BIL','SHV','JPST','ICSH','GBIL','TFLO','VMFXX','SPAXX']);
+const _ETF_SYMBOLS  = new Set([
+  'SPY','QQQ','IWM','DIA','VTI','VOO','VEA','VWO','EFA','EEM','GLD','SLV','TLT','IEF',
+  'AGG','LQD','HYG','XLF','XLK','XLE','XLV','XLI','XLP','XLU','XLB','XLRE','XLC',
+  'VIG','VYM','SCHD','JEPI','JEPQ','QQQI','SPYI','IVV','MDY','IJH','IJR','RSP',
+  'ARKK','ARKG','ARKW','ARKF','IEMG','VGK','VPL','BND','BNDX',
+]);
 function _schwabPosColor(pos, ref) {
   const cat = pos.category, sub = pos.sub_category;
   if (cat === 'spx_options') return 'rgba(201,168,64,0.90)';           // dark gold
   if (cat === 'cash' || sub === 'cash_etf' || sub === 'money_market' || sub === 'cash')
     return 'rgba(96,104,128,0.58)';                                     // dark gray
-  if (cat === 'equity' || cat === 'collective') {
+  if (sub === 'equity_etf') {
     const s = ['rgba(66,204,124,0.92)','rgba(66,204,124,0.78)','rgba(66,204,124,0.65)',
                'rgba(66,204,124,0.54)','rgba(66,204,124,0.45)'];
-    return s[(ref.i++) % s.length];                                     // dark green shades
+    return s[(ref.i++) % s.length];                                     // dark green shades (ETF)
+  }
+  if (cat === 'equity' || cat === 'collective') {
+    const s = ['rgba(72,136,232,0.92)','rgba(72,136,232,0.78)','rgba(72,136,232,0.65)',
+               'rgba(72,136,232,0.54)','rgba(72,136,232,0.45)'];
+    return s[(ref.i++) % s.length];                                     // dark blue shades (stock)
   }
   return 'rgba(96,104,128,0.30)';
 }
@@ -1268,8 +1279,12 @@ function _etradePosColor(pos, ref) {
   const at = (pos.asset_type || '').toUpperCase();
   if (at === 'OPTN' || at === 'OPTION') return 'rgba(201,168,64,0.48)'; // light gold
   if (_CASH_SYMBOLS.has(pos.symbol))    return 'rgba(96,104,128,0.35)'; // light gray
-  const s = ['rgba(66,204,124,0.40)','rgba(66,204,124,0.32)','rgba(66,204,124,0.26)'];
-  return s[(ref.i++) % s.length];                                        // light green shades
+  if (_ETF_SYMBOLS.has(pos.symbol)) {
+    const s = ['rgba(66,204,124,0.40)','rgba(66,204,124,0.32)','rgba(66,204,124,0.26)'];
+    return s[(ref.i++) % s.length];                                      // light green shades (ETF)
+  }
+  const s = ['rgba(72,136,232,0.45)','rgba(72,136,232,0.36)','rgba(72,136,232,0.28)'];
+  return s[(ref.i++) % s.length];                                        // light blue shades (stock)
 }
 
 function _splitPosBarRow(label, mv, pnl, barW, colorL, colorR, ratioL, nlv) {
