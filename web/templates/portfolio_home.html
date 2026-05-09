@@ -1248,16 +1248,15 @@ function _fmtMv(v) {
   return sign + '$' + abs.toFixed(0);
 }
 
+// Color scheme: gold=options, dark-green=Schwab equity/ETF, light-green=E-Trade equity/ETF, gray=cash
 function _schwabPosColor(pos, ref) {
   const cat = pos.category, sub = pos.sub_category;
   if (cat === 'spx_options') return 'rgba(201,168,64,0.90)';
-  if (cat === 'collective' && sub === 'equity_etf') return 'rgba(66,204,124,0.80)';
   if (cat === 'cash' || sub === 'cash_etf' || sub === 'money_market' || sub === 'cash')
-    return 'rgba(32,188,164,0.85)';
-  if (cat === 'collective') return 'rgba(96,104,128,0.45)';
-  if (cat === 'equity') {
-    const s = ['rgba(72,136,232,0.90)','rgba(72,136,232,0.72)','rgba(72,136,232,0.55)',
-               'rgba(72,136,232,0.40)','rgba(72,136,232,0.28)'];
+    return 'rgba(96,104,128,0.55)';
+  if (cat === 'equity' || cat === 'collective') {
+    const s = ['rgba(66,204,124,0.92)','rgba(66,204,124,0.78)','rgba(66,204,124,0.65)',
+               'rgba(66,204,124,0.54)','rgba(66,204,124,0.45)'];
     return s[(ref.i++) % s.length];
   }
   return 'rgba(96,104,128,0.30)';
@@ -1266,9 +1265,7 @@ function _schwabPosColor(pos, ref) {
 function _etradePosColor(pos, ref) {
   const at = (pos.asset_type || '').toUpperCase();
   if (at === 'OPTN' || at === 'OPTION') return 'rgba(201,168,64,0.90)';
-  if (at === 'ETF')                     return 'rgba(66,204,124,0.80)';
-  const s = ['rgba(160,100,220,0.90)','rgba(160,100,220,0.72)','rgba(160,100,220,0.55)',
-             'rgba(160,100,220,0.40)','rgba(160,100,220,0.28)'];
+  const s = ['rgba(66,204,124,0.40)','rgba(66,204,124,0.32)','rgba(66,204,124,0.26)'];
   return s[(ref.i++) % s.length];
 }
 
@@ -1402,8 +1399,8 @@ function renderPositionBars() {
     barsEl.innerHTML = rows + `
       <div class="margin-footer">
         <div class="margin-footer-left">Combined NLV ${_fmtMv(combinedNlv)}
-          · Schwab <span style="color:rgba(72,136,232,0.9)">■</span>
-          · E-Trade <span style="color:rgba(160,100,220,0.9)">■</span>
+          · Schwab <span style="color:rgba(66,204,124,0.90)">■</span>
+          · E-Trade <span style="color:rgba(66,204,124,0.38)">■</span>
           · split bar = both</div>
         <div class="margin-footer-right">
           <span class="margin-badge">${_fmtMv(combMaint)} / ${combMPct != null ? combMPct.toFixed(1) + '%' : '—'}</span>
@@ -1433,7 +1430,7 @@ function renderPositionBars() {
     ? `<div class="margin-footer" style="margin-top:4px">
         <div class="margin-footer-left" style="color:rgba(32,188,164,0.9)">Cash + Cash ETF + Money Market</div>
         <div class="margin-footer-right">
-          <span class="margin-badge" style="background:rgba(32,188,164,0.15);color:rgba(32,188,164,0.9);border-color:rgba(32,188,164,0.3)">${_fmtMv(totalCash)} / ${cashPct != null ? cashPct.toFixed(1) + '%' : '—'}</span>
+          <span class="margin-badge" style="background:rgba(96,104,128,0.12);color:rgba(96,104,128,0.8);border-color:rgba(96,104,128,0.3)">${_fmtMv(totalCash)} / ${cashPct != null ? cashPct.toFixed(1) + '%' : '—'}</span>
         </div>
       </div>` : '';
   barsEl.innerHTML = rows + `
