@@ -259,7 +259,12 @@ function buildMetricCards(s) {
     <div class="metric-card">
       <div class="metric-label">Total P&L</div>
       <div class="metric-value ${s.total_pnl>0?'up':'down'}">${pnlStr}</div>
-      <div class="metric-sub">Ann. ROE ${annStr} on $${initEq.toFixed(0)}k</div>
+      <div class="metric-sub">net realized</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Ann. ROE</div>
+      <div class="metric-value ${m.annROE!=null&&m.annROE>=20?'up':m.annROE>=10?'warn':'down'}">${annStr}</div>
+      <div class="metric-sub">on $${initEq.toFixed(0)}k baseline</div>
     </div>
     <div class="metric-card">
       <div class="metric-label">Max Drawdown</div>
