@@ -1099,14 +1099,12 @@ function _renderMarginAllocation(data) {
       <div class="bp-legend-item"><div class="bp-legend-dot dot-equity"></div>Equity ${equityW.toFixed(1)}%</div>
       <div class="bp-legend-item"><div class="bp-legend-dot dot-q041"></div>Q041 ${q041W.toFixed(1)}%</div>
       <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>`;
-    // Show per-account sub-rows only when E-Trade is actually contributing
-    const etOptsRow  = etOptW > 0 ? barHtml('  E-Trade Options', etOptW,  'bar-etrade', 'PM max-loss') : '';
-    const etEquityRow = etEqW > 0 ? barHtml('  E-Trade Equity',  etEqW,   'bar-etrade', '15% haircut') : '';
+    // Sub-row only for E-Trade options when present (equity is already merged into the combined row)
+    const etOptsRow = etOptW > 0 ? barHtml('  E-Trade Options', etOptW, 'bar-etrade', 'PM max-loss') : '';
     bucketRows =
       barHtml('Options Margin', optionsW, 'bar-spx', 'SPX spread' + (etOptW > 0 ? ' + E-Trade options' : '')) +
       etOptsRow +
       barHtml('Equity Margin',  equityW,  'bar-equity', allEqNote) +
-      etEquityRow +
       barHtml('Q041 Tier 1', buckets.q041_tier1_bp_pct, 'bar-q041', 'paper') +
       barHtml('Q041 Tier 2', buckets.q041_tier2_bp_pct, 'bar-q041', 'paper') +
       barHtml('Q041 Tier 3', buckets.q041_tier3_bp_pct, 'bar-q041', 'paper');
