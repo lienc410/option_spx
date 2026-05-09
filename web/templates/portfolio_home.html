@@ -1359,17 +1359,25 @@ function renderPositionBars() {
 
     // Build render list: merged equities + separate options
     const renderList = [];
-    for (const [sym, { schwab, etrade }] of merged) {
-      const swMv = schwab?.market_value || 0, etMv = etrade?.market_value || 0;
-      const swPnl = schwab?.unrealized_pnl, etPnl = etrade?.unrealized_pnl;
-      renderList.push({
-        symbol: sym,
-        market_value: swMv + etMv,
-        unrealized_pnl: (swPnl != null || etPnl != null) ? (swPnl || 0) + (etPnl || 0) : null,
-        _schwab: schwab, _etrade: etrade,
-        _swMv: swMv,    _etMv: etMv,
-        _split: schwab != null && etrade != null,
-      });
+    for (const [, { schwab, etrade }] of merged) {
+      if (schwab && etrade) {
+        // Both accounts — true split bar
+        const swMv = schwab.market_value || 0, etMv = etrade.market_value || 0;
+        const swPnl = schwab.unrealized_pnl, etPnl = etrade.unrealized_pnl;
+        renderList.push({
+          symbol: schwab.symbol,
+          market_value: swMv + etMv,
+          unrealized_pnl: (swPnl != null || etPnl != null) ? (swPnl || 0) + (etPnl || 0) : null,
+          _schwab: schwab, _etrade: etrade,
+          _swMv: swMv, _etMv: etMv, _split: true,
+        });
+      } else if (schwab) {
+        // Schwab only — preserve full position (category, sub_category intact for color)
+        renderList.push({ ...schwab, _acct: 'schwab', _split: false });
+      } else {
+        // E-Trade only — preserve full position (asset_type intact for color)
+        renderList.push({ ...etrade, _acct: 'etrade', _split: false });
+      }
     }
     for (const p of (s?.positions || []).filter(p => _isOpt(p, 'schwab')))
       renderList.push({ ...p, _acct: 'schwab', _split: false });
