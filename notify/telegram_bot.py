@@ -122,9 +122,10 @@ class EsStopResult:
 _ES_STOP_RANK = {EsStopLevel.NONE: 0, EsStopLevel.WARNING: 1, EsStopLevel.TRIGGER: 2}
 
 _intraday_state: dict = {
-    "spike_level": SpikeLevel.NONE,
-    "stop_level":  StopLevel.NONE,
-    "es_stop_level": EsStopLevel.NONE,
+    "spike_level":      SpikeLevel.NONE,
+    "stop_level":       StopLevel.NONE,
+    "es_stop_level":    EsStopLevel.NONE,
+    "profit_alerted":   False,   # True once profit target alert has been sent this session
 }
 _morning_snapshot: dict | None = None
 
@@ -356,6 +357,62 @@ def _format_es_stop_alert(result: EsStopResult) -> str:
     )
 
 
+def _check_spx_profit_target() -> tuple[bool, float | None]:
+    """
+    Return (target_reached, captured_pct) for the open SPX credit spread.
+    target_reached is True when captured >= 60% AND min_hold_days >= 10.
+    captured_pct is None when data is unavailable.
+    Uses cached get_account_positions() — no extra Schwab call if ES stop already ran.
+    """
+    state = read_state()
+    if not state or state.get("underlying") != "SPX":
+        return False, None
+
+    entry_premium = _num(state.get("actual_premium")) or _num(state.get("model_premium"))
+    contracts     = _num(state.get("contracts")) or 1
+    opened_at     = state.get("opened_at")
+    if not entry_premium or entry_premium <= 0:
+        return False, None
+
+    days_held = 0
+    if opened_at:
+        try:
+            days_held = (date.today() - date.fromisoformat(str(opened_at))).days
+        except Exception:
+            pass
+
+    try:
+        positions_payload = get_account_positions()
+    except Exception:
+        return False, None
+
+    if (not positions_payload.get("configured")
+            or not positions_payload.get("authenticated")
+            or positions_payload.get("stale")):
+        return False, None
+
+    spx_pos = next(
+        (p for p in positions_payload.get("positions", [])
+         if p.get("category") == "spx_options"),
+        None,
+    )
+    if spx_pos is None:
+        return False, None
+
+    net_mv = _num(spx_pos.get("market_value"))
+    if net_mv is None:
+        return False, None
+
+    # market_value is negative for a short spread (cost to close = abs(mv))
+    close_cost_pts = abs(net_mv) / contracts / 100
+    captured_pct   = (entry_premium - close_cost_pts) / entry_premium * 100
+
+    PROFIT_TARGET_PCT = 60.0
+    MIN_HOLD_DAYS     = 10
+    reached = captured_pct >= PROFIT_TARGET_PCT and days_held >= MIN_HOLD_DAYS
+    return reached, round(captured_pct, 1)
+
+
 def _alert_timing_label(timestamp: str, realtime: bool | None) -> str:
     sent_at = datetime.now(ET).strftime("%Y-%m-%d %H:%M")
     if realtime is False:
@@ -457,9 +514,10 @@ def _format_eod_snapshot(
 def _reset_intraday_state() -> None:
     """Reset per-session state at market open each day."""
     global _morning_snapshot
-    _intraday_state["spike_level"] = SpikeLevel.NONE
-    _intraday_state["stop_level"]  = StopLevel.NONE
-    _intraday_state["es_stop_level"] = EsStopLevel.NONE
+    _intraday_state["spike_level"]    = SpikeLevel.NONE
+    _intraday_state["stop_level"]     = StopLevel.NONE
+    _intraday_state["es_stop_level"]  = EsStopLevel.NONE
+    _intraday_state["profit_alerted"] = False
     _morning_snapshot = None
     log.info("Intraday state reset for new session.")
 
@@ -528,6 +586,23 @@ async def intraday_monitor(bot: Bot, chat_id: str) -> None:
             and es_stop.current_mark is not None
         ):
             msgs.append(_format_es_stop_alert(es_stop))
+
+    # SPX profit target check — fires once per session when ≥60% captured & ≥10 days held
+    if not _intraday_state["profit_alerted"]:
+        try:
+            reached, captured_pct = _check_spx_profit_target()
+            if reached and captured_pct is not None:
+                state = read_state()
+                strategy = (state or {}).get("strategy", "SPX Credit Spread")
+                msgs.append(
+                    f"🟢 <b>Profit Target Reached — {_h(strategy)}</b>\n"
+                    f"Captured: <code>{captured_pct:.1f}%</code> of credit "
+                    f"(target: 60% · min hold: 10d ✓)\n"
+                    f"<i>Consider closing. Send /closed after exiting.</i>"
+                )
+                _intraday_state["profit_alerted"] = True
+        except Exception:
+            log.exception("intraday_monitor: profit target check failed")
 
     # Persist new state
     _intraday_state["spike_level"] = spike.level

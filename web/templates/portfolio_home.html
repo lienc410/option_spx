@@ -789,19 +789,24 @@ async function loadSpx() {
           const today = new Date(); today.setHours(0,0,0,0);
           dte = Math.max(0, Math.round((exp - today) / 86400000));
         }
-        // Target profit / stop $ — SPX credit spread: $100/pt multiplier
+        // Target profit / stop $ + captured % — SPX credit spread: $100/pt multiplier
         const n = Number(pos.contracts) || 1;
-        let tgtHtml = '';
+        const maxPnl = premium != null ? Number(premium) * n * 100 : null;
+        let tgtHtml = '', capturedHtml = '';
         if (premium != null && n > 0) {
           const inLoss = pnl != null && pnl < 0;
           if (inLoss) {
-            // Stop: 2× stop mult — at stop, loss = 1× credit received
-            const stopDollars = Math.round(premium * 1.0 * n * 100);
+            const stopDollars = Math.round(Number(premium) * 1.0 * n * 100);
             tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Stop</div><div class="pos-value loss">-$${stopDollars.toLocaleString()}</div></div>`;
           } else {
-            // Profit target: 60% of credit
-            const tgtDollars = Math.round(premium * 0.60 * n * 100);
+            const tgtDollars = Math.round(Number(premium) * 0.60 * n * 100);
             tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Profit</div><div class="pos-value profit">+$${tgtDollars.toLocaleString()}</div></div>`;
+          }
+          if (pnl != null && maxPnl > 0) {
+            const pct = Math.min(pnl / maxPnl * 100, 100);
+            const pctCls = pct >= 60 ? 'profit' : pct >= 40 ? 'warn' : '';
+            const flag   = pct >= 60 ? ' ✓' : '';
+            capturedHtml = `<div class="pos-item"><div class="pos-label">Captured</div><div class="pos-value ${pctCls}">${pct.toFixed(1)}%${flag}</div></div>`;
           }
         }
         posBody.outerHTML = `<div class="pos-grid">
@@ -812,6 +817,7 @@ async function loadSpx() {
           ${premium != null ? `<div class="pos-item"><div class="pos-label">Entry</div><div class="pos-value">$${Number(premium).toFixed(2)}</div></div>` : ''}
           ${pnl != null     ? `<div class="pos-item"><div class="pos-label">Unrealized</div><div class="pos-value ${pnlCls}">${pnlStr}</div></div>` : ''}
           ${tgtHtml}
+          ${capturedHtml}
         </div>`;
       } else {
         posBody.textContent = 'No open position';
