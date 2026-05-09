@@ -61,7 +61,8 @@ P1_N_CONTRACTS    = _ES.n_contracts      # 1 — fixed single-slot, matches prod
 # Phase 2 — staggered DTE ladder
 P2_DTE_SLOTS      = [21, 28, 35, 42, 49]   # one concurrent position per slot
 P2_INITIAL_EQUITY = 500_000.0
-P2_BP_TARGET      = 0.05   # 5% per slot → 25% max when all 5 slots full
+P2_BP_TARGET      = 0.05   # 5% per slot — kept for reference; superseded by P2_N_CONTRACTS
+P2_N_CONTRACTS    = _ES.n_contracts         # 1 — matches production single-slot rule per slot
 
 # Phase 3 — VIX leverage table + BSH drag
 P3_DTE_SLOTS      = [21, 28, 35, 42, 49]
@@ -533,7 +534,7 @@ def run_phase2(
                 k    = find_strike_for_delta(spx, slot, sig, TARGET_DELTA, False)
                 prem = put_price(spx, k, slot, sig)
                 if prem > 0.5:
-                    n = _contracts(equity, P2_BP_TARGET, spx, k, prem)
+                    n = float(P2_N_CONTRACTS)
                     positions[slot] = PutPosition(
                         slot=slot, entry_date=dstr, expiry_dte=slot,
                         strike=k, entry_premium=prem, entry_spx=spx, entry_vix=vix,
