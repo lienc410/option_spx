@@ -804,24 +804,24 @@ function bpMetaForStrategy(strategyKey) {
   }
   if (strategyKey === 'bull_call_diagonal') {
     return {
-      recommendedPct: '10%',
+      recommendedPct: '15%',
       formula: 'BP = net_debit_paid × $100 per contract',
     };
   }
   if (strategyKey === 'iron_condor' || strategyKey === 'iron_condor_hv') {
     return {
-      recommendedPct: strategyKey.endsWith('_hv') ? '7%' : '10%',
+      recommendedPct: strategyKey.endsWith('_hv') ? '14%' : '15%',
       formula: 'BP = (max(call_wing_width, put_wing_width) − total_net_credit) × $100 per contract',
     };
   }
   if (strategyKey === 'bull_put_spread' || strategyKey === 'bull_put_spread_hv' || strategyKey === 'bear_call_spread_hv') {
     return {
-      recommendedPct: strategyKey.endsWith('_hv') ? '7%' : '10%',
+      recommendedPct: strategyKey.endsWith('_hv') ? '14%' : '15%',
       formula: 'BP = (spread_width − net_credit_received) × $100 per contract',
     };
   }
   return {
-    recommendedPct: '10%',
+    recommendedPct: '15%',
     formula: 'Defined-risk spread BP = max_loss_per_contract under Schwab PM',
   };
 }
@@ -1341,8 +1341,9 @@ function updatePremiumDiff() {
 }
 
 function bpTargetPctForStrategy(strategyKey) {
-  if (strategyKey === 'bull_put_spread_hv' || strategyKey === 'bear_call_spread_hv' || strategyKey === 'iron_condor_hv') return 7.0;
-  return 10.0;
+  if (CURRENT_BP_PREVIEW?.bp_target_pct != null) return Number(CURRENT_BP_PREVIEW.bp_target_pct);
+  if (strategyKey === 'bull_put_spread_hv' || strategyKey === 'bear_call_spread_hv' || strategyKey === 'iron_condor_hv') return 14.0;
+  return 15.0;
 }
 
 function estimateBpPerContract(strategyKey, shortStrike, longStrike, premium) {
