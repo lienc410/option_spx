@@ -773,17 +773,32 @@ async function loadSpx() {
       const pos = await posRes.json();
       applyBadge('badge-spx', spxBadge({ ...rec, open: pos.open }));
       if (pos.open) {
-        const live = pos.schwab_live || {};
-        const pnl  = live.unrealized_pnl;
-        const pnlCls = pnl == null ? '' : pnl >= 0 ? 'profit' : 'loss';
-        const pnlStr = pnl != null ? (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(0) : '—';
-        const premium = pos.actual_premium || pos.model_premium;
+        const live    = pos.schwab_live || {};
+        const pnl     = live.unrealized_pnl;
+        const pnlCls  = pnl == null ? '' : pnl >= 0 ? 'profit' : 'loss';
+        const pnlStr  = pnl != null ? (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(0) : '—';
+        const premium = pos.entry_premium;  // API field is entry_premium
         // Compute current DTE from expiry
         let dte = null;
         if (pos.expiry) {
           const exp = new Date(pos.expiry + 'T00:00:00');
           const today = new Date(); today.setHours(0,0,0,0);
           dte = Math.max(0, Math.round((exp - today) / 86400000));
+        }
+        // Target profit / stop $ — SPX credit spread: $100/pt multiplier
+        const n = Number(pos.contracts) || 1;
+        let tgtHtml = '';
+        if (premium != null && n > 0) {
+          const inLoss = pnl != null && pnl < 0;
+          if (inLoss) {
+            // Stop: 2× stop mult — at stop, loss = 1× credit received
+            const stopDollars = Math.round(premium * 1.0 * n * 100);
+            tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Stop</div><div class="pos-value loss">-$${stopDollars.toLocaleString()}</div></div>`;
+          } else {
+            // Profit target: 60% of credit
+            const tgtDollars = Math.round(premium * 0.60 * n * 100);
+            tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Profit</div><div class="pos-value profit">+$${tgtDollars.toLocaleString()}</div></div>`;
+          }
         }
         posBody.outerHTML = `<div class="pos-grid">
           ${pos.opened_at   ? `<div class="pos-item"><div class="pos-label">Opened</div><div class="pos-value">${pos.opened_at}</div></div>` : ''}
@@ -792,6 +807,7 @@ async function loadSpx() {
           ${pos.contracts   ? `<div class="pos-item"><div class="pos-label">Contracts</div><div class="pos-value">${pos.contracts}</div></div>` : ''}
           ${premium != null ? `<div class="pos-item"><div class="pos-label">Entry</div><div class="pos-value">$${Number(premium).toFixed(2)}</div></div>` : ''}
           ${pnl != null     ? `<div class="pos-item"><div class="pos-label">Unrealized</div><div class="pos-value ${pnlCls}">${pnlStr}</div></div>` : ''}
+          ${tgtHtml}
         </div>`;
       } else {
         posBody.textContent = 'No open position';
