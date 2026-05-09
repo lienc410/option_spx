@@ -699,10 +699,9 @@ function applyBadge(id, badgeObj) {
 }
 function spxBadge(data) {
   const action = String(data.position_action || '').toUpperCase();
-  if (action === 'OPEN' || action === 'CLOSE_AND_OPEN') return { cls: 'badge-open',  label: 'OPEN' };
-  if (action === 'CLOSE')                               return { cls: 'badge-close', label: 'CLOSE' };
-  if (action === 'WAIT' || action === 'CLOSE_AND_WAIT') return { cls: 'badge-wait',  label: 'NO ENTRY' };
-  if (data.open)                                        return { cls: 'badge-hold',  label: 'HOLD' };
+  if (action === 'CLOSE' || action === 'CLOSE_AND_WAIT') return { cls: 'badge-close', label: 'CLOSE' };
+  if (action === 'OPEN' || action === 'CLOSE_AND_OPEN')  return { cls: 'badge-open',  label: 'OPEN' };
+  if (data.open)                                         return { cls: 'badge-hold',  label: 'HOLD' };
   return { cls: 'badge-wait', label: 'NO ENTRY' };
 }
 function esBadge(data) {
