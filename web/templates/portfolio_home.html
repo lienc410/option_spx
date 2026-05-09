@@ -781,7 +781,7 @@ async function loadSpx() {
         const pnl     = live.unrealized_pnl;
         const pnlCls  = pnl == null ? '' : pnl >= 0 ? 'profit' : 'loss';
         const pnlStr  = pnl != null ? (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(0) : '—';
-        const premium = pos.entry_premium;  // API field is entry_premium
+        const premium = pos.actual_premium || pos.model_premium;
         // Compute current DTE from expiry
         let dte = null;
         if (pos.expiry) {
