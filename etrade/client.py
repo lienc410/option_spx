@@ -81,6 +81,25 @@ def _fail_soft_balances() -> dict:
     }
 
 
+def _invalid_token_positions() -> dict:
+    status = token_status()
+    return {
+        "configured": status["configured"],
+        "authenticated": False,
+        "positions": [],
+        "stale": True,
+    }
+
+
+def _invalid_token_balances() -> dict:
+    status = token_status()
+    return {
+        "configured": status["configured"],
+        "authenticated": False,
+        "stale": True,
+    }
+
+
 def _dig(payload: Any, *keys: str) -> Any:
     cur = payload
     for key in keys:
@@ -168,7 +187,7 @@ def get_account_balances(account_id: str | None = None) -> dict:
         return cached
     if not is_token_valid():
         record_token_issue("token_invalid")
-        return _fail_soft_balances()
+        return _invalid_token_balances()
     try:
         client = _accounts_client()
         acct = _resolve_account_id(client, account_id)
@@ -193,7 +212,7 @@ def get_account_positions(account_id: str | None = None) -> dict:
         return cached
     if not is_token_valid():
         record_token_issue("token_invalid")
-        return _fail_soft_positions()
+        return _invalid_token_positions()
     try:
         client = _accounts_client()
         acct = _resolve_account_id(client, account_id)

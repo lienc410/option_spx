@@ -14,8 +14,14 @@ from web.server import app
 
 class _FakeOAuth:
     def __init__(self, *_args):
-        self.oauth_token = "req-token"
-        self.oauth_token_secret = "req-secret"
+        self.resource_owner_key = "req-token"
+        self.session = SimpleNamespace(
+            _client=SimpleNamespace(
+                client=SimpleNamespace(
+                    resource_owner_secret="req-secret",
+                )
+            )
+        )
 
     def get_request_token(self):
         return "https://example.com/auth?oauth_token=req-token"
@@ -110,6 +116,7 @@ class Spec089Tests(unittest.TestCase):
         fake = SimpleNamespace(ETradeOAuth=_FakeOAuth)
         with patch.object(etrade_auth, "consumer_key", return_value="key"), \
              patch.object(etrade_auth, "consumer_secret", return_value="secret"), \
+             patch.object(etrade_auth, "_oauth1_session_class", return_value=lambda *args, **kwargs: SimpleNamespace()), \
              patch.object(etrade_auth, "_load_pyetrade", return_value=fake):
             request_payload = etrade_auth.request_token()
             self.assertEqual(request_payload["request_oauth_token"], "req-token")

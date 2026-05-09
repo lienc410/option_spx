@@ -10,8 +10,6 @@ from urllib.parse import parse_qs, urlparse
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
-
-
 log = logging.getLogger(__name__)
 load_dotenv()
 
@@ -179,6 +177,15 @@ def _load_pyetrade():
         raise RuntimeError("pyetrade_missing") from exc
 
 
+def _oauth1_session_class():
+    try:
+        from requests_oauthlib import OAuth1Session
+
+        return OAuth1Session
+    except Exception as exc:  # pragma: no cover - exercised via fail-soft tests
+        raise RuntimeError("requests_oauthlib_missing") from exc
+
+
 def _build_oauth():
     pyetrade = _load_pyetrade()
     return pyetrade.ETradeOAuth(consumer_key(), consumer_secret())
@@ -187,32 +194,33 @@ def _build_oauth():
 def _extract_saved_request_parts(oauth: Any, request_url: str) -> dict:
     parsed = urlparse(str(request_url))
     query = parse_qs(parsed.query)
-    token = None
+    token = getattr(oauth, "resource_owner_key", None) or query.get("token", [None])[0]
     secret = None
-    for attr in ("oauth_token", "request_token", "token", "_oauth_token"):
-        token = token or getattr(oauth, attr, None)
-    for attr in ("oauth_token_secret", "request_token_secret", "token_secret", "_oauth_token_secret"):
-        secret = secret or getattr(oauth, attr, None)
+    session = getattr(oauth, "session", None)
+    if session is not None:
+        client = getattr(getattr(session, "_client", None), "client", None)
+        secret = getattr(client, "resource_owner_secret", None)
     return {
-        "request_oauth_token": token or query.get("key", [None])[0] or query.get("oauth_token", [None])[0],
+        "request_oauth_token": token,
         "request_oauth_token_secret": secret,
         "authorize_url": str(request_url),
     }
 
 
-def _prime_request_token(oauth: Any, token: dict) -> None:
+def _prime_request_session(oauth: Any, token: dict) -> None:
     token_value = token.get("request_oauth_token")
     secret_value = token.get("request_oauth_token_secret")
-    for attr in ("oauth_token", "request_token", "token", "_oauth_token"):
-        try:
-            setattr(oauth, attr, token_value)
-        except Exception:
-            pass
-    for attr in ("oauth_token_secret", "request_token_secret", "token_secret", "_oauth_token_secret"):
-        try:
-            setattr(oauth, attr, secret_value)
-        except Exception:
-            pass
+    if not token_value or not secret_value:
+        raise RuntimeError("missing_request_token")
+    oauth.resource_owner_key = token_value
+    oauth.session = _oauth1_session_class()(
+        consumer_key(),
+        consumer_secret(),
+        resource_owner_key=token_value,
+        resource_owner_secret=secret_value,
+        callback_uri=redirect_uri(),
+        signature_type="AUTH_HEADER",
+    )
 
 
 def request_token() -> dict:
@@ -236,12 +244,12 @@ def get_access_token(verifier: str) -> dict:
         raise RuntimeError("not_configured")
     token = load_token() or {}
     oauth = _build_oauth()
-    _prime_request_token(oauth, token)
+    _prime_request_session(oauth, token)
     tokens = oauth.get_access_token(verifier)
     now = datetime.now(_ET)
     payload = {
-        **token,
-        **(tokens or {}),
+        "oauth_token": (tokens or {}).get("oauth_token"),
+        "oauth_token_secret": (tokens or {}).get("oauth_token_secret"),
         "expires_at": _next_midnight_et(now).isoformat(),
         "updated_at": now.isoformat(timespec="seconds"),
     }
@@ -257,31 +265,7 @@ def renew_access_token() -> dict:
     if not token.get("oauth_token") or not token.get("oauth_token_secret"):
         record_token_issue("auth_required")
         return {"ok": False, "reason": "auth_required"}
-    try:
-        oauth = _build_oauth()
-        for attr in ("oauth_token", "access_token", "token", "_oauth_token"):
-            try:
-                setattr(oauth, attr, token.get("oauth_token"))
-            except Exception:
-                pass
-        for attr in ("oauth_token_secret", "access_token_secret", "token_secret", "_oauth_token_secret"):
-            try:
-                setattr(oauth, attr, token.get("oauth_token_secret"))
-            except Exception:
-                pass
-        renewed = oauth.renew_access_token()
-        now = datetime.now(_ET)
-        payload = {
-            **token,
-            **(renewed or {}),
-            "expires_at": _next_midnight_et(now).isoformat(),
-            "updated_at": now.isoformat(timespec="seconds"),
-        }
-        save_token(payload)
-        clear_token_issue()
-        return {"ok": True, "token": payload}
-    except Exception as exc:
-        log.warning("etrade.auth: renew_access_token failed", exc_info=True)
-        record_token_issue("renew_failed")
-        return {"ok": False, "reason": str(exc)}
-
+    # pyetrade does not expose an access-token renewal API; once the daily token
+    # expires, the runtime must re-enter the manual authorization flow.
+    record_token_issue("reauth_required")
+    return {"ok": False, "reason": "reauth_required"}
