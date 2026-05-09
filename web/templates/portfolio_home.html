@@ -441,8 +441,8 @@ body {
 
 .bp-buckets { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 4px; }
 .bp-bucket-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
-.bp-bucket-label { font-family: var(--f-ui); font-size: 0.68rem; color: var(--text-2); min-width: 160px; }
-.bp-bucket-note { display: block; font-size: 0.58rem; color: var(--text-muted); margin-top: 1px; }
+.bp-bucket-label { font-family: var(--f-ui); font-size: 0.68rem; color: var(--text-2); flex: 0 0 160px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.bp-bucket-note { font-size: 0.60rem; color: var(--text-muted); margin-left: 4px; }
 .bp-bucket-bar-wrap { flex: 1; height: 6px; background: var(--border-2); border-radius: 9999px; overflow: hidden; }
 .bp-bucket-bar { height: 100%; border-radius: 9999px; transition: width 0.45s ease; }
 .bar-spx    { background: var(--gold); }
