@@ -693,7 +693,7 @@ async def cmd_closed(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Mark the current position as closed.
       /closed               → no reason recorded
-      /closed 50pct profit  → stores the note alongside the close
+      /closed 60pct profit  → stores the note alongside the close
     """
     note = " ".join(ctx.args) if ctx.args else None
     try:
@@ -745,7 +745,7 @@ async def cmd_rolled(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 async def cmd_note(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Attach a free-text note to the current open position.
-      /note took 50% off table at 21 DTE
+      /note took 60% off table at 21 DTE
     """
     if not ctx.args:
         await update.message.reply_text(
@@ -868,7 +868,7 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         "/rolled        — Log a roll (same strategy, new expiry)\n"
         "/note &lt;text&gt; — Attach a remark to current position\n"
         "/closed        — Mark position closed\n"
-        "/closed &lt;reason&gt; — Close with a note (e.g. 50pct profit)\n\n"
+        "/closed &lt;reason&gt; — Close with a note (e.g. 60pct profit)\n\n"
         "<i>Signals are for reference only. Execute and manage trades manually.</i>",
         parse_mode=ParseMode.HTML,
     )

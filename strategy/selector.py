@@ -35,7 +35,7 @@ Sizing tiers:
   Half size  — VIX trend rising OR signals mixed OR HIGH_VOL regime
 
 Exit rules:
-  Credit positions: close at 50% profit (after min 10 days held) OR at 21 DTE
+  Credit positions: close at 60% profit (after min 10 days held) OR at 21 DTE  [SPEC-077]
   Debit positions:  close at 50% profit or 50% loss; close before 7 DTE
 """
 

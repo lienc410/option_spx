@@ -44,6 +44,8 @@ from signals.vix_regime import fetch_vix_history
 
 TARGET_DELTA   = 0.20    # 20-delta short put
 STOP_MULT      = 4.0     # stop when put ≥ 4× entry premium (= -300% on credit)
+# ALIGNMENT-NOTE: live bot triggers at mark/entry ≥ 3.0 (loss = 2× credit), backtest stops at 4× (loss = 3× credit).
+# Decide: should STOP_MULT become 3.0 to match live, or should bot trigger at 4× to match backtest?
 PROFIT_TARGET  = 0.10    # close when put ≤ 10% of entry premium (= +90% profit)
 GAMMA_DTE      = 5       # close early if DTE ≤ this
 SPX_MULTIPLIER = 100
@@ -53,6 +55,8 @@ WARMUP_DAYS    = 64
 P1_ENTRY_DTE      = 45
 P1_INITIAL_EQUITY = 500_000.0
 P1_BP_TARGET      = 0.10   # 10% per position (single slot)
+# ALIGNMENT-NOTE: live trading uses _ES_BP_LIMIT_FRACTION = 0.20 (web/server.py:43).
+# Backtest calibrated at 10%. Live trades at 20% = 2× the backtested sizing. Consider re-running at 0.20.
 
 # Phase 2 — staggered DTE ladder
 P2_DTE_SLOTS      = [21, 28, 35, 42, 49]   # one concurrent position per slot

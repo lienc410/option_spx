@@ -1701,16 +1701,17 @@ def api_experiments_run():
     body = flask_req.get_json(force=True) or {}
     try:
         p = body.get("params", {})
+        _d = StrategyParams()  # canonical defaults — never hardcode fallbacks here
         params = StrategyParams(
-            extreme_vix     = float(p.get("extreme_vix",     35.0)),
-            high_vol_delta  = float(p.get("high_vol_delta",  0.20)),
-            high_vol_dte    = int(  p.get("high_vol_dte",    21)),
-            high_vol_size   = float(p.get("high_vol_size",   0.50)),
-            normal_delta    = float(p.get("normal_delta",    0.30)),
-            normal_dte      = int(  p.get("normal_dte",      30)),
-            profit_target   = float(p.get("profit_target",   0.60)),   # SPEC-077
-            stop_mult       = float(p.get("stop_mult",       2.0)),
-            min_hold_days   = int(  p.get("min_hold_days",   10)),
+            extreme_vix     = float(p.get("extreme_vix",    _d.extreme_vix)),
+            high_vol_delta  = float(p.get("high_vol_delta", _d.high_vol_delta)),
+            high_vol_dte    = int(  p.get("high_vol_dte",   _d.high_vol_dte)),
+            high_vol_size   = float(p.get("high_vol_size",  _d.high_vol_size)),
+            normal_delta    = float(p.get("normal_delta",   _d.normal_delta)),
+            normal_dte      = int(  p.get("normal_dte",     _d.normal_dte)),
+            profit_target   = float(p.get("profit_target",  _d.profit_target)),
+            stop_mult       = float(p.get("stop_mult",      _d.stop_mult)),
+            min_hold_days   = int(  p.get("min_hold_days",  _d.min_hold_days)),
         )
         exp = run_experiment(
             params     = params,
@@ -1736,18 +1737,19 @@ def _run_auto_search(grid: dict, fixed: dict, start_date: str):
     _auto_search.update(running=True, total=len(combos), completed=0,
                         best=None, error=None)
     try:
+        _d = StrategyParams()
         for combo in combos:
             p = {**fixed, **dict(zip(keys, combo))}
             params = StrategyParams(
-                extreme_vix    = float(p.get("extreme_vix",    35.0)),
-                high_vol_delta = float(p.get("high_vol_delta", 0.20)),
-                high_vol_dte   = int(  p.get("high_vol_dte",   21)),
-                high_vol_size  = float(p.get("high_vol_size",  0.50)),
-                normal_delta   = float(p.get("normal_delta",   0.30)),
-                normal_dte     = int(  p.get("normal_dte",     30)),
-                profit_target  = float(p.get("profit_target",  0.60)),   # SPEC-077
-                stop_mult      = float(p.get("stop_mult",      2.0)),
-                min_hold_days  = int(  p.get("min_hold_days",  14)),
+                extreme_vix    = float(p.get("extreme_vix",    _d.extreme_vix)),
+                high_vol_delta = float(p.get("high_vol_delta", _d.high_vol_delta)),
+                high_vol_dte   = int(  p.get("high_vol_dte",   _d.high_vol_dte)),
+                high_vol_size  = float(p.get("high_vol_size",  _d.high_vol_size)),
+                normal_delta   = float(p.get("normal_delta",   _d.normal_delta)),
+                normal_dte     = int(  p.get("normal_dte",     _d.normal_dte)),
+                profit_target  = float(p.get("profit_target",  _d.profit_target)),
+                stop_mult      = float(p.get("stop_mult",      _d.stop_mult)),
+                min_hold_days  = int(  p.get("min_hold_days",  _d.min_hold_days)),
             )
             note = "auto: " + ", ".join(f"{k}={v}" for k, v in zip(keys, combo))
             exp  = run_experiment(params=params, note=note,
