@@ -491,79 +491,6 @@ body {
   color: var(--text-muted);
   margin-top: 6px;
 }
-.etrade-panel {
-  margin-top: 16px;
-  border-top: 1px solid var(--border);
-  padding-top: 14px;
-}
-.etrade-header {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  margin-bottom: 8px;
-}
-.etrade-title {
-  font-family: var(--f-ui);
-  font-size: 0.60rem; font-weight: 700;
-  letter-spacing: 0.14em; text-transform: uppercase;
-  color: var(--text-2);
-}
-.etrade-subtitle {
-  font-family: var(--f-ui);
-  font-size: 0.64rem;
-  color: var(--text-muted);
-}
-.etrade-grid {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 14px;
-}
-.etrade-balance-box {
-  background: var(--surface-hi);
-  border: 1px solid var(--border-2);
-  border-radius: 9px;
-  padding: 12px 14px;
-}
-.etrade-balance-line {
-  display: flex; justify-content: space-between; gap: 12px;
-  font-family: var(--f-mono); font-size: 0.70rem;
-  color: var(--text);
-  padding: 3px 0;
-}
-.etrade-balance-line span:first-child { color: var(--text-muted); }
-.etrade-positions-box {
-  background: var(--surface-hi);
-  border: 1px solid var(--border-2);
-  border-radius: 9px;
-  padding: 12px 14px;
-}
-.etrade-positions-head {
-  display: grid;
-  grid-template-columns: 1.2fr 0.7fr 0.9fr;
-  gap: 10px;
-  font-family: var(--f-ui);
-  font-size: 0.58rem;
-  letter-spacing: 0.10em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 6px;
-}
-.etrade-position-row {
-  display: grid;
-  grid-template-columns: 1.2fr 0.7fr 0.9fr;
-  gap: 10px;
-  align-items: center;
-  padding: 6px 0;
-  border-bottom: 1px dotted var(--border-2);
-}
-.etrade-position-row:last-child { border-bottom: none; }
-.etrade-position-row span {
-  font-family: var(--f-mono);
-  font-size: 0.70rem;
-  color: var(--text);
-}
-.etrade-position-row span:first-child { font-family: var(--f-ui); }
-
 /* ── Position composition bars ── */
 .pos-comp-section { margin-top: 4px; }
 .pos-comp-header {
@@ -731,8 +658,13 @@ body {
   </div>
 
   <!-- Portfolio Snapshot zone -->
-  <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
     <div class="section-label" style="margin-bottom:0">Portfolio Snapshot</div>
+    <div class="pos-view-tabs">
+      <button class="pos-view-tab active" data-av="all"     onclick="setAccountView('all')">All</button>
+      <button class="pos-view-tab"        data-av="schwab"  onclick="setAccountView('schwab')">Schwab</button>
+      <button class="pos-view-tab"        data-av="etrade"  onclick="setAccountView('etrade')">E-Trade</button>
+    </div>
     <button id="sync-btn" onclick="syncPortfolio()" style="font-family:var(--f-ui);font-size:0.60rem;padding:2px 8px;border-radius:4px;background:transparent;border:1px solid var(--border-2);color:var(--text-2);cursor:pointer;transition:0.12s" onmouseover="this.style.color='var(--text)';this.style.background='var(--surface-hi)'" onmouseout="this.style.color='var(--text-2)';this.style.background='transparent'">↻ Sync</button>
     <span id="sync-ts" style="font-family:var(--f-mono);font-size:0.55rem;color:var(--text-muted)"></span>
   </div>
@@ -740,24 +672,10 @@ body {
     <div id="snapshot-body">
       <div class="snapshot-unavail">Loading portfolio data…</div>
     </div>
-    <div class="etrade-panel">
-      <div class="etrade-header">
-        <div class="etrade-title">E-Trade PM Account</div>
-        <div class="etrade-subtitle">Read-only balances + positions · fail-soft</div>
-      </div>
-      <div id="etrade-body">
-        <div class="snapshot-unavail">Loading E-Trade account…</div>
-      </div>
-    </div>
     <!-- Position composition by market value -->
     <div class="pos-comp-section" id="pos-comp-section" style="margin-top:16px">
       <div class="pos-comp-header">
         <span class="pos-comp-title">Account Positions — Market Value</span>
-        <div class="pos-view-tabs">
-          <button class="pos-view-tab active" data-view="schwab" onclick="setPositionView('schwab')">Schwab</button>
-          <button class="pos-view-tab" data-view="etrade" onclick="setPositionView('etrade')">E-Trade</button>
-          <button class="pos-view-tab" data-view="all" onclick="setPositionView('all')">All</button>
-        </div>
       </div>
       <div class="pos-col-header">
         <div class="pos-col-symbol"></div>
@@ -1057,17 +975,20 @@ async function loadQ041() {
 
 // ── Portfolio Snapshot ────────────────────────────────────────────────────────
 let _snapshotCache = null;
-let _marginView = 'all';
+let _accountView = 'all';
 
-function setMarginView(v) {
-  _marginView = v;
+function setAccountView(v) {
+  _accountView = v;
+  document.querySelectorAll('[data-av]').forEach(el =>
+    el.classList.toggle('active', el.dataset.av === v));
   if (_snapshotCache) _renderMarginAllocation(_snapshotCache);
+  renderPositionBars();
 }
 
 function _renderMarginAllocation(data) {
   const el = document.getElementById('margin-alloc');
   if (!el) return;
-  const view    = _marginView;
+  const view    = _accountView;
   const buckets = data.bp_usage_by_bucket || {};
   const accounts = data.account_breakdown || {};
 
@@ -1091,10 +1012,6 @@ function _renderMarginAllocation(data) {
       <div class="bp-bucket-bar-wrap"><div class="bp-bucket-bar ${barClass}" style="width:${w}%"></div></div>
       <div class="bp-bucket-pct">${d}</div>
     </div>`;
-  }
-
-  function tab(v, label) {
-    return `<button class="pos-view-tab ${view===v?'active':''}" onclick="setMarginView('${v}')">${label}</button>`;
   }
 
   let barSegments, legendItems, bucketRows, railCards, noteHtml = '';
@@ -1184,10 +1101,7 @@ function _renderMarginAllocation(data) {
 
   el.innerHTML = `
     <div class="bp-composite-wrap">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <div class="bp-composite-label">Margin Allocation (% NLV)</div>
-        <div class="pos-view-tabs">${tab('all','All')}${tab('schwab','Schwab')}${tab('etrade','E-Trade')}</div>
-      </div>
+      <div class="bp-composite-label">Margin Allocation (% NLV)</div>
       <div class="bp-composite-track">${barSegments}</div>
       <div class="bp-composite-legend">${legendItems}</div>
     </div>
@@ -1235,52 +1149,6 @@ async function loadSnapshot() {
   }
 }
 
-// ── E-Trade Panel ────────────────────────────────────────────────────────────
-async function loadEtrade() {
-  const body = document.getElementById('etrade-body');
-  try {
-    const [balRes, posRes] = await Promise.all([
-      fetch('/api/etrade/balances'),
-      fetch('/api/etrade/positions'),
-    ]);
-    const balances = balRes.ok ? await balRes.json() : { error: 'unavailable' };
-    const positionsPayload = posRes.ok ? await posRes.json() : { error: 'unavailable' };
-    const positions = positionsPayload.positions || [];
-
-    if (balances.error || positionsPayload.error) {
-      body.innerHTML = '<div class="snapshot-unavail">E-Trade 暂不可用。Schwab data remains available.</div>';
-      return;
-    }
-
-    const rows = positions.length
-      ? positions.slice(0, 8).map((p) => `
-          <div class="etrade-position-row">
-            <span>${p.symbol || '—'}</span>
-            <span>${p.quantity != null ? p.quantity : '—'}</span>
-            <span>${fmtDollars(p.market_value)}</span>
-          </div>`).join('')
-      : '<div class="snapshot-unavail">No E-Trade positions reported.</div>';
-
-    body.innerHTML = `
-      <div class="etrade-grid">
-        <div class="etrade-balance-box">
-          <div class="account-rail-title">Balances</div>
-          <div class="etrade-balance-line"><span>Net Liq</span><span>${fmtDollars(balances.net_liquidation)}</span></div>
-          <div class="etrade-balance-line"><span>Maint Margin</span><span>${fmtDollars(balances.maintenance_margin)}</span></div>
-          <div class="etrade-balance-line"><span>Cash</span><span>${fmtDollars(balances.cash_balance)}</span></div>
-          <div class="etrade-balance-line"><span>Margin Balance</span><span>${fmtDollars(balances.margin_balance)}</span></div>
-        </div>
-        <div class="etrade-positions-box">
-          <div class="account-rail-title">Positions</div>
-          <div class="etrade-positions-head"><span>Symbol</span><span>Qty</span><span>Mkt Value</span></div>
-          ${rows}
-        </div>
-      </div>`;
-  } catch (_) {
-    body.innerHTML = '<div class="snapshot-unavail">E-Trade 暂不可用。Schwab data remains available.</div>';
-  }
-}
-
 // ── Date ──────────────────────────────────────────────────────────────────────
 const now = new Date();
 const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
@@ -1289,14 +1157,6 @@ document.getElementById('hero-date').textContent = dateStr;
 
 // ── Position Composition ─────────────────────────────────────────────────────
 let _posCache = { schwab: null, etrade: null };
-let _posActiveView = 'schwab';
-
-function setPositionView(v) {
-  _posActiveView = v;
-  document.querySelectorAll('.pos-view-tab').forEach(el =>
-    el.classList.toggle('active', el.dataset.view === v));
-  renderPositionBars();
-}
 
 async function loadPositionComposition() {
   const [sr, er, ebr] = await Promise.allSettled([
@@ -1372,7 +1232,7 @@ function _posBarRow(label, mv, pnl, barW, color, nlv) {
 
 function renderPositionBars() {
   const barsEl = document.getElementById('pos-comp-bars');
-  const view   = _posActiveView;
+  const view   = _accountView;
 
   // ── E-Trade view ──
   if (view === 'etrade') {
@@ -1471,21 +1331,21 @@ async function syncPortfolio() {
   const ts  = document.getElementById('sync-ts');
   if (btn) { btn.textContent = '↻ Syncing…'; btn.disabled = true; }
   if (ts)  ts.textContent = '';
-  await Promise.allSettled([loadSpx(), loadEs(), loadQ041(), loadSnapshot(), loadEtrade(), loadPositionComposition()]);
+  await Promise.allSettled([loadSpx(), loadEs(), loadQ041(), loadSnapshot(), loadPositionComposition()]);
   if (btn) { btn.textContent = '↻ Sync'; btn.disabled = false; }
   if (ts)  ts.textContent = 'synced ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 (async () => {
-  await Promise.allSettled([loadSpx(), loadEs(), loadQ041(), loadSnapshot(), loadEtrade(), loadPositionComposition()]);
+  await Promise.allSettled([loadSpx(), loadEs(), loadQ041(), loadSnapshot(), loadPositionComposition()]);
   const ts = document.getElementById('sync-ts');
   if (ts) ts.textContent = 'loaded ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
   // Auto-refresh: strategy cards (recommendation+position) every 60s — picks up close→re-entry transitions
   setInterval(() => Promise.allSettled([loadSpx(), loadEs(), loadQ041()]), 60 * 1000);
   // Snapshot + Schwab positions every 5min — heavier, less frequent
-  setInterval(() => Promise.allSettled([loadSnapshot(), loadEtrade(), loadPositionComposition()]), 5 * 60 * 1000);
+  setInterval(() => Promise.allSettled([loadSnapshot(), loadPositionComposition()]), 5 * 60 * 1000);
 })();
 </script>
 </body>
