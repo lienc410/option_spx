@@ -1037,6 +1037,25 @@ function _renderMarginAllocation(data) {
       <div class="bp-bucket-pct">${d}</div>
     </div>`;
   }
+  // Split bar: two color segments proportional to seg1/seg2, total width = totalPct%
+  function splitBarHtml(label, totalPct, seg1pct, seg2pct, color1, color2, note) {
+    const total = (seg1pct || 0) + (seg2pct || 0);
+    const f1 = total > 0 ? (seg1pct || 0) / total : 1;
+    const f2 = total > 0 ? (seg2pct || 0) / total : 0;
+    const outerW = typeof totalPct === 'number' ? Math.min(Math.max(totalPct, 0), 100).toFixed(1) : '0';
+    const d = typeof totalPct === 'number' ? totalPct.toFixed(1) + '%' : '—';
+    const n = note ? `<span class="bp-bucket-note">${note}</span>` : '';
+    return `<div class="bp-bucket-row">
+      <div class="bp-bucket-label">${label}${n}</div>
+      <div class="bp-bucket-bar-wrap">
+        <div style="width:${outerW}%;height:100%;display:flex">
+          <div style="flex:${f1.toFixed(4)};background:${color1}"></div>
+          <div style="flex:${f2.toFixed(4)};background:${color2}"></div>
+        </div>
+      </div>
+      <div class="bp-bucket-pct">${d}</div>
+    </div>`;
+  }
 
   let barSegments, legendItems, bucketRows, railCards, noteHtml = '';
 
@@ -1105,7 +1124,10 @@ function _renderMarginAllocation(data) {
     bucketRows =
       barHtml('Options Margin', optionsW, 'bar-spx', 'SPX spread' + (etOptW > 0 ? ' + E-Trade options' : '')) +
       etOptsRow +
-      barHtml('Equity Margin',  equityW,  'bar-equity', allEqNote) +
+      (etEqW > 0
+        ? splitBarHtml('Equity Margin', equityW, eqW, etEqW,
+            'rgba(66,204,124,0.85)', 'rgba(66,204,124,0.38)', allEqNote)
+        : barHtml('Equity Margin', equityW, 'bar-equity', allEqNote)) +
       barHtml('Q041 Tier 1', buckets.q041_tier1_bp_pct, 'bar-q041', 'paper') +
       barHtml('Q041 Tier 2', buckets.q041_tier2_bp_pct, 'bar-q041', 'paper') +
       barHtml('Q041 Tier 3', buckets.q041_tier3_bp_pct, 'bar-q041', 'paper');
