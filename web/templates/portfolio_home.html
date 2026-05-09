@@ -461,14 +461,28 @@ body {
 }
 .pos-comp-title {
   font-family: var(--f-ui); font-size: 0.60rem; font-weight: 700;
-  letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-muted);
+  letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-2);
 }
 .pos-comp-legend { display: flex; gap: 12px; }
 .pos-comp-leg-item {
   display: flex; align-items: center; gap: 4px;
-  font-family: var(--f-ui); font-size: 0.60rem; color: var(--text-muted);
+  font-family: var(--f-ui); font-size: 0.60rem; color: var(--text-2);
 }
 .pos-comp-leg-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.pos-col-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 2px 0 5px 0; border-bottom: 1px solid var(--border);
+  margin-bottom: 3px;
+}
+.pos-col-symbol { min-width: 58px; }
+.pos-col-bar { flex: 1; }
+.pos-col-label {
+  font-family: var(--f-ui); font-size: 0.55rem; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted);
+  text-align: right;
+}
+.pos-col-label:nth-child(3) { min-width: 58px; }
+.pos-col-label:nth-child(4) { min-width: 38px; }
 .pos-row {
   display: flex; align-items: center; gap: 8px; padding: 3px 0;
 }
@@ -486,7 +500,7 @@ body {
   min-width: 58px; text-align: right;
 }
 .pos-row-pct {
-  font-family: var(--f-mono); font-size: 0.60rem; color: var(--text-muted);
+  font-family: var(--f-mono); font-size: 0.60rem; color: var(--text-2);
   min-width: 38px; text-align: right;
 }
 .margin-footer {
@@ -618,6 +632,12 @@ body {
             <div class="pos-comp-leg-dot" style="background:rgba(96,104,128,0.5)"></div>Bond/Cash ETF
           </div>
         </div>
+      </div>
+      <div class="pos-col-header">
+        <div class="pos-col-symbol"></div>
+        <div class="pos-col-bar"></div>
+        <div class="pos-col-label">Mkt Value</div>
+        <div class="pos-col-label">Weight</div>
       </div>
       <div id="pos-comp-bars"><div class="snapshot-unavail">Loading positions…</div></div>
     </div>
