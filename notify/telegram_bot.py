@@ -775,6 +775,9 @@ async def cmd_closed(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     Mark the current position as closed.
       /closed               → no reason recorded
       /closed 60pct profit  → stores the note alongside the close
+
+    After confirming close, immediately push a fresh recommendation
+    so the user sees today's re-entry signal without running /today.
     """
     note = " ".join(ctx.args) if ctx.args else None
     try:
@@ -790,6 +793,17 @@ async def cmd_closed(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             f"Opened: <code>{_h(state.get('opened_at', '?'))}</code>{note_line}",
             parse_mode=ParseMode.HTML,
         )
+        # Auto re-scan and push fresh recommendation right after close
+        try:
+            rec = get_recommendation(use_intraday=is_market_open())
+            _safe_append_recommendation_event(rec=rec, source="post_close_rescan", mode="intraday")
+            await update.message.reply_text(
+                "🔄 <b>Re-entry scan</b> — fresh recommendation:\n\n"
+                + _format_recommendation(rec),
+                parse_mode=ParseMode.HTML,
+            )
+        except Exception:
+            log.exception("cmd_closed: post-close rescan failed (non-fatal)")
     except Exception as e:
         log.exception("cmd_closed failed")
         await update.message.reply_text(f"⚠️ Error: {e}")

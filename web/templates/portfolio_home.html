@@ -1140,7 +1140,7 @@ async function syncPortfolio() {
   const ts  = document.getElementById('sync-ts');
   if (btn) { btn.textContent = '↻ Syncing…'; btn.disabled = true; }
   if (ts)  ts.textContent = '';
-  await Promise.allSettled([loadSnapshot(), loadPositionComposition()]);
+  await Promise.allSettled([loadSpx(), loadEs(), loadQ041(), loadSnapshot(), loadPositionComposition()]);
   if (btn) { btn.textContent = '↻ Sync'; btn.disabled = false; }
   if (ts)  ts.textContent = 'synced ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
@@ -1150,6 +1150,11 @@ async function syncPortfolio() {
   await Promise.allSettled([loadSpx(), loadEs(), loadQ041(), loadSnapshot(), loadPositionComposition()]);
   const ts = document.getElementById('sync-ts');
   if (ts) ts.textContent = 'loaded ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+  // Auto-refresh: strategy cards (recommendation+position) every 60s — picks up close→re-entry transitions
+  setInterval(() => Promise.allSettled([loadSpx(), loadEs(), loadQ041()]), 60 * 1000);
+  // Snapshot + Schwab positions every 5min — heavier, less frequent
+  setInterval(() => Promise.allSettled([loadSnapshot(), loadPositionComposition()]), 5 * 60 * 1000);
 })();
 </script>
 </body>

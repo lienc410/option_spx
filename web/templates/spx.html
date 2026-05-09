@@ -1670,7 +1670,8 @@ async function submitClosePosition() {
   const data = await postJson('/api/position/close', payload);
   if (data.error) return showTradeModalMessage(data.error, true);
   showTradeModalMessage(`Closed position · PnL ${data.actual_pnl ?? '—'}`);
-  await loadPosition();
+  // Refresh both panels — re-entry signal may now be live (fresh recommendation scan)
+  await Promise.allSettled([loadPosition(), load()]);
   setTimeout(closeTradeModal, 400);
 }
 
