@@ -1,11 +1,394 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-08 (R-20260508-01)
+Last Updated: 2026-05-09 (R-20260509-02; pre-Apr entries archived to doc/)
 Owner: Planner or PM
 
 ---
 
 ## Entries
+
+### R-20260509-02 — `/ES` research absorption into main strategy governance: 5 must-absorb principles + 3 calibrated cautions + 3 action items (Q053 opened)
+
+- Topic: 2nd Quant reviewed Quant's "/ES research → main strategy" knowledge absorption summary. Verdict: PASS with priority reordering and three calibration cautions. The most important spillover from /ES is not any single parameter but a system-level risk-management principle: **IV expansion / margin expansion fires faster than any lagging control, so risk management must be entry-gated and stress-capital-aware, not exit-driven.**
+- Findings (must-absorb, ordered by 2nd Quant priority):
+  1. **IV expansion 领先于 lagging signals** — `/ES` data confirmed that any technical/trend-based exit fires AFTER IV has already repriced the option against the position. This validates main strategy's existing entry-gated philosophy (`risk_score`, regime gating, EXTREME_VOL refusal). Future spec proposals to add holding-period technical exits to short-premium positions can be rejected by direct reference to this evidence.
+  2. **Main strategy should continue entry-gated / regime-gated risk control** — not retrofit lagging exits. Codify this as a principle, not just a current implementation detail.
+  3. **`pnl_ratio` stop > credit-multiple stop** — main strategy's loss-budget-relative stops are structurally more robust than mark-multiplier stops because they remain scale-invariant across premium regimes. Do not simplify BPS/IC stops into "close at 3x credit" form; that semantic fails in low-premium structures (proven by /ES H3 grid).
+  4. **2018 / 2022 grinding decline is the hidden weakness, not 2008 / 2020 spike** — `/ES` research repeatedly showed worst years were grinding mid-VIX environments where EXTREME_VOL gates do not trigger and spike hedges do not pay. Same risk likely exists in main strategy. Now opened as Q053.
+  5. **IV expansion stress test must become a standard spec-review tool** — Phase A SPAN model can be generalized into an `iv_expansion_stress_test` framework applied to any new short-premium spec.
+- Findings (calibrated cautions, 2nd Quant adjustments):
+  6. **Overlay-F scale-dependence is a revisit HYPOTHESIS, not a conclusion**. Q036 Overlay-F's low marginal contribution (+0.074pp) might be because main strategy's BP utilization is structurally too low to amortize hedge cost — but this must be re-tested rather than assumed. Trigger: revisit Q036 economics IF main-strategy BP utilization rises above 25-30% NLV after Q041 deployment. This becomes a standing revisit gate, not an immediate research action.
+  7. **Capital efficiency must be evaluated on stress-capital basis, not entry-margin basis**. The /ES vs SPX naked vs SPX BPS comparison should not be read as "which has the lowest entry BP%". The correct comparison is "which has the lowest stress-capital exposure given a tail scenario". Main strategy's spread-based approach wins on this metric, not on entry BP. Apply this lens going forward.
+  8. **Execution-drift / delay sensitivity must enter spec-review standards**. Any rule depending on PM manual execution (intraday alerts, EXTREME_VOL manual reduce, hedge activation) must explicitly state and test `T+0 / T+1 / T+2` execution scenarios. /ES taught that bot alert at 3× and actual closure between 3.0–4.0× can change a marginally-significant CI into a clearly-not-significant one.
+- Risks / Counterarguments:
+  - The "IV expansion is faster than lagging controls" principle is robust but not absolute — fast intraday auto-close mechanisms (not present in main strategy today) could in principle avoid this constraint. The principle should be read as "any human-mediated or daily-bar exit cannot preempt IV expansion", not "no exit logic ever can".
+  - The Overlay-F revisit gate (BP utilization 25-30%) is itself a hypothesis based on /ES analogy; the right BP threshold for Overlay-F revisit may differ.
+- Confidence: high on the must-absorb principles (1-5); medium on the calibrated cautions (6-8) which are governance hypotheses requiring future validation.
+- Action Items (three, in priority order):
+  - **Action A1 — Build `iv_expansion_stress_test` framework** (Planner-tracked tool, not a research question). Generalize Phase A SPAN model. Inputs: strategy type, entry IV/VIX, DTE, strike/delta/spread width, current BP/max-loss. Outputs: VIX +10/+20/+40 shock-projected mark loss, BP/margin expansion, stop proximity, stress survival score. Becomes mandatory for any new short-premium spec review.
+  - **Action A2 — Open Q053 "Grinding Decline Regime Review"** (research question). Scope: 2018-Q4, 2022 full year, optionally 2011/2015/2016 mini stress windows. Question: does main strategy systematically mis-route or over-allocate short premium exposure in medium-VIX grinding-decline environments where EXTREME_VOL gates don't trigger? This is the highest-value research spillover from /ES closure.
+  - **Action A3 — Q041 SPX CSP IV-expansion stress appendix** (Q041 governance addendum, not new research lane). Before any Q041 Tier 1 paper-trading activation, attach an IV-expansion stress appendix to the execution-prep packet covering: 2020-style VIX shock single-cycle behavior, 2022-style grinding decline behavior, IV compression trap scenarios, BP usage under stress. Use Action A1's tool once built.
+- Recommendation:
+  - Codify must-absorb principles 1-5 into a new section of `QUANT_RESEARCHER.md` titled "Short-Premium Risk Management Principles (from Q012/Q051/Q052 closure)".
+  - Q053 becomes a Tier 1 Quant research question — should be queued behind Q041 paper-trading work but ahead of any new alpha-search lanes.
+  - A1 tool development is engineering-driven; should be discussed for a narrow Spec when Quant is ready to use it (probably alongside first Q053 deliverable).
+  - A3 is added to Q041's existing execution-prep workflow; not a separate spec.
+- Related: `Q012`, `Q036`, `Q041`, `Q050`, `Q051`, `Q052`, `Q053` (NEW), `SPEC-061`, `SPEC-086`, `SPEC-088`
+- See: `research/q012/phase_a_span_model.py` (template for A1), `research/q012/h1_technical_exit.py` (evidence for principle 1), `research/q012/h3_delta_dte_grid.py` (evidence for principle 3)
+
+---
+
+### R-20260509-01 — Q052 CLOSED: PM's three salvage hypotheses (technical exit, roll-out, deep OTM) all fail structurally; `/ES` thesis comprehensively closed at $500k scale
+
+- Topic: PM-proposed alternative redesigns for the `/ES` line after Q051 closed the original thesis as scale-dependent. Three new hypotheses tested:
+  - H1: technical-analysis-driven exit replaces or augments credit stop
+  - H2: roll-down + roll-out instead of stop-out (deferred to evidence from H1)
+  - H3: deep OTM strikes (Δ≤0.05) + longer DTE (90/180 days)
+- Findings:
+  - **H3 grid (Δ × DTE) failed comprehensively**. All 9 configurations produced negative AnnROE; bootstrap CIs ranged from `[-466, +57]` (best, Δ=0.20 DTE=45) to `[-2444, -906]` (worst, Δ=0.20 DTE=180). Stop rate INCREASED with deeper OTM and longer DTE: Δ=0.05 DTE=180 had 48.9% stop rate vs 26.5% baseline. Win rate DROPPED at extremes: Δ=0.05 DTE=180 → 51.1% WR vs 72.6% baseline.
+  - **H3 root cause**: 3x credit stop has wrong semantics for low-premium puts. A $1 entry premium reaching $3 mark only requires $2 absolute move, which is easily triggered by deep OTM puts' high gamma. Long DTE makes positions more sensitive to vol expansion. The stop methodology cannot translate across strike depths.
+  - **H1 grid (3 exit modes × 4 base configs) failed comprehensively**. Trend-based exits universally underperformed credit stops. At Δ=0.20 DTE=45, switching from credit stop to trend exit changed AnnROE from -0.13% to -0.45%.
+  - **H1 root cause via diagnostic**: 244 trend exits at baseline config showed 84% (204 trades) closed at a loss, with median loser -$707 and P90 worst -$3,307. The ATR-normalized trend signal that fires "BULLISH → non-BULLISH" is a LAGGING signal — it triggers AFTER IV has expanded against the position. By the time technical signal fires, the position has already taken IV expansion damage. There is no lagging technical signal that fires before the IV move that hurts a short put.
+  - **H2 (roll-out) deferred but reasoned to fail**: rolling is an extension of H1 logic — it requires a trigger (typically a technical signal indicating trouble), and any such trigger fires after IV expansion. Rolling defers but does not eliminate loss; in continued multi-day declines (2008/2020/2022), each roll captures more credit but extends adverse exposure, eventually requiring capitulation at larger size.
+  - **Structural conclusion**: Naked short puts at small scale ($500k account) are dominated by IV-expansion-driven loss variance. No exit methodology — credit-based, technical-based, or rolling — can preempt this because IV expansion is itself the market's reaction to the type of move that hurts the position. The position takes the hit before any signal can fire to avoid it.
+- Risks / Counterarguments:
+  - We tested only ATR-normalized trend filter. Other technical signals (RSI, longer MA crossovers, VIX-spike triggers) might behave differently. However, the structural argument applies broadly: any lagging signal will fire after the move it tries to detect.
+  - Different rolling strategies (e.g., roll only on profit, roll on time decay) might have different properties; not all roll variants tested.
+- Confidence: high. Five rounds of research (R-20260508-09 through R-20260509-01) have systematically eliminated all reasonable variations. The thesis is structurally closed at this scale.
+- Next Tests: none. /ES naked put research line CLOSED.
+- Recommendation:
+  - **Q012, Q051, Q052 all CLOSED.** No further /ES naked put research at $500k account scale.
+  - **Maintain SPEC-061/086/088** as a 1-contract live data collection cell. This continues to provide value for: fill/slippage observation, SPAN visibility calibration (SPEC-088), operational learning. Cost is minimal.
+  - **Redirect all `/ES` research/spec capacity to `Q041`** (primary BP deployment efficiency axis per Q046).
+  - **Future revisit trigger**: if account NLV grows to ~$1.5M+, the original Phase 4 + BSH dynamic leverage thesis (R-20260508-12, statistically significant) becomes production-viable because peak SPAN concentration drops from 36-45% NLV to 12-15% NLV. SPEC-088 visibility data accumulated until then will help calibrate the leverage table to current SPX/SPAN reality.
+  - **Document the negative results** so future researchers don't waste time re-testing these dead branches.
+- **Closure framing (2nd Quant confirmed)**: This closure is **account-size conditional, not an absolute denial of /ES put-selling economics**. The thesis is rejected for the current $500k account and 1-contract production sizing, but may be revisited as a full dynamic-leverage + BSH system when account NLV reaches $1.5M+. Do not interpret this entry as "/ES naked puts永远不能做"; interpret it as "current account scale is structurally insufficient for this payoff family."
+- **Hard revisit gate (do not reopen between $500k–$1.5M)**:
+  - account NLV ≥ $1.5M, preferably $2M
+  - SPEC-088 has accumulated meaningful live SPAN observations across at least one stress event
+  - PM is willing to evaluate dynamic leverage table + BSH as **one inseparable system** (not as separate components)
+- **Most valuable structural insight from this research line**:
+  > IV expansion reprices tail risk faster than any lagging control system can respond.
+  This invalidates not just the current /ES variants, but applies broadly to **any naked-short-option strategy at small scale that relies on lagging price-based or trend-based exits**. Future researchers proposing new naked short option lines (e.g., XSP, futures options on other indices) should explicitly address this constraint before opening a research lane.
+- Related: `Q012`, `Q013`, `Q050`, `Q051`, `Q052`, `Q041`, `Q046`, `SPEC-061`, `SPEC-086`, `SPEC-088`
+- See: `research/q012/h3_delta_dte_grid.py`, `research/q012/h1_technical_exit.py`
+
+---
+
+### R-20260508-14 — Q052 opened: future `/ES` redesign branch after closure of the original thesis line
+
+- Topic: PM opened a new `/ES` redesign branch after `Q012/Q051` were formally closed at the current `$500k` account scale.
+- Findings:
+  - The original `/ES` thesis line is now closed for current-scale production ambition. The thesis is statistically valid only in its larger full-system form and is not production-plausible at the current account size.
+  - PM nevertheless identified three fresh future directions that are materially different from the original thesis and should be preserved as a separate branch rather than folded back into the closed line:
+    1. technical-risk-off exits instead of passive `3x / 4x credit` waiting
+    2. roll-down / roll-out management after those technical exits
+    3. very-far-OTM long-dated short puts as a different structural design
+  - Planner interpretation: this is a **new hypothesis family**, not a parameter tweak on the old thesis. It therefore deserves its own identifier (`Q052`) and should not keep `Q012/Q051` artificially open.
+- Risks / Counterarguments:
+  - None of the three directions has yet been validated; this is only a seed memo, not a near-spec finding.
+  - The branch should remain low priority behind `Q041` and current active implementation / runtime work.
+- Confidence: high on the branching decision; low on any one redesign direction until researched.
+- Next Tests:
+  - none by default
+  - if PM later promotes `/ES` redesign back into the active queue, Quant should choose one of the three directions as the first narrow research unit rather than mixing all three at once
+- Recommendation:
+  - Keep `Q052` open as a low-priority future research seed
+  - Keep `Q012/Q051` closed
+  - Keep active ROE-expansion focus on `Q041`
+- Related: `Q012`, `Q013`, `Q041`, `Q050`, `Q051`, `Q052`, `SPEC-061`, `SPEC-086`, `SPEC-088`
+
+---
+
+### R-20260508-13 — Q051 CLOSED: leverage-table recalibration FAILED; `/ES` thesis is scale-dependent, not production-viable at $500k account
+
+- Topic: Final outcome of the leverage-table recalibration study triggered by R-20260508-12. PM authorised the larger research path; this entry closes the question definitively.
+- Findings:
+  - **The thesis is statistically validated but scale-dependent**. The original Phase 4 + BSH (STOP=3.5) significance came from peak position sizes (22.4 contracts on 2008-12-31 at SPX 903, VIX 40) corresponding to **peak /ES SPAN ≈ $179k = 36–45% NLV** at $500k account size. This is the level required to make the thesis statistically work.
+  - **All conservative recalibrations (V1–V6) failed bootstrap significance**:
+    - V1 static 20% NLV SPAN cap → AnnROE -0.49%, CI [-464, +389] ❌
+    - V2 tiered 12-30% → AnnROE +0.61%, CI [-152, +400] ❌
+    - V4 very-conservative 6-15% → AnnROE +0.06%, CI [-45, +206] ❌
+    - V5 moderate 8-22% → AnnROE +0.41%, CI [-55, +291] ❌
+    - V6 V5 + $100k absolute cap → AnnROE +0.40%, CI [-56, +291] ❌
+  - **Root cause diagnosis**: The original thesis's significance was tied to the SPX OCC PM sizing model, which produced larger position sizes in low-SPX historical periods relative to the current /ES SPAN model (Phase A). When sizing is constrained to production-realistic SPAN budgets (≤ 35% NLV), the resulting per-trade contract counts are insufficient to overcome BSH cost drag and stop-loss variance. The thesis's alpha is not "VIX leverage scaling" per se, but rather "OCC-PM-permissive sizing in low-SPX historical regimes" — a regime that does not translate to current $500k production reality.
+  - **The thesis IS production-viable at larger scale**. The same absolute peak SPAN ($179k) becomes:
+    - 36% NLV at $500k (current) → unacceptable
+    - 18% NLV at $1M → borderline
+    - 9% NLV at $2M → fully viable
+  - **No further recalibration variant is likely to recover significance** without violating the SPAN concentration cap. The structural mismatch between OCC-PM-derived alpha and SPAN-realistic sizing is fundamental, not parametric.
+- Risks / Counterarguments:
+  - Research still uses SPX proxy infrastructure rather than true /ES historical options data; the SPAN model is calibrated to a single observed Schwab data point ($20,529 at VIX 19, SPX 5400) and may differ in extreme regimes.
+  - The "scale-dependent" conclusion assumes Schwab PM SPAN behaviour; broker-specific differences could shift the threshold account size.
+  - The thesis statistical validity is from a 26-year window dominated by historical low-SPX data; modern SPX-only validation would be a separate study.
+- Confidence: high on the structural conclusion (no recalibration recovers significance under reasonable SPAN caps); high on the scale-dependence framing.
+- Next Tests: none. This research line is closed.
+- Recommendation:
+  - **Q012/Q051 closed.** No further research investment in `/ES` thesis at current account size.
+  - **Maintain 1-contract observation cell** (SPEC-061/086/088 already deployed). This is the correct posture: low cost, generates real-fill data, calibrates SPAN visibility, and remains in place if account scales to $1.5–2M+ later.
+  - **Do not pursue Option B** (accept high peak SPAN at $500k). Margin call risk in 2008/2020-style events is unacceptable for the modest expected ROE benefit.
+  - **Q041 remains the primary BP deployment efficiency axis** (Q046 mechanism ranking confirmed). All `/ES` research/spec resources should redirect there.
+  - If account grows to $1.5–2M+ in the future, this research can be revisited; the SPEC-088 visibility surface will provide data to recalibrate parameters at that point.
+- Related: `Q012`, `Q013`, `Q050`, `Q051`, `Q041`, `Q046`, `SPEC-061`, `SPEC-086`, `SPEC-088`
+- See: `research/q012/full_thesis_rerun.py`, `research/q012/leverage_recalibration.py`
+
+---
+
+### R-20260508-12 — Q051 full-thesis rerun PASS: thesis validated in full-system form; leverage-table recalibration is the next blocker
+
+- Topic: final `/ES` full-thesis rerun after PM selected the larger research path rather than keeping the line at the 1-contract live-data-cell posture.
+- Findings:
+  - The thesis now **does validate statistically in full-system form**. Under the full dynamic system (`P4 + BSH`), bootstrap CI is positive-significant at:
+    - `STOP = 3.5x` → `[+31, +460]`
+    - `STOP = 4.0x` → `[+80, +515]`
+  - `STOP = 3.0x` remains borderline (`[-12, +404]`), which supports the idea that the full thesis is real but its economic robustness is sensitive near the tighter production stop.
+  - BSH economics are reversed relative to the `1`-contract path. At larger dynamic scale, BSH annual drag is only about `19%` of theta income and becomes economically sustainable. This confirms the earlier structural conclusion: BSH is not universally good or bad; it is **scale-dependent**.
+  - The line's bottleneck is no longer “is there any thesis left?” The new blocker is **production plausibility of the old leverage table**. Under current SPX / SPAN levels, the old table can imply `19–22` contracts, which is far too much concentrated SPAN exposure for a `$500k` account.
+  - Worst-year risk remains material: about `-19%` to `-26%` depending on config. This is not a rounding issue; it is a real PM risk-acceptance question.
+- Risks / Counterarguments:
+  - Research still depends on SPX proxy infrastructure rather than true historical `/ES` options data.
+  - A statistically valid full-system thesis is not yet a production-ready sleeve because leverage sizing remains mis-scaled for today's SPX level and margin reality.
+- Confidence: high on the thesis-validation result; medium-high on the next blocker identification.
+- Next Tests:
+  - a narrow Tier 1–2 recalibration study for the VIX leverage table under current SPX / SPAN conditions
+  - explicit outputs should include peak SPAN usage, contract-cap recommendations, and worst-year trade-offs
+- Recommendation:
+  - do not continue patching the current `1`-contract cell as if it were the thesis
+  - if PM wants to continue the `/ES` line, the next legitimate research unit is **leverage-table recalibration**, not another generic alpha pass
+- Related: `Q012`, `Q013`, `Q050`, `Q051`, `SPEC-061`, `SPEC-086`, `SPEC-088`
+
+### R-20260508-11 — Q051 final conclusion: `/ES` thesis survives only as a full-system hypothesis; current 1-contract path is a live-data cell
+
+- Topic: final research consolidation for the `/ES` line after the honest-parameter salvage pass, including STOP sensitivity, BSH economics, and the 2nd Quant review.
+- Findings:
+  - The most important conclusion is structural, not parametric: the current `1`-contract live deployment is **not the same strategy** as the original `/ES` thesis. The thesis depended on a larger integrated system (dynamic leverage + hedge financing + multi-slot structure). The current production path is best understood as a live-data / visibility / operational-calibration cell.
+  - BSH economics are now explicitly quantified as **scale-dependent**. At approximately `1` contract × `5` slots, annual theta income (`~$5k–$8k`) is not enough to economically carry annual BSH drag (`~$10k`). This means BSH is not a universal tail remedy for the `/ES` line; it only makes sense once the theta engine is large enough to finance it.
+  - Statistical significance does not recover under the current honest scale. `STOP = 3.0 / 3.5 / 4.0` remains non-significant; 2-contract diagnostics scale returns and variance proportionally and do not fix the distribution shape. The problem is therefore not “choose a slightly better parameter,” but “the current low-scale naked-put slice is structurally too weak.”
+  - Final high-level verdict: **the original `/ES` thesis is still alive only as a full-system hypothesis, while the current 1-contract path should be treated as a low-priority live-data / visibility cell**.
+- Risks / Counterarguments:
+  - This does not prove the full original thesis works. It only proves the current minimal cell is not a valid proxy for it.
+  - Any future full-thesis rerun still depends on SPX-proxy-based research infrastructure unless a truer `/ES` historical options path is added later.
+- Confidence: high on the structural conclusion; medium on the economic attractiveness of a future full-thesis rerun until it is actually executed.
+- Next Tests:
+  - only if PM authorizes it: full-thesis rerun with dynamic VIX leverage + STOP grid + BSH under the honest assumptions
+- Recommendation:
+  - PM should now choose between two explicit postures:
+    - **A)** keep `/ES` as a low-priority `1`-contract live-data / visibility cell
+    - **B)** authorize a full-thesis rerun as a real Tier 2–3 research investment
+  - do not continue incremental salvage patching on the current `1`-contract cell
+- Related: `Q012`, `Q013`, `Q050`, `Q051`, `SPEC-061`, `SPEC-086`, `SPEC-088`
+
+### R-20260508-10 — Q012/Q051 CLOSED: `/ES` thesis alive only as full-system hypothesis; 1-contract path reclassified as live-data cell
+
+- Topic: Final research conclusion from Phase 2 rerun + STOP sensitivity + Phase 4 BSH rerun + 2nd Quant review (two rounds). Q012 `/ES` shared-BP governance and Q051 `/ES` performance salvage now jointly closed as research-side completed questions.
+- Findings:
+  - **STOP sensitivity (Phase 2 filtered, 1 contract/slot, STOP = 3.0/3.5/4.0)**: Direction consistent across all three stops; STOP is not the primary bottleneck. STOP=4.0 CI nearly touches zero ([-20, +337]) but remains not significant. Thesis does not depend excessively on STOP assumption — the direction is robust, the scale is not.
+  - **Phase 4 BSH at 1-contract scale**: BSH is a net economic drag at 1-contract scale. Estimated annual BSH cost ≈ $10k vs annual theta income ≈ $5–8k at 1 contract × 5 slots. AnnROE drops from 1.08% (naked) to 0.34% (+ BSH) at STOP=3.0. Bootstrap CI is unchanged because BSH PnL flows through equity curve only, not through trade samples. BSH is not a universal tail remedy — it requires sufficient theta scale to be economically viable.
+  - **2-contract diagnostic**: Adding contracts scales PnL and variance proportionally; distribution shape (CI lower-bound sign) does not change. Statistical weakness is not a scale problem — it is a per-unit distribution quality problem.
+  - **Structural conclusion**: The original `/ES` thesis (trend-filtered short puts + VIX dynamic leverage table + BSH) cannot be separated into components. BSH requires the leverage table's scaling to be economically financed; the leverage table's alpha requires the full multi-slot system; neither survives in isolation at 1-contract production scale.
+  - **1-contract production deployment reclassified**: Current SPEC-061 1-contract cell is correctly understood as a live data collection / visibility cell, NOT a thesis validation path. It serves: fill/slippage observation, bot-alert behavior calibration, SPAN stress calibration (SPEC-088), and operational familiarity. It should not be cited as evidence for or against the full `/ES` thesis.
+  - **2nd Quant verdict (two rounds)**: B-minus / Conditional Alive. Thesis alive only in original full-system form (dynamic VIX leverage + BSH + trend filter + stop discipline). Current production-scale is structurally disconnected from thesis requirements.
+- Risks / Counterarguments:
+  - The full-thesis rerun (Phase 3/4 with STOP=3.0 grid) has not been executed. It remains possible that the full system still produces bootstrap-significant results under honest stop parameters — this would be a material positive finding.
+  - All research continues to use SPX proxy, not true `/ES` historical options data.
+- Confidence: high on the structural conclusion (1-contract is not the thesis). Medium on full-system potential — genuinely unknown until full-thesis rerun is done.
+- Next Tests (only if PM authorizes):
+  - Full-thesis rerun: Phase 3/4 dynamic leverage + STOP grid (3.0 / 3.5 / 4.0) + BSH payoff
+  - Must include: bootstrap CI, worst-year, stress windows (2008/2020/2022), BSH annual cost vs theta income, peak SPAN stress
+  - This is a PM-level research investment decision, not a default next step
+- Recommendation:
+  - **If PM does not authorize full-thesis rerun**: maintain 1-contract `/ES` as low-priority live-data cell; do not invest in governance complexity or treat it as ROE engine; keep Q050 as a standing governance research lane for when `/ES` scales materially.
+  - **If PM authorizes full-thesis rerun**: scope it as a single Tier 2–3 Quant study; do not open a Developer spec until bootstrap results are known.
+  - Either way: `/ES` should remain behind `Q041` in ROE priority (Q046 mechanism ranking confirmed Q041 as the primary BP deployment efficiency axis).
+- Related: `Q012`, `Q013`, `Q050`, `Q051`, `SPEC-061`, `SPEC-086`, `SPEC-088`
+- See: `research/q012/phase_sensitivity_and_bsh.py`, `task/q012_es_phase2_2nd_quant_review_packet_2026-05-08.md`
+
+---
+
+### R-20260508-09 — Q051 initial judgment: original `/ES` thesis may survive, but the current minimal cell is the wrong implementation
+
+- Topic: Quant-side initial judgment on whether the weak current `/ES` page result should be interpreted as a thesis failure or a cell-level implementation failure.
+- Findings:
+  - The weak current `/es-backtest` result should be treated as **real enough to matter**. Under the newly aligned assumptions — `3.0x` stop, fixed `1` contract, hybrid pricing, single-source `EsShortPutParams` — the current minimal `/ES` cell no longer looks statistically compelling.
+  - But this does **not** yet kill the broader original `/ES` thesis. Quant's current reading is: **original thesis still alive but current cell is the wrong implementation**.
+  - The weak result mainly invalidates the narrow current production-comparable slice:
+    - `45 DTE`
+    - `Δ0.20`
+    - single slot
+    - `1` contract
+    - `STOP_MULT = 3.0`
+  - The broader research idea still has plausible surviving components:
+    - trend filter as risk-control gate
+    - DTE laddering as the first place where old evidence became statistically positive
+    - BSH / Layer-3 tail payoff effects
+    - low-correlation diversification value relative to SPX Credit
+  - The biggest driver of the current weakness is not just the tighter stop. It is the combination of:
+    - tighter stop semantics (`4.0 -> 3.0`)
+    - and, more importantly, production-comparable downsizing from roughly `~2.44` implied contracts to `1` contract
+  - The most valuable next research step is therefore a **Phase 2 DTE ladder rerun under the honest assumptions**. This is the cleanest test of whether the broader thesis survives once the production-comparable constraints are enforced.
+- Risks / Counterarguments:
+  - The current page is still a proxy/hybrid research surface and not a full `/ES` historical options truth engine.
+  - A successful ladder rerun would not automatically justify implementation; it would only prove the thesis still has recoverable research value.
+- Confidence: medium-high. Strong enough to reprioritize the `/ES` research branch, not strong enough to open a new Spec.
+- Next Tests:
+  - rerun original Phase 2 DTE ladder under:
+    - `STOP_MULT = 3.0`
+    - `1` contract per slot
+    - hybrid pricing
+  - if needed after that:
+    - stop-level sensitivity (`3.0 / 3.5 / 4.0`)
+    - delta/DTE reselection
+- Recommendation:
+  - keep `Q051` research-only
+  - make the honest-parameter Phase 2 ladder rerun the next `/ES` branch-point question
+  - do not open a new `/ES` implementation Spec before that result exists
+- Related: `Q012`, `Q013`, `Q050`, `SPEC-061`, `SPEC-086`
+
+### R-20260508-08 — Q051 opened: reassess whether `/ES` still has salvageable edge under the new honest assumptions
+
+- Topic: the current `/es-backtest` surface now shows near-zero or slightly negative standalone performance for the minimal `/ES` cell (`45 DTE / Δ0.20 / trend filter ON`) after recent semantic-alignment work made the line more production-comparable.
+- Findings:
+  - The current weak page result appears directionally real, not cosmetic. Planner-side direct checks of the current backtest path are consistent with the displayed “Sharpe ~0 / ROE slightly negative” story.
+  - What this most directly invalidates is the **current minimal cell**, not necessarily the full original `/ES` thesis. The original research in `research/strategies/ES_puts` was broader: it included trend filtering, DTE laddering, leverage framing, and a larger multi-layer intuition rather than just “45d Δ0.20 single-slot always-on sleeve.”
+  - The recent `/ES` alignment changes matter here. The strategy is now being judged under stricter and more honest assumptions:
+    - `stop_mult = 3.0`
+    - `n_contracts = 1`
+    - shared parameter source via `strategy/es_params.py`
+    - current hybrid actual-pricing surface
+  - The right next question is therefore a salvage question, not a restart question: is there still a recoverable structural edge, and if so does it most likely live in DTE laddering, delta/DTE reselection, exit redesign, or narrower regime gating?
+- Risks / Counterarguments:
+  - The current page is still a proxy research surface and not a perfect `/ES` historical options truth engine.
+  - This entry should not be read as proof that the full `/ES` program is dead; only that the current production-comparable minimal implementation is weak enough to require a narrower Quant rethink.
+- Confidence: medium-high. Strong enough to open a dedicated research lane, not strong enough to close the `/ES` line entirely.
+- Next Tests:
+  - Quant should explicitly reassess the original `/ES` thesis under the new honest assumptions
+  - Priority should go to: DTE ladder revalidation, delta/DTE reselection, exit-structure review, and narrower regime gating
+- Recommendation:
+  - open a narrow Quant research lane (`Q051`) focused on `/ES` performance salvage
+  - do not open a new implementation Spec until Quant first determines whether there is still a real edge worth rescuing
+- Related: `Q012`, `Q013`, `Q050`, `SPEC-061`, `SPEC-086`
+
+### R-20260508-07 — SPEC-087 nav-label test debt cleaned up; no product behavior change
+
+- Topic: maintenance-only cleanup of the pre-existing `SPEC-087` test drift after nav wording had already moved from `Backtest` to `Port BT`.
+- Findings:
+  - The drift was real but narrow: two nav-related assertions in `tests/test_spec_087.py` still expected the old label even though the portfolio-home nav had already been intentionally simplified.
+  - The cleanup is now complete and should be treated as **test alignment only**, not as a product or routing change. No runtime behavior, write path, recommendation shape, or UI structure changed as part of this step.
+- Risks / Counterarguments:
+  - None material. This was straightforward pre-existing test debt and not evidence of a new regression.
+- Confidence: high.
+- Next Tests: none beyond the normal regression path; the important outcome is that this debt no longer distracts from the `/ES` / `Q012` / `SPEC-088` line.
+- Recommendation: treat the `SPEC-087` nav-label mismatch as closed maintenance debt.
+- Related: `SPEC-087`, `SPEC-088`
+
+### R-20260508-06 — /ES parameter unification implemented: 3.0x stop, fixed 1-contract sizing, single-source EsShortPutParams
+
+- Topic: Developer implemented the `/ES` semantic-alignment conclusions from the recent Quant audit so research, runtime, and monitoring now read the same core assumptions.
+- Findings:
+  - **Decision A is now implemented**: `backtest.py` stop semantics were aligned from `STOP_MULT = 4.0` to **`3.0`**, matching both `SPEC-061` (`-300% credit`) and the live alert semantics from `SPEC-086`. As expected, this makes the backtest more honest rather than “worse”: stop rate rose from `15.9%` to `27.8%`, which is the correct directional effect when the stop is no longer overly permissive.
+  - **Decision B is now implemented**: `/ES` research sizing for the production-comparable path is now fixed at **`1` contract** rather than inferred from `P1_BP_TARGET`. This closes the main production-vs-backtest mismatch for the current live scale and makes `/ES` replay outputs directly interpretable without hidden `~2.4x` contract assumptions.
+  - A new single-source parameter layer now exists at `strategy/es_params.py`. It defines the canonical `/ES` assumptions:
+    - `entry_dte = 45`
+    - `target_delta = 0.20`
+    - `stop_mult = 3.0`
+    - `profit_target = 0.10`
+    - `n_contracts = 1`
+    - `bp_limit_fraction = 0.20`
+  - Three consumer layers now read from the same source:
+    - `research/strategies/ES_puts/backtest.py`
+    - `notify/telegram_bot.py`
+    - `web/server.py`
+  - This is the first real closure of the “same `/ES` strategy described three different ways” problem. Future `/ES` parameter changes now have a clean single place to land.
+- Risks / Counterarguments:
+  - The first live `/ES` position is still needed to validate Schwab `mark` unit behavior and to compare real broker behavior against the newly aligned assumptions.
+  - Fixed `1`-contract sizing is the correct production-comparable mode for now, but future research sensitivity scans may still deliberately use alternate BP%-mode sizing; those should now be explicitly labeled as such.
+- Confidence: high. The semantic mismatch is now reduced materially at the code level, not only in documentation.
+- Next Tests:
+  - validate the first real `/ES` live position against the aligned `3.0x` stop semantics and `1`-contract sizing assumptions
+  - keep the future `/ES` stressed-SPAN visibility surface (`SPEC-088`) anchored to `EsShortPutParams`
+- Recommendation:
+  - treat `strategy/es_params.py` as the canonical `/ES` parameter source
+  - treat older `/ES` backtest outputs generated under `STOP_MULT = 4.0` or BP%-mode sizing as non-production-comparable history
+- Related: `Q012`, `Q013`, `SPEC-061`, `SPEC-086`
+
+### R-20260508-05 — /ES alignment audit: stop semantics must unify at 3.0, and production-comparable sizing is a 1-contract problem
+
+- Topic: Quant review of `/ES` parameter consistency across research, runtime, and support surfaces after the recent `/ES` implementation / monitoring work.
+- Findings:
+  - The alignment review is broadly **PASS** on the text/value cleanup side, with one implementation-sensitive caveat: if the server-side auto-search route was previously hardcoding `21` as the HIGH_VOL entry DTE while `StrategyParams` defaults imply `35`, then moving that path to the canonical default is the correct fix — but the next comparison run should explicitly confirm that HIGH_VOL search behavior still matches intent because this changes the parameter scan range.
+  - **Decision A** is now clear: `/ES` stop semantics should unify at **`3.0x credit`**, not `4.0x`. This is the only reading that is self-consistent across `SPEC-061` (“-300% credit / 3× premium”) and `SPEC-086` (bot TRIGGER at `ratio >= 3.0`). Any backtest still using `STOP_MULT = 4.0` is optimistic relative to production semantics and will understate stop frequency while overstating win rate and PnL.
+  - **Decision B** is also clearer after the audit: the real mismatch is not “10% vs 20%” in a simple sense, but **BP%-sized backtest versus production single-contract execution**. `P1_BP_TARGET = 0.10` is a research-side sizing target; `_ES_BP_LIMIT_FRACTION = 0.20` is a production account-level ceiling. Current production is effectively `1` contract (`~$20,529`, about `4.1%` NLV on `$500k`), so a backtest that sizes to `10%` is implicitly simulating about `2.4` contracts. That means current backtest results are not directly production-comparable unless they are explicitly normalized or rerun in a fixed-`1`-contract mode.
+  - The best long-run hardening move is not more checklist prose but a single `/ES` parameter source. Quant recommends introducing an `EsShortPutParams` dataclass so that backtest, selector/runtime, and bot/monitoring all read the same stop / DTE / delta / sizing / BP-limit assumptions.
+- Risks / Counterarguments:
+  - This is a semantic-alignment result, not yet an implementation result. The index should not imply that `STOP_MULT = 3.0` or fixed-1-contract replay is already live everywhere.
+  - The `high_vol_dte` alignment item still needs a next-run sanity check because parameter-source cleanup can change search surfaces even when it is conceptually correct.
+- Confidence: high on the semantic conclusions; medium on the exact implementation landing until the relevant engineering changes are made and rerun.
+- Next Tests:
+  - next `/ES` backtest comparison should verify the HIGH_VOL auto-search behavior after `high_vol_dte` default alignment
+  - a future engineering follow-up should align `/ES` backtest stop semantics to `3.0x`
+  - production-comparable `/ES` reporting should prefer fixed `1`-contract replay or make BP%-mode assumptions explicit
+- Recommendation:
+  - treat `/ES` stop semantics as canonically `3.0x credit`
+  - treat the sizing mismatch as a **1-contract-vs-BP%-mode** issue, not a “20% limit means double the current target” issue
+  - consider a future engineering hardening follow-up around `EsShortPutParams`
+- Related: `Q012`, `Q013`, `SPEC-061`, `SPEC-086`
+
+### R-20260508-04 — Q050 opened: preserve the full portfolio-level shared-BP governance question as its own research lane
+
+- Topic: PM correctly pushed back on a purely patchwise interpretation of `/ES` follow-up work. After `Q012 Phase C` narrowed the **current** `/ES` implementation target to stressed-SPAN visibility, the project still needed a separate place to hold the **larger** portfolio-governance question: how should scarce PM buying power be governed once multiple sleeves materially compete for it?
+- Findings:
+  - `Q012` and the future `SPEC-088` are now the right home for the current-scale `/ES` problem only: a live `1`-contract `/ES` sleeve needs better post-entry SPAN visibility, not a full allocator.
+  - That narrowing should **not** be mistaken for a dismissal of the global research problem. The platform is already moving toward a multi-sleeve posture (`Q041`, `Q045`, `Q046`, `Q048`), and future coexistence among `/ES`, SPX Credit, capital-fill sleeves, and later candidates will eventually require an explicit governance philosophy.
+  - The right planning move is therefore separation, not expansion: keep the current implementation narrow, and open a distinct research lane (`Q050`) for portfolio-level shared-BP governance principles, sleeve taxonomy, scale triggers, stress hierarchy, and research-vs-platform boundary decisions.
+- Risks / Counterarguments:
+  - Opening `Q050` should not be misread as reopening a large implementation project or as a reason to widen `Q012`.
+  - The governance philosophy is not yet frozen, and forcing it into current runtime code would prematurely harden research-side semantics.
+- Confidence: high. Strong enough to change planning structure now by separating the narrow implementation target from the long-horizon research question.
+- Next Tests: none immediately required for implementation. `Q050` should remain a standing Quant-side global research lane until live scale or multi-sleeve coexistence materially increases.
+- Recommendation: preserve `Q050` as the explicit home for full portfolio-level shared-BP thinking while letting `Q012/SPEC-088` remain deliberately small and current-scale.
+- Related: `Q012`, `Q041`, `Q045`, `Q046`, `Q048`
+- See: `doc/q050_portfolio_shared_bp_governance_framework_seed_memo_2026-05-08.md`
+
+### R-20260508-03 — Q012 Phase C reframed the `/ES` lane: current-scale need is SPAN visibility, not a full shared-BP governance engine
+
+- Topic: Quant Phase C on `/ES` vs SPX Credit shared-BP governance — compare architecture choices at current live scale and decide whether a true governance framework is justified now.
+- Findings:
+  - Phase C produced the key reframing. At current size (`1` `/ES` contract on a `$500k` account), governance architecture choice barely moves account-level outcomes. The tested architectures (`Arch-1` simple overlay, `Arch-2` dynamic-budget stress-adjusted, `Arch-3` regime-gated) all land within about `±0.01pp` of baseline account-level ROE. This is not a “pick the best rule” problem; it is a “the sleeve is too small for architecture to matter much” problem.
+  - The most counterintuitive result is that the earlier Phase B intuition does **not** survive when tested at book level. `HIGH_VOL` collision is real and structurally dangerous in the abstract, but the regime-gated architecture (`Arch-3`) performs worst because it removes the very periods where `/ES` premium is richest while not delivering a meaningful account-level improvement at current size.
+  - SPAN expansion risk remains real and visible: `82 / 158` `/ES` trades see SPAN expansion beyond `1.5x`, and the maximum observed expansion reaches `6.74x` (`~$138k`, roughly `27%` NLV) in COVID-style stress. But at current `1`-contract size this is primarily a **monitoring / visibility** problem, not yet a full governance-architecture problem.
+  - The real threshold question is scale. For `1` contract (`~4%` NLV) the governance complexity is not justified. Around `3` contracts (`~12%`) simple rules may become warranted. Around `5` contracts (`~20%`) or more, a true shared-BP governance framework becomes justified, and `Arch-2` (dynamic budget + stress correction) is the preferred candidate for that future state.
+- Risks / Counterarguments:
+  - Phase C still depends on modeled rather than broker-certified real-time Schwab behavior.
+  - The precise threshold bands from Phase A (`VIX 22/30/40`, `1.3x/1.6x/2.0x`) still need real live calibration before being treated as production-grade control parameters.
+  - This conclusion is valid for current size; it should not be overgeneralized to a future `/ES` sleeve that is materially larger.
+- Confidence: medium-high. Strong enough to change planning posture now: shrink the implementation target from “governance framework” to “SPAN post-entry visibility.”
+- Next Tests: first real `/ES` live position remains the best calibration source for Schwab `mark` semantics and practical stressed-BP behavior. Future governance-spec work should reopen only if `/ES` scales up materially or live Schwab data exposes materially different stress dynamics.
+- Recommendation: do **not** open a broad shared-BP governance spec now. Open only a narrow monitoring-layer spec: when an `/ES` live position exists, show current estimated stressed SPAN versus static entry SPAN. Defer the full governance framework until `/ES` grows into a materially competing sleeve (`3–5+` contracts) and live Schwab behavior has been observed.
+- Related: `Q012`, `Q013`, `SPEC-061`, `SPEC-086`
+- See: `doc/q012_shared_bp_governance_clarification_seed_memo_2026-05-08.md`
+
+### R-20260508-02 — Q012 Phase A+B: shared-BP governance between `/ES` and SPX Credit is now clear enough for a narrow DRAFT Spec
+
+- Topic: Quant Phase A+B on `/ES` shared-BP governance — convert SPAN expansion and same-day collision from a vague runtime concern into a concrete rule recommendation.
+- Findings:
+  - **Phase A (SPAN expansion)** now provides a usable stress model. New-entry `/ES` SPAN rises from about `$20,529` at `VIX 19` to `$33,853` at `VIX 30`, `$46,541` at `VIX 40`, and `$73,367` at `VIX 60`. On a held position, 10-day stressed SPAN rises even more sharply (`$46,107` at `VIX 30`, `$70,533` at `VIX 40`, `$117,456` at `VIX 60`). This is enough to justify explicit stress-adjusted BP estimation rather than static `$20,529` usage.
+  - Recommended **pre-entry** BP estimates are now regime-banded: `VIX < 22` use static `$20,529`; `VIX 22–30` use `1.3x`; `VIX 30–40` use `1.6x`; `VIX > 40` use `2.0x`.
+  - Recommended **post-entry** SPAN correction is also explicit: no correction below `VIX 22`; `1.4x` in `VIX 22–30`; `1.8x` above `VIX 30`.
+  - **Phase B (same-day collision)** invalidates the old “collision is probably rare” instinct. Under the tested overlap logic, `/ES` bullish days occur `62.1%` of the time, SPX Credit entry days `71.9%`, and collisions on `39.1%` of days (`~1,901`, roughly `98`/year). More importantly, modeled cap breach on collision is `100%` in `HIGH_VOL (VIX 25–35)` and `EXTREME_VOL (VIX > 35)`, `21.1%` in `NORMAL`, and `0%` in `LOW_VOL`.
+  - This is strong enough to change the governance recommendation itself. The correct narrow landing shape is now:
+    - `VIX < 25` → **Rule A+**: preserve shared-BP cap, but evaluate new `/ES` entries with stress-adjusted BP
+    - `VIX >= 25` → **Rule D**: if SPX Credit already has an active position, `/ES` must not newly open
+    - if `/ES` is already open and VIX rises, enforce the post-entry SPAN correction before allowing new SPX Credit usage against the same pool
+  - **Rule B (reserved sub-budget)** is not preferred. The main issue is not “`/ES` needs a permanent bucket,” but “simultaneous activity becomes structurally unsafe once volatility crosses into `HIGH_VOL`.”
+- Risks / Counterarguments:
+  - Phase B still used an SPX Credit **proxy model**, not the final canonical engine path.
+  - The thresholds (`VIX 25`, `1.4x`, etc.) are now implementation-ready in direction, but should be treated as calibratable rather than sacred constants.
+  - First-live `/ES` runtime data is still useful to validate Schwab `mark` unit and the practical BP stress posture against real broker behavior.
+- Confidence: medium-high. Strong enough for a narrow governance spec; not a reason to widen into a joint allocator or to reopen `/ES` alpha research.
+- Next Tests: package the rule set into a narrow DRAFT Spec; preserve live Schwab calibration as a runtime follow-up rather than as a blocker to spec entry.
+- Recommendation: `Q012` is now **ready for a narrow DRAFT Spec** centered on three rules only: pre-entry stress-adjusted BP, `VIX >= 25` regime-priority block on new `/ES` entries when SPX Credit is active, and post-entry SPAN correction for already-open `/ES` positions.
+- Related: `Q012`, `Q013`, `SPEC-061`, `SPEC-086`
+- See: `doc/q012_shared_bp_governance_clarification_seed_memo_2026-05-08.md`
 
 ### R-20260508-01 — PM-accurate margin breakdown: homepage BP must use PM-style max-loss/equity proxies, not Reg-T spread math
 
@@ -1052,90 +1435,8 @@ Owner: Planner or PM
 - Related Question: `N/A`
 - See: `doc/strategy_status_2026-04-10.md`
 
-### R-20260329-01 — BPS holding-period IVP stop losses are harmful
+---
 
-- Topic: BPS and BPS_HV holding-period exits based on high IVP
-- Findings: both generic `IVP > threshold` exits and IVP spike exits degraded global PnL in full-history tests
-- Risks / Counterarguments: individual loss cases can still look compelling, which may tempt overfitting on memorable examples
-- Confidence: high
-- Next Tests: focus BPS risk management research on entry filtering rather than holding-period panic exits
-- Recommendation: drop
-- Related Spec: `N/A`
-- See: `doc/research_notes.md`
-
-### R-20260329-02 — Bear Call Diagonal has no useful bullish trend-flip exit
-
-- Topic: Testing a symmetric exit rule for Bear Call Diagonal
-- Findings: bullish trend signals appeared in both winners and losers, so the rule could not separate good trades from bad ones
-- Risks / Counterarguments: small sample size means nuance may still exist, but current evidence does not justify a production rule
-- Confidence: medium
-- Next Tests: if revisited, focus on entry filters rather than holding-period trend exits
-- Recommendation: drop
-- Related Spec: `N/A`
-- See: `doc/research_notes.md`
-
-### R-20260328-01 — BPS_HV DTE must remain well above exit threshold
-
-- Topic: HIGH_VOL BPS_HV DTE correction
-- Findings: entering at the same DTE as the roll threshold caused near-immediate exits; increasing `high_vol_dte` from 21 to 35 materially improved results
-- Risks / Counterarguments: the rule is robust, but future parameter tuning should still be checked against actual effective holding days
-- Confidence: high
-- Next Tests: treat `DTE_entry - DTE_exit_threshold` as a required validation check for future strategy variants
-- Recommendation: hold
-- Related Spec: `N/A`
-- See: `doc/research_notes.md`
-
-### R-20260328-02 — HIGH_VOL should use BPS_HV, not LEAP
-
-- Topic: Strategy choice in HIGH_VOL environments
-- Findings: replacing directional LEAP exposure with `BPS_HV` aligned the system with theta-income logic, reduced model fragility, and produced controllable risk under stressed vol
-- Risks / Counterarguments: HIGH_VOL remains inherently harder to trade, so even the improved structure still needs tighter risk posture and size discipline
-- Confidence: high
-- Next Tests: keep the `EXTREME_VOL` hard stop and validate any future HIGH_VOL changes against stressed periods first
-- Recommendation: hold
-- Related Spec: `N/A`
-- See: `doc/research_notes.md`
-
-### R-20260328-03 — IVR and IVP disagreements should defer to IVP
-
-- Topic: Handling IV regime misclassification after extreme volatility spikes
-- Findings: when `|IVR - IVP| > 15`, IVR can be distorted by old regime peaks; IVP gave more reliable current-state classification and should drive the decision with adjusted thresholds
-- Risks / Counterarguments: threshold choice may still need revision if future VIX regimes differ materially from the calibration period
-- Confidence: medium
-- Next Tests: monitor future misclassification cases and revisit the divergence threshold only if repeated false regime calls appear
-- Recommendation: hold
-- Related Spec: `N/A`
-- See: `doc/research_notes.md`
-
-### R-20260328-04 — min_hold_days and 50 percent profit target are structural, not cosmetic
-
-- Topic: Why early profit capture still needs a minimum holding window
-- Findings: the 50 percent profit target remains reasonable for premium-selling logic, but `min_hold_days = 10` is needed to prevent luck-driven 1 to 3 day exits from distorting utilization and Sharpe
-- Risks / Counterarguments: fixed holding windows can occasionally delay legitimate exits, so future exceptions should only be added with strong evidence
-- Confidence: medium
-- Next Tests: any proposal to bypass `min_hold_days` should be validated with sequential trade behavior, not just static snapshots
-- Recommendation: hold
-- Related Spec: `N/A`
-- See: `doc/research_notes.md`
-
-### R-20260328-05 — SPEC-1B seven-day fast exit should stay rejected
-
-- Topic: Evaluating a true 7-day fast exit path for DIAGONAL
-- Findings: after fixing `_entry_value`, the seven-day fast-exit rule never triggered in the examined sample; the study also exposed that the previous pricing bug had artificially inflated early DIAGONAL pnl
-- Risks / Counterarguments: the result depends on correct pricing logic, so future engine regressions could create misleading support for the rule again
-- Confidence: high
-- Next Tests: keep `_entry_value` correctness part of regression checks before reconsidering any fast-exit variant
-- Recommendation: drop
-- Related Spec: `SPEC-1B`
-- See: `doc/research_notes.md`
-
-### R-20260329-03 — Sequential replacement breaks naive entry-confirmation filters
-
-- Topic: Bear Call Diagonal filter based on five consecutive bullish days
-- Findings: static prototype logic suggested filtering could help, but sequential backtests showed the rule mainly delayed entry into the same regime at worse prices rather than removing bad trades
-- Risks / Counterarguments: this lesson is strategy-structure dependent, but it is a strong warning against promoting static feature correlations directly into production filters
-- Confidence: high
-- Next Tests: for future entry filters, require sequential replacement analysis before approval
-- Recommendation: drop
-- Related Spec: `SPEC-005`
-- See: `doc/research_notes.md`
+> **Archive note (2026-05-09):** Entries from 2026-03 and earlier have been moved to
+> `doc/research_log_archive_pre_2026-04.md` to keep this file scannable.
+> The archived entries are: R-20260328-01 through R-20260329-03 (8 entries).
