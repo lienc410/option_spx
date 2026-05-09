@@ -75,7 +75,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   margin-bottom: 10px; margin-top: 24px;
 }
 
-.metric-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin-bottom: 24px; }
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; margin-bottom: 24px; }
 .metric-card { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 14px 16px; }
 .metric-label { font-family: var(--f-ui); font-size: 0.60rem; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px; }
 .metric-value { font-family: var(--f-mono); font-size: 1.10rem; color: var(--text); }
@@ -514,7 +514,8 @@ function renderMetrics(s, label, color) {
   const pnl   = typeof s.total_pnl     === 'number' ? '$'+Math.round(s.total_pnl).toLocaleString() : '—';
   const sharp = typeof s.sharpe        === 'number' ? s.sharpe.toFixed(2) : '—';
   const dd    = typeof s.max_drawdown_pct === 'number' ? s.max_drawdown_pct.toFixed(1)+'%' : '—';
-  const ann   = typeof s.ann_return_pct   === 'number' ? s.ann_return_pct.toFixed(1)+'%' : '—';
+  const ann   = typeof s.ann_return_pct === 'number' ? (s.ann_return_pct * 100).toFixed(2)+'%' : '—';
+  const annNum = typeof s.ann_return_pct === 'number' ? s.ann_return_pct * 100 : null;
 
   return `
     <div class="section-label">${label}</div>
@@ -530,17 +531,22 @@ function renderMetrics(s, label, color) {
       <div class="metric-card">
         <div class="metric-label">Stop Rate</div>
         <div class="metric-value ${s.stop_rate_pct>20?'down':'warn'}">${stop}</div>
-        <div class="metric-sub">3× credit trigger</div>
+        <div class="metric-sub">3× credit stop</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Profit Target</div>
         <div class="metric-value">${s.profit_target_pct?.toFixed(1)+'%' || '—'}</div>
-        <div class="metric-sub">90% credit captured</div>
+        <div class="metric-sub">90% credit</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Total PnL</div>
         <div class="metric-value ${s.total_pnl>0?'up':'down'}">${pnl}</div>
         <div class="metric-sub">SPX-equiv $</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Ann. ROE</div>
+        <div class="metric-value ${annNum != null ? (annNum>=3?'up':annNum>=1?'warn':'down') : ''}">${ann}</div>
+        <div class="metric-sub">CAGR on NLV</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Sharpe</div>
