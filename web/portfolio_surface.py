@@ -1,16 +1,36 @@
 from __future__ import annotations
 
 import json
+import logging
+import math
 import os
 from datetime import date
 from pathlib import Path
 from typing import Any
+
+from backtest.pricer import find_strike_for_delta, put_price
+
+log = logging.getLogger(__name__)
 
 
 ATTRIBUTION_FILE = Path(__file__).resolve().parent.parent / "data" / "q041_portfolio_attribution_latest.json"
 
 
 _SLEEVE_SOURCE = "doc/q041_execution_prep_packet_2026-05-05.md"
+_ES_BP_PER_CONTRACT = 20_529.0
+_ES_MULTIPLIER = 50.0
+_ES_CALIB_VIX = 19.0
+_ES_CALIB_SPAN = 20_529.0
+_ES_CALIB_PRICE = 5_400.0
+_ES_TARGET_DELTA = 0.20
+_ES_ENTRY_DTE = 45
+_ES_VOL_SHOCK = 0.50
+_ES_SCAN_EXPONENT = 1.10
+_ES_VISIBILITY_NOTE = (
+    "This is a model-based stress estimate only. It is not a trade recommendation "
+    "or a risk management directive."
+)
+_ES_VISIBILITY_NOTE_ZH = "以下数据为基于 Q012 模型的估算值，仅供参考。不构成任何交易建议或风险管理指令。"
 
 
 def _num(value: Any) -> float | None:
@@ -20,6 +40,141 @@ def _num(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _int(value: Any) -> int | None:
+    number = _num(value)
+    if number is None:
+        return None
+    return int(number)
+
+
+def _days_to_expiry(value: Any) -> int | None:
+    if not value:
+        return None
+    try:
+        return max((date.fromisoformat(str(value)) - date.today()).days, 0)
+    except ValueError:
+        return None
+
+
+def _is_es_short_put_state(state: dict | None) -> bool:
+    if not state:
+        return False
+    strategy_key = str(state.get("strategy_key") or "").strip().lower()
+    if strategy_key == "es_short_put":
+        return True
+    underlying = str(state.get("underlying") or "").strip().upper()
+    strategy = str(state.get("strategy") or "").lower()
+    return underlying == "/ES" and "short put" in strategy
+
+
+def _es_stress_band(vix: float | None) -> str:
+    if vix is None:
+        return "unavailable"
+    if vix < 22.0:
+        return "normal"
+    if vix <= 30.0:
+        return "stress"
+    if vix <= 40.0:
+        return "extreme"
+    return "crisis"
+
+
+def _es_stress_status(ratio: float | None) -> str:
+    if ratio is None:
+        return "unavailable"
+    if ratio < 1.3:
+        return "ok"
+    if ratio <= 1.8:
+        return "elevated"
+    return "high_stress"
+
+
+def _es_base_scan_pct() -> float:
+    """
+    Back out the implied price-shock fraction (`scan_pct`) that, combined with
+    the volatility shock at the calibration VIX (19), reproduces the observed
+    Schwab SPAN baseline ($20,529 per /ES contract). Binary-searched once at
+    first use; result is cached in `_ES_BASE_SCAN_PCT_CACHE`.
+    Used as the calibration anchor for `_estimate_es_existing_span`.
+    """
+    sigma0 = _ES_CALIB_VIX / 100.0
+    strike = find_strike_for_delta(_ES_CALIB_PRICE, _ES_ENTRY_DTE, sigma0, _ES_TARGET_DELTA, is_call=False)
+    premium = put_price(_ES_CALIB_PRICE, strike, _ES_ENTRY_DTE, sigma0)
+    target = _ES_CALIB_SPAN / _ES_MULTIPLIER
+    lo, hi = 0.01, 0.35
+    for _ in range(80):
+        mid = (lo + hi) / 2.0
+        stressed_sigma = sigma0 * (1.0 + _ES_VOL_SHOCK)
+        stressed_price = _ES_CALIB_PRICE * (1.0 - mid)
+        stressed_premium = put_price(stressed_price, strike, _ES_ENTRY_DTE, stressed_sigma)
+        value = max(stressed_premium - premium, 0.0) + premium
+        if value < target:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2.0
+
+
+# Lazy-cached: avoids module-import-time crash if pricer raises with edge inputs.
+_ES_BASE_SCAN_PCT_CACHE: float | None = None
+
+
+def _get_es_base_scan_pct() -> float:
+    global _ES_BASE_SCAN_PCT_CACHE
+    if _ES_BASE_SCAN_PCT_CACHE is None:
+        try:
+            _ES_BASE_SCAN_PCT_CACHE = _es_base_scan_pct()
+        except Exception:
+            log.exception("portfolio_surface: _es_base_scan_pct failed; falling back to 0.07")
+            _ES_BASE_SCAN_PCT_CACHE = 0.07  # ~7% empirical default; surface falls back gracefully
+    return _ES_BASE_SCAN_PCT_CACHE
+
+
+def _estimate_es_existing_span(*, current_price: float, current_vix: float, strike: float, dte: int) -> float:
+    """Q012 Phase A Model A2: re-mark an existing fixed-strike /ES short put."""
+    sigma = max(current_vix / 100.0, 0.01)
+    dte = max(int(dte), 1)
+    current_premium = put_price(current_price, strike, dte, sigma)
+    scan_pct = _get_es_base_scan_pct() * (current_vix / _ES_CALIB_VIX) ** _ES_SCAN_EXPONENT
+    stressed_sigma = sigma * (1.0 + _ES_VOL_SHOCK)
+    stressed_price = current_price * (1.0 - scan_pct)
+    stressed_premium = put_price(stressed_price, strike, dte, stressed_sigma)
+    return max(stressed_premium - current_premium, 0.0) * _ES_MULTIPLIER + current_premium * _ES_MULTIPLIER
+
+
+def _current_vix_value() -> tuple[float | None, str | None]:
+    try:
+        from schwab.client import get_vix_quote
+
+        quote = get_vix_quote()
+        vix = _num(quote.get("last")) or _num(quote.get("close"))
+        if vix is not None and vix > 0:
+            return vix, "schwab_vix_quote"
+    except Exception:
+        log.warning("portfolio_surface: schwab VIX quote failed", exc_info=True)
+    return None, None
+
+
+def _current_es_price_value(state: dict) -> tuple[float | None, str | None]:
+    for key in ("current_es", "current_underlying_price"):
+        value = _num(state.get(key))
+        if value is not None and value > 0:
+            return value, f"state.{key}"
+    try:
+        from schwab.client import get_spx_quote
+
+        quote = get_spx_quote()
+        price = _num(quote.get("last")) or _num(quote.get("close"))
+        if price is not None and price > 0:
+            return price, "schwab_spx_quote_proxy"
+    except Exception:
+        log.warning("portfolio_surface: schwab SPX quote failed", exc_info=True)
+    entry_price = _num(state.get("entry_spx"))
+    if entry_price is not None and entry_price > 0:
+        return entry_price, "state.entry_spx_fallback"
+    return None, None
 
 
 def _attribution_path() -> Path:
@@ -347,4 +502,114 @@ def attribution_payload() -> dict:
         "source": str(path),
         "semantics": "read-only carrier for Quant-provided attribution artifact",
         **payload,
+    }
+
+
+def es_stressed_span_payload() -> dict:
+    """Read-only /ES stressed-SPAN visibility surface. No gating or broker action."""
+    from strategy.state import read_state
+
+    base = {
+        "surface": "es_stressed_span",
+        "semantics": "post-entry stress visibility only; not trade instruction",
+        "model": "Q012 Phase A Model A2 existing-position SPAN estimate",
+        "disclaimer": _ES_VISIBILITY_NOTE,
+        "disclaimer_zh": _ES_VISIBILITY_NOTE_ZH,
+        "has_es_live_position": False,
+        "entry_static_span": None,
+        "current_estimated_stressed_span": None,
+        "stress_ratio": None,
+        "stress_band": "unavailable",
+        "status": "unavailable",
+        "notes": [],
+    }
+
+    state = read_state()
+    if not _is_es_short_put_state(state):
+        return {
+            **base,
+            "reason": "no_active_es_short_put",
+            "notes": ["No active /ES short put state is recorded."],
+        }
+
+    contracts = max(_num(state.get("contracts")) or 1.0, 1.0)
+    entry_static_span = _ES_BP_PER_CONTRACT * contracts
+    strike = _num(state.get("short_strike"))
+    dte = _days_to_expiry(state.get("expiry"))
+    if dte is None:
+        dte = _int(state.get("dte_at_entry"))
+    current_vix, vix_source = _current_vix_value()
+    current_price, price_source = _current_es_price_value(state)
+
+    missing = []
+    if strike is None or strike <= 0:
+        missing.append("short_strike")
+    if dte is None:
+        missing.append("dte")
+    if current_vix is None:
+        missing.append("current_vix")
+    if current_price is None:
+        missing.append("current_es_price")
+
+    if missing:
+        return {
+            **base,
+            "has_es_live_position": True,
+            "entry_static_span": round(entry_static_span, 2),
+            "status": "insufficient_data",
+            "reason": "missing_inputs",
+            "missing_inputs": missing,
+            "inputs": {
+                "short_strike": strike,
+                "dte": dte,
+                "current_vix": current_vix,
+                "current_es_price": current_price,
+                "contracts": contracts,
+                "vix_source": vix_source,
+                "price_source": price_source,
+            },
+            "notes": ["Insufficient inputs to estimate current stressed SPAN."],
+        }
+
+    stressed_span_per_contract = _estimate_es_existing_span(
+        current_price=float(current_price),
+        current_vix=float(current_vix),
+        strike=float(strike),
+        dte=int(dte),
+    )
+    if not math.isfinite(stressed_span_per_contract) or stressed_span_per_contract <= 0:
+        return {
+            **base,
+            "has_es_live_position": True,
+            "entry_static_span": round(entry_static_span, 2),
+            "status": "insufficient_data",
+            "reason": "invalid_model_output",
+            "notes": ["Model output was invalid for the current input set."],
+        }
+
+    stressed_span = stressed_span_per_contract * contracts
+    ratio = stressed_span / entry_static_span if entry_static_span > 0 else None
+    band = _es_stress_band(float(current_vix))
+    status = _es_stress_status(ratio)
+    return {
+        **base,
+        "has_es_live_position": True,
+        "entry_static_span": round(entry_static_span, 2),
+        "current_estimated_stressed_span": round(stressed_span, 2),
+        "stress_ratio": round(ratio, 3) if ratio is not None else None,
+        "stress_band": band,
+        "status": status,
+        "inputs": {
+            "short_strike": float(strike),
+            "dte": int(dte),
+            "current_vix": round(float(current_vix), 2),
+            "current_es_price": round(float(current_price), 2),
+            "contracts": contracts,
+            "vix_source": vix_source,
+            "price_source": price_source,
+        },
+        "notes": [
+            "Uses static entry SPAN baseline $20,529 per contract.",
+            "Uses SPX quote as /ES proxy when no direct /ES price is recorded.",
+        ],
     }

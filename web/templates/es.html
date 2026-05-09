@@ -210,6 +210,25 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .action-btn.primary { border-color: var(--orange-border); background: var(--orange-bg); color: var(--orange); }
 .action-btn:hover { background: var(--border-2); }
 
+/* ── Stressed SPAN visibility ── */
+.span-card {
+  background: var(--surface); border: 1px solid var(--border-2);
+  border-left: 3px solid var(--border-2); border-radius: 9px;
+  padding: 16px 20px; margin-bottom: 12px;
+}
+.span-card.status-ok { border-left-color: var(--green-border); }
+.span-card.status-elevated { border-left-color: var(--orange-border); }
+.span-card.status-high_stress { border-left-color: var(--red-border); }
+.span-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+.span-cell { background: var(--surface-hi); border: 1px solid var(--border); border-radius: 7px; padding: 10px 11px; }
+.span-k { font-family: var(--f-ui); font-size: 0.56rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.10em; color: var(--text-muted); margin-bottom: 5px; }
+.span-v { font-family: var(--f-mono); font-size: 0.90rem; color: var(--text); }
+.span-v.ok { color: var(--green); }
+.span-v.elevated { color: var(--orange); }
+.span-v.high_stress { color: var(--red); }
+.span-note { font-family: var(--f-ui); font-size: 0.66rem; color: var(--text-2); line-height: 1.45; }
+.span-disclaimer { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-family: var(--f-ui); font-size: 0.62rem; color: var(--text-muted); font-style: italic; }
+
 /* ── Modal ── */
 .modal-wrap { position: fixed; inset: 0; background: rgba(8,10,19,0.82); z-index: 200; display: flex; align-items: center; justify-content: center; }
 .modal-wrap.hidden { display: none; }
@@ -319,6 +338,13 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   </div>
   <div id="pos-actions" class="pos-actions"></div>
 
+  <!-- Stressed SPAN visibility -->
+  <div class="section-label" style="margin-top:18px">Stressed SPAN Visibility</div>
+  <div class="span-card" id="span-card">
+    <div class="pos-header">Post-entry stress estimate · read-only</div>
+    <div id="span-body"><div class="pos-none">Loading…</div></div>
+  </div>
+
   <!-- Deferred: performance history -->
   <div class="deferred-card">
     <span class="deferred-badge">Deferred</span>
@@ -344,6 +370,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 <script>
 function fmtNum(n, d) { return typeof n === 'number' ? n.toFixed(d ?? 1) : '—'; }
 function fmtPrice(n) { return typeof n === 'number' ? n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—'; }
+function fmtMoney(n) { return typeof n === 'number' ? '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—'; }
 
 function sigChip(label, value, cls, note) {
   const n = note ? `<span class="sig-chip-note">${note}</span>` : '';
@@ -511,6 +538,53 @@ async function loadPosition() {
   } catch (_) {
     posCard.className = 'position-card no-pos';
     posBody.innerHTML = '<div class="pos-none">Position data unavailable</div>';
+  }
+}
+
+// ── Load stressed-SPAN visibility ────────────────────────────────────────────
+async function loadStressedSpan() {
+  const card = document.getElementById('span-card');
+  const body = document.getElementById('span-body');
+  try {
+    const res = await fetch('/api/es/stressed-span');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const d = await res.json();
+    const status = String(d.status || 'unavailable');
+    card.className = 'span-card status-' + status;
+
+    if (!d.has_es_live_position) {
+      body.innerHTML = `
+        <div class="pos-none">No active /ES live position. Stress visibility becomes available after entry.</div>
+        <div class="span-disclaimer">${d.disclaimer || 'Model-based stress estimate only; not a trade recommendation.'}</div>`;
+      return;
+    }
+    if (status === 'insufficient_data' || status === 'unavailable') {
+      const missing = (d.missing_inputs || []).join(', ') || d.reason || 'input unavailable';
+      body.innerHTML = `
+        <div class="pos-none">Stressed SPAN unavailable — ${missing}</div>
+        <div class="span-disclaimer">${d.disclaimer || 'Model-based stress estimate only; not a trade recommendation.'}</div>`;
+      return;
+    }
+
+    // Default to '' (neutral) for unknown statuses; only color-code recognized values
+    const knownStatusCls = { ok: 'ok', elevated: 'elevated', high_stress: 'high_stress' };
+    const cls = knownStatusCls[status] || '';
+    const inputs = d.inputs || {};
+    body.innerHTML = `
+      <div class="span-grid">
+        <div class="span-cell"><div class="span-k">Entry Static SPAN</div><div class="span-v">${fmtMoney(d.entry_static_span)}</div></div>
+        <div class="span-cell"><div class="span-k">Current Stressed SPAN</div><div class="span-v ${cls}">${fmtMoney(d.current_estimated_stressed_span)}</div></div>
+        <div class="span-cell"><div class="span-k">Stress Ratio</div><div class="span-v ${cls}">${fmtNum(d.stress_ratio, 2)}×</div></div>
+        <div class="span-cell"><div class="span-k">Band / Status</div><div class="span-v ${cls}">${d.stress_band || '—'} · ${status}</div></div>
+      </div>
+      <div class="span-note">
+        Inputs: VIX ${fmtNum(inputs.current_vix, 1)} · price ${fmtPrice(inputs.current_es_price)} · strike ${fmtPrice(inputs.short_strike)} · ${inputs.dte ?? '—'} DTE.
+        This panel is post-entry stress visibility only.
+      </div>
+      <div class="span-disclaimer">${d.disclaimer || 'Model-based stress estimate only; not a trade recommendation.'}</div>`;
+  } catch (_) {
+    card.className = 'span-card status-unavailable';
+    body.innerHTML = '<div class="pos-none">Stressed SPAN surface unavailable</div>';
   }
 }
 
@@ -716,7 +790,7 @@ document.getElementById('nav-date').textContent = dateStr;
 document.getElementById('hero-date').textContent = dateStr;
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
-(async () => { await Promise.allSettled([loadRec(), loadPosition()]); })();
+(async () => { await Promise.allSettled([loadRec(), loadPosition(), loadStressedSpan()]); })();
 </script>
 </body>
 </html>
