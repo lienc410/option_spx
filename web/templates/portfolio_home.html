@@ -988,6 +988,10 @@ function setAccountView(v) {
 function _renderMarginAllocation(data) {
   const el = document.getElementById('margin-alloc');
   if (!el) return;
+  if (data.bp_basis_source === "default_params") {
+    el.innerHTML = '<div class="snapshot-unavail">账户数据不可用 — margin 计算需要实时 NLV。请检查 Schwab 连接。</div>';
+    return;
+  }
   const view    = _accountView;
   const buckets = data.bp_usage_by_bucket || {};
   const accounts = data.account_breakdown || {};
@@ -1039,6 +1043,9 @@ function _renderMarginAllocation(data) {
         <div class="account-rail-line"><span>NLV</span><span>${fmtDollars(accounts.schwab_nlv)}</span></div>
         <div class="account-rail-line"><span>Maint</span><span>${fmtDollars(accounts.schwab_maintenance_margin)}</span></div>
       </div>`;
+    if (typeof accounts.etrade_nlv === 'number') {
+      noteHtml = '<div class="snapshot-note">% 基于 combined NLV (Schwab + E-Trade)，非仅 Schwab NLV。</div>';
+    }
 
   } else if (view === 'etrade') {
     const idleW = Math.max(100 - etW, 0);
@@ -1125,16 +1132,17 @@ async function loadSnapshot() {
     const spxOpen   = (rails.spx_live || {}).status === 'open' ? 1 : 0;
     const q041Pos   = ((rails.q041_paper || {}).current_paper_positions || []).length;
     const openCount = spxOpen + q041Pos;
+    const basisFallback = data.bp_basis_source === "default_params";
 
     body.innerHTML = `
       <div class="snapshot-grid">
-        <div class="snapshot-cell">
+        <div class="snapshot-cell${basisFallback ? '' : ''}">
           <div class="snapshot-label">Total Margin</div>
-          <div class="snapshot-val">${fmtPct(totalReal)}</div>
+          <div class="snapshot-val${basisFallback ? '" style="color:var(--text-muted);font-size:1.1rem' : ''}">${basisFallback ? '—' : fmtPct(totalReal)}</div>
         </div>
-        <div class="snapshot-cell cell-idle">
+        <div class="snapshot-cell${basisFallback ? '' : ' cell-idle'}">
           <div class="snapshot-label">Idle Capacity</div>
-          <div class="snapshot-val">${fmtPct(idlePct)}</div>
+          <div class="snapshot-val${basisFallback ? '" style="color:var(--text-muted);font-size:1.1rem' : ''}">${basisFallback ? '—' : fmtPct(idlePct)}</div>
         </div>
         <div class="snapshot-cell">
           <div class="snapshot-label">Open Positions</div>
