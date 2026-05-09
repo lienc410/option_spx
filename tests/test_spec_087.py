@@ -173,18 +173,18 @@ class Spec087RouteTests(unittest.TestCase):
 
     # ── Nav structure sanity check (all five links present) ──────────────────
     def test_spx_page_contains_five_nav_links(self) -> None:
-        """spx.html must contain all five nav links."""
+        """spx.html must contain all nav links."""
         res = self.client.get("/spx")
         html = res.data.decode()
-        for label in ("Portfolio", "SPX", "/ES", "Q041", "Backtest"):
+        for label in ("Portfolio", "SPX", "/ES", "Q041", "Port BT"):
             self.assertIn(label, html,
                 f"spx.html nav missing: {label}")
 
     def test_portfolio_home_contains_five_nav_links(self) -> None:
-        """portfolio_home.html must contain all five nav links."""
+        """portfolio_home.html must contain all nav links."""
         res = self.client.get("/")
         html = res.data.decode()
-        for label in ("Portfolio", "SPX", "/ES", "Q041", "Backtest"):
+        for label in ("Portfolio", "SPX", "/ES", "Q041", "Port BT"):
             self.assertIn(label, html,
                 f"portfolio_home.html nav missing: {label}")
 
