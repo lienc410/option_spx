@@ -522,6 +522,42 @@ def _reset_intraday_state() -> None:
     log.info("Intraday state reset for new session.")
 
 
+def _format_etrade_reauth_message() -> str:
+    from etrade.auth import public_auth_url
+
+    return (
+        "⚠️ <b>E-Trade token expired</b>\n"
+        f"Please visit <a href=\"{_h(public_auth_url())}\">/etrade/auth</a> to complete manual authorization."
+    )
+
+
+async def _maybe_send_etrade_token_alert(bot: Bot, chat_id: str) -> None:
+    from etrade.auth import clear_token_issue, is_token_valid, load_alert_state, mark_token_alert_sent
+
+    if is_token_valid():
+        clear_token_issue()
+        return
+    state = load_alert_state()
+    if not state.get("invalid") or state.get("alert_sent"):
+        return
+    await bot.send_message(chat_id=chat_id, text=_format_etrade_reauth_message(), parse_mode=ParseMode.HTML)
+    mark_token_alert_sent()
+
+
+async def scheduled_etrade_token_renewal(bot: Bot, chat_id: str) -> None:
+    from etrade.auth import renew_access_token
+
+    result = renew_access_token()
+    if result.get("ok"):
+        log.info("E-Trade token renewed successfully.")
+        return
+    log.warning("E-Trade token renewal failed: %s", result.get("reason"))
+    try:
+        await _maybe_send_etrade_token_alert(bot, chat_id)
+    except Exception:
+        log.exception("scheduled_etrade_token_renewal: failed to send alert")
+
+
 async def intraday_monitor(bot: Bot, chat_id: str) -> None:
     """
     Polls VIX and SPX intraday signals every 5 minutes during market hours.
@@ -615,6 +651,10 @@ async def intraday_monitor(bot: Bot, chat_id: str) -> None:
             await bot.send_message(chat_id=chat_id, text=msg, parse_mode=ParseMode.HTML)
         except Exception:
             log.exception("intraday_monitor: failed to send message")
+    try:
+        await _maybe_send_etrade_token_alert(bot, chat_id)
+    except Exception:
+        log.exception("intraday_monitor: E-Trade token alert check failed")
 
 
 def _format_backtest_summary(trades, metrics: dict) -> str:
@@ -1088,8 +1128,16 @@ def main() -> None:
             name="Intraday signal monitor",
         )
 
+        scheduler.add_job(
+            scheduled_etrade_token_renewal,
+            CronTrigger(hour=23, minute=0, timezone=ET),
+            args=[application.bot, chat_id],
+            id="etrade_token_renewal",
+            name="E-Trade token renewal",
+        )
+
         scheduler.start()
-        log.info("Scheduler started — daily push 09:35 ET, intraday monitor every 5 min")
+        log.info("Scheduler started — daily push 09:35 ET, intraday monitor every 5 min, E-Trade renew 23:00 ET")
 
     app = Application.builder().token(token).post_init(post_init).build()
     app.add_handler(CommandHandler("today",    cmd_today))

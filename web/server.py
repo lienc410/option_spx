@@ -19,7 +19,7 @@ from pathlib import Path
 
 from zoneinfo import ZoneInfo
 
-from flask import Flask, Response, jsonify, render_template
+from flask import Flask, Response, jsonify, redirect, render_template
 from flask import request as flask_req
 
 _ET = ZoneInfo("America/New_York")
@@ -353,6 +353,41 @@ def api_portfolio_summary():
     from web.portfolio_surface import portfolio_summary_payload
 
     return jsonify(portfolio_summary_payload())
+
+
+@app.route("/api/etrade/balances")
+def api_etrade_balances():
+    from etrade.client import get_account_balances
+
+    payload = get_account_balances()
+    if not payload.get("configured") or not payload.get("authenticated") or payload.get("stale"):
+        return jsonify({"error": "unavailable", **payload})
+    return jsonify(payload)
+
+
+@app.route("/api/etrade/positions")
+def api_etrade_positions():
+    from etrade.client import get_account_positions
+
+    payload = get_account_positions()
+    if not payload.get("configured") or not payload.get("authenticated") or payload.get("stale"):
+        return jsonify({"error": "unavailable", **payload})
+    return jsonify(payload)
+
+
+@app.route("/etrade/auth")
+def api_etrade_auth():
+    from etrade.auth import get_access_token, request_token
+
+    verifier = flask_req.args.get("oauth_verifier")
+    if verifier:
+        get_access_token(verifier)
+        return redirect("/")
+    token_payload = request_token()
+    authorize_url = token_payload.get("authorize_url")
+    if not authorize_url:
+        return redirect("/")
+    return redirect(authorize_url)
 
 
 @app.route("/api/portfolio/attribution")

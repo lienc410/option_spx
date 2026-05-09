@@ -340,6 +340,29 @@ def _schwab_margin_data() -> dict | None:
     return None
 
 
+def _etrade_margin_data() -> dict | None:
+    """Return live E-Trade NLV and maintenance_margin, or None if unavailable."""
+    try:
+        from etrade.client import get_account_balances
+
+        balances = get_account_balances()
+        if not balances.get("configured") or not balances.get("authenticated"):
+            return None
+        if balances.get("stale"):
+            return None
+        nlv = balances.get("net_liquidation")
+        maint = balances.get("maintenance_margin")
+        if nlv and float(nlv) > 0:
+            return {
+                "nlv": float(nlv),
+                "maintenance_margin": float(maint) if maint is not None else None,
+                "balances": balances,
+            }
+    except Exception:
+        pass
+    return None
+
+
 def _schwab_spx_bp_from_positions() -> dict | None:
     """Compute SPX spread max-loss BP directly from live Schwab option positions.
     Used as fallback when strategy state file has no open position logged.
@@ -393,11 +416,15 @@ def portfolio_summary_payload() -> dict:
     current_position = read_state()
     q041 = _safe_q041_snapshot()
 
-    # Prefer live Schwab NLV + maintenance as basis; fall back to strategy default
+    # Prefer combined live account NLV when available; otherwise fall back to Schwab or strategy default.
     schwab = _schwab_margin_data()
+    etrade = _etrade_margin_data()
     live_nlv = schwab["nlv"] if schwab else None
     live_maint = schwab["maintenance_margin"] if schwab else None
-    basis = live_nlv if live_nlv is not None else float(DEFAULT_PARAMS.initial_equity)
+    etrade_nlv = etrade["nlv"] if etrade else None
+    etrade_maint = etrade["maintenance_margin"] if etrade else None
+    combined_nlv = (live_nlv or 0.0) + (etrade_nlv or 0.0)
+    basis = combined_nlv if combined_nlv > 0 else (live_nlv if live_nlv is not None else float(DEFAULT_PARAMS.initial_equity))
 
     spx_usage = _estimate_spx_bp_usage(current_position, basis)
     # Fallback: if state has no position but Schwab shows live SPX options, compute from live
@@ -413,31 +440,36 @@ def portfolio_summary_payload() -> dict:
     spx_dollars = _num(spx_usage.get("bp_usage_dollars")) or 0.0
     spx_pct = _num(spx_usage.get("bp_usage_pct")) or 0.0
 
-    # Equity margin: Schwab total maintenance minus SPX spread max-loss
-    # Residual reflects the PM 15% haircut on equity positions
+    # Equity margin: Schwab total maintenance minus SPX spread max-loss.
+    # Residual reflects the PM 15% haircut on Schwab-held equity positions.
     equity_margin_dollars: float | None = None
     equity_margin_pct: float | None = None
     if live_maint is not None and basis > 0:
         equity_margin_dollars = round(max(0.0, live_maint - spx_dollars), 2)
         equity_margin_pct = round(equity_margin_dollars / basis * 100.0, 2)
+    etrade_margin_pct = round(float(etrade_maint) / basis * 100.0, 2) if etrade_maint is not None and basis > 0 else None
 
     q041_total = _num(q041.get("bp_usage", {}).get("total_q041_bp_pct"))
-    # Total used = real margin (SPX + equity) + paper Q041
-    total_real = round(spx_pct + (equity_margin_pct or 0.0), 2)
+    # Total used = real margin (Schwab + E-Trade) + paper Q041
+    total_real = round(spx_pct + (equity_margin_pct or 0.0) + (etrade_margin_pct or 0.0), 2)
     total_used = round(total_real + (q041_total or 0.0), 2)
     idle = round(max(0.0, 100.0 - total_used), 2)
 
     return {
         "surface": "portfolio_summary",
-        "semantics": "read-only SPX live rail + Q041 paper rail summary; not unified portfolio state",
+        "semantics": "read-only SPX live rail + Q041 paper rail summary, with optional E-Trade PM rail; not unified portfolio state",
         "as_of": date.today().isoformat(),
         "bp_basis": round(basis, 0),
-        "bp_basis_source": "schwab_nlv" if live_nlv is not None else "default_params",
+        "bp_basis_source": "combined_live_nlv" if combined_nlv > 0 else ("schwab_nlv" if live_nlv is not None else "default_params"),
         "rails": {
             "spx_live": {
                 "status": "open" if current_position else "none",
                 "current_position": current_position,
                 "bp_usage": spx_usage,
+            },
+            "etrade_pm": {
+                "status": "available" if etrade else "unavailable",
+                "balances": etrade["balances"] if etrade else None,
             },
             "q041_paper": q041,
         },
@@ -445,6 +477,8 @@ def portfolio_summary_payload() -> dict:
             "spx_live_bp_pct": spx_usage.get("bp_usage_pct"),
             "equity_margin_bp_pct": equity_margin_pct,
             "equity_margin_dollars": equity_margin_dollars,
+            "etrade_maintenance_bp_pct": etrade_margin_pct,
+            "etrade_maintenance_dollars": etrade_maint,
             "q041_tier1_bp_pct": q041.get("bp_usage", {}).get("tier1_bp_pct"),
             "q041_tier2_bp_pct": q041.get("bp_usage", {}).get("tier2_bp_pct"),
             "q041_tier3_bp_pct": q041.get("bp_usage", {}).get("tier3_bp_pct"),
@@ -453,6 +487,13 @@ def portfolio_summary_payload() -> dict:
         "total_real_margin_pct": total_real,
         "total_used_bp_pct": total_used,
         "idle_capacity_pct": idle,
+        "account_breakdown": {
+            "schwab_nlv": live_nlv,
+            "schwab_maintenance_margin": live_maint,
+            "etrade_nlv": etrade_nlv,
+            "etrade_maintenance_margin": etrade_maint,
+            "combined_maintenance_margin": round((live_maint or 0.0) + (etrade_maint or 0.0), 2),
+        },
         "next_review_item": _next_review_item(q041),
     }
 
