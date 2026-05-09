@@ -1320,6 +1320,17 @@ function renderPositionBars() {
       return _posBarRow((pos.symbol || '—').substring(0, 10), mv, pos.unrealized_pnl ?? null,
         Math.abs(mv) / maxAbs * 100, _etradePosColor(pos, ref), nlv);
     }).join('');
+    const etCashMv = (d.positions || [])
+      .filter(p => _CASH_SYMBOLS.has(p.symbol))
+      .reduce((sum, p) => sum + Math.abs(p.market_value || 0), 0);
+    const etCashPct = nlv > 0 && etCashMv > 0 ? etCashMv / nlv * 100 : null;
+    const cashFooterET = etCashMv > 1
+      ? `<div class="margin-footer" style="margin-top:4px">
+          <div class="margin-footer-left" style="color:rgba(32,188,164,0.9)">Cash + Cash ETF + Money Market</div>
+          <div class="margin-footer-right">
+            <span class="margin-badge" style="background:rgba(96,104,128,0.12);color:rgba(96,104,128,0.8);border-color:rgba(96,104,128,0.3)">${_fmtMv(etCashMv)} / ${etCashPct != null ? etCashPct.toFixed(1) + '%' : '—'}</span>
+          </div>
+        </div>` : '';
     barsEl.innerHTML = rows + `
       <div class="margin-footer">
         <div class="margin-footer-left">NLV ${_fmtMv(nlv)} · Maintenance margin (E-Trade PM)</div>
@@ -1327,7 +1338,7 @@ function renderPositionBars() {
           <span class="margin-badge">${_fmtMv(d.maintenance_margin)} / ${d.margin_pct_nlv != null ? d.margin_pct_nlv.toFixed(1) + '%' : '—'}</span>
           <span class="margin-source">account-level · not per-position</span>
         </div>
-      </div>`;
+      </div>` + cashFooterET;
     return;
   }
 
@@ -1406,6 +1417,19 @@ function renderPositionBars() {
 
     const combMaint = (s?.summary?.maintenance_margin || 0) + (e?.maintenance_margin || 0);
     const combMPct  = combinedNlv > 0 ? (combMaint / combinedNlv * 100) : null;
+    const schwabCashAll = s?.summary?.total_cash_mv || 0;
+    const etCashAll = (e?.positions || [])
+      .filter(p => _CASH_SYMBOLS.has(p.symbol))
+      .reduce((sum, p) => sum + Math.abs(p.market_value || 0), 0);
+    const combinedCash = schwabCashAll + etCashAll;
+    const combinedCashPct = combinedNlv > 0 && combinedCash > 0 ? combinedCash / combinedNlv * 100 : null;
+    const cashFooterAll = combinedCash > 1
+      ? `<div class="margin-footer" style="margin-top:4px">
+          <div class="margin-footer-left" style="color:rgba(32,188,164,0.9)">Cash + Cash ETF + Money Market</div>
+          <div class="margin-footer-right">
+            <span class="margin-badge" style="background:rgba(96,104,128,0.12);color:rgba(96,104,128,0.8);border-color:rgba(96,104,128,0.3)">${_fmtMv(combinedCash)} / ${combinedCashPct != null ? combinedCashPct.toFixed(1) + '%' : '—'}</span>
+          </div>
+        </div>` : '';
     barsEl.innerHTML = rows + `
       <div class="margin-footer">
         <div class="margin-footer-left">Combined NLV ${_fmtMv(combinedNlv)}
@@ -1416,7 +1440,7 @@ function renderPositionBars() {
           <span class="margin-badge">${_fmtMv(combMaint)} / ${combMPct != null ? combMPct.toFixed(1) + '%' : '—'}</span>
           <span class="margin-source">combined maintenance</span>
         </div>
-      </div>`;
+      </div>` + cashFooterAll;
     return;
   }
 
