@@ -778,6 +778,16 @@ def api_position_open():
         "paper_trade": paper_trade,
         "note": body.get("note", ""),
     })
+
+    # Async Telegram push — mirrors bot /entered flow
+    try:
+        from notify.event_push import notify_open
+        from strategy.state import read_state as _read_state
+        new_state = _read_state() or {}
+        threading.Thread(target=notify_open, args=(new_state,), daemon=True).start()
+    except Exception:
+        pass
+
     return jsonify({"ok": True, "trade_id": trade_id})
 
 
@@ -1078,6 +1088,14 @@ def api_position_close():
         "model_pnl": model_pnl,
         "note": body.get("note", ""),
     })
+
+    # Async Telegram push — mirrors bot /closed flow with re-entry scan
+    try:
+        from notify.event_push import notify_close
+        threading.Thread(target=notify_close, args=(state, body.get("note")), daemon=True).start()
+    except Exception:
+        pass
+
     return jsonify({"ok": True, "actual_pnl": actual_pnl, "model_pnl": model_pnl})
 
 
