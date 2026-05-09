@@ -93,8 +93,14 @@ class Trade:
     entry_spx:    float = 0.0
     exit_spx:     float = 0.0
     entry_vix:    float = 0.0
-    entry_credit: float = 0.0   # positive = credit received, negative = debit paid
-    exit_pnl:     float = 0.0   # final P&L (positive = profit)
+    entry_credit: float = 0.0   # NET ENTRY VALUE PER SHARE (index points, signed):
+                                #   negative = credit received  (e.g. BPS, IC)
+                                #   positive = debit paid       (e.g. BCD, BPS_DEBIT)
+                                # NOTE: stores `position.entry_value` directly. To get the
+                                # absolute dollar credit/debit at the position level, use
+                                # `option_premium × contracts` or `abs(entry_credit) × 100 × contracts`.
+                                # Field name is historical; do not assume "positive = credit".
+    exit_pnl:     float = 0.0   # final P&L total in USD (positive = profit, all contracts)
     exit_reason:  str = ""      # "50pct_profit" | "stop_loss" | "expiry" | "roll_21dte" | "roll_up"
     entry_reason: str = ""
     dte_at_entry: int = 0
@@ -111,10 +117,20 @@ class Trade:
 
     @property
     def pnl_pct(self) -> float:
-        """P&L as % of max risk (|entry_credit| = max debit or credit at stake)."""
-        if self.entry_credit == 0:
+        """P&L as % of net entry value at the POSITION LEVEL (all contracts, dollars).
+
+        Fixes prior bug where this divided total dollars by per-share index points,
+        producing meaningless multi-thousand-percent values for spreads.
+
+        For credit spreads: 100% = lost full credit (mark went to zero); -100% = lost
+        full credit-multiple (mark = 2× entry). Bounded by spread max-loss in practice.
+        """
+        # `entry_credit` is per-share signed index points; convert to total dollar
+        # credit/debit at position level via `× 100 × contracts`.
+        position_value = abs(self.entry_credit) * 100 * self.contracts
+        if position_value == 0:
             return 0.0
-        return self.exit_pnl / abs(self.entry_credit) * 100
+        return self.exit_pnl / position_value * 100
 
     @property
     def hold_days(self) -> int:

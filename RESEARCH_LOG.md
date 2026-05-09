@@ -1,11 +1,149 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-09 (R-20260509-02; pre-Apr entries archived to doc/)
+Last Updated: 2026-05-09 (R-20260509-05: C2 reversal — no engine bug; Trade.pnl_pct fixed)
 Owner: Planner or PM
 
 ---
 
 ## Entries
+
+### R-20260509-05 — C2 investigation reverses prior hypothesis: 2022 weakness is genuinely regime-driven; Trade.pnl_pct unit bug fixed
+
+- Topic: PM authorised C2 to investigate the apparent zero-credit BPS trade (2022-04-04, displayed entry_credit -$34, contracts 6.89, exit PnL -$24,606, pnl_pct -72,058%) suspected of being an engine sizing edge case. Investigation found NO engine bug. The "anomaly" was a display artifact from misleading `Trade.entry_credit` field semantics + a unit bug in the `Trade.pnl_pct` property.
+- Findings:
+  - **The 2022-04-04 BPS was NOT anomalous.** Reproduction at entry conditions (SPX 4583, VIX 18.6, NORMAL regime, BPS Δ0.30/Δ0.15 DTE 30) shows:
+    - Real per-share credit: $34.48 (positive)
+    - Real per-contract credit: $3,448
+    - Total credit collected (6.89 contracts): **$23,757**
+    - Per-contract max loss: $11,052
+    - Total max-loss exposure: $76,148 (sized to ~15% bp_target × $500k = $75k)
+    - Risk/reward: 31.2% credit / max_loss — completely normal BPS proportions
+    - Actual loss $24,606 = **32% of max loss** — within normal BPS distribution after a 9-day SPX -4.2% move
+  - **Two display/semantic bugs identified (both fixable as Fast Path):**
+    - **Bug A (semantic mismatch)**: `Trade.entry_credit` field comment said "positive = credit received, negative = debit paid" but field actually stores `position.entry_value` directly, which is per-share signed index points (negative = credit for spreads). Comment was misleading; actual storage is correct for engine math but confusing for any consumer reading the field.
+    - **Bug B (unit bug in `pnl_pct`)**: `Trade.pnl_pct = exit_pnl / abs(entry_credit) × 100` divides total dollars (exit_pnl) by per-share signed index points, producing meaningless multi-thousand-percent values (-72,058% for our trade). The correct denominator should be `abs(entry_credit) × 100 × contracts` to match dollar units across numerator and denominator.
+  - **Fix applied (Fast Path)**: `backtest/engine.py:96-117`
+    - Field comment rewritten to accurately describe what's stored (per-share signed index points; "positive = credit" assumption explicitly removed)
+    - `pnl_pct` property fixed to use `abs(entry_credit) * 100 * contracts` as the position-level dollar denominator
+    - 270/270 tests pass after fix
+    - 2022-04-04 trade now shows pnl_pct = -104.6% (lost ~1.04× credit collected; sensible BPS loss); all 282 trades fall within -211% to +95% pnl_pct range (no more extreme values)
+    - Did NOT change the stored value of `entry_credit` to avoid breaking 5+ downstream consumers (web API, export script, intraday-stop prototype, tieout column reference)
+- Risks / Counterarguments:
+  - The 2022 grinding-decline weakness is now confirmed as **genuine regime-driven** rather than engine artifact. This means there is no narrow point-fix available; only architectural intervention (regime-conditional strategy filter, "C3" path) could improve it.
+  - The display bug fix doesn't change any historical PnL or trade flow — it only fixes how `pnl_pct` is computed when displayed. The stored `entry_credit` field remains in per-share signed index-point units for backward compatibility with downstream consumers.
+- Confidence: high. Reproduction matches exactly; full test regression PASS.
+- Implications for Q053 absorption decisions:
+  - **C1 (accept) is now the rational choice** for the 2022-style grinding-decline weakness. No narrow engine fix exists. The pattern is structural to short-premium strategies in mid-VIX persistent decline regimes.
+  - **C3 (regime-conditional strategy filter) remains the only intervention path** if PM wants to actively address grinding-decline weakness. It is bigger work (Tier 4 research + architecture spec, ~2 weeks), and Tier 2/3 evidence already shows simple signals fail cost-benefit.
+  - **R-20260509-04 Direction-B verdict (Tier 3 best score 9/15) stands**: no candidate signal cleanly separates grinding-decline from baseline at the entry-filter level. Strategy-level filtering (suppress put-side in 2022) would have saved $31k but requires C3-level architectural change.
+- Next Tests: none for this lane. Q053 closes without an actionable engine fix.
+- Recommendation:
+  - Q053 / Q052 / Q012 line **fully closed**. Document the negative result thoroughly so future research doesn't re-investigate.
+  - Keep `iv_expansion_stress_test` tool and `Short-Premium Risk Management Principles` (R-20260509-02) as the durable governance outputs.
+  - C3 (regime-conditional strategy filter) remains a **standing research candidate** but not actively pursued. Trigger to revisit: another 2022-style year occurs, OR PM explicitly prioritizes grinding-decline mitigation over current research lanes.
+  - The Trade.pnl_pct fix means future research/dashboards reading `pnl_pct` get sensible numbers. Front-end dashboards or research views that previously showed the broken values may now display differently — Planner should note this as a documentation update for any downstream artifact consumer.
+- Related: `Q053`, `R-20260509-04` (parent C2 hypothesis), `R-20260509-03` (Tier 1 finding), `R-20260509-02` (`/ES` absorption that started this chain)
+- See: `backtest/engine.py:88-130` (Trade dataclass + fixed pnl_pct), `research/q053/tier3_signal_refinement.py` (signal evaluation that fed C2 hypothesis)
+
+---
+
+### R-20260509-04 — Q053 Tier 2: pattern refined; PM selects Direction B; Tier 3 opened
+
+### R-20260509-04 — Q053 Tier 2: pattern redefined as "no-spike grind"; simple signals insufficient; PM selects Tier 3 refinement (Option B)
+
+- Topic: Q053 Tier 2 — extended grinding-decline analysis to 2011-Q3, 2015-2016, 2018-Q1 windows + designed and back-tested candidate detection signals. Goal: determine whether main strategy's 2022 weakness is a systemic pattern and whether a usable entry-gate signal can be designed.
+- Findings (pattern):
+  - **Pattern correction**: the real failure mode is not "stress = loss" but **"persistent high VIX without spike = loss"**. Main strategy performs *excellently* in spike-then-recover environments (2011-Q3 Eurozone: +$97k, 100% WR; 2018-Q1 Volmageddon: +$88k, 100% WR) — `EXTREME_VOL` gate + HIGH_VOL strategies work as designed. Losses are confined to **pure grinding windows** (VIX stuck 20-30 for months, never reaching 35+).
+  - Window classification (5 test windows):
+
+    | Window | VIX behavior | Result |
+    |---|---|---|
+    | 2011-Q3 Eurozone | spike to 48, rapid recovery | ✓ +$97k, 100% WR |
+    | 2018-Q1 Volmageddon | spike to 50+, rapid recovery | ✓ +$88k, 100% WR |
+    | 2015-2016 China/oil | persistent 20-30, no spike | ⚠️ −$1k |
+    | 2018-Q4 selloff | persistent 20-30, no spike | ⚠️ avg −62% per trade |
+    | 2022 grinding bear | persistent 20-30 all year, no spike | ⚠️ −$26.8k |
+
+  - Confirmed: **3/3 true grinding windows** (no spike to 35+) produce losses; **2/2 spike-recover windows** produce large profits.
+
+- Findings (signal design):
+  - Four candidate signals tested:
+
+    | Signal | True-grinding coverage | FP rate | Selectivity (avg PnL flagged) |
+    |---|---|---|---|
+    | S1: VIX 30d MA ≥ 22 | 57.5% | 25.0% | −$1,850/trade |
+    | R1: S1 + max(VIX, 60d) < 35 | 38.8% | 9.0% | −$3,996/trade |
+    | R3: VIX ≥ 20 + no spike + SPX 60d ≤ −3% | 11.3% | 2.3% | −$4,763/trade |
+    | R4: R3 + SPX 60d ≤ 0 | 7.4% | 3.5% | −$6,483/trade |
+
+  - **R1 is the practical sweet spot**: FP rate 9% (limits ~1/11 good trading days) + −$4k/trade selectivity. S1 too blunt; R3/R4 too selective.
+  - **Critical limitation**: R4 (strongest selectivity) back-tested against 2022 and flags only 1 of 18 trades — and that trade *made money* (+$5,050). The 17 losing trades (−$31,827) are all unflagged. R4 is detecting a different stress type, not 2022. **No simple signal can cleanly isolate the 2022 pattern.**
+  - The 2022 failure mode requires detecting "VIX has no recovery" — a more complex temporal condition than any single-day or rolling-average filter.
+
+- Risks / Counterarguments:
+  - Sample of grinding-decline windows is small (3 windows, 40 trades total). Any signal tuned on this sample risks in-sample overfitting.
+  - The spike-recover windows are also few (2 windows). Classification robustness depends on whether future stress environments follow the same bimodal pattern.
+  - Option A (soft overlay with R1) would reduce 2022 losses mechanically but might also clip good years with elevated VIX without grinding dynamics.
+
+- Confidence: high on the **pattern** (spike vs. grind distinction is clean across 5 windows); medium on **signal design** (R1 is best available but still insufficient for a hard gate).
+- Recommendation (PM selected B):
+  - **Option A** (R1 soft overlay, immediate candidate spec) — viable but accepts known imprecision.
+  - **Option B** (Tier 3 signal refinement) — design signals that detect "no recovery" component: e.g., `VIX 30d MA ≥ 22 AND VIX 30d min ≥ 18` (no return to normal); or `SPX 200d MA flat/declining + persistent VIX`. Estimated 1-2 weeks. Likely produces cleaner detector that actually catches 2022.
+  - **Option C** (accept status quo) — main strategy absorbs one −$26k loss year per ~5-7 years; +$1.7M total over 19 years, structurally tolerable.
+  - **PM chose Option B**. Tier 3 opened.
+- Next Tests (Tier 3 scope):
+  - Design `VIX 30d min ≥ 18` and `SPX 200d MA slope ≤ 0` as additional signal components
+  - Test composite signal on all 5 grinding-decline windows; target: FP rate ≤ 5%, 2022 trade coverage ≥ 50%
+  - If composite signal achieves target: promote to Option-A-style candidate spec (soft overlay). If not: document which approach is closest and return to PM for C decision.
+- Related: `Q053`, `Q036`, `SPEC-088`, `R-20260509-03`, `R-20260509-02`
+- See: `sync/open_questions.md Q053`
+
+---
+
+### R-20260509-03 — Action A1/A2/A3 executed: stress test tool built, Q041 appendix attached, Q053 Tier 1 finds main strategy hidden weakness in 2022 grinding bear
+
+- Topic: PM authorised execution of all three active actions from R-20260509-02 (`/ES` research absorption). All three completed. Most consequential outcome: Q053 Tier 1 confirms main strategy has the same hidden weakness `/ES` research predicted — grinding-decline windows produce negative PnL even though no stop_loss fires.
+- **Action A1 — `iv_expansion_stress_test` tool DONE**:
+  - Path: `research/tools/iv_expansion_stress_test.py`
+  - v0.1 supports: naked_put / CSP, bull_put_spread (BPS), iron_condor (IC)
+  - Self-validation: reproduces Phase A `/ES` SPAN expansion within tolerances (entry $20,529 ✓; VIX 39 mult 3.35× in expected 3.0–4.0 range ✓; VIX 59 mult 5.63× in expected 4.5–6.5 range ✓)
+  - VIX shock grid: +10 / +20 / +40 with correlated underlying drop (-1% per +3 VIX pts, Phase A calibration)
+  - Output per shock: mark_loss, stress_bp, pnl_ratio, survival classification
+  - Out of v0.1 scope: BCD diagonal, calendar/ratio spreads (deferred to v0.2)
+- **Action A3 — Q041 IV-expansion stress appendix DONE**:
+  - Path: `doc/q041_execution_prep_packet_2026-05-05.md` §11 (appended)
+  - Generation script: `research/q012/a3_q041_stress_matrix.py`
+  - Tier 1 SPX CSP Δ0.20 DTE30 worst-case (+40 VIX shock from 19): mark loss $61,585 (12.3% NLV), stress BP 27.2% NLV — within tolerance for Q041 1-contract scope
+  - Tier 2 GOOGL/AMZN CSP worst-case: mark loss < 1% NLV (small absolute size due to single-name BP), but pnl_ratio FAIL on reference threshold — consistent with existing Q041 §3.3 tail caveat
+  - Appendix adds new paper-trading data-collection requirement: each cycle must record max observed mark loss + max observed BP for model calibration
+  - Does NOT modify Q041 paper-trading scope; only adds risk-visibility dimension
+- **Action A2 — Q053 Grinding Decline Regime Review Tier 1 DONE**:
+  - Path: `research/q053/grinding_decline_review.py`
+  - Method: Full main strategy backtest 2007-01-01 → today (282 trades), sliced into 2018-Q4 + 2022 + Other (baseline)
+  - **Finding (decisive)**: Main strategy DOES exhibit grinding-decline weakness, especially severe in 2022:
+    - **2022 full year**: 18 trades, total PnL **-$26,778** (negative year), WR **55.6%** (vs baseline 76.9%, **-21.4pp**), avg PnL **-$1,488** (vs baseline +$6,546, **-123% deviation**)
+    - **2018-Q4**: 4 trades (small sample), avg PnL +$2,518 (vs baseline +$6,546, -61% deviation), still positive total
+    - **Stop rate in both windows: 0.0%** — confirming /ES insight that grinding decline does NOT trigger pnl_ratio-based stops
+    - 2022 losses concentrated in BPS (-$12.5k), IC_HV (-$11.5k), BPS_HV (-$7.4k)
+  - **Tier 2 expansion now justified**: 2011 Eurozone, 2015-Q3 / 2016-Q1, 2018-Q1 mini-stress windows should be tested to confirm pattern consistency
+  - **No spec recommendation yet**: Tier 1 establishes the problem exists; root-cause and remedy research belongs to Tier 2
+- Risks / Counterarguments:
+  - Q053 Tier 1 sample sizes are small (4 trades 2018-Q4, 18 trades 2022). 2022 evidence is robust because the deviation magnitude is large (-21pp WR), but 2018-Q4 alone could be statistical noise.
+  - 2022 result may be partly driven by specific strategy mix at that time (heavy IC_HV, BPS_HV) rather than a true regime-detection failure — Tier 2 should test if mid-VIX years like 2015 show the same pattern even with different strategy mixes.
+  - The stress test tool (A1) uses simplified SPX/VIX correlation; production calibration may differ.
+- Confidence: high on Q053 directional finding (2022 is a clear weakness); medium on whether Tier 2 will show systematic pattern; high on A1 tool correctness.
+- Next Tests:
+  - Q053 Tier 2: extend windows to 2011-Q3 (Eurozone), 2015-Q3-2016-Q1 (China devaluation), 2018-Q1 (vol-mageddon prelude). Test if grinding-decline pattern is consistent across regimes or specific to 2022.
+  - If Tier 2 confirms pattern: design candidate detection signal (e.g., VIX rolling-mean threshold, persistent SPX drawdown without spike). Result becomes basis for potential new SPEC.
+  - A1 v0.2: add BCD diagonal support after first short-premium spec actually uses A1 in review.
+- Recommendation:
+  - Q053 Tier 1 closed PASS; Tier 2 should be queued behind Q041 paper-trading work but ahead of new alpha research
+  - All A1/A2/A3 deliverables should remain stable references; A1 tool is now mandatory for short-premium spec reviews per `REVIEW_TEMPLATE.md` §6.1
+  - **Important framing for Q053**: this is NOT a Q041 problem (Q041's CSPs are NOT the strategies that lost in 2022; main strategy's BPS/IC/BCD are). Do not conflate Q053 findings with Q041 governance. Q041 has its own IV-expansion appendix from A3.
+- Related: `Q012`, `Q041`, `Q051`, `Q052`, `Q053` (Tier 1 PASS), `R-20260509-02`
+- See: `research/tools/iv_expansion_stress_test.py`, `research/q012/a3_q041_stress_matrix.py`, `research/q053/grinding_decline_review.py`, `doc/q041_execution_prep_packet_2026-05-05.md` §11
+
+---
 
 ### R-20260509-02 — `/ES` research absorption into main strategy governance: 5 must-absorb principles + 3 calibrated cautions + 3 action items (Q053 opened)
 
@@ -24,14 +162,18 @@ Owner: Planner or PM
   - The "IV expansion is faster than lagging controls" principle is robust but not absolute — fast intraday auto-close mechanisms (not present in main strategy today) could in principle avoid this constraint. The principle should be read as "any human-mediated or daily-bar exit cannot preempt IV expansion", not "no exit logic ever can".
   - The Overlay-F revisit gate (BP utilization 25-30%) is itself a hypothesis based on /ES analogy; the right BP threshold for Overlay-F revisit may differ.
 - Confidence: high on the must-absorb principles (1-5); medium on the calibrated cautions (6-8) which are governance hypotheses requiring future validation.
-- Action Items (three, in priority order):
-  - **Action A1 — Build `iv_expansion_stress_test` framework** (Planner-tracked tool, not a research question). Generalize Phase A SPAN model. Inputs: strategy type, entry IV/VIX, DTE, strike/delta/spread width, current BP/max-loss. Outputs: VIX +10/+20/+40 shock-projected mark loss, BP/margin expansion, stop proximity, stress survival score. Becomes mandatory for any new short-premium spec review.
-  - **Action A2 — Open Q053 "Grinding Decline Regime Review"** (research question). Scope: 2018-Q4, 2022 full year, optionally 2011/2015/2016 mini stress windows. Question: does main strategy systematically mis-route or over-allocate short premium exposure in medium-VIX grinding-decline environments where EXTREME_VOL gates don't trigger? This is the highest-value research spillover from /ES closure.
-  - **Action A3 — Q041 SPX CSP IV-expansion stress appendix** (Q041 governance addendum, not new research lane). Before any Q041 Tier 1 paper-trading activation, attach an IV-expansion stress appendix to the execution-prep packet covering: 2020-style VIX shock single-cycle behavior, 2022-style grinding decline behavior, IV compression trap scenarios, BP usage under stress. Use Action A1's tool once built.
+- Action Items (seven; corrected 2026-05-09 — original mapping listed only A1–A3, missing four governance codification actions):
+  - **Action A1 — Build `iv_expansion_stress_test` framework** *(Planner-tracked tool; pending first use)*. Generalize Phase A SPAN model. Inputs: strategy type, entry IV/VIX, DTE, strike/delta/spread width, current BP/max-loss. Outputs: VIX +10/+20/+40 shock-projected mark loss, BP/margin expansion, stop proximity, stress survival score. Becomes mandatory for any new short-premium spec review.
+  - **Action A2 — Open Q053 "Grinding Decline Regime Review"** *(research question; ✅ OPEN)*. Scope: 2018-Q4, 2022 full year, optionally 2011/2015/2016 mini stress windows. Highest-value research spillover from /ES closure — `See: sync/open_questions.md Q053`
+  - **Action A3 — Q041 SPX CSP IV-expansion stress appendix** *(Q041 governance addendum; pending Q041 paper-trading activation)*. Before Tier 1 activation, attach IV-expansion stress appendix to execution-prep packet (2020-style spike, 2022-style grinding decline, IV compression trap, BP under stress). Use A1 tool when built.
+  - **Action A4 — Codify 5 Short-Premium Risk Management Principles into `QUANT_RESEARCHER.md`** *(governance codify; ✅ DONE)*. New section "Short-Premium Risk Management Principles" with all 5 principles (IV expansion leads signals; entry-gated is correct; pnl_ratio > credit-multiple; grinding decline is hidden weakness; stress-capital basis) — `See: QUANT_RESEARCHER.md#short-premium-risk-management-principles`
+  - **Action A5 — Set Q036 Overlay-F revisit gate trigger** *(monitoring trigger; ✅ DONE)*. Gate condition: main-strategy 60-day time-weighted avg BP utilization ≥ 25% NLV (softer) or ≥ 30% NLV (harder trigger). Planner monitors monthly; revisit is a hypothesis, not a conclusion — `See: sync/open_questions.md Q036 §Overlay-F revisit gate`
+  - **Action A6 — Add stress-capital basis evaluation to `REVIEW_TEMPLATE.md` §6.1** *(process; ✅ DONE)*. Mandatory checklist: entry BP, VIX +10/+20/+40 stress BP, stress BP/NLV ratio, no entry-BP-only capital efficiency arguments — `See: REVIEW_TEMPLATE.md §6.1`
+  - **Action A7 — Add T+0/T+1/T+2 execution-drift sensitivity to `REVIEW_TEMPLATE.md` §6.1** *(process; ✅ DONE)*. Mandatory for any rule depending on PM manual execution: state execution assumption, provide T+0/T+1/T+2 sensitivity test, flag if T+0 significant but T+1/T+2 not — `See: REVIEW_TEMPLATE.md §6.1`
 - Recommendation:
-  - Codify must-absorb principles 1-5 into a new section of `QUANT_RESEARCHER.md` titled "Short-Premium Risk Management Principles (from Q012/Q051/Q052 closure)".
-  - Q053 becomes a Tier 1 Quant research question — should be queued behind Q041 paper-trading work but ahead of any new alpha-search lanes.
-  - A1 tool development is engineering-driven; should be discussed for a narrow Spec when Quant is ready to use it (probably alongside first Q053 deliverable).
+  - A4–A7 were the missing governance codification actions. Principles not written into formal documents are not institutionally durable. Now fixed.
+  - Q053 (A2) is Tier 1 research — queue behind Q041 paper-trading, ahead of any new alpha-search lanes.
+  - A1 tool development is engineering-driven; discuss spec when Quant is ready to use it (likely alongside first Q053 deliverable).
   - A3 is added to Q041's existing execution-prep workflow; not a separate spec.
 - Related: `Q012`, `Q036`, `Q041`, `Q050`, `Q051`, `Q052`, `Q053` (NEW), `SPEC-061`, `SPEC-086`, `SPEC-088`
 - See: `research/q012/phase_a_span_model.py` (template for A1), `research/q012/h1_technical_exit.py` (evidence for principle 1), `research/q012/h3_delta_dte_grid.py` (evidence for principle 3)
