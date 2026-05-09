@@ -3,184 +3,114 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Q041 Sleeves · Observation</title>
+<title>Q041 · Strategy Matrix</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
 :root {
-  --bg:            #080A13;
-  --surface:       #0D1020;
-  --surface-hi:    #131728;
-  --border:        #191E33;
-  --border-2:      #232A42;
-  --text:          #C4CEEC;
-  --text-2:        #606880;
-  --text-muted:    #363C52;
-  --gold:          #C9A840;
-  --gold-bg:       rgba(201,168,64,0.07);
-  --gold-border:   rgba(201,168,64,0.22);
-  --green:         #42CC7C;
-  --green-bg:      rgba(66,204,124,0.07);
-  --green-border:  rgba(66,204,124,0.22);
-  --red:           #E04862;
-  --red-bg:        rgba(224,72,98,0.07);
-  --red-border:    rgba(224,72,98,0.22);
-  --blue:          #4888E8;
-  --blue-bg:       rgba(72,136,232,0.07);
-  --blue-border:   rgba(72,136,232,0.22);
-  --orange:        #E08040;
-  --orange-bg:     rgba(224,128,64,0.07);
-  --orange-border: rgba(224,128,64,0.22);
-  --gray-bg:       rgba(96,104,128,0.08);
-  --gray-border:   rgba(96,104,128,0.2);
-
-  --f-display: 'Newsreader', Georgia, serif;
-  --f-mono:    'JetBrains Mono', 'Courier New', monospace;
-  --f-ui:      'DM Sans', system-ui, sans-serif;
+  --bg:#080A13; --surface:#0D1020; --surface-hi:#131728;
+  --border:#191E33; --border-2:#232A42;
+  --text:#C4CEEC; --text-2:#606880; --text-muted:#363C52;
+  --gold:#C9A840; --gold-bg:rgba(201,168,64,0.07); --gold-border:rgba(201,168,64,0.22);
+  --green:#42CC7C; --green-bg:rgba(66,204,124,0.07); --green-border:rgba(66,204,124,0.22);
+  --red:#E04862; --red-bg:rgba(224,72,98,0.07);
+  --blue:#4888E8; --blue-bg:rgba(72,136,232,0.07); --blue-border:rgba(72,136,232,0.22);
+  --orange:#E08040; --orange-bg:rgba(224,128,64,0.07); --orange-border:rgba(224,128,64,0.22);
+  --gray-bg:rgba(96,104,128,0.08); --gray-border:rgba(96,104,128,0.2);
+  --f-display:'Newsreader',Georgia,serif;
+  --f-mono:'JetBrains Mono','Courier New',monospace;
+  --f-ui:'DM Sans',system-ui,sans-serif;
 }
+html { font-size:14px; }
+body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-height:100vh; line-height:1.55; }
 
-html { font-size: 14px; }
-body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.55; }
+.nav { position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:50px;background:rgba(8,10,19,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border); }
+.nav-brand { font-family:var(--f-display);font-size:1.05rem;color:var(--gold); }
+.nav-brand em { font-style:italic; }
+.nav-links { display:flex;gap:2px; }
+.nav-link { font-size:0.76rem;padding:5px 10px;border-radius:5px;color:var(--text-2);text-decoration:none;transition:0.15s; }
+.nav-link:hover { color:var(--text);background:var(--surface-hi); }
+.nav-link.active { color:var(--green);background:var(--green-bg); }
+.nav-right { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-muted); }
 
-/* ── Nav ── */
-.nav {
-  position: sticky; top: 0; z-index: 100;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 28px; height: 50px;
-  background: rgba(8,10,19,0.88); backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--border);
+.page { max-width:1100px;margin:0 auto;padding:28px 24px 60px; }
+
+.page-hero { margin-bottom:20px;padding-bottom:18px;border-bottom:1px solid var(--border); }
+.page-hero h1 { font-family:var(--f-display);font-size:1.7rem;font-weight:400; }
+.page-hero h1 em { font-style:italic;color:var(--text-2); }
+.page-meta { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2);margin-top:6px; }
+
+.page-tabs { display:flex;gap:2px;margin-bottom:22px;padding-bottom:14px;border-bottom:1px solid var(--border); }
+.page-tab { font-family:var(--f-ui);font-size:0.72rem;padding:5px 14px;border-radius:5px;text-decoration:none;color:var(--text-2);border:1px solid transparent;transition:0.15s; }
+.page-tab.active { color:var(--text);background:var(--surface-hi);border-color:var(--border-2); }
+.page-tab:hover:not(.active) { color:var(--text-2);background:var(--surface); }
+
+.section-label { font-family:var(--f-ui);font-size:0.60rem;font-weight:700;letter-spacing:0.13em;text-transform:uppercase;color:var(--text-2);margin:28px 0 12px; }
+.section-label:first-of-type { margin-top:0; }
+
+.tier-grid   { display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px; }
+.tier-grid-2 { display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:28px; }
+.tier-card { background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden; }
+.tier-card-top { padding:14px 16px 12px;border-bottom:1px solid var(--border); }
+.tier-card-row1 { display:flex;align-items:center;justify-content:space-between;margin-bottom:6px; }
+.tier-sym { font-family:var(--f-mono);font-size:1.15rem;font-weight:600; }
+.tier-badge { font-family:var(--f-ui);font-size:0.56rem;font-weight:600;text-transform:uppercase;letter-spacing:0.09em;padding:2px 7px;border-radius:9999px; }
+.badge-t1 { background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold-border); }
+.badge-t2 { background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border); }
+.badge-t3 { background:var(--gray-bg);color:var(--text-2);border:1px solid var(--gray-border); }
+.tier-strat { font-family:var(--f-ui);font-size:0.65rem;color:var(--text-2); }
+.tier-card-status { padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px; }
+.status-pill { font-family:var(--f-ui);font-size:0.58rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;padding:3px 9px;border-radius:9999px; }
+.pill-watching { background:var(--green-bg);color:var(--green);border:1px solid var(--green-border); }
+.pill-observe  { background:var(--gray-bg);color:var(--text-2);border:1px solid var(--gray-border); }
+.tier-paper-ct { font-family:var(--f-mono);font-size:0.60rem;color:var(--text-muted); }
+.caveat-banner { margin:8px 16px 0;background:rgba(224,128,64,0.07);border:1px solid rgba(224,128,64,0.25);border-radius:6px;padding:7px 10px;font-family:var(--f-ui);font-size:0.60rem;color:var(--orange);line-height:1.5; }
+.caveat-banner b { font-weight:600; }
+
+.metrics-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:28px; }
+.metric-col { background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden; }
+.metric-col-hd { padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between; }
+.metric-col-sym { font-family:var(--f-mono);font-size:0.85rem;font-weight:600; }
+.metric-rows { padding:4px 0; }
+.metric-row { display:flex;justify-content:space-between;align-items:center;padding:7px 16px;border-bottom:1px solid var(--border); }
+.metric-row:last-child { border-bottom:none; }
+.mrow-lbl { font-family:var(--f-ui);font-size:0.62rem;color:var(--text-2); }
+.mrow-val { font-family:var(--f-mono);font-size:0.78rem; }
+.mrow-val.up   { color:var(--green); }
+.mrow-val.down { color:var(--red); }
+.mrow-val.warn { color:var(--orange); }
+.mrow-val.dim  { color:var(--text-2); }
+.metrics-loading { font-family:var(--f-ui);font-size:0.68rem;color:var(--text-muted);font-style:italic;text-align:center;padding:32px; }
+
+.two-col { display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:28px; }
+.panel { background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 20px; }
+.panel-title { font-family:var(--f-ui);font-size:0.65rem;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px; }
+.bp-row { margin-bottom:14px; }
+.bp-row-hd { display:flex;justify-content:space-between;align-items:center;margin-bottom:5px; }
+.bp-row-lbl { font-family:var(--f-ui);font-size:0.65rem;color:var(--text-2); }
+.bp-row-val { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2); }
+.bp-track { height:6px;background:var(--border-2);border-radius:9999px;overflow:hidden; }
+.bp-fill { height:100%;border-radius:9999px; }
+.bp-sub { font-family:var(--f-mono);font-size:0.58rem;color:var(--text-muted);margin-top:4px; }
+
+.stress-table { width:100%;border-collapse:collapse; }
+.stress-table th { font-family:var(--f-ui);font-size:0.58rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);font-weight:500;padding:6px 8px;text-align:left;border-bottom:1px solid var(--border-2); }
+.stress-table td { font-family:var(--f-mono);font-size:0.68rem;color:var(--text-2);padding:7px 8px;border-bottom:1px solid var(--border); }
+.stress-table tr:last-child td { border-bottom:none; }
+.stress-table td:first-child { color:var(--text); }
+.shock-warn { color:var(--orange); }
+.shock-fail { color:var(--red); }
+.stress-note { font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);margin-top:10px;line-height:1.5;border-top:1px solid var(--border);padding-top:8px; }
+.expand-btn { font-family:var(--f-ui);font-size:0.60rem;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:0;margin-top:8px;text-decoration:underline;text-underline-offset:2px; }
+.expand-btn:hover { color:var(--text-2); }
+.stress-detail { display:none;margin-top:12px; }
+.stress-detail.open { display:block; }
+
+@media (max-width:750px) {
+  .tier-grid, .tier-grid-2, .metrics-grid, .two-col { grid-template-columns:1fr; }
 }
-.nav-brand { font-family: var(--f-display); font-size: 1.05rem; color: var(--text); letter-spacing: 0.01em; user-select: none; }
-.nav-brand em { color: var(--gold); font-style: italic; }
-.nav-links { display: flex; gap: 2px; }
-.nav-link {
-  font-size: 0.76rem; font-weight: 500; color: var(--text-2);
-  text-decoration: none; padding: 5px 13px; border-radius: 5px;
-  letter-spacing: 0.03em; transition: color 0.15s, background 0.15s;
-}
-.nav-link:hover  { color: var(--text); background: var(--surface-hi); }
-.nav-link.active { color: var(--text-2); background: var(--gray-bg); border: 1px solid var(--gray-border); }
-.nav-right { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-2); }
-
-/* ── Layout ── */
-.container { max-width: 880px; margin: 0 auto; padding: 26px 24px 72px; }
-
-/* ── Page hero ── */
-.page-hero { margin-bottom: 28px; padding-bottom: 22px; border-bottom: 1px solid var(--border); }
-.page-title { font-family: var(--f-ui); font-size: 1.80rem; font-weight: 500; color: var(--text); margin-bottom: 6px; display: flex; align-items: baseline; gap: 12px; }
-.page-tier-badge {
-  font-family: var(--f-ui); font-size: 0.60rem; font-weight: 500;
-  text-transform: uppercase; letter-spacing: 0.10em;
-  color: var(--text-2); background: var(--gray-bg);
-  border: 1px solid var(--gray-border); padding: 2px 8px; border-radius: 5px;
-}
-.page-meta { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-2); letter-spacing: 0.02em; }
-.page-meta .meta-sep { color: var(--text-muted); margin: 0 6px; }
-
-/* ── Section label ── */
-.section-label {
-  font-family: var(--f-ui); font-size: 0.60rem; font-weight: 700;
-  letter-spacing: 0.13em; text-transform: uppercase;
-  color: var(--text-2); margin-bottom: 10px;
-}
-
-/* ── Panel card (tertiary tier) ── */
-.panel {
-  background: var(--surface); border: 1px solid var(--border-2);
-  border-left: 3px solid rgba(96,104,128,0.40);
-  border-radius: 9px; padding: 16px 20px; margin-bottom: 12px;
-}
-.panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-.panel-title { font-family: var(--f-ui); font-size: 0.80rem; font-weight: 600; color: var(--text); }
-.panel-count { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-2); }
-
-/* ── State badges ── */
-.state-badge {
-  display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 5px;
-  font-family: var(--f-ui); font-size: 0.58rem; font-weight: 500;
-  text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap;
-}
-.badge-watching  { color: var(--gold);       background: var(--gold-bg);   border: 1px solid var(--gold-border); }
-.badge-review    { color: var(--text-2); background: var(--gray-bg);   border: 1px solid var(--gray-border); }
-.badge-blocked   { color: var(--red);        background: var(--red-bg);    border: 1px solid var(--red-border); opacity: 0.7; }
-.badge-open-pos  { color: var(--green);      background: var(--green-bg);  border: 1px solid var(--green-border); }
-.badge-unavail   { color: var(--text-muted); background: var(--gray-bg);   border: 1px solid var(--gray-border); font-style: italic; }
-
-/* ── Tier label pill ── */
-.tier-pill {
-  font-family: var(--f-mono); font-size: 0.60rem;
-  color: var(--text-2); background: var(--surface-hi);
-  border: 1px solid var(--border-2); padding: 1px 6px; border-radius: 4px;
-}
-
-/* ── Sleeve table ── */
-.sleeve-table { width: 100%; border-collapse: collapse; }
-.sleeve-table th {
-  font-family: var(--f-ui); font-size: 0.58rem; font-weight: 600;
-  text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2);
-  padding: 0 0 8px; text-align: left; border-bottom: 1px solid var(--border-2);
-}
-.sleeve-table th.num { text-align: right; }
-.sleeve-table td { padding: 8px 0; border-bottom: 1px solid var(--border); vertical-align: middle; }
-.sleeve-table tr:last-child td { border-bottom: none; }
-.td-ticker { font-family: var(--f-mono); font-size: 0.80rem; font-weight: 500; color: var(--text); padding-right: 12px; }
-.td-type   { font-family: var(--f-ui); font-size: 0.68rem; color: var(--text-2); padding-right: 12px; }
-.td-num    { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-2); text-align: right; padding-right: 12px; }
-.td-caveat { font-family: var(--f-ui); font-size: 0.62rem; color: var(--text-2); padding-top: 2px; font-style: italic; }
-.group-header td {
-  font-family: var(--f-ui); font-size: 0.58rem; font-weight: 600;
-  text-transform: uppercase; letter-spacing: 0.10em; color: var(--text-2);
-  padding: 10px 0 4px; border-bottom: none;
-}
-
-/* ── Paper trade table ── */
-.trade-table { width: 100%; border-collapse: collapse; }
-.trade-table th {
-  font-family: var(--f-ui); font-size: 0.58rem; font-weight: 600;
-  text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2);
-  padding: 0 0 8px; text-align: left; border-bottom: 1px solid var(--border-2);
-}
-.trade-table td { padding: 7px 0; border-bottom: 1px solid var(--border); font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-2); }
-.trade-table tr:last-child td { border-bottom: none; }
-.trade-table td.td-ticker { color: var(--text); font-weight: 500; }
-.trade-table td.profit { color: var(--green); }
-.trade-table td.loss   { color: var(--red); }
-
-.unavail-notice {
-  background: var(--surface-hi); border: 1px solid var(--border-2); border-radius: 7px;
-  padding: 12px 16px; font-family: var(--f-ui); font-size: 0.68rem; color: var(--text-2);
-  font-style: italic;
-}
-
-/* ── Attribution metrics grid ── */
-.attr-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
-.attr-cell {
-  background: var(--surface-hi); border: 1px solid var(--border-2);
-  border-radius: 9px; padding: 12px 14px;
-  display: flex; flex-direction: column; gap: 5px;
-}
-.attr-label { font-family: var(--f-ui); font-size: 0.58rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); }
-.attr-val   { font-family: var(--f-mono); font-size: 1.10rem; font-weight: 600; color: var(--text); line-height: 1.1; }
-.attr-sub   { font-family: var(--f-ui); font-size: 0.62rem; color: var(--text-2); }
-
-/* ── Sleeves simulated strip ── */
-.sim-strip { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
-.sim-chip {
-  display: flex; align-items: center; gap: 6px;
-  background: var(--surface-hi); border: 1px solid var(--border-2);
-  border-radius: 5px; padding: 4px 10px;
-}
-.sim-ticker { font-family: var(--f-mono); font-size: 0.72rem; font-weight: 500; color: var(--text); }
-.sim-detail { font-family: var(--f-ui); font-size: 0.62rem; color: var(--text-2); }
-
-/* ── Attribution window / notes ── */
-.attr-note { font-family: var(--f-ui); font-size: 0.65rem; color: var(--text-2); line-height: 1.55; margin-top: 10px; }
-.attr-window { font-family: var(--f-mono); font-size: 0.65rem; color: var(--text-2); margin-bottom: 8px; }
-
-.footer { text-align: center; padding: 20px 0 0; font-size: 0.65rem; color: var(--text-muted); }
 </style>
 </head>
 <body>
@@ -188,283 +118,256 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 <nav class="nav">
   <span class="nav-brand">SPX <em>Strategy</em></span>
   <div class="nav-links">
-    <a href="/" class="nav-link">Portfolio</a>
-    <a href="/spx" class="nav-link">SPX</a>
-    <a href="/es" class="nav-link">/ES</a>
-    <a href="/q041" class="nav-link active">Q041</a>
+    <a href="/"                   class="nav-link">Portfolio</a>
+    <a href="/spx"                class="nav-link">SPX</a>
+    <a href="/es"                 class="nav-link">/ES</a>
+    <a href="/q041"               class="nav-link active">Q041</a>
     <a href="/portfolio-backtest" class="nav-link">Port BT</a>
-    <a href="/performance" class="nav-link">Performance</a>
-    <a href="/margin" class="nav-link">Margin</a>
+    <a href="/performance"        class="nav-link">Performance</a>
+    <a href="/margin"             class="nav-link">Margin</a>
   </div>
   <div class="nav-right" id="nav-date">—</div>
 </nav>
 
-<div class="container">
+<div class="page">
 
-  <!-- Page hero -->
   <div class="page-hero">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
-      <div>
-        <h1 class="page-title">
-          Q041 Sleeves
-          <span class="page-tier-badge">Observation</span>
-        </h1>
-        <div class="page-meta">
-          <span id="hero-date">—</span>
-          <span class="meta-sep">·</span>
-          <span id="hero-meta">Loading…</span>
+    <h1>Q041 Sleeves <em>Strategy Matrix</em></h1>
+    <div class="page-meta">CSP 三层 Tier · Paper-trading observation · 非 actionable 推荐</div>
+  </div>
+
+  <div class="page-tabs">
+    <a href="/q041"          class="page-tab active">Strategy Matrix</a>
+    <a href="/q041/backtest" class="page-tab">Backtest</a>
+  </div>
+
+  <div class="section-label">Tier 状态 · Live</div>
+  <div class="tier-grid" id="tier-active-grid">
+    <div style="grid-column:1/-1;padding:28px;text-align:center">
+      <span style="font-family:var(--f-ui);font-size:0.72rem;color:var(--text-muted);font-style:italic">Loading…</span>
+    </div>
+  </div>
+
+  <div class="section-label" style="color:var(--text-muted)">Tier 3 · Observe-only</div>
+  <div class="tier-grid-2" id="tier-observe-grid"></div>
+
+  <div class="section-label">回测历史指标 · 2022-05 → 2026-04</div>
+  <div class="metrics-grid" id="metrics-grid">
+    <div style="grid-column:1/-1"><div class="metrics-loading">Loading backtest metrics…</div></div>
+  </div>
+
+  <div class="section-label">风险结构</div>
+  <div class="two-col">
+
+    <div class="panel">
+      <div class="panel-title">BP 层级 · 设计容量 vs 历史实际</div>
+      <div class="bp-row">
+        <div class="bp-row-hd">
+          <span class="bp-row-lbl"><span style="color:var(--gold)">●</span> Tier 1 SPX CSP</span>
+          <span class="bp-row-val">上限 20%</span>
         </div>
+        <div class="bp-track"><div class="bp-fill" style="width:20%;background:var(--gold)"></div></div>
+        <div class="bp-sub">Δ0.20 · DTE30 · 1 contract</div>
       </div>
-      <a href="/q041-backtest" style="font-family:var(--f-ui);font-size:0.65rem;color:var(--text-2);text-decoration:none;border:1px solid var(--border-2);border-radius:9999px;padding:3px 10px;margin-top:6px;white-space:nowrap;transition:0.15s">Historical Backtest →</a>
+      <div class="bp-row">
+        <div class="bp-row-hd">
+          <span class="bp-row-lbl"><span style="color:var(--blue)">●</span> Tier 2 combined</span>
+          <span class="bp-row-val">上限 15%</span>
+        </div>
+        <div class="bp-track"><div class="bp-fill" style="width:15%;background:var(--blue)"></div></div>
+        <div class="bp-sub">GOOGL ≤10% · AMZN ≤10% · 合计 ≤15%</div>
+      </div>
+      <div class="bp-row">
+        <div class="bp-row-hd">
+          <span class="bp-row-lbl"><span style="color:var(--text-muted)">●</span> Tier 3 observe-only</span>
+          <span class="bp-row-val">上限 5%</span>
+        </div>
+        <div class="bp-track"><div class="bp-fill" style="width:5%;background:var(--text-muted)"></div></div>
+        <div class="bp-sub">COST / JPM Earnings IC · 仅观察</div>
+      </div>
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+        <div class="bp-row-hd" style="margin-bottom:5px">
+          <span class="bp-row-lbl">Joint BP 实际（三 Tier 合计）</span>
+          <span class="bp-row-val" style="color:var(--text)">均值 38% · 峰值 92%</span>
+        </div>
+        <div class="bp-track" style="height:8px">
+          <div class="bp-fill" style="width:38%;background:linear-gradient(90deg,var(--gold),var(--blue))"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px">
+          <span class="bp-sub">← 均值 38%</span><span class="bp-sub">峰值 92% →</span>
+        </div>
+        <div class="bp-sub" style="margin-top:6px">attribution 2023-01 ~ 2026-04（3.3y）· 86.8% idle-day 覆盖</div>
+      </div>
     </div>
-  </div>
 
-  
-  <div style="display:flex;gap:2px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
-    <a href="/q041" style="font-family:var(--f-ui);font-size:0.72rem;padding:5px 14px;border-radius:5px;text-decoration:none;color:var(--text);background:var(--surface-hi);border:1px solid var(--border-2)">Strategy</a>
-    <a href="/q041-backtest" style="font-family:var(--f-ui);font-size:0.72rem;padding:5px 14px;border-radius:5px;text-decoration:none;color:var(--text-2);border:1px solid transparent">Backtest</a>
-  </div>
-<!-- Sleeve Candidates -->
-  <div class="section-label">Sleeve Candidates</div>
-  <div class="panel" id="sleeve-panel">
-    <div class="panel-header">
-      <span class="panel-title">Active Sleeve List</span>
-      <span class="panel-count" id="sleeve-count">—</span>
+    <div class="panel">
+      <div class="panel-title">IV Stress · VIX Shock 最差情形（+40，VIX 19→59）</div>
+      <table class="stress-table">
+        <thead>
+          <tr><th>Tier</th><th>Mark Loss</th><th>% NLV</th><th>Stress BP%</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span style="color:var(--gold)">T1</span> SPX CSP</td>
+            <td class="shock-fail">$61,585</td><td class="shock-fail">12.3%</td><td class="shock-warn">27.2%</td>
+          </tr>
+          <tr>
+            <td><span style="color:var(--blue)">T2</span> GOOGL</td>
+            <td>$4,726</td><td>0.9%</td><td>2.0%</td>
+          </tr>
+          <tr>
+            <td><span style="color:var(--green)">T2</span> AMZN</td>
+            <td>$3,669</td><td>0.7%</td><td>1.5%</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <button class="expand-btn" onclick="toggleStressDetail(this)">展开 +10 / +20 详情 ▾</button>
+      <div class="stress-detail" id="stress-detail">
+        <div style="font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2);margin-bottom:6px;margin-top:10px">T1 SPX（entry VIX=19, spot=5400, strike=5150）</div>
+        <table class="stress-table" style="margin-bottom:12px">
+          <thead><tr><th>Shock</th><th>New VIX</th><th>Mark Loss</th><th>Stress BP</th><th>pnl_ratio</th></tr></thead>
+          <tbody>
+            <tr><td>+10</td><td>29</td><td>$12,015</td><td>$87,423</td><td class="shock-fail">-2.92</td></tr>
+            <tr><td>+20</td><td>39</td><td>$27,471</td><td>$107,179</td><td class="shock-fail">-6.69</td></tr>
+            <tr><td>+40</td><td>59</td><td>$61,585</td><td>$135,893</td><td class="shock-fail">-14.99</td></tr>
+          </tbody>
+        </table>
+        <div style="font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2);margin-bottom:6px">T2 GOOGL（VIX=19, $386, strike=$361）</div>
+        <table class="stress-table" style="margin-bottom:12px">
+          <thead><tr><th>Shock</th><th>New VIX</th><th>Mark Loss</th><th>Stress BP</th><th>pnl_ratio</th></tr></thead>
+          <tbody>
+            <tr><td>+10</td><td>29</td><td>$955</td><td>$5,716</td><td class="shock-fail">-2.53</td></tr>
+            <tr><td>+20</td><td>39</td><td>$2,143</td><td>$7,924</td><td class="shock-fail">-5.68</td></tr>
+            <tr><td>+40</td><td>59</td><td>$4,726</td><td>$10,122</td><td class="shock-fail">-12.53</td></tr>
+          </tbody>
+        </table>
+        <div style="font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2);margin-bottom:6px">T2 AMZN（VIX=19, $268, strike=$253）</div>
+        <table class="stress-table">
+          <thead><tr><th>Shock</th><th>New VIX</th><th>Mark Loss</th><th>Stress BP</th><th>pnl_ratio</th></tr></thead>
+          <tbody>
+            <tr><td>+10</td><td>29</td><td>$807</td><td>$4,522</td><td class="shock-warn">-1.85</td></tr>
+            <tr><td>+20</td><td>39</td><td>$1,732</td><td>$5,921</td><td class="shock-fail">-3.97</td></tr>
+            <tr><td>+40</td><td>59</td><td>$3,669</td><td>$7,590</td><td class="shock-fail">-8.41</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="stress-note">
+        ⚠ FAIL标记不等于必须平仓 — Q041 设计上接受 assignment。此表为可见性工具，非 actionable stop rule。NLV 基准 $500k。来源：§11 A3 IV expansion stress test。
+      </div>
     </div>
-    <div id="sleeve-body"><div class="unavail-notice">Loading…</div></div>
+
   </div>
 
-  <!-- Paper Trade Ledger -->
-  <div class="section-label">Paper Trade Ledger</div>
-  <div class="panel" id="ledger-panel">
-    <div class="panel-header">
-      <span class="panel-title">Open Positions</span>
-      <span class="panel-count" id="ledger-count">—</span>
-    </div>
-    <div id="ledger-body"><div class="unavail-notice">Loading…</div></div>
-  </div>
-
-  <!-- Attribution Summary -->
-  <div class="section-label">Attribution Summary <span style="font-weight:400;letter-spacing:0;text-transform:none;color:var(--text-muted);font-size:0.62rem;margin-left:6px">backtest artifact · read-only</span></div>
-  <div class="panel" id="attr-panel">
-    <div id="attr-body"><div class="unavail-notice">Loading…</div></div>
-  </div>
-
-</div>
-
-<div class="footer">
-  Read-only summary — forward-tracking observation. No write paths.
 </div>
 
 <script>
-function fmtNum(n, d) { return typeof n === 'number' ? n.toFixed(d ?? 1) : '—'; }
+document.getElementById('nav-date').textContent =
+  new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
 
-// ── Sleeve Candidates ─────────────────────────────────────────────────────────
-async function loadSleeves() {
-  const body = document.getElementById('sleeve-body');
-  const count = document.getElementById('sleeve-count');
+function toggleStressDetail(btn) {
+  const d = document.getElementById('stress-detail');
+  d.classList.toggle('open');
+  btn.textContent = d.classList.contains('open') ? '收起 ▴' : '展开 +10 / +20 详情 ▾';
+}
+
+const COLORS = { SPX:'#C9A840', GOOGL:'#4888E8', AMZN:'#42CC7C' };
+const STRAT_LABEL = { csp:'Cash-Secured Put', earnings_ic:'Earnings Iron Condor' };
+
+function statusPill(s) {
+  return s === 'watching'
+    ? `<span class="status-pill pill-watching">Paper-trading</span>`
+    : `<span class="status-pill pill-observe">Observe-only</span>`;
+}
+function tierBadge(t) {
+  const cls = t==='tier1'?'badge-t1':t==='tier2'?'badge-t2':'badge-t3';
+  const lbl = t==='tier1'?'Tier 1':t==='tier2'?'Tier 2':'Tier 3';
+  return `<span class="tier-badge ${cls}">${lbl}</span>`;
+}
+
+async function loadStatus() {
   try {
-    const res = await fetch('/api/sleeve-candidates');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-
-    const watching   = (data.sleeve_candidates || []).filter(s => s.candidate_status === 'watching');
-    const due        = (data.sleeve_candidates || []).filter(s => s.candidate_status === 'due');
-    const blocked    = (data.sleeve_candidates || []).filter(s => s.candidate_status === 'blocked_missing_data');
-    const reviewOnly = data.review_only || [];
-    const total = watching.length + due.length + blocked.length + reviewOnly.length;
-
-    count.textContent = total + ' total';
-    document.getElementById('hero-meta').textContent =
-      watching.length + ' watching · ' + reviewOnly.length + ' review-only';
-
-    if (total === 0) {
-      body.innerHTML = '<div class="unavail-notice">No active sleeves</div>';
-      return;
-    }
-
-    function statusBadge(s) {
-      if (s === 'watching') return `<span class="state-badge badge-watching">Watching</span>`;
-      if (s === 'due')      return `<span class="state-badge badge-open-pos">Due</span>`;
-      if (s === 'blocked_missing_data') return `<span class="state-badge badge-blocked">Blocked</span>`;
-      return `<span class="state-badge badge-review">Review only</span>`;
-    }
-
-    function tierLabel(t) {
-      return (t || '').replace('tier', 'T');
-    }
-
-    function sleeveRows(sleeves, groupLabel) {
-      if (sleeves.length === 0) return '';
-      const header = `<tr class="group-header"><td colspan="6">${groupLabel}</td></tr>`;
-      const rows = sleeves.map(s => `
-        <tr>
-          <td class="td-ticker">${s.underlying || '—'}</td>
-          <td class="td-type">${(s.strategy_type || '').toUpperCase().replace('_', ' ')}</td>
-          <td><span class="tier-pill">${tierLabel(s.tier)}</span></td>
-          <td class="td-num">${s.bp_target_pct != null ? s.bp_target_pct.toFixed(0) + '%' : '—'}</td>
-          <td>${statusBadge(s.candidate_status)}</td>
-          <td class="td-type" style="font-style:italic;max-width:260px">${s.caveat || ''}</td>
-        </tr>`).join('');
-      return header + rows;
-    }
-
-    body.innerHTML = `
-      <table class="sleeve-table">
-        <thead>
-          <tr>
-            <th>Underlying</th>
-            <th>Type</th>
-            <th>Tier</th>
-            <th class="num">BP Cap</th>
-            <th>Status</th>
-            <th>Caveat</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${sleeveRows([...watching, ...due], 'Active — Watching / Due')}
-          ${sleeveRows(blocked, 'Blocked — Missing Data')}
-          ${sleeveRows(reviewOnly, 'Read Only — Observe Only')}
-        </tbody>
-      </table>`;
-  } catch (e) {
-    body.innerHTML = `<div class="unavail-notice">Sleeve data unavailable: ${e.message}</div>`;
+    const d = await (await fetch('/api/sleeve-candidates')).json();
+    const colorMap = { SPX:'#C9A840', GOOGL:'#4888E8', AMZN:'#42CC7C' };
+    document.getElementById('tier-active-grid').innerHTML = (d.sleeve_candidates||[]).map(sl => {
+      const color = colorMap[sl.underlying] || '#C4CEEC';
+      const tail = sl.tier==='tier2' && sl.candidate_status==='watching'
+        ? `<div class="caveat-banner"><b>⚠ Tail caveat</b> — COVID / 单名 mega-cap tail 未完整验证。pnl_ratio FAIL ≠ 必须平仓。</div>` : '';
+      return `<div class="tier-card" style="border-top:3px solid ${color}">
+        <div class="tier-card-top">
+          <div class="tier-card-row1">
+            <span class="tier-sym" style="color:${color}">${sl.underlying}</span>
+            ${tierBadge(sl.tier)}
+          </div>
+          <div class="tier-strat">${STRAT_LABEL[sl.strategy_type]||sl.strategy_type} · BP ≤${sl.bp_target_pct}%</div>
+        </div>
+        ${tail}
+        <div class="tier-card-status">
+          ${statusPill(sl.candidate_status)}
+          <span class="tier-paper-ct">Paper trades: <b>0</b></span>
+        </div>
+      </div>`;
+    }).join('');
+    document.getElementById('tier-observe-grid').innerHTML = (d.review_only||[]).map(sl =>
+      `<div class="tier-card" style="border-top:3px solid var(--text-muted);opacity:0.72">
+        <div class="tier-card-top">
+          <div class="tier-card-row1">
+            <span class="tier-sym" style="color:var(--text-2)">${sl.underlying}</span>
+            ${tierBadge(sl.tier)}
+          </div>
+          <div class="tier-strat">${STRAT_LABEL[sl.strategy_type]||sl.strategy_type} · BP ≤${sl.bp_target_pct}%</div>
+        </div>
+        <div class="tier-card-status">
+          ${statusPill(sl.candidate_status)}
+          <span class="tier-paper-ct" style="font-size:0.57rem;max-width:160px;text-align:right">${sl.caveat||''}</span>
+        </div>
+      </div>`
+    ).join('');
+  } catch(e) {
+    document.getElementById('tier-active-grid').innerHTML =
+      `<div style="padding:20px;color:var(--red);font-family:var(--f-mono);font-size:0.65rem">Error: ${e.message}</div>`;
   }
 }
 
-// ── Paper Trade Ledger ────────────────────────────────────────────────────────
-async function loadLedger() {
-  const body = document.getElementById('ledger-body');
-  const countEl = document.getElementById('ledger-count');
+function fmtD(n) {
+  if (n==null) return '—';
+  return (n<0?'-':'+') + '$' + Math.round(Math.abs(n)).toLocaleString();
+}
+
+async function loadMetrics() {
+  const grid = document.getElementById('metrics-grid');
   try {
-    const res = await fetch('/api/portfolio/summary');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    const q = (data.rails || {}).q041_paper || {};
-
-    if (q.status === 'unavailable') {
-      countEl.textContent = 'unavailable';
-      body.innerHTML = `<div class="unavail-notice">Paper trade config not loaded: ${q.reason || 'unknown reason'}</div>`;
-      return;
-    }
-
-    const open   = q.current_paper_positions || [];
-    const recent = q.recent_entries || [];
-    countEl.textContent = open.length + ' open';
-
-    if (open.length === 0 && recent.length === 0) {
-      body.innerHTML = '<div class="unavail-notice">No paper trades on record</div>';
-      return;
-    }
-
-    let html = '';
-
-    if (open.length > 0) {
-      html += `<div style="font-family:var(--f-ui);font-size:0.60rem;font-weight:600;text-transform:uppercase;letter-spacing:0.10em;color:var(--text-muted);margin-bottom:6px">Open Positions</div>
-      <table class="trade-table" style="margin-bottom:16px">
-        <thead><tr>
-          <th>Ticker</th><th>Type</th><th>Opened</th><th>Expiry</th>
-          <th>Entry $</th><th>Mark $</th><th>Unrealized</th>
-        </tr></thead><tbody>`;
-      for (const p of open) {
-        const pnl = p.unrealized_pnl;
-        const pnlCls = pnl == null ? '' : pnl >= 0 ? 'profit' : 'loss';
-        const pnlStr = pnl != null ? (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(0) : '—';
-        html += `<tr>
-          <td class="td-ticker">${p.underlying || '—'}</td>
-          <td>${(p.strategy_type || '').toUpperCase()}</td>
-          <td>${p.opened_at || '—'}</td>
-          <td>${p.expiry || '—'}</td>
-          <td>$${p.entry_premium != null ? Number(p.entry_premium).toFixed(2) : '—'}</td>
-          <td>${p.mark != null ? '$' + Number(p.mark).toFixed(2) : '—'}</td>
-          <td class="${pnlCls}">${pnlStr}</td>
-        </tr>`;
-      }
-      html += '</tbody></table>';
-    }
-
-    if (recent.length > 0) {
-      html += `<div style="font-family:var(--f-ui);font-size:0.60rem;font-weight:600;text-transform:uppercase;letter-spacing:0.10em;color:var(--text-muted);margin-bottom:6px">Recent Entries</div>
-      <table class="trade-table">
-        <thead><tr><th>Ticker</th><th>Type</th><th>Opened</th><th>Closed</th><th>P&L</th></tr></thead><tbody>`;
-      for (const e of recent.slice(0, 10)) {
-        const pnl = e.realized_pnl;
-        const pnlCls = pnl == null ? '' : pnl >= 0 ? 'profit' : 'loss';
-        const pnlStr = pnl != null ? (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(0) : '—';
-        html += `<tr>
-          <td class="td-ticker">${e.underlying || '—'}</td>
-          <td>${(e.strategy_type || '').toUpperCase()}</td>
-          <td>${e.opened_at || '—'}</td>
-          <td>${e.closed_at || '—'}</td>
-          <td class="${pnlCls}">${pnlStr}</td>
-        </tr>`;
-      }
-      html += '</tbody></table>';
-    }
-
-    body.innerHTML = html;
-  } catch (e) {
-    body.innerHTML = `<div class="unavail-notice">Ledger unavailable: ${e.message}</div>`;
+    const d = await (await fetch('/api/q041/backtest?start=2022-05-06')).json();
+    if (d.error) throw new Error(d.error);
+    grid.innerHTML = d.sleeves.map(s => {
+      const trades = s.trades||[];
+      const worst = trades.length ? Math.min(...trades.map(t=>t.pnl)) : null;
+      const avg = s.n_trades>0 ? s.total_pnl/s.n_trades : null;
+      const col = COLORS[s.symbol]||'#C4CEEC';
+      const tbadge = s.symbol==='SPX'?'badge-t1':'badge-t2';
+      const tlbl   = s.symbol==='SPX'?'Tier 1':'Tier 2';
+      return `<div class="metric-col" style="border-top:3px solid ${col}">
+        <div class="metric-col-hd">
+          <span class="metric-col-sym" style="color:${col}">${s.symbol}</span>
+          <span class="tier-badge ${tbadge}">${tlbl}</span>
+        </div>
+        <div class="metric-rows">
+          <div class="metric-row"><span class="mrow-lbl">Win Rate</span><span class="mrow-val ${s.win_rate_pct>=80?'up':'warn'}">${s.win_rate_pct.toFixed(1)}%</span></div>
+          <div class="metric-row"><span class="mrow-lbl">Stop Rate</span><span class="mrow-val ${s.stop_rate_pct>20?'down':'dim'}">${s.stop_rate_pct.toFixed(1)}%</span></div>
+          <div class="metric-row"><span class="mrow-lbl">Total P&L (backtest)</span><span class="mrow-val ${s.total_pnl>0?'up':'down'}">${fmtD(s.total_pnl)}</span></div>
+          <div class="metric-row"><span class="mrow-lbl">Avg P&L / trade</span><span class="mrow-val ${avg>=0?'up':'down'}">${fmtD(avg)}</span></div>
+          <div class="metric-row"><span class="mrow-lbl">N Trades</span><span class="mrow-val dim">${s.n_trades}</span></div>
+          <div class="metric-row"><span class="mrow-lbl">Worst single trade</span><span class="mrow-val down">${fmtD(worst)}</span></div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    grid.innerHTML = `<div style="padding:20px;color:var(--red);font-family:var(--f-mono);font-size:0.65rem;grid-column:1/-1">Metrics error: ${e.message}</div>`;
   }
 }
 
-// ── Attribution Summary ───────────────────────────────────────────────────────
-async function loadAttribution() {
-  const body = document.getElementById('attr-body');
-  try {
-    const res = await fetch('/api/portfolio/attribution');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const d = await res.json();
-    if (d.error || d.status !== 'available') throw new Error(d.error || 'unavailable');
-
-    const win  = d.window || {};
-    const bp   = d.joint_bp_diagnostics || {};
-    const idle = d.idle_day_capture || {};
-    const j3   = d.j3_baseline || {};
-    const wdo  = d.worst_day_overlap || {};
-    const sims = d.sleeves_simulated || [];
-
-    // Metrics grid
-    const cells = [
-      { label: 'Δ Avg BP vs J3',   val: '+' + fmtNum(d.delta_avg_bp?.value, 2) + ' pp',  sub: 'J3 baseline ' + fmtNum(j3.mean_bp_pct, 1) + '% → joint ' + fmtNum(bp.mean_pct, 1) + '%' },
-      { label: 'Idle Day Capture', val: fmtNum(idle.value, 0) + 'd',                      sub: fmtNum(idle.share_of_j3_idle_pct, 1) + '% of J3 idle days captured' },
-      { label: 'Joint Mean BP',    val: fmtNum(bp.mean_pct, 1) + '%',                     sub: 'Max ' + fmtNum(bp.max_pct, 0) + '% · >35%: ' + (bp.days_above_35_pct || '—') + 'd' },
-      { label: 'Worst-Day Excess', val: '+' + fmtNum(wdo.excess_overlap_vs_occupancy_pp, 1) + ' pp', sub: 'Overlap ' + fmtNum(wdo.value, 1) + '% vs occ. ' + fmtNum(wdo.q041_open_occupancy_pct, 1) + '%' },
-    ];
-    const gridHtml = cells.map(c => `
-      <div class="attr-cell">
-        <div class="attr-label">${c.label}</div>
-        <div class="attr-val">${c.val}</div>
-        <div class="attr-sub">${c.sub}</div>
-      </div>`).join('');
-
-    // Simulated sleeves chips
-    const simHtml = sims.map(s => `
-      <div class="sim-chip">
-        <span class="sim-ticker">${s.symbol}</span>
-        <span class="sim-detail">${(s.id || '').replace(/_/g,' ')} · ${s.dte}d Δ${Number(s.target_delta).toFixed(2)} · BP${s.bp_cap_pct}% · ${s.n_cycles} cycles</span>
-      </div>`).join('');
-
-    body.innerHTML = `
-      <div class="attr-grid">${gridHtml}</div>
-      <div style="font-family:var(--f-ui);font-size:0.60rem;font-weight:600;text-transform:uppercase;letter-spacing:0.10em;color:var(--text-muted);margin-bottom:6px">Sleeves Simulated</div>
-      <div class="sim-strip">${simHtml}</div>
-      <div class="attr-window">Window: ${win.start || '—'} → ${win.end || '—'} · ${win.trading_days || '—'} trading days</div>
-      <div class="attr-note">${d.notes || ''}</div>`;
-  } catch (_) {
-    body.innerHTML = '<div class="unavail-notice">Attribution artifact unavailable</div>';
-  }
-}
-
-// ── Date ──────────────────────────────────────────────────────────────────────
-const now = new Date();
-const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-document.getElementById('nav-date').textContent = dateStr;
-document.getElementById('hero-date').textContent = dateStr;
-
-// ── Boot ──────────────────────────────────────────────────────────────────────
-(async () => { await Promise.allSettled([loadSleeves(), loadLedger(), loadAttribution()]); })();
+loadStatus();
+loadMetrics();
 </script>
 </body>
 </html>

@@ -47,6 +47,47 @@ _ES_BP_LIMIT_FRACTION = _ES_PARAMS.bp_limit_fraction  # 0.20 — sourced from Es
 _STATS_DISK_CACHE = Path(__file__).parent.parent / "data" / "backtest_stats_cache.json"
 _RESULTS_DISK_CACHE = Path(__file__).parent.parent / "data" / "backtest_results_cache.json"
 _RESEARCH_VIEWS_FILE = Path(__file__).parent.parent / "data" / "research_views.json"
+_Q019_SETTLING_LOG_FILE = Path(__file__).parent.parent / "data" / "q019_settling_log.jsonl"
+
+
+def _short_strategy_label(value: str | None) -> str:
+    raw = (value or "").strip().lower()
+    mapping = {
+        "bull_put_spread": "BPS",
+        "iron_condor": "IC",
+        "bull_call_spread": "BCS",
+        "bear_call_spread": "Bear Call",
+        "bear_put_spread": "Bear Put",
+        "reduce_wait": "WAIT",
+        "reduce / wait": "WAIT",
+    }
+    return mapping.get(raw, value or "—")
+
+
+def _load_q019_flip_days() -> list[dict[str, object]]:
+    try:
+        if not _Q019_SETTLING_LOG_FILE.exists():
+            return []
+        rows: list[dict[str, object]] = []
+        for raw_line in _Q019_SETTLING_LOG_FILE.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            payload = json.loads(line)
+            if not payload.get("changed"):
+                continue
+            rows.append({
+                "date": payload.get("date"),
+                "vix_signal1": payload.get("vix_signal1"),
+                "rec_signal1": _short_strategy_label(payload.get("rec_signal1")),
+                "vix_signal2": payload.get("vix_signal2"),
+                "rec_signal2": _short_strategy_label(payload.get("rec_signal2")),
+                "elapsed_min": payload.get("elapsed_min"),
+            })
+        rows.sort(key=lambda item: str(item.get("date") or ""))
+        return rows
+    except Exception:
+        return []
 
 
 def _params_hash() -> str:
@@ -191,6 +232,7 @@ def es_backtest_page():
 
 
 @app.route("/q041-backtest")
+@app.route("/q041/backtest")
 def q041_backtest_page():
     return render_template("q041_backtest.html")
 
@@ -234,6 +276,11 @@ def api_recommendation_settling():
             "signal1": None,
             "signal2": None,
         }), 200
+
+
+@app.route("/api/q019/flip-days")
+def api_q019_flip_days():
+    return jsonify(_load_q019_flip_days())
 
 
 @app.route("/api/es/recommendation")
@@ -443,6 +490,36 @@ def api_portfolio_bp_timeline():
 
 _ES_BT_CACHE: dict = {}
 _Q041_BT_CACHE: dict = {}
+_VIX_BY_DATE: dict | None = None
+
+
+def _get_vix_by_date() -> dict:
+    global _VIX_BY_DATE
+    if _VIX_BY_DATE is not None:
+        return _VIX_BY_DATE
+    import pickle as _pkl
+    path = os.path.join(os.path.dirname(__file__), "..", "data", "market_cache", "yahoo__VIX__max__1d.pkl")
+    try:
+        with open(os.path.normpath(path), "rb") as _f:
+            _df = _pkl.load(_f)
+        result: dict = {}
+        for _idx, _row in _df.iterrows():
+            _d = str(_idx)[:10]
+            _v = _row.get("Close", _row.get("close", _row.iloc[0] if len(_row) > 0 else None))
+            if _v is not None:
+                result[_d] = round(float(_v), 2)
+        _VIX_BY_DATE = result
+    except Exception:
+        _VIX_BY_DATE = {}
+    return _VIX_BY_DATE
+
+
+def _enrich_trades_with_vix(payload: dict) -> None:
+    vix = _get_vix_by_date()
+    for sleeve in payload.get("sleeves", []):
+        for trade in sleeve.get("trades", []):
+            d = (trade.get("entry_date") or "")[:10]
+            trade["vix_at_entry"] = vix.get(d)
 
 
 def _warmup_backtest_caches() -> None:
@@ -451,6 +528,7 @@ def _warmup_backtest_caches() -> None:
     try:
         from research.strategies.q041_csp_backtest import run_q041_backtest
         payload = run_q041_backtest(start_date="2022-05-06")
+        _enrich_trades_with_vix(payload)
         _Q041_BT_CACHE["2022-05-06"] = payload
     except Exception:
         pass
@@ -578,6 +656,7 @@ def api_q041_backtest():
     try:
         from research.strategies.q041_csp_backtest import run_q041_backtest
         payload = run_q041_backtest(start_date=start_date)
+        _enrich_trades_with_vix(payload)
         _Q041_BT_CACHE[cache_key] = payload
         return jsonify(payload)
     except Exception as exc:

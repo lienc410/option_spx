@@ -15,102 +15,86 @@
   --border:#191E33; --border-2:#232A42;
   --text:#C4CEEC; --text-2:#606880; --text-muted:#363C52;
   --gold:#C9A840; --gold-bg:rgba(201,168,64,0.07); --gold-border:rgba(201,168,64,0.22);
-  --green:#42CC7C; --green-bg:rgba(66,204,124,0.07);
+  --green:#42CC7C; --green-bg:rgba(66,204,124,0.07); --green-border:rgba(66,204,124,0.22);
   --red:#E04862; --red-bg:rgba(224,72,98,0.07);
-  --blue:#4888E8; --blue-bg:rgba(72,136,232,0.07);
+  --blue:#4888E8; --blue-bg:rgba(72,136,232,0.07); --blue-border:rgba(72,136,232,0.22);
   --orange:#E08040; --orange-bg:rgba(224,128,64,0.07); --orange-border:rgba(224,128,64,0.22);
   --gray-bg:rgba(96,104,128,0.08); --gray-border:rgba(96,104,128,0.2);
   --f-display:'Newsreader',Georgia,serif;
   --f-mono:'JetBrains Mono','Courier New',monospace;
   --f-ui:'DM Sans',system-ui,sans-serif;
-  --c-spx:#C9A840; --c-googl:#4888E8; --c-amzn:#42CC7C;
 }
-html { font-size: 14px; }
-body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-height: 100vh; }
+html { font-size:14px; }
+body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-height:100vh; }
 
-.nav {
-  position: sticky; top: 0; z-index: 100;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 24px; height: 50px;
-  background: rgba(8,10,19,0.92); backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border);
-}
-.nav-brand { font-family: var(--f-display); font-size: 1.05rem; color: var(--gold); }
-.nav-brand em { font-style: italic; }
-.nav-links { display: flex; gap: 2px; }
-.nav-link { font-family:var(--f-ui); font-size:0.76rem; padding:5px 10px; border-radius:5px; color:var(--text-2); text-decoration:none; transition:0.15s; }
-.nav-link:hover { color:var(--text); background:var(--surface-hi); }
-.nav-link.active { color:var(--text-muted); background:var(--gray-bg); }
-.nav-right { font-family:var(--f-mono); font-size:0.65rem; color:var(--text-muted); }
+.nav { position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:50px;background:rgba(8,10,19,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border); }
+.nav-brand { font-family:var(--f-display);font-size:1.05rem;color:var(--gold); }
+.nav-brand em { font-style:italic; }
+.nav-links { display:flex;gap:2px; }
+.nav-link { font-size:0.76rem;padding:5px 10px;border-radius:5px;color:var(--text-2);text-decoration:none;transition:0.15s; }
+.nav-link:hover { color:var(--text);background:var(--surface-hi); }
+.nav-link.active { color:var(--green);background:var(--green-bg); }
+.nav-right { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-muted); }
 
-.page { max-width: 1100px; margin: 0 auto; padding: 28px 24px 60px; }
+.page { max-width:1100px;margin:0 auto;padding:28px 24px 60px; }
+.page-hero { margin-bottom:20px; }
+.page-hero h1 { font-family:var(--f-display);font-size:1.7rem;font-weight:400; }
+.page-hero h1 em { font-style:italic;color:var(--text-2); }
+.page-meta { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2);margin-top:6px; }
 
-.page-hero { margin-bottom: 24px; }
-.page-hero h1 { font-family: var(--f-display); font-size: 1.6rem; font-weight: 400; }
-.page-hero h1 em { font-style: italic; color: var(--text-2); }
-.page-hero-meta { font-family:var(--f-ui); font-size:0.68rem; color:var(--text-2); margin-top:6px; display:flex; gap:10px; flex-wrap:wrap; }
-.strat-link { font-family:var(--f-ui); font-size:0.65rem; color:var(--text-2); text-decoration:none; border:1px solid var(--border-2); border-radius:9999px; padding:3px 10px; transition:0.15s; white-space:nowrap; }
-.strat-link:hover { color:var(--gold); border-color:var(--gold-border); }
+.page-tabs { display:flex;gap:2px;margin-bottom:22px;padding-bottom:14px;border-bottom:1px solid var(--border); }
+.page-tab { font-family:var(--f-ui);font-size:0.72rem;padding:5px 14px;border-radius:5px;text-decoration:none;color:var(--text-2);border:1px solid transparent;transition:0.15s; }
+.page-tab.active { color:var(--text);background:var(--surface-hi);border-color:var(--border-2); }
+.page-tab:hover:not(.active) { color:var(--text-2);background:var(--surface); }
 
-.controls { display:flex; gap:12px; align-items:center; margin-bottom:20px; flex-wrap:wrap; }
-.ctrl-label { font-family:var(--f-ui); font-size:0.65rem; color:var(--text-2); text-transform:uppercase; letter-spacing:0.06em; }
-.ctrl-select { font-family:var(--f-mono); font-size:0.72rem; background:var(--surface); border:1px solid var(--border-2); border-radius:5px; padding:5px 10px; color:var(--text); }
-.run-btn { font-family:var(--f-ui); font-size:0.72rem; padding:6px 16px; border:1px solid var(--gray-border); background:var(--gray-bg); color:var(--text-2); border-radius:5px; cursor:pointer; }
-.run-btn:hover { color:var(--text); border-color:var(--border-2); }
-.run-btn:disabled { opacity:0.4; cursor:default; }
+.section-label { font-family:var(--f-ui);font-size:0.60rem;font-weight:700;letter-spacing:0.13em;text-transform:uppercase;color:var(--text-2);margin:28px 0 12px; }
 
-.section-label { font-family:var(--f-ui); font-size:0.65rem; font-weight:500; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin:24px 0 10px; }
+.controls { display:flex;gap:12px;align-items:center;margin-bottom:20px;flex-wrap:wrap; }
+.ctrl-label { font-family:var(--f-ui);font-size:0.65rem;color:var(--text-2); }
+.ctrl-select { font-family:var(--f-mono);font-size:0.72rem;background:var(--surface);border:1px solid var(--border-2);border-radius:5px;padding:5px 10px;color:var(--text); }
+.run-btn { font-family:var(--f-ui);font-size:0.72rem;padding:6px 16px;border:1px solid var(--gray-border);background:var(--gray-bg);color:var(--text-2);border-radius:5px;cursor:pointer; }
+.run-btn:hover { color:var(--text);border-color:var(--border-2); }
+.run-btn:disabled { opacity:0.4;cursor:default; }
 
-/* Sleeve cards side by side */
-.sleeve-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:24px; }
-.sleeve-card { background:var(--surface); border:1px solid var(--border); border-radius:9px; overflow:hidden; }
-.sleeve-card-hd { padding:12px 16px 10px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
-.sleeve-name { font-family:var(--f-display); font-style:italic; font-size:1.05rem; font-weight:400; }
-.sleeve-tier { font-family:var(--f-ui); font-size:0.58rem; font-weight:600; text-transform:uppercase; letter-spacing:0.09em; padding:2px 7px; border-radius:9999px; }
-.tier1 { background:var(--gold-bg); color:var(--gold); border:1px solid var(--gold-border); }
-.tier2 { background:var(--gray-bg); color:var(--text-2); border:1px solid var(--gray-border); }
-.sleeve-metrics { display:grid; grid-template-columns:1fr 1fr; gap:0; }
-.sleeve-metric { padding:10px 16px; border-right:1px solid var(--border); border-bottom:1px solid var(--border); }
-.sleeve-metric:nth-child(2n) { border-right:none; }
-.sleeve-metric:nth-last-child(-n+2) { border-bottom:none; }
-.metric-lbl { font-family:var(--f-ui); font-size:0.58rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:4px; }
-.metric-val { font-family:var(--f-mono); font-size:0.90rem; }
-.metric-val.up   { color:var(--green); }
-.metric-val.down { color:var(--red); }
-.metric-val.warn { color:var(--orange); }
+.chart-wrap { background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:20px;margin-bottom:16px; }
+.chart-hd { display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px; }
+.chart-title { font-family:var(--f-ui);font-size:0.72rem;color:var(--text-2); }
+.chart-legend { display:flex;gap:14px;flex-wrap:wrap; }
+.chart-legend-item { display:flex;align-items:center;gap:5px;font-family:var(--f-mono);font-size:0.60rem;color:var(--text-2);cursor:pointer;user-select:none; }
+.chart-legend-item.muted { opacity:0.35; }
+.chart-legend-line { width:14px;height:2px;border-radius:2px; }
 
-.chart-wrap { background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:20px; margin-bottom:20px; }
-.chart-hd { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px; }
-.chart-title { font-family:var(--f-ui); font-size:0.72rem; color:var(--text-2); }
-.chart-legend { display:flex; gap:14px; }
-.chart-legend-item { display:flex; align-items:center; gap:5px; font-family:var(--f-mono); font-size:0.60rem; color:var(--text-2); }
-.chart-legend-line { width:14px; height:2px; border-radius:2px; }
+.two-col-charts { display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px; }
 
-.tabs-row { display:flex; gap:4px; margin-bottom:12px; }
-.tab-btn { font-family:var(--f-ui); font-size:0.68rem; padding:4px 12px; border-radius:5px; border:1px solid var(--border-2); background:none; color:var(--text-2); cursor:pointer; }
-.tab-btn.active { background:var(--surface-hi); color:var(--text); border-color:var(--border-2); }
+.tabs-row { display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap; }
+.tab-btn { font-family:var(--f-ui);font-size:0.68rem;padding:4px 12px;border-radius:5px;border:1px solid var(--border-2);background:none;color:var(--text-2);cursor:pointer; }
+.tab-btn.active { background:var(--surface-hi);color:var(--text);border-color:var(--border-2); }
 .tab-panel { display:none; }
 .tab-panel.active { display:block; }
 
-.trades-wrap { background:var(--surface); border:1px solid var(--border); border-radius:9px; overflow:hidden; }
-.trades-hd { display:grid; grid-template-columns:90px 90px 70px 70px 70px 80px 80px 80px; padding:8px 16px; background:var(--surface-hi); border-bottom:1px solid var(--border-2); font-family:var(--f-ui); font-size:0.58rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; }
-.trades-body { max-height:300px; overflow-y:auto; }
-.trade-row { display:grid; grid-template-columns:90px 90px 70px 70px 70px 80px 80px 80px; padding:6px 16px; border-bottom:1px solid var(--border); font-family:var(--f-mono); font-size:0.65rem; color:var(--text-2); }
+.tier2-compare { display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px; }
+.compare-card { background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:16px 18px; }
+.compare-hd { display:flex;align-items:center;gap:8px;margin-bottom:12px; }
+.compare-sym { font-family:var(--f-mono);font-size:0.90rem;font-weight:600; }
+.compare-rows { display:flex;flex-direction:column;gap:7px; }
+.compare-row { display:flex;justify-content:space-between; }
+.compare-lbl { font-family:var(--f-ui);font-size:0.62rem;color:var(--text-2); }
+.compare-val { font-family:var(--f-mono);font-size:0.72rem; }
+.up { color:var(--green); } .down { color:var(--red); } .warn { color:var(--orange); } .dim { color:var(--text-2); }
+
+.trades-wrap { background:var(--surface);border:1px solid var(--border);border-radius:9px;overflow:hidden; }
+.trades-hd { display:grid;grid-template-columns:90px 90px 80px 70px 72px 72px 80px 80px;padding:8px 16px;background:var(--surface-hi);border-bottom:1px solid var(--border-2);font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em; }
+.trades-body { max-height:280px;overflow-y:auto; }
+.trade-row { display:grid;grid-template-columns:90px 90px 80px 70px 72px 72px 80px 80px;padding:6px 16px;border-bottom:1px solid var(--border);font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2); }
 .trade-row:last-child { border-bottom:none; }
-.exit-chip { font-family:var(--f-ui); font-size:0.54rem; padding:1px 5px; border-radius:3px; text-transform:uppercase; }
-.exit-stop   { background:var(--red-bg);   color:var(--red); }
-.exit-profit { background:var(--green-bg); color:var(--green); }
-.exit-gamma  { background:var(--orange-bg);color:var(--orange); }
-.exit-expiry { background:var(--blue-bg);  color:var(--blue); }
-.pnl-up   { color:var(--green); }
-.pnl-down { color:var(--red); }
+.exit-chip { font-family:var(--f-ui);font-size:0.54rem;padding:1px 5px;border-radius:3px;text-transform:uppercase; }
+.exit-stop   { background:var(--red-bg);color:var(--red); }
+.exit-profit { background:var(--green-bg);color:var(--green); }
 
-.note-box { font-family:var(--f-ui); font-size:0.62rem; color:var(--text-muted); background:var(--surface); border:1px solid var(--border-2); border-radius:6px; padding:8px 14px; margin-bottom:16px; line-height:1.5; }
-.loading-msg { font-family:var(--f-ui); font-size:0.72rem; color:var(--text-muted); font-style:italic; padding:40px; text-align:center; }
-.error-msg { font-family:var(--f-mono); font-size:0.68rem; color:var(--red); padding:20px; }
-.footer { text-align:center; padding:20px 0 0; font-size:0.65rem; color:var(--text-muted); }
+.loading-msg { font-family:var(--f-ui);font-size:0.72rem;color:var(--text-muted);font-style:italic;padding:40px;text-align:center; }
+.error-msg { font-family:var(--f-mono);font-size:0.68rem;color:var(--red);padding:20px; }
 
-@media (max-width: 700px) { .sleeve-grid { grid-template-columns: 1fr; } }
+@media (max-width:700px) { .two-col-charts, .tier2-compare { grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
@@ -132,203 +116,326 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 <div class="page">
 
   <div class="page-hero">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
-      <div>
-        <h1>Q041 Sleeves <em>Backtest</em></h1>
-        <div class="page-hero-meta">
-          <span>SPX Tier-1 30d Δ0.20 · GOOGL / AMZN Tier-2 21d Δ0.20</span>
-          <span>·</span>
-          <span>3× credit stop · 50% profit target · actual option prices</span>
-        </div>
-      </div>
-      <a href="/q041" class="strat-link" style="margin-top:6px">← Q041 Sleeves</a>
-    </div>
+    <h1>Q041 Sleeves <em>Backtest</em></h1>
+    <div class="page-meta">SPX Tier-1 30d Δ0.20 · GOOGL / AMZN Tier-2 21d Δ0.20 · 3× credit stop · 50% profit target</div>
+  </div>
+
+  <div class="page-tabs">
+    <a href="/q041"          class="page-tab">Strategy Matrix</a>
+    <a href="/q041/backtest" class="page-tab active">Backtest</a>
   </div>
 
   <div class="controls">
     <span class="ctrl-label">Start</span>
     <select id="ctrl-start" class="ctrl-select">
-      <option value="2022-05-06" selected>2022 (actual prices only)</option>
+      <option value="2022-05-06" selected>2022 (full history)</option>
       <option value="2023-01-01">2023</option>
       <option value="2024-01-01">2024</option>
     </select>
     <button id="run-btn" class="run-btn" onclick="runBacktest()">Run Backtest</button>
   </div>
 
-  
-  <div style="display:flex;gap:2px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
-    <a href="/q041" style="font-family:var(--f-ui);font-size:0.72rem;padding:5px 14px;border-radius:5px;text-decoration:none;color:var(--text-2);border:1px solid transparent">Strategy</a>
-    <a href="/q041-backtest" style="font-family:var(--f-ui);font-size:0.72rem;padding:5px 14px;border-radius:5px;text-decoration:none;color:var(--text);background:var(--surface-hi);border:1px solid var(--border-2)">Backtest</a>
-  </div>
-<div id="note" class="note-box" style="display:none"></div>
   <div id="body-area"><div class="loading-msg">Select parameters and click Run Backtest.</div></div>
 
 </div>
 
-<div class="footer">
-  Paper observation — actual SPX/GOOGL/AMZN option close prices; $100/contract multiplier throughout.
-</div>
-
 <script>
-const COLORS = { SPX: '#C9A840', GOOGL: '#4888E8', AMZN: '#42CC7C' };
-let chartInst = null;
-let currentData = null;
+const COLORS = { SPX:'#C9A840', GOOGL:'#4888E8', AMZN:'#42CC7C' };
+let charts = {};
+
+document.getElementById('nav-date').textContent =
+  new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
 
 function fmtDate(s) { return s ? s.slice(0,10) : '—'; }
-function fmtDollar(n) { return typeof n==='number' ? (n>=0?'+':'')+Math.round(n).toLocaleString() : '—'; }
-
-function exitLabel(r) { return {stop_loss:'Stop',profit_target:'Profit',gamma_risk:'Gamma',expiry:'Expiry'}[r]||r; }
-function exitCls(r) {
-  if (r==='stop_loss')     return 'exit-stop';
-  if (r==='profit_target') return 'exit-profit';
-  if (r==='gamma_risk')    return 'exit-gamma';
-  return 'exit-expiry';
+function fmtD(n) {
+  if (n==null) return '—';
+  const abs = Math.abs(n), sign = n<0?'-':'+';
+  return sign + '$' + (abs>=1000 ? Math.round(abs).toLocaleString() : abs.toFixed(0));
 }
 
-function tierLabel(sym) { return sym==='SPX' ? 'Tier 1' : 'Tier 2'; }
-function tierCls(sym)   { return sym==='SPX' ? 'tier1' : 'tier2'; }
-
-function renderSleeveCard(s) {
-  const col = COLORS[s.symbol] || '#C4CEEC';
-  return `
-    <div class="sleeve-card" style="border-top:3px solid ${col}">
-      <div class="sleeve-card-hd">
-        <span class="sleeve-name" style="color:${col}">${s.symbol}</span>
-        <span class="sleeve-tier ${tierCls(s.symbol)}">${tierLabel(s.symbol)}</span>
-      </div>
-      <div class="sleeve-metrics">
-        <div class="sleeve-metric">
-          <div class="metric-lbl">Trades</div>
-          <div class="metric-val">${s.n_trades}</div>
-        </div>
-        <div class="sleeve-metric">
-          <div class="metric-lbl">Win Rate</div>
-          <div class="metric-val ${s.win_rate_pct>=75?'up':''}">${s.win_rate_pct.toFixed(1)}%</div>
-        </div>
-        <div class="sleeve-metric">
-          <div class="metric-lbl">Stop Rate</div>
-          <div class="metric-val ${s.stop_rate_pct>20?'down':'warn'}">${s.stop_rate_pct.toFixed(1)}%</div>
-        </div>
-        <div class="sleeve-metric">
-          <div class="metric-lbl">Total PnL</div>
-          <div class="metric-val ${s.total_pnl>0?'up':'down'}">${fmtDollar(s.total_pnl)}</div>
-        </div>
-      </div>
-    </div>`;
+function destroyCharts() {
+  Object.values(charts).forEach(c => { try { c.destroy(); } catch(_){} });
+  charts = {};
 }
 
-function buildChart(sleeves) {
-  if (chartInst) { chartInst.destroy(); chartInst = null; }
-  const canvas = document.getElementById('eq-chart');
+// ── Chart 1: Cumulative P&L ─────────────────────────────────────────────────
+function buildPnlChart(sleeves) {
+  const canvas = document.getElementById('pnl-chart');
   if (!canvas) return;
-  const datasets = sleeves.map(s => ({
-    label: s.label,
-    data: s.equity_curve.map(r => ({ x: r.date, y: r.equity })),
-    borderColor: COLORS[s.symbol] || '#C4CEEC',
-    backgroundColor: 'transparent',
-    borderWidth: 1.5,
-    pointRadius: 0,
-    tension: 0.2,
-  }));
-  chartInst = new Chart(canvas, {
-    type: 'line',
-    data: { datasets },
+  const datasets = sleeves.map(s => {
+    const init = s.equity_curve[0]?.equity ?? 50000;
+    return {
+      label: s.symbol,
+      data: s.equity_curve.map(r => ({ x: r.date, y: r.equity - init })),
+      borderColor: COLORS[s.symbol] || '#C4CEEC',
+      backgroundColor: 'transparent',
+      borderWidth: 1.8, pointRadius: 0, tension: 0.15,
+    };
+  });
+  charts.pnl = new Chart(canvas, {
+    type: 'line', data: { datasets },
     options: {
-      responsive: true,
-      animation: false,
-      plugins: { legend: { display: false } },
+      responsive: true, animation: false,
+      plugins: { legend:{display:false}, tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}  ${fmtD(ctx.parsed.y)}`}} },
       scales: {
-        x: {
-          type: 'category',
-          ticks: { color:'#606880', font:{family:'JetBrains Mono',size:10}, maxTicksLimit:8, maxRotation:0,
-            callback: (v,i) => { const d=datasets[0]?.data[i]?.x; return d?d.slice(0,7):v; }},
-          grid: { color:'#191E33' },
-        },
-        y: {
-          ticks: { color:'#606880', font:{family:'JetBrains Mono',size:10}, callback: v=>'$'+Math.round(v).toLocaleString() },
-          grid: { color:'#191E33' },
-        },
+        x: { type:'category', ticks:{ color:'#606880', font:{family:'JetBrains Mono',size:10}, maxTicksLimit:10, maxRotation:0,
+               callback:(v,i)=>{ const d=datasets[0]?.data[i]?.x; return d?d.slice(0,7):v; }}, grid:{color:'#191E33'} },
+        y: { ticks:{ color:'#606880', font:{family:'JetBrains Mono',size:10}, callback:v=>'$'+Math.round(v).toLocaleString() }, grid:{color:'#191E33'} },
+      },
+    },
+  });
+  document.querySelectorAll('.pnl-legend-item').forEach((el, i) => {
+    el.addEventListener('click', () => {
+      const meta = charts.pnl.getDatasetMeta(i);
+      meta.hidden = !meta.hidden;
+      el.classList.toggle('muted', meta.hidden);
+      charts.pnl.update();
+    });
+  });
+}
+
+// ── Chart 2: Trade P&L waterfall ────────────────────────────────────────────
+function buildWaterfallChart(id, trades) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  charts[id] = new Chart(canvas, {
+    type: 'bar',
+    data: { labels: trades.map((_,i)=>i+1), datasets:[{
+      data: trades.map(t=>t.pnl),
+      backgroundColor: trades.map(t=>t.exit_reason==='profit_target'?'rgba(66,204,124,0.70)':'rgba(224,72,98,0.70)'),
+      borderRadius: 2, borderSkipped: false,
+    }]},
+    options: {
+      responsive:true, animation:false,
+      plugins: { legend:{display:false}, tooltip:{callbacks:{
+        title: (items) => { const t=trades[items[0].dataIndex]; return `#${items[0].dataIndex+1} · ${fmtDate(t.entry_date)}→${fmtDate(t.exit_date)}`; },
+        label: (ctx) => { const t=trades[ctx.dataIndex]; return [` P&L: ${fmtD(t.pnl)}`, ` ${t.exit_reason}`, ` DTE ${t.dte_at_entry}→${t.dte_at_exit}d`]; },
+      }}},
+      scales: {
+        x: { display:false },
+        y: { ticks:{ color:'#606880', font:{family:'JetBrains Mono',size:10}, callback:v=>'$'+Math.round(v).toLocaleString() }, grid:{color:'#191E33'} },
       },
     },
   });
 }
 
-function renderTradeTable(trades) {
-  const rows = trades.slice(0, 300).map(t => `
+// ── Chart 3: DTE at exit histogram ───────────────────────────────────────────
+function buildDteChart(id, trades) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  const bins = [0,4,8,12,16,20,30,99];
+  const labels = bins.slice(0,-1).map((b,i)=>`${b}–${bins[i+1]-1}d`);
+  const counts = new Array(bins.length-1).fill(0);
+  trades.forEach(t => {
+    const v = t.dte_at_exit ?? 0;
+    for (let i=0;i<bins.length-1;i++) if (v>=bins[i] && v<bins[i+1]) { counts[i]++; break; }
+  });
+  charts[id] = new Chart(canvas, {
+    type:'bar',
+    data:{ labels, datasets:[{ data:counts, backgroundColor:'rgba(72,136,232,0.55)', borderRadius:3 }]},
+    options:{
+      responsive:true, animation:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>`${ctx.parsed.y} trades`}} },
+      scales:{
+        x:{ ticks:{color:'#606880',font:{family:'JetBrains Mono',size:9},maxRotation:0}, grid:{color:'#191E33'} },
+        y:{ ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},stepSize:1}, grid:{color:'#191E33'} },
+      },
+    },
+  });
+}
+
+// ── Chart 4: P&L vs days held scatter ───────────────────────────────────────
+function buildScatterChart(id, trades) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  const pts = trades.map(t => ({ x:(t.dte_at_entry||0)-(t.dte_at_exit||0), y:t.pnl, r:t.exit_reason }));
+  charts[id] = new Chart(canvas, {
+    type:'scatter',
+    data:{ datasets:[{
+      data: pts,
+      backgroundColor: pts.map(p=>p.r==='profit_target'?'rgba(66,204,124,0.55)':'rgba(224,72,98,0.55)'),
+      pointRadius:4, pointHoverRadius:6,
+    }]},
+    options:{
+      responsive:true, animation:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>`${ctx.parsed.x}d held · ${fmtD(ctx.parsed.y)}`}} },
+      scales:{
+        x:{ title:{display:true,text:'Days Held',color:'#606880',font:{size:10}},
+            ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10}}, grid:{color:'#191E33'} },
+        y:{ ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},callback:v=>'$'+Math.round(v).toLocaleString()}, grid:{color:'#191E33'} },
+      },
+    },
+  });
+}
+
+// ── Chart 5: VIX at entry histogram ──────────────────────────────────────────
+function buildVixChart(id, trades) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  const withVix = trades.filter(t => t.vix_at_entry != null);
+  if (!withVix.length) {
+    canvas.parentElement.style.display = 'none';
+    canvas.parentElement.insertAdjacentHTML('afterend',
+      `<div style="font-family:var(--f-ui);font-size:0.65rem;color:var(--text-muted);padding:12px 0">VIX at entry: no data for this window.</div>`);
+    return;
+  }
+  const bins = [10,15,20,25,30,35,99];
+  const labels = ['10–14','15–19','20–24','25–29','30–34','35+'];
+  const winCts=new Array(6).fill(0), lossCts=new Array(6).fill(0);
+  withVix.forEach(t => {
+    const v=t.vix_at_entry, win=t.exit_reason==='profit_target';
+    for (let i=0;i<bins.length-1;i++) if (v>=bins[i]&&v<bins[i+1]) { (win?winCts:lossCts)[i]++; break; }
+  });
+  charts[id] = new Chart(canvas, {
+    type:'bar',
+    data:{ labels, datasets:[
+      { label:'Win',  data:winCts,  backgroundColor:'rgba(66,204,124,0.65)', borderRadius:2 },
+      { label:'Loss', data:lossCts, backgroundColor:'rgba(224,72,98,0.65)',  borderRadius:2 },
+    ]},
+    options:{
+      responsive:true, animation:false,
+      plugins:{
+        legend:{ display:true, labels:{color:'#606880',font:{family:'DM Sans',size:11},boxWidth:10,boxHeight:10} },
+        tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y} trades`}},
+      },
+      scales:{
+        x:{ stacked:true, ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10}}, grid:{color:'#191E33'} },
+        y:{ stacked:true, ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},stepSize:5}, grid:{color:'#191E33'} },
+      },
+    },
+  });
+}
+
+// ── Trade log ────────────────────────────────────────────────────────────────
+function tradeTable(trades) {
+  const rows = trades.slice(0,300).map(t => `
     <div class="trade-row">
-      <span>${fmtDate(t.entry_date)}</span>
-      <span>${fmtDate(t.exit_date)}</span>
-      <span>${t.dte_at_entry}d→${t.dte_at_exit}d</span>
-      <span>${t.strike?.toFixed(0)||'—'}</span>
-      <span>${t.entry_premium?.toFixed(2)||'—'}</span>
-      <span>${t.exit_premium?.toFixed(2)||'—'}</span>
-      <span><span class="exit-chip ${exitCls(t.exit_reason)}">${exitLabel(t.exit_reason)}</span></span>
-      <span class="${t.pnl>=0?'pnl-up':'pnl-down'}">${fmtDollar(t.pnl)}</span>
+      <span>${fmtDate(t.entry_date)}</span><span>${fmtDate(t.exit_date)}</span>
+      <span>${t.dte_at_entry}d→${t.dte_at_exit}d</span><span>${t.strike?.toFixed(0)||'—'}</span>
+      <span>${t.entry_premium?.toFixed(2)||'—'}</span><span>${t.exit_premium?.toFixed(2)||'—'}</span>
+      <span><span class="exit-chip ${t.exit_reason==='profit_target'?'exit-profit':'exit-stop'}">${t.exit_reason==='profit_target'?'Profit':'Stop'}</span></span>
+      <span class="${t.pnl>=0?'up':'down'}">${fmtD(t.pnl)}</span>
     </div>`).join('');
-  return `
-    <div class="trades-wrap">
-      <div class="trades-hd"><span>Entry</span><span>Exit</span><span>DTE</span><span>Strike</span><span>Entry $</span><span>Exit $</span><span>Reason</span><span>PnL</span></div>
-      <div class="trades-body">${rows}</div>
-    </div>`;
+  return `<div class="trades-wrap">
+    <div class="trades-hd"><span>Entry</span><span>Exit</span><span>DTE</span><span>Strike</span><span>Entry $</span><span>Exit $</span><span>Reason</span><span>P&L</span></div>
+    <div class="trades-body">${rows}</div>
+  </div>`;
 }
 
 function showTab(sym) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.sym===sym));
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.dataset.sym===sym));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.sym===sym));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.dataset.sym===sym));
 }
 
+// ── Main ─────────────────────────────────────────────────────────────────────
 async function runBacktest() {
   const btn   = document.getElementById('run-btn');
   const area  = document.getElementById('body-area');
   const start = document.getElementById('ctrl-start').value;
   btn.disabled = true; btn.textContent = 'Running…';
-  area.innerHTML = '<div class="loading-msg">Running Q041 sleeve backtests — first run takes ~20 seconds…</div>';
+  area.innerHTML = '<div class="loading-msg">Running Q041 sleeve backtests…</div>';
+  destroyCharts();
 
   try {
     const res  = await fetch(`/api/q041/backtest?start=${start}`);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    currentData = data;
 
-    const note = document.getElementById('note');
-    note.style.display = 'block';
-    note.textContent = `Actual SPX/GOOGL/AMZN option close prices (q041_historical), ${data.start_date} to present. IV proxy used for daily MTM only when option leaves data set. PnL per $50k notional sleeve.`;
+    // 1. Cumulative P&L chart
+    const legendHtml = data.sleeves.map(s =>
+      `<div class="chart-legend-item pnl-legend-item" data-sym="${s.symbol}">
+        <div class="chart-legend-line" style="background:${COLORS[s.symbol]||'#C4CEEC'}"></div>${s.symbol}
+      </div>`).join('');
 
-    // Sleeve summary cards
-    let html = '<div class="section-label">Per-Sleeve Summary</div>';
-    html += '<div class="sleeve-grid">' + data.sleeves.map(renderSleeveCard).join('') + '</div>';
-
-    // Equity chart
-    html += `
+    let html = `
+      <div class="section-label">累计 P&L（从 0 开始）</div>
       <div class="chart-wrap">
         <div class="chart-hd">
-          <span class="chart-title">Equity Curve — $50k per sleeve (${data.start_date} → today)</span>
-          <div class="chart-legend">
-            ${data.sleeves.map(s=>`<div class="chart-legend-item"><div class="chart-legend-line" style="background:${COLORS[s.symbol]||'#C4CEEC'}"></div>${s.symbol}</div>`).join('')}
-          </div>
+          <span class="chart-title">Cumulative P&L per sleeve · ${data.start_date} → today</span>
+          <div class="chart-legend">${legendHtml}</div>
         </div>
-        <canvas id="eq-chart" height="220" style="width:100%"></canvas>
+        <canvas id="pnl-chart" height="200" style="width:100%"></canvas>
       </div>`;
 
-    // Trade logs tabbed
-    html += '<div class="section-label">Trade Log</div>';
-    html += '<div class="tabs-row">' +
-      data.sleeves.map((s,i) => `<button class="tab-btn${i===0?' active':''}" data-sym="${s.symbol}" onclick="showTab('${s.symbol}')">${s.symbol} (${s.n_trades})</button>`).join('') +
-      '</div>';
-    html += data.sleeves.map((s,i) =>
-      `<div class="tab-panel${i===0?' active':''}" data-sym="${s.symbol}">${renderTradeTable(s.trades)}</div>`
-    ).join('');
+    // 2. Per-sleeve tabs
+    html += `
+      <div class="section-label">逐笔分析（per sleeve）</div>
+      <div class="tabs-row">` +
+      data.sleeves.map((s,i) =>
+        `<button class="tab-btn${i===0?' active':''}" data-sym="${s.symbol}" onclick="showTab('${s.symbol}')">${s.symbol} (${s.n_trades})</button>`
+      ).join('') + `</div>`;
+
+    html += data.sleeves.map((s,i) => `
+      <div class="tab-panel${i===0?' active':''}" data-sym="${s.symbol}">
+        <div class="chart-wrap">
+          <div class="chart-hd">
+            <span class="chart-title">${s.symbol} · 逐笔 P&L（时间序列）— 绿=profit target · 红=stop</span>
+            <span style="font-family:var(--f-mono);font-size:0.62rem;color:var(--text-2)">WR ${s.win_rate_pct.toFixed(1)}% · Stop ${s.stop_rate_pct.toFixed(1)}%</span>
+          </div>
+          <canvas id="wf-${s.symbol}" height="110" style="width:100%"></canvas>
+        </div>
+        <div class="two-col-charts">
+          <div class="chart-wrap" style="margin-bottom:0">
+            <div class="chart-title" style="margin-bottom:12px">DTE at Exit 分布 — 平仓时剩余天数</div>
+            <canvas id="dte-${s.symbol}" height="150" style="width:100%"></canvas>
+          </div>
+          <div class="chart-wrap" style="margin-bottom:0">
+            <div class="chart-title" style="margin-bottom:12px">P&L vs 持仓天数 — 绿=win · 红=stop</div>
+            <canvas id="sc-${s.symbol}" height="150" style="width:100%"></canvas>
+          </div>
+        </div>
+        <div class="section-label" style="margin-top:20px">VIX at Entry 分布</div>
+        <div class="chart-wrap">
+          <div class="chart-title" style="margin-bottom:12px">${s.symbol} · 入场时 VIX 水位分布（win / loss 分层）</div>
+          <canvas id="vix-${s.symbol}" height="130" style="width:100%"></canvas>
+        </div>
+        <div class="section-label" style="margin-top:20px">Trade Log</div>
+        ${tradeTable(s.trades)}
+      </div>`).join('');
+
+    // 3. Tier 2 comparison
+    const t2 = data.sleeves.filter(s => s.symbol !== 'SPX');
+    if (t2.length >= 2) {
+      html += `<div class="section-label" style="margin-top:32px">Tier 2 · GOOGL vs AMZN 对比</div>
+        <div class="tier2-compare">` + t2.map(s => {
+          const trades = s.trades||[];
+          const worst = trades.length ? Math.min(...trades.map(t=>t.pnl)) : null;
+          const avg = s.n_trades>0 ? s.total_pnl/s.n_trades : null;
+          const col = COLORS[s.symbol]||'#C4CEEC';
+          return `<div class="compare-card" style="border-top:3px solid ${col}">
+            <div class="compare-hd">
+              <span class="compare-sym" style="color:${col}">${s.symbol}</span>
+              <span style="font-family:var(--f-ui);font-size:0.60rem;color:var(--text-muted)">Tier 2 CSP</span>
+            </div>
+            <div class="compare-rows">
+              <div class="compare-row"><span class="compare-lbl">Win Rate</span><span class="compare-val ${s.win_rate_pct>=80?'up':'warn'}">${s.win_rate_pct.toFixed(1)}%</span></div>
+              <div class="compare-row"><span class="compare-lbl">Stop Rate</span><span class="compare-val ${s.stop_rate_pct>20?'down':'dim'}">${s.stop_rate_pct.toFixed(1)}%</span></div>
+              <div class="compare-row"><span class="compare-lbl">Total P&L</span><span class="compare-val ${s.total_pnl>0?'up':'down'}">${fmtD(s.total_pnl)}</span></div>
+              <div class="compare-row"><span class="compare-lbl">Avg / trade</span><span class="compare-val ${avg>=0?'up':'down'}">${fmtD(avg)}</span></div>
+              <div class="compare-row"><span class="compare-lbl">N Trades</span><span class="compare-val dim">${s.n_trades}</span></div>
+              <div class="compare-row"><span class="compare-lbl">Worst trade</span><span class="compare-val down">${fmtD(worst)}</span></div>
+            </div>
+          </div>`;
+        }).join('') + `</div>`;
+    }
 
     area.innerHTML = html;
-    buildChart(data.sleeves);
+
+    // Build all charts after DOM render
+    buildPnlChart(data.sleeves);
+    data.sleeves.forEach(s => {
+      buildWaterfallChart(`wf-${s.symbol}`,  s.trades);
+      buildDteChart(`dte-${s.symbol}`,        s.trades);
+      buildScatterChart(`sc-${s.symbol}`,     s.trades);
+      buildVixChart(`vix-${s.symbol}`,        s.trades);
+    });
+
   } catch (e) {
     area.innerHTML = `<div class="error-msg">Error: ${e.message}</div>`;
   } finally {
     btn.disabled = false; btn.textContent = 'Run Backtest';
   }
 }
-
-document.getElementById('nav-date').textContent = new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
 </script>
 </body>
 </html>
