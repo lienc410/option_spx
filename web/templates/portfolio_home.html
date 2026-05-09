@@ -193,6 +193,32 @@ body {
   border-radius: 5px;
 }
 
+/* ── /ES Monitor Row ── */
+.es-monitor-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid rgba(96,104,128,0.30);
+  border-radius: 8px;
+  margin-bottom: 10px;
+  font-family: var(--f-ui);
+  font-size: 0.68rem;
+  color: var(--text-2);
+}
+.es-monitor-name {
+  font-family: var(--f-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.es-monitor-left  { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.es-monitor-center { flex: 1; color: var(--text-2); }
+.es-monitor-right  { flex: 0 0 auto; color: var(--text-muted); font-size: 0.62rem; }
+
 /* ── Action state badge ── */
 .state-badge {
   display: inline-flex;
@@ -625,22 +651,14 @@ body {
     </div>
   </div>
 
-  <!-- ── /ES Secondary Card ── -->
-  <div class="strategy-card tier-secondary" id="card-es">
-    <div class="card-header">
-      <div class="card-name-wrap">
-        <span class="card-name card-name-secondary">/ES</span>
-        <span class="card-subtitle" id="subtitle-es">—</span>
-      </div>
-      <span class="state-badge badge-wait" id="badge-es">WAIT</span>
+  <!-- ── /ES Monitor Row ── -->
+  <div class="es-monitor-row" id="card-es">
+    <div class="es-monitor-left">
+      <span class="es-monitor-name"><a href="/es" style="color:inherit;text-decoration:none">/ES</a></span>
+      <span class="badge-obs" style="font-size:0.55rem;padding:1px 6px">MONITOR</span>
     </div>
-    <div class="card-signals" id="signals-es"></div>
-    <div class="card-rationale-secondary" id="rationale-es"></div>
-    <div class="card-structure" id="structure-es"></div>
-    <div class="card-position" id="position-es">
-      <div class="pos-header">Open Position</div>
-      <div class="pos-none" id="pos-es-body">Loading…</div>
-    </div>
+    <div class="es-monitor-center" id="es-monitor-pos">Loading…</div>
+    <div class="es-monitor-right" id="es-monitor-span"></div>
   </div>
 
   <!-- ── Q041 Sleeve Card ── -->
@@ -747,11 +765,6 @@ function spxBadge(data) {
   if (action === 'OPEN' || action === 'CLOSE_AND_OPEN')  return { cls: 'badge-open',  label: 'OPEN' };
   if (data.open)                                         return { cls: 'badge-hold',  label: 'HOLD' };
   return { cls: 'badge-wait', label: 'NO ENTRY' };
-}
-function esBadge(data) {
-  if (data.blocked || data.strategy_key === 'reduce_wait')
-    return { cls: 'badge-blocked', label: 'BLOCKED' };
-  return { cls: 'badge-open', label: 'OPEN' };
 }
 function q041Badge(data) {
   const all = [...(data.sleeve_candidates || []), ...(data.review_only || [])];
@@ -873,54 +886,39 @@ async function loadSpx() {
   }
 }
 
-// ── /ES Card ──────────────────────────────────────────────────────────────────
+// ── /ES Monitor Row ───────────────────────────────────────────────────────────
 async function loadEs() {
+  const posEl  = document.getElementById('es-monitor-pos');
+  const spanEl = document.getElementById('es-monitor-span');
   try {
-    const res = await fetch('/api/es/recommendation');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const rec = await res.json();
-    if (rec.error) throw new Error(rec.error);
-
-    applyBadge('badge-es', esBadge(rec));
-
-    // Subtitle
-    const legs = rec.legs || [];
-    const legsStr = legs.map(l =>
-      `${l.action} PUT ${l.dte}d Δ${Number(l.delta).toFixed(2)}`
-    ).join(' / ');
-    document.getElementById('subtitle-es').textContent =
-      (rec.strategy || '') + (legsStr ? ' · ' + legsStr : '');
-
-    // Signals
-    const vix   = rec.vix_snapshot  || {};
-    const trend = rec.trend_snapshot || {};
-    let chips = '';
-    if (trend.signal)
-      chips += sigChip('Trend Filter', trend.signal, trendCls(trend.signal));
-    if (vix.vix != null)
-      chips += sigChip('VIX', fmtNum(vix.vix, 1), vixCls(vix.regime), vix.regime || '');
-    if (trend.spx != null)
-      chips += sigChip('/ES proxy', fmtPrice(trend.spx), '');
-    document.getElementById('signals-es').innerHTML = chips;
-
-    // Rationale
-    if (rec.rationale)
-      document.getElementById('rationale-es').textContent = rec.rationale;
-
-    // Legs structure
-    if (legs.length > 0) {
-      const legHtml = legs.map(l =>
-        `<span class="leg-chip ${l.action === 'SELL' ? 'leg-sell' : 'leg-buy'}">${l.action} PUT · ${l.dte}d · Δ${Number(l.delta).toFixed(2)}</span>`
-      ).join('<span class="leg-sep"> / </span>');
-      document.getElementById('structure-es').innerHTML = legHtml;
+    const [posRes, spanRes] = await Promise.allSettled([
+      fetch('/api/es/position'),
+      fetch('/api/es/stressed-span'),
+    ]);
+    // Position
+    if (posRes.status === 'fulfilled' && posRes.value.ok) {
+      const pos = await posRes.value.json();
+      if (pos.open) {
+        const dte = pos.dte != null ? `${pos.dte}d` : '—';
+        const exp = pos.expiry ? pos.expiry.substring(5) : '—';
+        const stop = pos.stop_level && pos.stop_level !== 'NONE'
+          ? ` · stop: <span style="color:var(--red)">${pos.stop_level}</span>` : '';
+        posEl.innerHTML = `PUT exp ${exp} · ${dte} · entry $${pos.entry_premium != null ? pos.entry_premium.toFixed(2) : '—'}${stop}`;
+      } else {
+        posEl.textContent = 'No open position';
+      }
+    } else {
+      posEl.textContent = '—';
     }
-
-    // Position strip (Phase 2: /api/es/position)
-    document.getElementById('pos-es-body').textContent = 'No open position';
+    // SPAN visibility
+    if (spanRes.status === 'fulfilled' && spanRes.value.ok) {
+      const span = await spanRes.value.json();
+      if (span.stress_ratio != null) {
+        spanEl.textContent = `SPAN ratio ${span.stress_ratio.toFixed(2)} · ${span.stress_band || '—'}`;
+      }
+    }
   } catch (_) {
-    applyBadge('badge-es', { cls: 'badge-unavail', label: 'N/A' });
-    document.getElementById('subtitle-es').textContent = '[API UNAVAILABLE]';
-    document.getElementById('pos-es-body').textContent = '—';
+    posEl.textContent = '—';
   }
 }
 
