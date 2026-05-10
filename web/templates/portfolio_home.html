@@ -1420,6 +1420,29 @@ function _renderMarginAllocation(data) {
     <div class="bp-buckets">${bucketRows}</div>
     <div class="account-rail-grid">${railCards}</div>
     ${noteHtml}`;
+
+  // Sync the three snapshot cells to the current view
+  let viewMargin, viewIdle;
+  if (view === 'schwab') {
+    const spxWs = _rpct(spxDollars, schwabNlv);
+    const eqWs  = _rpct(eqDollars,  schwabNlv);
+    viewMargin = Math.min(spxWs + eqWs + q041W, 100);
+    viewIdle   = Math.max(100 - viewMargin, 0);
+  } else if (view === 'etrade') {
+    viewMargin = _rpct(etDollars, etradeNlv);
+    viewIdle   = Math.max(100 - viewMargin, 0);
+  } else {
+    viewMargin = typeof data.total_real_margin_pct === 'number' ? data.total_real_margin_pct : null;
+    viewIdle   = typeof data.idle_capacity_pct     === 'number' ? data.idle_capacity_pct     : null;
+  }
+  const mEl = document.getElementById('snap-val-margin');
+  const iEl = document.getElementById('snap-val-idle');
+  const cEl = document.getElementById('snap-cell-idle');
+  if (mEl) mEl.textContent = viewMargin != null ? fmtPct(viewMargin) : '—';
+  if (iEl) iEl.textContent = viewIdle   != null ? fmtPct(viewIdle)   : '—';
+  if (cEl) {
+    cEl.classList.toggle('cell-idle', viewIdle != null && viewIdle > 50);
+  }
 }
 
 async function loadSnapshot() {
@@ -1441,17 +1464,17 @@ async function loadSnapshot() {
 
     body.innerHTML = `
       <div class="snapshot-grid">
-        <div class="snapshot-cell${basisFallback ? '' : ''}">
+        <div class="snapshot-cell" id="snap-cell-margin">
           <div class="snapshot-label">Total Margin</div>
-          <div class="snapshot-val${basisFallback ? '" style="color:var(--text-muted);font-size:1.1rem' : ''}">${basisFallback ? '—' : fmtPct(totalReal)}</div>
+          <div class="snapshot-val" id="snap-val-margin">${basisFallback ? '—' : fmtPct(totalReal)}</div>
         </div>
-        <div class="snapshot-cell${basisFallback ? '' : ' cell-idle'}">
+        <div class="snapshot-cell${basisFallback ? '' : ' cell-idle'}" id="snap-cell-idle">
           <div class="snapshot-label">Idle Capacity</div>
-          <div class="snapshot-val${basisFallback ? '" style="color:var(--text-muted);font-size:1.1rem' : ''}">${basisFallback ? '—' : fmtPct(idlePct)}</div>
+          <div class="snapshot-val" id="snap-val-idle">${basisFallback ? '—' : fmtPct(idlePct)}</div>
         </div>
         <div class="snapshot-cell">
           <div class="snapshot-label">Open Positions</div>
-          <div class="snapshot-val">${openCount}</div>
+          <div class="snapshot-val" id="snap-val-positions">${openCount}</div>
         </div>
       </div>
       <div id="margin-alloc"></div>`;
