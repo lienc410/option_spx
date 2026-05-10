@@ -95,6 +95,7 @@ class Q042Trade:
     exit_pnl: float
     account_pct: float
     win: bool
+    status: str = "CLOSED"  # "CLOSED" (expired) or "OPEN" (in-flight at backtest end, MTM)
 
 
 @dataclass
@@ -321,26 +322,61 @@ def run_backtest(start: str = "2007-01-01", end: str = "2026-05-10") -> Backtest
             account_equity=round(account, 2),
         ))
 
+    # ── Step 3: mark in-flight positions as OPEN (mark-to-market) ─────────────
+    # Trades whose expiry > backtest end never trip _maybe_expire. Without this
+    # step they vanish from the CSV — see RESEARCH_LOG R-20260510-11.
+    end_dt = df.index[-1]
+    end_str = end_dt.strftime("%Y-%m-%d")
+    end_close = float(df.iloc[-1]["close"])
+    end_vix = float(df.iloc[-1]["vix"]) if not pd.isna(df.iloc[-1]["vix"]) else 20.0
+
+    def _record_open(pos: Optional[_ActivePos], trades: list) -> None:
+        if pos is None:
+            return
+        expiry_dt = datetime.strptime(pos.expiry_date, "%Y-%m-%d")
+        dte_remaining = max(1, (expiry_dt - end_dt).days)
+        mtm_ps = _price_spread(end_close, pos.long_strike, pos.short_strike, end_vix, dte_remaining)
+        pnl_ps = mtm_ps - pos.debit_per_share
+        pnl = pnl_ps * 100 * pos.contracts
+        pct = (pnl_ps / pos.debit_per_share) * _SIZING_PCT
+        trades.append(Q042Trade(
+            sleeve_id=pos.sleeve_id, signal_date=pos.signal_date,
+            entry_date=pos.entry_date, exit_date=end_str,
+            ath_at_signal=pos.ath_at_signal, ddath_at_signal=pos.ddath_at_signal,
+            long_strike=pos.long_strike, short_strike=pos.short_strike,
+            contracts=pos.contracts, debit_per_share=pos.debit_per_share,
+            exit_pnl=round(pnl, 2), account_pct=round(pct, 4),
+            win=pnl_ps > 0, status="OPEN",
+        ))
+
+    _record_open(active_a, trades_a)
+    _record_open(active_b, trades_b)
+
     return BacktestResult(trades_a=trades_a, trades_b=trades_b, daily_rows=daily_rows)
 
 
 # ── Output & metrics ──────────────────────────────────────────────────────────
 
 def _metrics(trades: list[Q042Trade], years: float) -> dict:
-    if not trades:
-        return {"n": 0}
-    wins  = [t for t in trades if t.win]
-    total_pnl_pct = sum(t.account_pct for t in trades) * 100
+    # AC21 reproduction: count and win-rate use CLOSED trades only
+    # (OPEN positions are MTM snapshots, not realized outcomes).
+    closed = [t for t in trades if t.status == "CLOSED"]
+    open_trades = [t for t in trades if t.status == "OPEN"]
+    if not closed:
+        return {"n": 0, "n_open": len(open_trades)}
+    wins  = [t for t in closed if t.win]
+    total_pnl_pct = sum(t.account_pct for t in closed) * 100
     equity = [1.0]
-    for t in trades:
+    for t in closed:
         equity.append(equity[-1] * (1 + t.account_pct))
     peak = 1.0; max_dd = 0.0
     for v in equity:
         peak = max(peak, v)
         max_dd = min(max_dd, (v - peak) / peak)
     return {
-        "n": len(trades),
-        "win_rate_pct": round(len(wins) / len(trades) * 100, 1),
+        "n": len(closed),
+        "n_open": len(open_trades),
+        "win_rate_pct": round(len(wins) / len(closed) * 100, 1),
         "total_pnl_pct": round(total_pnl_pct, 1),
         "annualized_pct": round(total_pnl_pct / years, 2),
         "max_dd_pct": round(max_dd * 100, 1),
@@ -355,7 +391,7 @@ def write_trades_csv(result: BacktestResult) -> None:
             "sleeve_id", "signal_date", "entry_date", "exit_date",
             "ath_at_signal", "ddath_at_signal",
             "long_strike", "short_strike", "contracts",
-            "debit_per_share", "exit_pnl", "account_pct",
+            "debit_per_share", "exit_pnl", "account_pct", "status",
         ])
         for t in result.all_trades:
             w.writerow([
@@ -363,6 +399,7 @@ def write_trades_csv(result: BacktestResult) -> None:
                 round(t.ath_at_signal, 2), round(t.ddath_at_signal, 4),
                 int(t.long_strike), int(t.short_strike), round(t.contracts, 0),
                 round(t.debit_per_share, 4), round(t.exit_pnl, 2), round(t.account_pct, 4),
+                t.status,
             ])
     print(f"  wrote {TRADES_CSV}")
 

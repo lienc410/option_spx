@@ -583,10 +583,13 @@ def api_q042_bt():
                     "debit_per_share": round(float(row["debit_per_share"]), 4),
                     "exit_pnl":        round(float(row["exit_pnl"]), 2),
                     "account_pct":     round(float(row["account_pct"]) * 100, 2),  # to %
+                    "status":          row.get("status", "CLOSED"),
                 })
         summary = {}
         for sleeve in ["A", "B"]:
-            st = [t for t in trades if t["sleeve_id"] == sleeve]
+            # Summary stats use CLOSED trades only — OPEN rows are MTM snapshots,
+            # not realized outcomes (see RESEARCH_LOG R-20260510-11).
+            st = [t for t in trades if t["sleeve_id"] == sleeve and t["status"] == "CLOSED"]
             if not st:
                 continue
             wins = [t for t in st if t["exit_pnl"] > 0]

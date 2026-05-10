@@ -90,6 +90,26 @@ python3 -m backtest.q042_engine
 - AC14（Telegram format）: requires live TELEGRAM_BOT_TOKEN；format code reviewed only
 - AC5（state persistence）: code reviewed; data/q042_state.json 初期值 written
 
+## 修訂ノート（2026-05-10：Open-Position Reporting）
+
+**問題**：PM が backtest CSV 「2026-02/03 大盤回撤に Q042 trade なし」と気付いた。診断結果：
+- 2026-02 最深 ddATH=-2.58%（dd4 阈值 -4% 未达，正常無 trigger）
+- **2026-03-12 Sleeve A は実際に trigger（ddATH=-4.38%）し、T+1 entry 2026-03-13** で 16.67% BP を保持していた
+- しかし expiry 2026-06-10 > backtest end 2026-05-10 → `_maybe_expire` は never fire → trade is dropped from `trades_a` list → CSV から完全に欠落
+
+**修正**（[backtest/q042_engine.py](../backtest/q042_engine.py)）:
+1. `Q042Trade` に `status: str = "CLOSED"` フィールド追加
+2. walk-forward 終了後、`_record_open()` で active_a / active_b を MTM-price し、`status="OPEN"` で trades list に追加
+3. `_metrics()` は `status=="CLOSED"` のみで n / win_rate を計算（AC21 reproduction を保つ）；`n_open` を別フィールドで報告
+4. CSV に `status` 列追加
+
+**検証**：再走後の出力
+- Sleeve A: n=25 ✓ / n_open=1 / win=64% ✓ / total=97.3% ✓ / max_dd=-15.9% ✓
+- Sleeve B: n=5 ✓ / n_open=0 / win=100% ✓ / total=42.5% ✓
+- CSV 末尾に Sleeve A OPEN row（signal 2026-03-12, entry 2026-03-13, MTM exit_pnl=+$13,150, account_pct=+7.89%）
+
+**influence on AC21**: ゼロ（CLOSED-only metrics は不変）
+
 ## 阻塞/备注
 
 - **RESEARCH_LOG.md 未更新**：DEVELOPER.md 規則「Developer 默认不修改 RESEARCH_LOG.md」；F9 の RESEARCH_LOG 更新は Quant Researcher が補充
