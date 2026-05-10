@@ -62,6 +62,10 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .cmp-table tr:last-child td { border-bottom:none; }
 .up { color:var(--green); } .down { color:var(--red); }
 
+.range-btns { display:flex;gap:4px;align-items:center; }
+.range-btn { font-family:var(--f-mono);font-size:0.60rem;padding:2px 9px;border-radius:4px;border:1px solid var(--border-2);background:none;color:var(--text-2);cursor:pointer;transition:0.12s; }
+.range-btn:hover { color:var(--text);border-color:var(--border-2); }
+.range-btn.active { background:var(--surface-hi);color:var(--text);border-color:var(--border-2); }
 .loading-msg { font-family:var(--f-ui);font-size:0.72rem;color:var(--text-muted);font-style:italic;padding:40px;text-align:center; }
 .error-msg { font-family:var(--f-mono);font-size:0.65rem;color:var(--red);padding:16px; }
 
@@ -137,15 +141,24 @@ function render(bt, spxHist, paper) {
   });
 
   let html = `
-    <div class="section-label">C6 · SPX Price + ATH + 入场/出场 Overlay（19yr）</div>
+    <div class="section-label">C6 · SPX Price + ATH + 入场/出场 Overlay</div>
     <div class="chart-wrap">
       <div class="chart-hd">
         <span class="chart-title">SPX 历史 + ATH 线 + 所有触发标记</span>
-        <div class="chart-legend">
-          <div class="chart-legend-item"><div class="chart-legend-line" style="background:#4888E8"></div>SPX</div>
-          <div class="chart-legend-item"><div class="chart-legend-line" style="background:rgba(201,168,64,0.6)"></div>ATH</div>
-          <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#4888E8"></div>A entry/exit</div>
-          <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#E08040"></div>B entry/exit</div>
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <div class="chart-legend">
+            <div class="chart-legend-item"><div class="chart-legend-line" style="background:#4888E8"></div>SPX</div>
+            <div class="chart-legend-item"><div class="chart-legend-line" style="background:rgba(201,168,64,0.6)"></div>ATH</div>
+            <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#4888E8"></div>A</div>
+            <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#E08040"></div>B</div>
+          </div>
+          <div class="range-btns">
+            <button class="range-btn" onclick="setC6Range('1yr')">1yr</button>
+            <button class="range-btn" onclick="setC6Range('3yr')">3yr</button>
+            <button class="range-btn" onclick="setC6Range('5yr')">5yr</button>
+            <button class="range-btn" onclick="setC6Range('10yr')">10yr</button>
+            <button class="range-btn active" onclick="setC6Range('all')">All</button>
+          </div>
         </div>
       </div>
       <canvas id="c6-chart" height="260" style="width:100%"></canvas>
@@ -223,6 +236,12 @@ function render(bt, spxHist, paper) {
   destroyCharts();
 
   // C6
+  const _c6FullData = [
+    history.map((h,i)=>({x:i,y:h.close})),
+    history.map((h,i)=>({x:i,y:h.ath})),
+    entryA, exitA, entryB, exitB,
+  ];
+
   charts.c6 = new Chart(document.getElementById('c6-chart'), {
     type: 'line',
     data: { datasets: [
@@ -249,6 +268,9 @@ function render(bt, spxHist, paper) {
       },
     },
   });
+
+  charts.c6._fullData   = _c6FullData;
+  charts.c6._historyRef = history;
 
   // C7 — cumulative P&L
   charts.c7 = new Chart(document.getElementById('c7-chart'), {
@@ -322,6 +344,35 @@ function render(bt, spxHist, paper) {
 }
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
+function setC6Range(range) {
+  const c = charts.c6;
+  if (!c || !c._fullData || !c._historyRef) return;
+  const hist = c._historyRef;
+  const now = new Date();
+  let cutoffDate = null;
+  if (range === '1yr')  cutoffDate = new Date(now.getFullYear()-1,  now.getMonth(), now.getDate()).toISOString().slice(0,10);
+  else if (range === '3yr')  cutoffDate = new Date(now.getFullYear()-3,  now.getMonth(), now.getDate()).toISOString().slice(0,10);
+  else if (range === '5yr')  cutoffDate = new Date(now.getFullYear()-5,  now.getMonth(), now.getDate()).toISOString().slice(0,10);
+  else if (range === '10yr') cutoffDate = new Date(now.getFullYear()-10, now.getMonth(), now.getDate()).toISOString().slice(0,10);
+
+  // Find start index in history
+  const startIdx = cutoffDate ? Math.max(hist.findIndex(h => h.date >= cutoffDate), 0) : 0;
+
+  // Filter each dataset by index >= startIdx
+  c.data.datasets.forEach((ds, i) => {
+    const full = c._fullData[i];
+    if (!full) return;
+    ds.data = startIdx > 0 ? full.filter(p => p.x >= startIdx) : full;
+  });
+  c.options.scales.x.min = startIdx;
+  c.options.scales.x.max = hist.length - 1;
+  c.update();
+
+  document.querySelectorAll('.range-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.textContent.toLowerCase().replace(' ','') === range);
+  });
+}
+
 async function loadAll() {
   try {
     const [btRes, histRes, paperRes] = await Promise.allSettled([
