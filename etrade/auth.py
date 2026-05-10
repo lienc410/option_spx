@@ -288,7 +288,7 @@ def renew_access_token() -> dict:
             signature_type="AUTH_HEADER",
         )
         r = session.get(
-            "https://api.etrade.com/v1/oauth/renew_access_token",
+            "https://api.etrade.com/oauth/renew_access_token",
             timeout=20,
         )
         r.raise_for_status()
