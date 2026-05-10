@@ -537,7 +537,7 @@ def api_q042_spx_history():
         history = []
         for d in closes.index[closes.index >= cutoff]:
             history.append({
-                "date": str(d),
+                "date": d.strftime("%Y-%m-%d"),
                 "close": round(float(closes[d]), 2),
                 "ath": round(float(ath[d]), 2),
                 "ddath_pct": round(float(ddath[d]), 2),
