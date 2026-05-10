@@ -21,7 +21,7 @@ import os
 import sys
 import time
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
@@ -44,6 +44,34 @@ LOG_DIR = REPO_ROOT / "logs"
 HTTP_TIMEOUT = 30
 REQUEST_PAUSE_SEC = 0.35
 PAGE_LIMIT = 250
+INTEGRITY_AUDIT_PATH = REPO_ROOT / "data" / "q041_massive_snapshot_integrity.jsonl"
+INTEGRITY_ALERT_STATE_PATH = REPO_ROOT / "data" / "q041_massive_snapshot_integrity_alerts.jsonl"
+TELEGRAM_TIMEOUT = 20
+INTEGRITY_LOOKBACK_DAYS = 5
+
+_US_HOLIDAYS_2025 = {
+    "2025-01-01",
+    "2025-01-20",
+    "2025-02-17",
+    "2025-04-18",
+    "2025-05-26",
+    "2025-07-04",
+    "2025-09-01",
+    "2025-11-27",
+    "2025-12-25",
+}
+_US_HOLIDAYS_2026 = {
+    "2026-01-01",
+    "2026-01-19",
+    "2026-02-16",
+    "2026-04-03",
+    "2026-05-25",
+    "2026-07-03",
+    "2026-09-07",
+    "2026-11-26",
+    "2026-12-25",
+}
+_ALL_HOLIDAYS = _US_HOLIDAYS_2025 | _US_HOLIDAYS_2026
 
 load_dotenv(REPO_ROOT / ".env")
 
@@ -87,7 +115,17 @@ def _ensure_api_key() -> str:
 
 
 def _trading_day(d: date) -> bool:
-    return d.weekday() < 5
+    return d.weekday() < 5 and d.isoformat() not in _ALL_HOLIDAYS
+
+
+def _recent_trading_days(day: date, n: int) -> list[date]:
+    out: list[date] = []
+    cursor = day
+    while len(out) < n:
+        if _trading_day(cursor):
+            out.append(cursor)
+        cursor -= timedelta(days=1)
+    return sorted(out)
 
 
 def _with_api_key(next_url: str, api_key: str) -> str:
@@ -213,6 +251,98 @@ def _normalize_frame(symbol: str, snapshot_date: str, results: list[dict[str, An
     return df.sort_values(["expiration_date", "contract_type", "strike_price", "occ_ticker"]).reset_index(drop=True)
 
 
+def _day_partition_ok(day: date) -> bool:
+    day_dir = DATA_ROOT / day.isoformat()
+    return (
+        day_dir.exists()
+        and (day_dir / "_summary.json").exists()
+        and (day_dir / "SPX.parquet").exists()
+    )
+
+
+def _integrity_record(day: date) -> dict[str, Any]:
+    recent_days = _recent_trading_days(day, INTEGRITY_LOOKBACK_DAYS)
+    missing = [d.isoformat() for d in recent_days if not _day_partition_ok(d)]
+    return {
+        "date": day.isoformat(),
+        "status": "warning" if missing else "ok",
+        "lookback_days": INTEGRITY_LOOKBACK_DAYS,
+        "checked_days": [d.isoformat() for d in recent_days],
+        "missing_days": missing,
+    }
+
+
+def _append_integrity_record(record: dict[str, Any]) -> None:
+    INTEGRITY_AUDIT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with INTEGRITY_AUDIT_PATH.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+def _load_integrity_alerted_days() -> dict[str, set[str]]:
+    if not INTEGRITY_ALERT_STATE_PATH.exists():
+        return {}
+    out: dict[str, set[str]] = {}
+    with INTEGRITY_ALERT_STATE_PATH.open("r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            when = str(payload.get("date") or "")
+            missing_days = {str(v) for v in (payload.get("missing_days") or []) if str(v)}
+            if when:
+                out.setdefault(when, set()).update(missing_days)
+    return out
+
+
+def _append_integrity_alert_state(day: str, missing_days: list[str]) -> None:
+    INTEGRITY_ALERT_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with INTEGRITY_ALERT_STATE_PATH.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"date": day, "missing_days": missing_days}, ensure_ascii=False) + "\n")
+
+
+def _telegram_creds() -> tuple[str, str]:
+    return os.getenv("TELEGRAM_BOT_TOKEN", "").strip(), os.getenv("TELEGRAM_CHAT_ID", "").strip()
+
+
+def _send_telegram_message(text: str, log: logging.Logger) -> bool:
+    token, chat_id = _telegram_creds()
+    if not token or not chat_id:
+        log.warning("telegram credentials missing; skip integrity alert")
+        return False
+    try:
+        res = requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            data={"chat_id": chat_id, "text": text},
+            timeout=TELEGRAM_TIMEOUT,
+        )
+        res.raise_for_status()
+        return True
+    except Exception:
+        log.exception("telegram send failed")
+        return False
+
+
+def _build_integrity_alert_text(record: dict[str, Any]) -> str | None:
+    missing = [str(v) for v in (record.get("missing_days") or []) if str(v)]
+    if not missing:
+        return None
+    prior = _load_integrity_alerted_days().get(str(record.get("date") or ""), set())
+    fresh = [d for d in missing if d not in prior]
+    if not fresh:
+        return None
+    _append_integrity_alert_state(str(record.get("date") or ""), fresh)
+    lines = [
+        f"⚠️ Q041 Massive snapshot integrity warning {record['date']}",
+        f"Recent trading-day partitions missing under data/q041_massive_snapshot/",
+    ]
+    lines.extend(f"- {day}" for day in fresh)
+    return "\n".join(lines)
+
+
 @dataclass
 class CollectResult:
     symbol: str
@@ -263,7 +393,7 @@ def _fetch_symbol_snapshot(
     return CollectResult(symbol=symbol, rows=len(frame), pages=pages)
 
 
-def run(*, snapshot_day: date, symbols: list[str], force: bool, verbose: bool) -> int:
+def run(*, snapshot_day: date, symbols: list[str], force: bool, verbose: bool, send_telegram: bool = True) -> int:
     log = _logger(verbose)
     if not _trading_day(snapshot_day):
         log.info("non-trading day (%s) — skipping", snapshot_day.strftime("%a"))
@@ -309,6 +439,13 @@ def run(*, snapshot_day: date, symbols: list[str], force: bool, verbose: bool) -
     }
     (day_dir / "_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     log.info("done snapshot_date=%s ok=%d errors=%d total_rows=%d", snapshot_date, ok, errors, summary["total_rows"])
+    integrity = _integrity_record(snapshot_day)
+    _append_integrity_record(integrity)
+    if integrity["missing_days"]:
+        log.warning("snapshot integrity warning date=%s missing=%s", snapshot_date, ",".join(integrity["missing_days"]))
+        alert_text = _build_integrity_alert_text(integrity)
+        if alert_text and send_telegram:
+            _send_telegram_message(alert_text, log)
     return 0 if errors == 0 else 1
 
 
@@ -317,12 +454,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--date", default=None, help="Snapshot day label YYYY-MM-DD (default: today ET)")
     parser.add_argument("--symbols", nargs="*", help="Override whitelist symbols")
     parser.add_argument("--force", action="store_true", help="Overwrite existing symbol parquet for the day")
+    parser.add_argument("--skip-telegram", action="store_true", help="Do not send integrity Telegram alerts")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args(argv)
 
     snapshot_day = datetime.now(ET).date() if not args.date else date.fromisoformat(args.date)
     symbols = _target_symbols(args.symbols)
-    return run(snapshot_day=snapshot_day, symbols=symbols, force=args.force, verbose=args.verbose)
+    return run(
+        snapshot_day=snapshot_day,
+        symbols=symbols,
+        force=args.force,
+        verbose=args.verbose,
+        send_telegram=not args.skip_telegram,
+    )
 
 
 if __name__ == "__main__":
