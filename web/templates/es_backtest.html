@@ -668,6 +668,21 @@ function renderV2fPanel(v0Summary, v2fPayload) {
       </div>`
     : `<div class="v2f-empty">V2f summary unavailable${v2fPayload?.error ? `: ${v2fPayload.error}` : ''}</div>`;
 
+  // V2f tail risk disclosure — Q060 stress test finding, PM decision 2026-05-10
+  const tailRiskHtml = `
+    <div class="caveat-warning" style="background:#fff3cd;border:1px solid #ffc107;border-radius:4px;padding:10px;margin-top:8px;">
+      <strong>⚠️ Tail Risk Disclosure</strong><br>
+      Historical worst trade <strong>-9.24% NLV</strong> reflects 26-yr BS-flat data (worst observed: COVID 2020 V-shape recovery).
+      This is <em>not</em> a tail bound.<br>
+      1987-magnitude stress test shows:
+      <ul style="margin:4px 0 0 16px">
+        <li>Single-trade worst: <strong>~-17% NLV</strong> (exceeds V1 veto threshold)</li>
+        <li>Cluster loss (5 concurrent positions): <strong>~-47% of equity</strong></li>
+      </ul>
+      STOP_MULT=15 triggers on sudden gaps but cannot prevent full-premium loss on open contracts.
+      Paper trading is mandatory before any live execution.
+    </div>`;
+
   return `
     ${caveatHtml}
     <div class="section-label">V0 vs V2f Summary</div>
@@ -675,7 +690,8 @@ function renderV2fPanel(v0Summary, v2fPayload) {
       ${renderV2fCompareCard('V0 · Current Fixed-Slot Phase 1', v0Rows)}
       ${renderV2fCompareCard('V2f · True Weekly Ladder', v2fRows)}
     </div>
-    ${body}`;
+    ${body}
+    ${tailRiskHtml}`;
 }
 
 function buildEquityChart(filtered, baseline) {
