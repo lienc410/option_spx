@@ -491,6 +491,45 @@ def api_portfolio_bp_timeline():
 
 _ES_BT_CACHE: dict = {}
 _Q041_BT_CACHE: dict = {}
+
+_ES_DISK_CACHE_PATH = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "data", "es_backtest_cache.json")
+)
+_ES_SCRIPT_PATH = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "research", "strategies", "ES_puts", "backtest.py")
+)
+
+
+def _es_script_mtime() -> str:
+    try:
+        return str(int(os.path.getmtime(_ES_SCRIPT_PATH)))
+    except OSError:
+        return "0"
+
+
+def _load_es_disk_cache(cache_key: str) -> dict | None:
+    try:
+        with open(_ES_DISK_CACHE_PATH, "r") as f:
+            store = json.load(f)
+        return store.get(f"{cache_key}__{_es_script_mtime()}")
+    except Exception:
+        return None
+
+
+def _save_es_disk_cache(cache_key: str, payload: dict) -> None:
+    try:
+        try:
+            with open(_ES_DISK_CACHE_PATH, "r") as f:
+                store = json.load(f)
+        except Exception:
+            store = {}
+        store[f"{cache_key}__{_es_script_mtime()}"] = payload
+        tmp = _ES_DISK_CACHE_PATH + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(store, f)
+        os.replace(tmp, _ES_DISK_CACHE_PATH)
+    except Exception:
+        pass
 _VIX_BY_DATE: dict | None = None
 
 _Q041_DISK_CACHE_PATH = os.path.normpath(
@@ -622,24 +661,48 @@ def _warmup_backtest_caches() -> None:
             _save_q041_disk_cache(start, payload)
     except Exception:
         pass
+    # ── ES backtest warmup ────────────────────────────────────────────────────
     try:
-        from research.strategies.ES_puts.backtest import run_phase1_hybrid
-        rf = run_phase1_hybrid(mode="filtered",  start_date="2022-05-01")
-        rb = run_phase1_hybrid(mode="baseline",  start_date="2022-05-01")
+        es_key = "both:2022-05-01:1"
+        es_disk = _load_es_disk_cache(es_key)
+        if es_disk:
+            _ES_BT_CACHE[es_key] = es_disk
+        else:
+            from research.strategies.ES_puts.backtest import run_phase1_hybrid
+            rf = run_phase1_hybrid(mode="filtered", start_date="2022-05-01")
+            rb = run_phase1_hybrid(mode="baseline", start_date="2022-05-01")
 
-        def _ser(r, label):
-            wins  = [t for t in r.trades if t.pnl > 0]
-            stops = [t for t in r.trades if t.exit_reason == "stop_loss"]
-            profs = [t for t in r.trades if t.exit_reason == "profit_target"]
-            m = r.portfolio_metrics
-            return {
-                "label": label, "phase": r.phase,
-                "trades": [{"entry_date": t.entry_date, "exit_date": t.exit_date, "entry_spx": round(t.entry_spx,1), "exit_spx": round(t.exit_spx,1), "entry_vix": round(t.entry_vix,1), "entry_premium": round(t.entry_premium,2), "exit_premium": round(t.exit_premium,2), "dte_at_entry": t.dte_at_entry, "dte_at_exit": t.dte_at_exit, "exit_reason": t.exit_reason, "contracts": round(t.contracts,4), "pnl": round(t.pnl,2)} for t in r.trades],
-                "equity_curve": [{"date": dr.date, "equity": round(dr.end_equity,2)} for i, dr in enumerate(r.daily_rows) if i % 5 == 0],
-                "summary": {"n_trades": len(r.trades), "win_rate_pct": round(len(wins)/len(r.trades)*100,1) if r.trades else 0, "stop_rate_pct": round(len(stops)/len(r.trades)*100,1) if r.trades else 0, "profit_target_pct": round(len(profs)/len(r.trades)*100,1) if r.trades else 0, "total_pnl": round(sum(t.pnl for t in r.trades),0), "ann_return_pct": m.get("ann_return"), "sharpe": m.get("daily_sharpe"), "max_drawdown_pct": round(abs(m.get("max_drawdown",0) or 0)*100,2), "actual_market_entries": m.get("actual_market_entries"), "bs_fallback_entries": m.get("bs_fallback_entries")},
-            }
+            def _ser(r, label):
+                wins  = [t for t in r.trades if t.pnl > 0]
+                stops = [t for t in r.trades if t.exit_reason == "stop_loss"]
+                profs = [t for t in r.trades if t.exit_reason == "profit_target"]
+                m = r.portfolio_metrics
+                return {
+                    "label": label, "phase": r.phase,
+                    "trades": [{"entry_date": t.entry_date, "exit_date": t.exit_date, "entry_spx": round(t.entry_spx,1), "exit_spx": round(t.exit_spx,1), "entry_vix": round(t.entry_vix,1), "entry_premium": round(t.entry_premium,2), "exit_premium": round(t.exit_premium,2), "dte_at_entry": t.dte_at_entry, "dte_at_exit": t.dte_at_exit, "exit_reason": t.exit_reason, "contracts": round(t.contracts,4), "pnl": round(t.pnl,2)} for t in r.trades],
+                    "equity_curve": [{"date": dr.date, "equity": round(dr.end_equity,2)} for i, dr in enumerate(r.daily_rows) if i % 5 == 0],
+                    "summary": {"n_trades": len(r.trades), "win_rate_pct": round(len(wins)/len(r.trades)*100,1) if r.trades else 0, "stop_rate_pct": round(len(stops)/len(r.trades)*100,1) if r.trades else 0, "profit_target_pct": round(len(profs)/len(r.trades)*100,1) if r.trades else 0, "total_pnl": round(sum(t.pnl for t in r.trades),0), "ann_return_pct": m.get("ann_return"), "sharpe": m.get("daily_sharpe"), "max_drawdown_pct": round(abs(m.get("max_drawdown",0) or 0)*100,2), "actual_market_entries": m.get("actual_market_entries"), "bs_fallback_entries": m.get("bs_fallback_entries")},
+                }
 
-        _ES_BT_CACHE["filtered:2022-05-01:1"] = {"status": "ok", "filtered": _ser(rf, "Trend Filter ON"), "baseline": _ser(rb, "No Filter"), "start_date": "2022-05-01", "pricing": "hybrid_actual+bs"}
+            es_payload = {"status": "ok", "filtered": _ser(rf, "Trend Filter ON"), "baseline": _ser(rb, "No Filter"), "start_date": "2022-05-01", "pricing": "hybrid_actual+bs"}
+            _ES_BT_CACHE[es_key] = es_payload
+            _save_es_disk_cache(es_key, es_payload)
+    except Exception:
+        pass
+
+    # ── SPX backtest warmup — pre-populate memory cache from disk ─────────────
+    try:
+        disk_cache = _load_results_disk()
+        today = date.today().isoformat()
+        for ck, entry in disk_cache.items():
+            if isinstance(entry, dict) and entry.get("date") == today:
+                payload = {
+                    **entry.get("payload", {}),
+                    "computed_at": entry.get("computed_at"),
+                    "start_date":  entry.get("start_date", ""),
+                    "params_hash": entry.get("params_hash", ""),
+                }
+                _backtest_cache[ck] = (time.time(), payload)
     except Exception:
         pass
 
@@ -656,9 +719,14 @@ def api_es_backtest():
     use_hybrid = flask_req.args.get("hybrid", "1") == "1"
     cache_key  = f"{mode}:{start_date}:{use_hybrid}"
 
-    # In-memory cache (cleared on server restart)
+    # Memory cache
     if cache_key in _ES_BT_CACHE:
         return jsonify(_ES_BT_CACHE[cache_key])
+    # Disk cache
+    disk_cached = _load_es_disk_cache(cache_key)
+    if disk_cached:
+        _ES_BT_CACHE[cache_key] = disk_cached
+        return jsonify(disk_cached)
 
     def _serialize_result(r, label):
         trades_out = [
@@ -732,7 +800,40 @@ def api_es_backtest():
             }
 
         _ES_BT_CACHE[cache_key] = payload
+        _save_es_disk_cache(cache_key, payload)
         return jsonify(payload)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/es/backtest/refresh", methods=["POST"])
+def api_es_backtest_refresh():
+    """Force recompute ES backtest, bypassing memory and disk cache."""
+    mode       = flask_req.args.get("mode", "both")
+    start_date = flask_req.args.get("start", "2022-05-01")
+    use_hybrid = flask_req.args.get("hybrid", "1") == "1"
+    cache_key  = f"{mode}:{start_date}:{int(use_hybrid)}"
+    _ES_BT_CACHE.pop(cache_key, None)
+    try:
+        from research.strategies.ES_puts.backtest import run_phase1, run_phase1_hybrid
+        run_fn = run_phase1_hybrid if use_hybrid else run_phase1
+        rf = run_fn(mode="filtered", start_date=start_date)
+        rb = run_fn(mode="baseline", start_date=start_date)
+
+        def _s(r, lbl):
+            wins  = [t for t in r.trades if t.pnl > 0]
+            stops = [t for t in r.trades if t.exit_reason == "stop_loss"]
+            profs = [t for t in r.trades if t.exit_reason == "profit_target"]
+            m = r.portfolio_metrics
+            return {"label": lbl, "phase": r.phase,
+                "trades": [{"entry_date": t.entry_date, "exit_date": t.exit_date, "entry_spx": round(t.entry_spx,1), "exit_spx": round(t.exit_spx,1), "entry_vix": round(t.entry_vix,1), "entry_premium": round(t.entry_premium,2), "exit_premium": round(t.exit_premium,2), "dte_at_entry": t.dte_at_entry, "dte_at_exit": t.dte_at_exit, "exit_reason": t.exit_reason, "contracts": round(t.contracts,4), "pnl": round(t.pnl,2)} for t in r.trades],
+                "equity_curve": [{"date": dr.date, "equity": round(dr.end_equity,2)} for i, dr in enumerate(r.daily_rows) if i % 5 == 0],
+                "summary": {"n_trades": len(r.trades), "win_rate_pct": round(len(wins)/len(r.trades)*100,1) if r.trades else 0, "stop_rate_pct": round(len(stops)/len(r.trades)*100,1) if r.trades else 0, "total_pnl": round(sum(t.pnl for t in r.trades),0), "ann_return_pct": m.get("ann_return"), "sharpe": m.get("daily_sharpe"), "max_drawdown_pct": round(abs(m.get("max_drawdown",0) or 0)*100,2)}}
+
+        payload = {"status": "ok", "filtered": _s(rf, "Trend Filter ON"), "baseline": _s(rb, "No Filter"), "start_date": start_date, "pricing": "hybrid_actual+bs" if use_hybrid else "black_scholes"}
+        _ES_BT_CACHE[cache_key] = payload
+        _save_es_disk_cache(cache_key, payload)
+        return jsonify({"ok": True})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 
