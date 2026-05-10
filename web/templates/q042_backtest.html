@@ -120,17 +120,20 @@ function render(bt, spxHist, paper) {
   const summary = bt.summary || {};
   const history = spxHist.history || [];
   const priceByDate = {};
-  history.forEach(h => { priceByDate[h.date] = h.close; });
+  const idxByDate = {};
+  history.forEach((h, i) => { priceByDate[h.date] = h.close; idxByDate[h.date] = i; });
   const tradesA = trades.filter(t => t.sleeve_id === 'A');
   const tradesB = trades.filter(t => t.sleeve_id === 'B');
 
   // ── C6: SPX + ATH + entry/exit overlay ─────────────────────────────────────
+  // Use numeric index for scatter x so category axis alignment works
   const entryA = [], exitA = [], entryB = [], exitB = [];
   trades.forEach(t => {
+    const ei = idxByDate[t.entry_date], xi = idxByDate[t.exit_date];
     const ep = priceByDate[t.entry_date], xp = priceByDate[t.exit_date];
     const bucket = t.sleeve_id === 'A' ? {e:entryA, x:exitA} : {e:entryB, x:exitB};
-    if (ep != null) bucket.e.push({ x:t.entry_date, y:ep, trade:t });
-    if (xp != null) bucket.x.push({ x:t.exit_date,  y:xp, trade:t });
+    if (ei != null && ep != null) bucket.e.push({ x:ei, y:ep, trade:t });
+    if (xi != null && xp != null) bucket.x.push({ x:xi, y:xp, trade:t });
   });
 
   let html = `
@@ -223,12 +226,12 @@ function render(bt, spxHist, paper) {
   charts.c6 = new Chart(document.getElementById('c6-chart'), {
     type: 'line',
     data: { datasets: [
-      { type:'line', label:'SPX',  data:history.map(h=>({x:h.date,y:h.close})), borderColor:'#4888E8', backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0.1, yAxisID:'yP', order:5 },
-      { type:'line', label:'ATH',  data:history.map(h=>({x:h.date,y:h.ath})),   borderColor:'rgba(201,168,64,0.50)', backgroundColor:'transparent', borderWidth:1, borderDash:[4,3], pointRadius:0, tension:0, yAxisID:'yP', order:4 },
-      { type:'scatter', label:'A entry', data:entryA, backgroundColor:'rgba(72,136,232,0.90)', borderColor:'rgba(72,136,232,0.40)', pointStyle:'triangle', rotation:0, pointRadius:6, yAxisID:'yP', order:1 },
-      { type:'scatter', label:'A exit',  data:exitA,  backgroundColor:'rgba(72,136,232,0.50)', borderColor:'rgba(72,136,232,0.25)', pointStyle:'triangle', rotation:180, pointRadius:5, yAxisID:'yP', order:2 },
-      { type:'scatter', label:'B entry', data:entryB, backgroundColor:'rgba(224,128,64,0.90)', borderColor:'rgba(224,128,64,0.40)', pointStyle:'triangle', rotation:0, pointRadius:7, yAxisID:'yP', order:1 },
-      { type:'scatter', label:'B exit',  data:exitB,  backgroundColor:'rgba(224,128,64,0.50)', borderColor:'rgba(224,128,64,0.25)', pointStyle:'triangle', rotation:180, pointRadius:6, yAxisID:'yP', order:2 },
+      { type:'line',    label:'SPX',     data:history.map((h,i)=>({x:i,y:h.close})), borderColor:'#4888E8', backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0.1, yAxisID:'yP', order:5 },
+      { type:'line',    label:'ATH',     data:history.map((h,i)=>({x:i,y:h.ath})),   borderColor:'rgba(201,168,64,0.50)', backgroundColor:'transparent', borderWidth:1, borderDash:[4,3], pointRadius:0, tension:0, yAxisID:'yP', order:4 },
+      { type:'scatter', label:'A entry', data:entryA, backgroundColor:'rgba(72,136,232,0.90)', borderColor:'rgba(72,136,232,0.40)', pointStyle:'triangle', rotation:0,   pointRadius:7, yAxisID:'yP', order:1 },
+      { type:'scatter', label:'A exit',  data:exitA,  backgroundColor:'rgba(72,136,232,0.50)', borderColor:'rgba(72,136,232,0.25)', pointStyle:'triangle', rotation:180, pointRadius:6, yAxisID:'yP', order:2 },
+      { type:'scatter', label:'B entry', data:entryB, backgroundColor:'rgba(224,128,64,0.90)', borderColor:'rgba(224,128,64,0.40)', pointStyle:'triangle', rotation:0,   pointRadius:8, yAxisID:'yP', order:1 },
+      { type:'scatter', label:'B exit',  data:exitB,  backgroundColor:'rgba(224,128,64,0.50)', borderColor:'rgba(224,128,64,0.25)', pointStyle:'triangle', rotation:180, pointRadius:7, yAxisID:'yP', order:2 },
     ]},
     options: {
       responsive:true, animation:false,
@@ -240,8 +243,8 @@ function render(bt, spxHist, paper) {
         }
       }}},
       scales: {
-        x: { type:'category', ticks:{color:'#606880',font:{family:'JetBrains Mono',size:9},maxTicksLimit:12,maxRotation:0,
-               callback:(v,i)=>{ const d=history[i]?.date; return d?d.slice(0,7):v; }}, grid:{color:'#191E33'} },
+        x: { type:'linear', ticks:{color:'#606880',font:{family:'JetBrains Mono',size:9},maxTicksLimit:14,
+               callback:(v)=>{ const d=history[Math.round(v)]?.date; return d?d.slice(0,7):''; }}, grid:{color:'#191E33'} },
         yP: { position:'left', ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},callback:v=>v.toLocaleString()}, grid:{color:'#191E33'} },
       },
     },
@@ -323,7 +326,7 @@ async function loadAll() {
   try {
     const [btRes, histRes, paperRes] = await Promise.allSettled([
       fetch('/api/q042/backtest'),
-      fetch('/api/q042/spx-history'),
+      fetch('/api/q042/spx-history?full=1'),
       fetch('/api/q042/paper'),
     ]);
     const bt   = btRes.status   === 'fulfilled' && btRes.value.ok   ? await btRes.value.json()   : {trades:[],summary:{}};

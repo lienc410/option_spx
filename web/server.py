@@ -520,8 +520,10 @@ _Q042_BT_CACHE_MEM: dict = {}
 @app.route("/api/q042/spx-history")
 def api_q042_spx_history():
     import time as _time
-    cached = _Q042_SPX_CACHE.get("data")
-    if cached and (_time.time() - _Q042_SPX_CACHE.get("ts", 0)) < 3600:
+    full = flask_req.args.get("full", "0") == "1"
+    cache_key = "full" if full else "recent"
+    cached = _Q042_SPX_CACHE.get(cache_key)
+    if cached and (_time.time() - _Q042_SPX_CACHE.get(f"{cache_key}_ts", 0)) < 3600:
         return jsonify(cached)
     try:
         import yfinance as yf, pandas as pd
@@ -531,7 +533,7 @@ def api_q042_spx_history():
         ath = closes.cummax()
         ddath = (closes / ath - 1) * 100
         ma10 = closes.rolling(10).mean()
-        cutoff = closes.index[-252] if len(closes) >= 252 else closes.index[0]
+        cutoff = closes.index[0] if full else (closes.index[-252] if len(closes) >= 252 else closes.index[0])
         history = []
         for d in closes.index[closes.index >= cutoff]:
             history.append({
@@ -550,8 +552,8 @@ def api_q042_spx_history():
                 "above_ma10": cur_close > cur_ma10 if cur_ma10 else None,
             },
         }
-        _Q042_SPX_CACHE["data"] = payload
-        _Q042_SPX_CACHE["ts"]   = _time.time()
+        _Q042_SPX_CACHE[cache_key] = payload
+        _Q042_SPX_CACHE[f"{cache_key}_ts"] = _time.time()
         return jsonify(payload)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
