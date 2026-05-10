@@ -748,6 +748,25 @@ body {
     </div>
   </div>
 
+  <!-- ── Q042 Drawdown Overlay Card ── -->
+  <div class="strategy-card tier-tertiary" id="card-q042" style="margin-bottom:20px">
+    <div class="card-header">
+      <div class="card-name-wrap">
+        <a href="/q042" style="text-decoration:none">
+          <span class="card-name card-name-tertiary">Q042 Overlay</span>
+        </a>
+        <span class="badge-obs">Paper</span>
+      </div>
+      <span class="state-badge badge-wait" id="badge-q042">WAIT</span>
+    </div>
+    <div id="q042-signals" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-family:var(--f-mono);font-size:0.68rem;padding:4px 0 10px 0;border-bottom:1px solid var(--border)">
+      <span class="pos-none">Loading…</span>
+    </div>
+    <div class="sleeve-list" id="sleeves-q042" style="margin-top:6px">
+      <div class="pos-none">Loading…</div>
+    </div>
+  </div>
+
   <!-- Portfolio Snapshot zone -->
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
     <div class="section-label" style="margin-bottom:0">Portfolio Snapshot</div>
@@ -1133,6 +1152,82 @@ async function loadQ041() {
   } catch (_) {
     applyBadge('badge-q041', { cls: 'badge-unavail', label: 'N/A' });
     listEl.innerHTML = '<div class="pos-none">[API UNAVAILABLE]</div>';
+  }
+}
+
+// ── Q042 Drawdown Overlay Card ────────────────────────────────────────────────
+async function loadQ042() {
+  const sigEl  = document.getElementById('q042-signals');
+  const listEl = document.getElementById('sleeves-q042');
+  try {
+    const data = await fetch('/api/q042/state').then(r => r.json());
+    if (data.error) throw new Error(data.error);
+
+    // Badge
+    const hasOpenA = data.sleeve_a?.active_position;
+    const hasOpenB = data.sleeve_b?.active_position;
+    let badgeCls = 'badge-wait', badgeLabel = 'WAIT';
+    if (hasOpenA || hasOpenB)        { badgeCls = 'badge-open';    badgeLabel = 'OPEN'; }
+    else if (data.sleeve_a?.armed)   { badgeCls = 'badge-warning'; badgeLabel = 'A ARMED'; }
+    else if (data.sleeve_b?.in_watching) { badgeCls = 'badge-warning'; badgeLabel = 'B WATCH'; }
+    applyBadge('badge-q042', { cls: badgeCls, label: badgeLabel });
+
+    // Signals row
+    const dd = data.ddath_pct;
+    const ddColor = dd <= -15 ? 'var(--red)' : dd <= -4 ? 'var(--orange)' : 'var(--text-2)';
+    const bpPart = data.combined_bp_pct != null
+      ? `<span style="color:var(--text-muted)">BP</span><span style="color:var(--text-2)">${fmtPct(data.combined_bp_pct)}</span>`
+      : '';
+    sigEl.innerHTML =
+      `<span style="color:var(--text-muted)">ddATH</span>` +
+      `<span style="color:${ddColor};font-weight:600">${fmtPct(dd)}</span>` +
+      `<span style="color:var(--text-muted)">SPX</span>` +
+      `<span>${fmtPrice(data.spx_close)}</span>` +
+      `<span style="color:var(--text-muted)">ATH</span>` +
+      `<span style="color:var(--text-2)">${fmtPrice(data.ath_running_max)}</span>` +
+      bpPart;
+
+    // Sleeve rows
+    const rows = ['A', 'B'].map(sl => {
+      const s   = sl === 'A' ? data.sleeve_a : data.sleeve_b;
+      const pos = s?.active_position;
+      const dotColor = sl === 'A' ? 'var(--blue)' : 'var(--orange)';
+
+      let stateBadge;
+      if (pos)
+        stateBadge = `<span class="state-badge badge-open" style="font-size:0.52rem;padding:2px 6px">OPEN</span>`;
+      else if (sl === 'A' && s?.armed)
+        stateBadge = `<span class="state-badge badge-warning" style="font-size:0.52rem;padding:2px 6px">ARMED</span>`;
+      else if (sl === 'B' && s?.in_watching)
+        stateBadge = `<span class="state-badge badge-warning" style="font-size:0.52rem;padding:2px 6px">WATCHING</span>`;
+      else
+        stateBadge = `<span class="state-badge badge-wait" style="font-size:0.52rem;padding:2px 6px">WAIT</span>`;
+
+      let posInfo = '';
+      if (pos) {
+        const pnl      = pos.current_pnl;
+        const pnlColor = pnl >= 0 ? 'var(--green)' : 'var(--red)';
+        const sign     = pnl >= 0 ? '+' : '';
+        posInfo = `<span style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2)">${fmtPrice(pos.long_strike)}/${fmtPrice(pos.short_strike)}</span>` +
+                  `<span style="font-family:var(--f-mono);font-size:0.65rem;color:${pnlColor}">${sign}${fmtDollars(pnl)}</span>` +
+                  `<span style="font-family:var(--f-ui);font-size:0.60rem;color:var(--text-muted)">${pos.days_to_expiry}d</span>`;
+      } else {
+        posInfo = `<span style="font-family:var(--f-ui);font-size:0.65rem;color:var(--text-muted)">—</span>`;
+      }
+
+      return `<div class="sleeve-row">
+        <div style="width:7px;height:7px;border-radius:50%;background:${dotColor};flex-shrink:0"></div>
+        <span class="sleeve-ticker" style="min-width:38px;font-size:0.70rem">Sleeve ${sl}</span>
+        ${stateBadge}
+        <span style="flex:1"></span>
+        ${posInfo}
+      </div>`;
+    });
+    listEl.innerHTML = rows.join('');
+  } catch (e) {
+    sigEl.innerHTML = `<span class="pos-none">${e.message}</span>`;
+    listEl.innerHTML = '';
+    applyBadge('badge-q042', { cls: 'badge-unavail', label: 'N/A' });
   }
 }
 
@@ -1681,7 +1776,7 @@ async function syncPortfolio() {
   const ts  = document.getElementById('sync-ts');
   if (btn) { btn.textContent = '↻ Syncing…'; btn.disabled = true; }
   if (ts)  ts.textContent = '';
-  await Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadQ041(), loadSnapshot(), loadPositionComposition()]);
+  await Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadQ041(), loadQ042(), loadSnapshot(), loadPositionComposition()]);
   if (btn) { btn.textContent = '↻ Sync'; btn.disabled = false; }
   if (ts)  ts.textContent = 'synced ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
@@ -1709,12 +1804,12 @@ function _initDefaultView() {
 // ── Boot ──────────────────────────────────────────────────────────────────────
 (async () => {
   _initDefaultView();
-  await Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadQ041(), loadSnapshot(), loadPositionComposition()]);
+  await Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadQ041(), loadQ042(), loadSnapshot(), loadPositionComposition()]);
   const ts = document.getElementById('sync-ts');
   if (ts) ts.textContent = 'loaded ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
   // Auto-refresh: strategy cards (recommendation+position) every 60s — picks up close→re-entry transitions
-  setInterval(() => Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadQ041()]), 60 * 1000);
+  setInterval(() => Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadQ041(), loadQ042()]), 60 * 1000);
   // Snapshot + Schwab positions every 5min — heavier, less frequent
   setInterval(() => Promise.allSettled([loadSnapshot(), loadPositionComposition()]), 5 * 60 * 1000);
 })();
