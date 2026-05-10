@@ -22,9 +22,11 @@ Phase roadmap:
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Literal
 
+import numpy as np
 import pandas as pd
 
 from backtest.metrics_portfolio import compute_portfolio_metrics
@@ -63,6 +65,14 @@ P2_DTE_SLOTS      = [21, 28, 35, 42, 49]   # one concurrent position per slot
 P2_INITIAL_EQUITY = 500_000.0
 P2_BP_TARGET      = 0.05   # 5% per slot — kept for reference; superseded by P2_N_CONTRACTS
 P2_N_CONTRACTS    = _ES.n_contracts         # 1 — matches production single-slot rule per slot
+
+# Phase 2 V2f — true rolling weekly ladder (backtest-only research variant)
+V2F_ENTRY_DTE      = 49
+V2F_EXIT_DTE       = 21
+V2F_ENTRY_FREQ     = 5
+V2F_MAX_SLOTS      = 5
+V2F_STOP_MULT      = 15.0
+V2F_PROFIT_TARGET  = 0.10
 
 # Phase 3 — VIX leverage table + BSH drag
 P3_DTE_SLOTS      = [21, 28, 35, 42, 49]
@@ -222,6 +232,67 @@ def _make_row(date_str, equity, daily_pnl, peak_equity,
         experiment_id=exp_id,
     )
     return row, end_eq, peak
+
+
+def _bootstrap_ci_seeded(
+    pnl_series: list[float],
+    *,
+    block_size: int,
+    seed: int,
+    ci: float = 0.95,
+) -> dict:
+    arr = np.asarray(pnl_series, dtype=float)
+    n = len(arr)
+    if n < 10:
+        return {"mean": float(arr.mean()) if n else 0.0, "ci_lo": float("nan"), "ci_hi": float("nan"), "significant": False}
+
+    rng = np.random.default_rng(seed=seed)
+    alpha = 1.0 - ci
+    boot_means = np.empty(2000)
+    max_start = max(1, n - block_size + 1)
+    for idx in range(2000):
+        n_blocks = math.ceil(n / block_size)
+        starts = rng.integers(0, max_start, size=n_blocks)
+        sample = np.concatenate([arr[s : s + block_size] for s in starts])[:n]
+        boot_means[idx] = sample.mean()
+
+    lo = float(np.percentile(boot_means, 100 * alpha / 2))
+    hi = float(np.percentile(boot_means, 100 * (1 - alpha / 2)))
+    return {
+        "mean": float(arr.mean()),
+        "ci_lo": lo,
+        "ci_hi": hi,
+        "significant": lo > 0,
+    }
+
+
+def _bootstrap_seed_stability(
+    pnl_series: list[float],
+    *,
+    initial_equity: float,
+    years: float,
+    seeds: int = 20,
+    block_size: int = 250,
+) -> dict:
+    if not pnl_series or years <= 0:
+        return {"sig_rate": 0.0, "ci_lo": float("nan"), "seed_count": seeds, "block_size": block_size}
+
+    sig_count = 0
+    ci_los: list[float] = []
+    n = len(pnl_series)
+    for seed in range(1, seeds + 1):
+        result = _bootstrap_ci_seeded(pnl_series, block_size=block_size, seed=seed)
+        if result["significant"]:
+            sig_count += 1
+        ann_frac = (result["ci_lo"] * (n / years)) / initial_equity
+        ci_los.append(float(ann_frac))
+
+    return {
+        "sig_rate": sig_count / seeds,
+        "ci_lo": float(np.median(ci_los)),
+        "seed_count": seeds,
+        "block_size": block_size,
+    }
 
 
 # ─── Actual market data loader (2022+) ───────────────────────────────────────
@@ -553,6 +624,135 @@ def run_phase2(
     result.daily_rows        = daily_rows
     if len(trades) >= 10:
         result.bootstrap = bootstrap_ci([t.pnl for t in trades])
+    return result
+
+
+def run_phase2_v2f(
+    mode: Literal["baseline", "filtered"] = "filtered",
+    start_date: str = "2000-01-01",
+    end_date: str | None = None,
+    verbose: bool = False,
+) -> BacktestResult:
+    """
+    True rolling weekly ladder:
+    - every 5 trading days, open one new 49-DTE short put if trend filter allows
+    - max 5 concurrent positions
+    - each position decays daily and exits normally at 21 DTE
+    - stop/profit remain active but use wider backtest-only stop multiple
+    """
+    data, full_spx = _load_data()
+    sim = data[data.index >= pd.Timestamp(start_date)]
+    if end_date:
+        sim = sim[sim.index <= pd.Timestamp(end_date)]
+
+    result = BacktestResult(phase="phase2_v2f", mode=mode)
+    exp_id = f"es_puts_p2_v2f_{mode}"
+    equity = P2_INITIAL_EQUITY
+    peak_eq = P2_INITIAL_EQUITY
+    daily_rows: list[DailyPortfolioRow] = []
+    trades: list[PutTrade] = []
+    positions: dict[int, PutPosition] = {}
+    day_counter = 0
+    next_position_id = 0
+
+    for date, row in sim.iterrows():
+        spx = float(row["spx"])
+        vix = float(row["vix"])
+        sig = vix / 100.0
+        dstr = date.strftime("%Y-%m-%d")
+        daily_pnl = 0.0
+        day_counter += 1
+
+        window = full_spx[full_spx.index <= date].iloc[-200:]
+        warmed = len(window) >= WARMUP_DAYS
+        trend_ok = True
+        if mode == "filtered" and warmed:
+            trend_ok = (_trend(window, spx) == TrendSignal.BULLISH)
+
+        to_close: list[int] = []
+        for pos_id, pos in positions.items():
+            pos.expiry_dte -= 1
+            cur_val = put_price(spx, pos.strike, max(pos.expiry_dte, 0), sig)
+            daily_pnl += (pos.prev_val - cur_val) * pos.contracts * SPX_MULTIPLIER
+            reason = None
+            if pos.expiry_dte <= V2F_EXIT_DTE:
+                reason = "ladder_exit"
+            elif cur_val >= pos.stop_premium:
+                reason = "stop_loss"
+            elif cur_val <= pos.profit_premium:
+                reason = "profit_target"
+            elif pos.expiry_dte <= 0:
+                reason = "expiry"
+            if reason:
+                pnl_total = (pos.entry_premium - cur_val) * pos.contracts * SPX_MULTIPLIER
+                trades.append(PutTrade(
+                    slot=pos.slot,
+                    entry_date=pos.entry_date,
+                    exit_date=dstr,
+                    entry_spx=pos.entry_spx,
+                    exit_spx=spx,
+                    entry_vix=pos.entry_vix,
+                    entry_premium=pos.entry_premium,
+                    exit_premium=cur_val,
+                    dte_at_entry=V2F_ENTRY_DTE,
+                    dte_at_exit=pos.expiry_dte,
+                    exit_reason=reason,
+                    contracts=pos.contracts,
+                    pnl=pnl_total,
+                ))
+                if verbose:
+                    print(f"{dstr}  EXIT id={pos_id} [{reason:<14}] pnl={pnl_total:+8.0f}")
+                to_close.append(pos_id)
+            else:
+                pos.prev_val = cur_val
+        for pos_id in to_close:
+            del positions[pos_id]
+
+        should_enter = (
+            warmed
+            and trend_ok
+            and day_counter % V2F_ENTRY_FREQ == 0
+            and len(positions) < V2F_MAX_SLOTS
+        )
+        if should_enter:
+            k = find_strike_for_delta(spx, V2F_ENTRY_DTE, sig, TARGET_DELTA, False)
+            prem = put_price(spx, k, V2F_ENTRY_DTE, sig)
+            if prem > 0.5:
+                next_position_id += 1
+                n = float(P2_N_CONTRACTS)
+                positions[next_position_id] = PutPosition(
+                    slot=V2F_ENTRY_DTE,
+                    entry_date=dstr,
+                    expiry_dte=V2F_ENTRY_DTE,
+                    strike=k,
+                    entry_premium=prem,
+                    entry_spx=spx,
+                    entry_vix=vix,
+                    contracts=n,
+                    bp_used=n * _bp_per_contract(spx, k, prem),
+                    stop_premium=prem * V2F_STOP_MULT,
+                    profit_premium=prem * V2F_PROFIT_TARGET,
+                    prev_val=prem,
+                )
+                if verbose:
+                    print(f"{dstr}  OPEN  id={next_position_id}  K={k:.0f}  prem={prem:.2f}")
+
+        dr, equity, peak_eq = _make_row(dstr, equity, daily_pnl, peak_eq, positions, vix, exp_id)
+        daily_rows.append(dr)
+
+    result.trades = trades
+    result.portfolio_metrics = compute_portfolio_metrics(daily_rows).to_dict()
+    result.daily_rows = daily_rows
+    if len(trades) >= 10:
+        result.bootstrap = bootstrap_ci([t.pnl for t in trades])
+        years = result.portfolio_metrics.get("total_days", 0) / 252
+        result.bootstrap.update(
+            _bootstrap_seed_stability(
+                [t.pnl for t in trades],
+                initial_equity=P2_INITIAL_EQUITY,
+                years=years,
+            )
+        )
     return result
 
 

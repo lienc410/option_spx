@@ -172,6 +172,39 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   padding: 2px 7px; cursor: pointer; transition: 0.12s;
 }
 .cache-refresh:hover { color: var(--text); background: var(--surface-hi); }
+.tab-strip {
+  display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap;
+}
+.tab-btn {
+  font-family: var(--f-ui); font-size: 0.65rem; padding: 5px 12px; border-radius: 999px;
+  background: transparent; border: 1px solid var(--border-2); color: var(--text-2);
+  cursor: pointer; transition: 0.12s;
+}
+.tab-btn.active { color: var(--text); background: var(--surface-hi); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+.compare-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-bottom: 18px;
+}
+.compare-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 14px 16px;
+}
+.compare-title { font-family: var(--f-ui); font-size: 0.60rem; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 8px; }
+.compare-row { display:flex; justify-content:space-between; gap:10px; font-family: var(--f-mono); font-size: 0.68rem; color: var(--text); padding: 3px 0; }
+.compare-row span:first-child { color: var(--text-2); font-family: var(--f-ui); }
+.caveat-banner {
+  background: var(--gold-bg); border: 1px solid var(--gold-border); border-radius: 9px;
+  padding: 14px 16px; margin-bottom: 18px;
+}
+.caveat-banner h3 {
+  font-family: var(--f-ui); font-size: 0.66rem; color: var(--gold); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;
+}
+.caveat-banner ul { margin-left: 18px; color: var(--text); display: grid; gap: 6px; }
+.caveat-banner li { line-height: 1.45; font-size: 0.68rem; }
+.v2f-empty {
+  background: var(--surface); border: 1px dashed var(--border-2); border-radius: 9px; padding: 18px; color: var(--text-2);
+  font-family: var(--f-ui); font-size: 0.72rem;
+}
 </style>
 </head>
 <body>
@@ -495,6 +528,14 @@ function renderEsPriceChart() {
 function fmtDate(s) { return s ? s.slice(0,10) : '—'; }
 function fmtNum(n, d=1) { return typeof n === 'number' ? n.toFixed(d) : '—'; }
 function fmtDollar(n) { return typeof n === 'number' ? (n>=0?'+':'')+Math.round(n).toLocaleString() : '—'; }
+function fmtPctFrac(n, d=2) { return typeof n === 'number' ? (n * 100).toFixed(d) + '%' : '—'; }
+
+function setEsResearchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(el => el.classList.remove('active'));
+  document.querySelector(`[data-es-tab-btn="${tab}"]`)?.classList.add('active');
+  document.getElementById(`es-tab-${tab}`)?.classList.add('active');
+}
 
 function exitChipClass(r) {
   if (!r) return '';
@@ -586,6 +627,57 @@ function renderTradeTable(trades, maxRows = 200) {
     </div>`;
 }
 
+function renderV2fCompareCard(title, rows) {
+  return `
+    <div class="compare-card">
+      <div class="compare-title">${title}</div>
+      ${rows.map(([label, value]) => `<div class="compare-row"><span>${label}</span><strong>${value}</strong></div>`).join('')}
+    </div>`;
+}
+
+function renderV2fPanel(v0Summary, v2fPayload) {
+  const metrics = v2fPayload?.metrics || null;
+  const caveats = Array.isArray(v2fPayload?.caveats) ? v2fPayload.caveats : [];
+  const v0Rows = [
+    ['Ann. ROE', typeof v0Summary?.ann_return_pct === 'number' ? (v0Summary.ann_return_pct * 100).toFixed(2) + '%' : '—'],
+    ['Sharpe', typeof v0Summary?.sharpe === 'number' ? v0Summary.sharpe.toFixed(2) : '—'],
+    ['Win Rate', typeof v0Summary?.win_rate_pct === 'number' ? v0Summary.win_rate_pct.toFixed(1) + '%' : '—'],
+    ['Max Drawdown', typeof v0Summary?.max_drawdown_pct === 'number' ? v0Summary.max_drawdown_pct.toFixed(2) + '%' : '—'],
+    ['Bootstrap', '—'],
+  ];
+  const v2fRows = [
+    ['Ann. ROE', fmtPctFrac(metrics?.ann_roe_geometric, 2)],
+    ['Sharpe', typeof metrics?.sharpe === 'number' ? metrics.sharpe.toFixed(2) : '—'],
+    ['Win Rate', fmtPctFrac(metrics?.win_rate, 1)],
+    ['Worst Trade % NLV', fmtPctFrac(metrics?.worst_trade_pct_nlv, 2)],
+    ['Bootstrap Sig', fmtPctFrac(metrics?.bootstrap_sig_rate, 0)],
+    ['Bootstrap CI Lo', fmtPctFrac(metrics?.bootstrap_ci_lo, 2)],
+  ];
+  const caveatHtml = caveats.length
+    ? `<div class="caveat-banner"><h3>Research Caveats</h3><ul>${caveats.map(item => `<li>${item}</li>`).join('')}</ul></div>`
+    : '';
+  const body = metrics
+    ? `
+      <div class="metric-grid">
+        <div class="metric-card"><div class="metric-label">Ann. ROE</div><div class="metric-value ${metrics.ann_roe_geometric > 0 ? 'up' : 'down'}">${fmtPctFrac(metrics.ann_roe_geometric, 2)}</div><div class="metric-sub">Geometric</div></div>
+        <div class="metric-card"><div class="metric-label">Sharpe</div><div class="metric-value">${typeof metrics.sharpe === 'number' ? metrics.sharpe.toFixed(2) : '—'}</div></div>
+        <div class="metric-card"><div class="metric-label">Win Rate</div><div class="metric-value">${fmtPctFrac(metrics.win_rate, 1)}</div></div>
+        <div class="metric-card"><div class="metric-label">Worst Trade % NLV</div><div class="metric-value ${metrics.worst_trade_pct_nlv >= -0.15 ? 'warn' : 'down'}">${fmtPctFrac(metrics.worst_trade_pct_nlv, 2)}</div></div>
+        <div class="metric-card"><div class="metric-label">Bootstrap Sig Rate</div><div class="metric-value ${metrics.bootstrap_sig_rate >= 0.9 ? 'up' : 'warn'}">${fmtPctFrac(metrics.bootstrap_sig_rate, 0)}</div><div class="metric-sub">20 seeds · block=250</div></div>
+        <div class="metric-card"><div class="metric-label">Bootstrap CI Lo</div><div class="metric-value">${fmtPctFrac(metrics.bootstrap_ci_lo, 2)}</div><div class="metric-sub">Median annualized lower bound</div></div>
+      </div>`
+    : `<div class="v2f-empty">V2f summary unavailable${v2fPayload?.error ? `: ${v2fPayload.error}` : ''}</div>`;
+
+  return `
+    ${caveatHtml}
+    <div class="section-label">V0 vs V2f Summary</div>
+    <div class="compare-grid">
+      ${renderV2fCompareCard('V0 · Current Fixed-Slot Phase 1', v0Rows)}
+      ${renderV2fCompareCard('V2f · True Weekly Ladder', v2fRows)}
+    </div>
+    ${body}`;
+}
+
 function buildEquityChart(filtered, baseline) {
   if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
   const canvas = document.getElementById('equity-chart');
@@ -672,6 +764,7 @@ async function _renderBacktestResult(data, start) {
   const area     = document.getElementById('body-area');
   const filtered = data.filtered;
   const baseline  = data.baseline;
+  const v2f = data.v2f || null;
 
   const note = document.getElementById('pricing-note');
   const fi = filtered?.summary;
@@ -680,8 +773,7 @@ async function _renderBacktestResult(data, start) {
     note.textContent = `Pricing: ${fi.actual_market_entries} entries used actual SPX option prices (q041_historical), ${fi.bs_fallback_entries} used Black-Scholes fallback. Underlying: SPX options as /ES proxy (same underlying, SPX $100/pt multiplier used for PnL).`;
   }
 
-  let html = '';
-  html += `
+  const v0Content = `
     <div class="price-chart-hd">
       <div class="section-title">SPX Price — /ES Trade Entry / Exit</div>
       <div class="overlay-bar">
@@ -712,7 +804,7 @@ async function _renderBacktestResult(data, start) {
       <span><span class="eq-arrow" style="color:#E04862">▼</span> Close — loss</span>
     </div>`;
 
-  html += `
+  const v0Charts = `
     <div class="chart-wrap">
       <div class="chart-title">
         Portfolio Equity (${data.start_date} — today)
@@ -724,12 +816,28 @@ async function _renderBacktestResult(data, start) {
       <canvas id="equity-chart" class="chart-canvas" height="180"></canvas>
     </div>`;
 
-  if (filtered) html += renderMetrics(filtered.summary, 'Trend Filter ON — /ES Short Put 45d Δ0.20', 'orange');
-  if (baseline)  html += renderMetrics(baseline.summary,  'Baseline — No Filter',  'blue');
+  let v0Details = '';
+  if (filtered) v0Details += renderMetrics(filtered.summary, 'Trend Filter ON — /ES Short Put 45d Δ0.20', 'orange');
+  if (baseline)  v0Details += renderMetrics(baseline.summary,  'Baseline — No Filter',  'blue');
   if (filtered) {
-    html += '<div class="section-label">Trade Log — Trend Filter ON</div>';
-    html += renderTradeTable(filtered.trades);
+    v0Details += '<div class="section-label">Trade Log — Trend Filter ON</div>';
+    v0Details += renderTradeTable(filtered.trades);
   }
+
+  const v2fContent = renderV2fPanel(filtered?.summary, v2f);
+  const html = `
+    <div class="tab-strip">
+      <button class="tab-btn active" data-es-tab-btn="v0" onclick="setEsResearchTab('v0')">V0</button>
+      <button class="tab-btn" data-es-tab-btn="v2f" onclick="setEsResearchTab('v2f')">V2f</button>
+    </div>
+    <div id="es-tab-v0" class="tab-panel active">
+      ${v0Content}
+      ${v0Charts}
+      ${v0Details}
+    </div>
+    <div id="es-tab-v2f" class="tab-panel">
+      ${v2fContent}
+    </div>`;
 
   area.innerHTML = html;
   await loadEsSignalData(start);
@@ -737,6 +845,7 @@ async function _renderBacktestResult(data, start) {
   renderEsPriceChart();
   initEsWindowSlider();
   buildEquityChart(filtered, baseline);
+  setEsResearchTab('v0');
 }
 
 async function runBacktest(fromCache = true) {
@@ -759,9 +868,14 @@ async function runBacktest(fromCache = true) {
   document.getElementById('body-area').innerHTML = '<div class="loading-msg">Running backtest — this may take 10–15 seconds…</div>';
 
   try {
-    const res  = await fetch(`/api/es/backtest?mode=both&start=${start}&hybrid=${hybrid}`);
+    const [res, v2fRes]  = await Promise.all([
+      fetch(`/api/es/backtest?mode=both&start=${start}&hybrid=${hybrid}`),
+      fetch(`/api/es-backtest/v2f?start=${start}`),
+    ]);
     const data = await res.json();
+    const v2f = await v2fRes.json();
     if (data.error) throw new Error(data.error);
+    data.v2f = v2f;
     _btSaveCache(start, hybrid, data);
     await _renderBacktestResult(data, start);
   } catch (e) {

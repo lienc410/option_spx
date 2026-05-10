@@ -457,6 +457,53 @@ def api_etrade_auth():
         return redirect("/")
 
 
+@app.route("/api/q042/state")
+def api_q042_state():
+    try:
+        from signals.q042_trigger import get_current_q042_snapshot
+        from production.q042_positions import get_active_positions, get_lifetime_stats
+        snap = get_current_q042_snapshot()
+        positions = get_active_positions(paper=True)
+        stats = get_lifetime_stats(paper=True)
+
+        def _pos_dict(p):
+            if p is None:
+                return None
+            return {
+                "trade_id": p.trade_id,
+                "entry_date": p.entry_date,
+                "long_strike": p.long_strike,
+                "short_strike": p.short_strike,
+                "contracts": p.contracts,
+                "expiry_date": p.expiry_date,
+                "days_to_expiry": p.days_to_expiry,
+                "is_active": p.is_active,
+                "current_pnl": p.current_pnl,
+            }
+
+        return jsonify({
+            "date": snap.date,
+            "spx_close": snap.spx_close,
+            "ath_running_max": snap.ath_running_max,
+            "ddath_pct": round(snap.ddath * 100, 2),
+            "sleeve_a": {
+                "armed": snap.sleeve_a.armed,
+                "active_position": _pos_dict(positions.get("A")),
+                "stats": stats.get("A", {}),
+            },
+            "sleeve_b": {
+                "armed": snap.sleeve_b.armed,
+                "in_watching": snap.sleeve_b.in_watching,
+                "watch_start_date": snap.sleeve_b.watch_start_date,
+                "active_position": _pos_dict(positions.get("B")),
+                "stats": stats.get("B", {}),
+            },
+            "combined_bp_pct": snap.combined_bp_pct,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/portfolio/attribution")
 def api_portfolio_attribution():
     from web.portfolio_surface import attribution_payload
@@ -530,6 +577,32 @@ def _save_es_disk_cache(cache_key: str, payload: dict) -> None:
         os.replace(tmp, _ES_DISK_CACHE_PATH)
     except Exception:
         pass
+
+
+def _es_trade_summary_metrics(result) -> dict:
+    trades = result.trades
+    portfolio = result.portfolio_metrics or {}
+    bootstrap = result.bootstrap or {}
+    wins = sum(1 for trade in trades if trade.pnl > 0)
+    worst_trade = min((trade.pnl for trade in trades), default=0.0)
+    initial_equity = 500_000.0
+    return {
+        "ann_roe_geometric": portfolio.get("ann_return"),
+        "sharpe": portfolio.get("daily_sharpe"),
+        "worst_trade_pct_nlv": (worst_trade / initial_equity) if trades else 0.0,
+        "win_rate": (wins / len(trades)) if trades else 0.0,
+        "bootstrap_sig_rate": bootstrap.get("sig_rate"),
+        "bootstrap_ci_lo": bootstrap.get("ci_lo"),
+    }
+
+
+def _default_v2f_caveats() -> list[str]:
+    return [
+        "BS-flat synthetic data; OTM put premium may be understated ~2-3% (skew).",
+        "STOP_MULT=15 triggered rarely in 26y research; live trigger frequency remains unvalidated.",
+        "Bootstrap significance is alive-but-borderline edge, not production-grade alpha proof.",
+        "BSH / dynamic leverage interaction with V2f remains untested; Phase 3/4 results still belong to V0.",
+    ]
 _VIX_BY_DATE: dict | None = None
 
 _Q041_DISK_CACHE_PATH = os.path.normpath(
@@ -804,6 +877,49 @@ def api_es_backtest():
         return jsonify(payload)
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/es-backtest/v2f")
+def api_es_backtest_v2f():
+    start_date = flask_req.args.get("start", "2000-01-01")
+    end_date = flask_req.args.get("end")
+    mode = flask_req.args.get("mode", "baseline")
+    cache_key = f"v2f:{mode}:{start_date}:{end_date or ''}"
+
+    if cache_key in _ES_BT_CACHE:
+        return jsonify(_ES_BT_CACHE[cache_key])
+
+    disk_cached = _load_es_disk_cache(cache_key)
+    if disk_cached:
+        _ES_BT_CACHE[cache_key] = disk_cached
+        return jsonify(disk_cached)
+
+    try:
+        from research.strategies.ES_puts.backtest import run_phase2_v2f
+
+        result = run_phase2_v2f(mode=mode, start_date=start_date, end_date=end_date)
+        payload = {
+            "phase": result.phase,
+            "mode": result.mode,
+            "metrics": _es_trade_summary_metrics(result),
+            "caveats": _default_v2f_caveats(),
+            "start_date": start_date,
+            "end_date": end_date,
+        }
+        _ES_BT_CACHE[cache_key] = payload
+        _save_es_disk_cache(cache_key, payload)
+        return jsonify(payload)
+    except Exception as exc:
+        payload = {
+            "phase": "phase2_v2f",
+            "mode": mode,
+            "metrics": None,
+            "caveats": _default_v2f_caveats(),
+            "error": str(exc),
+            "start_date": start_date,
+            "end_date": end_date,
+        }
+        return jsonify(payload)
 
 
 @app.route("/api/es/backtest/refresh", methods=["POST"])
