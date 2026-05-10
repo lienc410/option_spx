@@ -238,6 +238,16 @@ def q041_backtest_page():
     return render_template("q041_backtest.html")
 
 
+@app.route("/q042")
+def q042_page():
+    return render_template("q042.html")
+
+
+@app.route("/q042/backtest")
+def q042_backtest_page():
+    return render_template("q042_backtest.html")
+
+
 @app.route("/matrix")
 def matrix_page():
     return render_template("matrix.html")
@@ -500,6 +510,118 @@ def api_q042_state():
             },
             "combined_bp_pct": snap.combined_bp_pct,
         })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+_Q042_SPX_CACHE: dict = {}   # {"ts": float, "data": dict}
+_Q042_BT_CACHE_MEM: dict = {}
+
+@app.route("/api/q042/spx-history")
+def api_q042_spx_history():
+    import time as _time
+    cached = _Q042_SPX_CACHE.get("data")
+    if cached and (_time.time() - _Q042_SPX_CACHE.get("ts", 0)) < 3600:
+        return jsonify(cached)
+    try:
+        import yfinance as yf, pandas as pd
+        df = yf.Ticker("^GSPC").history(start="2007-01-01", interval="1d")
+        df.index = pd.to_datetime([d.date() for d in df.index])
+        closes = df["Close"].sort_index()
+        ath = closes.cummax()
+        ddath = (closes / ath - 1) * 100
+        ma10 = closes.rolling(10).mean()
+        cutoff = closes.index[-252] if len(closes) >= 252 else closes.index[0]
+        history = []
+        for d in closes.index[closes.index >= cutoff]:
+            history.append({
+                "date": str(d),
+                "close": round(float(closes[d]), 2),
+                "ath": round(float(ath[d]), 2),
+                "ddath_pct": round(float(ddath[d]), 2),
+            })
+        cur_close = float(closes.iloc[-1])
+        cur_ma10  = float(ma10.iloc[-1]) if not pd.isna(ma10.iloc[-1]) else None
+        payload = {
+            "history": history,
+            "current": {
+                "close": round(cur_close, 2),
+                "ma10":  round(cur_ma10, 2) if cur_ma10 else None,
+                "above_ma10": cur_close > cur_ma10 if cur_ma10 else None,
+            },
+        }
+        _Q042_SPX_CACHE["data"] = payload
+        _Q042_SPX_CACHE["ts"]   = _time.time()
+        return jsonify(payload)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/q042/backtest")
+def api_q042_bt():
+    import csv as _csv
+    from datetime import datetime as _dt
+    if _Q042_BT_CACHE_MEM:
+        return jsonify(_Q042_BT_CACHE_MEM)
+    path = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "data", "q042_backtest_trades.csv"))
+    try:
+        trades = []
+        with open(path, newline="") as f:
+            for row in _csv.DictReader(f):
+                trades.append({
+                    "sleeve_id":       row["sleeve_id"],
+                    "signal_date":     row["signal_date"],
+                    "entry_date":      row["entry_date"],
+                    "exit_date":       row["exit_date"],
+                    "ath_at_signal":   round(float(row["ath_at_signal"]), 2),
+                    "ddath_at_signal": round(float(row["ddath_at_signal"]) * 100, 2),  # to %
+                    "long_strike":     float(row["long_strike"]),
+                    "short_strike":    float(row["short_strike"]),
+                    "contracts":       float(row["contracts"]),
+                    "debit_per_share": round(float(row["debit_per_share"]), 4),
+                    "exit_pnl":        round(float(row["exit_pnl"]), 2),
+                    "account_pct":     round(float(row["account_pct"]) * 100, 2),  # to %
+                })
+        summary = {}
+        for sleeve in ["A", "B"]:
+            st = [t for t in trades if t["sleeve_id"] == sleeve]
+            if not st:
+                continue
+            wins = [t for t in st if t["exit_pnl"] > 0]
+            held_days = [
+                (_dt.strptime(t["exit_date"], "%Y-%m-%d") - _dt.strptime(t["entry_date"], "%Y-%m-%d")).days
+                for t in st
+            ]
+            summary[sleeve] = {
+                "n":           len(st),
+                "wr":          round(len(wins) / len(st) * 100, 1),
+                "avg_pnl":     round(sum(t["exit_pnl"] for t in st) / len(st), 0),
+                "total_pnl":   round(sum(t["exit_pnl"] for t in st), 0),
+                "worst_pnl":   round(min(t["exit_pnl"] for t in st), 0),
+                "avg_dte_held": round(sum(held_days) / len(held_days), 0),
+            }
+        payload = {"trades": trades, "summary": summary}
+        _Q042_BT_CACHE_MEM.update(payload)
+        return jsonify(payload)
+    except FileNotFoundError:
+        return jsonify({"trades": [], "summary": {}})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/q042/paper")
+def api_q042_paper():
+    path = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "data", "q042_paper_trades.jsonl"))
+    try:
+        trades = []
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    trades.append(json.loads(line))
+        return jsonify(trades)
+    except FileNotFoundError:
+        return jsonify([])
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

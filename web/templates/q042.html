@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Q042 · Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+:root {
+  --bg:#080A13; --surface:#0D1020; --surface-hi:#131728;
+  --border:#191E33; --border-2:#232A42;
+  --text:#C4CEEC; --text-2:#606880; --text-muted:#363C52;
+  --gold:#C9A840; --gold-bg:rgba(201,168,64,0.07); --gold-border:rgba(201,168,64,0.22);
+  --green:#42CC7C; --green-bg:rgba(66,204,124,0.07); --green-border:rgba(66,204,124,0.22);
+  --red:#E04862; --red-bg:rgba(224,72,98,0.07); --red-border:rgba(224,72,98,0.22);
+  --blue:#4888E8; --blue-bg:rgba(72,136,232,0.07); --blue-border:rgba(72,136,232,0.22);
+  --orange:#E08040; --orange-bg:rgba(224,128,64,0.07); --orange-border:rgba(224,128,64,0.22);
+  --gray-bg:rgba(96,104,128,0.08); --gray-border:rgba(96,104,128,0.2);
+  --f-display:'Newsreader',Georgia,serif; --f-mono:'JetBrains Mono','Courier New',monospace; --f-ui:'DM Sans',system-ui,sans-serif;
+}
+html { font-size:14px; }
+body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-height:100vh; line-height:1.55; }
+
+.nav { position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:50px;background:rgba(8,10,19,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border); }
+.nav-brand { font-family:var(--f-display);font-size:1.05rem;color:var(--gold); }
+.nav-brand em { font-style:italic; }
+.nav-links { display:flex;gap:2px; }
+.nav-link { font-size:0.76rem;padding:5px 10px;border-radius:5px;color:var(--text-2);text-decoration:none;transition:0.15s; }
+.nav-link:hover { color:var(--text);background:var(--surface-hi); }
+.nav-link.active { color:var(--orange);background:var(--orange-bg); }
+.nav-right { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-muted); }
+
+.page { max-width:1100px;margin:0 auto;padding:28px 24px 60px; }
+.page-hero { margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border); }
+.page-hero h1 { font-family:var(--f-display);font-size:1.7rem;font-weight:400; }
+.page-hero h1 em { font-style:italic;color:var(--text-2); }
+.page-meta { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2);margin-top:6px; }
+
+.page-tabs { display:flex;gap:2px;margin-bottom:22px;padding-bottom:14px;border-bottom:1px solid var(--border); }
+.page-tab { font-family:var(--f-ui);font-size:0.72rem;padding:5px 14px;border-radius:5px;text-decoration:none;color:var(--text-2);border:1px solid transparent;transition:0.15s; }
+.page-tab.active { color:var(--text);background:var(--surface-hi);border-color:var(--border-2); }
+.page-tab:hover:not(.active) { color:var(--text-2);background:var(--surface); }
+
+.caveat-banner { background:rgba(72,136,232,0.07);border:1px solid rgba(72,136,232,0.22);border-radius:7px;padding:9px 14px;font-family:var(--f-ui);font-size:0.62rem;color:var(--blue);margin-bottom:20px;line-height:1.5; }
+
+.section-label { font-family:var(--f-ui);font-size:0.60rem;font-weight:700;letter-spacing:0.13em;text-transform:uppercase;color:var(--text-2);margin:24px 0 12px; }
+.section-label:first-of-type { margin-top:0; }
+
+/* ── Sleeve Cards ── */
+.sleeve-grid { display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px; }
+.sleeve-card { background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden; }
+.sleeve-card-hd { padding:14px 16px 12px;border-bottom:1px solid var(--border); }
+.sleeve-card-row1 { display:flex;align-items:center;justify-content:space-between;margin-bottom:6px; }
+.sleeve-id { font-family:var(--f-mono);font-size:1.2rem;font-weight:600; }
+.sleeve-label { font-family:var(--f-ui);font-size:0.65rem;color:var(--text-2);margin-bottom:10px; }
+.state-badge { font-family:var(--f-ui);font-size:0.60rem;font-weight:600;text-transform:uppercase;letter-spacing:0.09em;padding:3px 9px;border-radius:9999px; }
+.badge-armed    { background:var(--green-bg);color:var(--green);border:1px solid var(--green-border); }
+.badge-watching { background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border); }
+.badge-active   { background:var(--red-bg);color:var(--red);border:1px solid var(--red-border); }
+.badge-unknown  { background:var(--gray-bg);color:var(--text-2);border:1px solid var(--gray-border); }
+
+.sleeve-metrics { padding:12px 16px;display:flex;flex-direction:column;gap:8px; }
+.sleeve-metric-row { display:flex;justify-content:space-between;align-items:center; }
+.sm-label { font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2); }
+.sm-value { font-family:var(--f-mono);font-size:0.80rem;color:var(--text); }
+.sm-value.warn { color:var(--orange); }
+.sm-value.danger { color:var(--red); }
+.sm-value.ok { color:var(--green); }
+
+/* Trigger gauge */
+.gauge-wrap { padding:10px 16px 14px;border-top:1px solid var(--border); }
+.gauge-hd { display:flex;justify-content:space-between;align-items:center;margin-bottom:5px; }
+.gauge-label { font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2); }
+.gauge-val { font-family:var(--f-mono);font-size:0.60rem; }
+.gauge-track { height:8px;background:var(--border-2);border-radius:9999px;overflow:hidden; }
+.gauge-fill { height:100%;border-radius:9999px;transition:width 0.4s; }
+.gauge-sub { font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);margin-top:4px; }
+
+/* ── Chart ── */
+.chart-wrap { background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:20px;margin-bottom:16px; }
+.chart-hd { display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px; }
+.chart-title { font-family:var(--f-ui);font-size:0.72rem;color:var(--text-2); }
+.chart-legend { display:flex;gap:14px; }
+.chart-legend-item { display:flex;align-items:center;gap:5px;font-family:var(--f-mono);font-size:0.60rem;color:var(--text-2); }
+.chart-legend-line { width:14px;height:2px;border-radius:2px; }
+
+/* ── Active position ── */
+.pos-table { width:100%;border-collapse:collapse; }
+.pos-table th { font-family:var(--f-ui);font-size:0.58rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);padding:6px 10px;text-align:left;border-bottom:1px solid var(--border-2); }
+.pos-table td { font-family:var(--f-mono);font-size:0.70rem;color:var(--text-2);padding:7px 10px;border-bottom:1px solid var(--border); }
+.pos-table td:first-child { color:var(--text); }
+.pos-none { font-family:var(--f-ui);font-size:0.68rem;color:var(--text-muted);font-style:italic;padding:16px 0; }
+
+.loading-msg { font-family:var(--f-ui);font-size:0.72rem;color:var(--text-muted);font-style:italic;padding:32px;text-align:center; }
+.error-msg { font-family:var(--f-mono);font-size:0.65rem;color:var(--red);padding:12px; }
+
+@media (max-width:700px) { .sleeve-grid { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav-brand">SPX <em>Strategy</em></span>
+  <div class="nav-links">
+    <a href="/"                   class="nav-link">Portfolio</a>
+    <a href="/spx"                class="nav-link">SPX</a>
+    <a href="/es"                 class="nav-link">/ES</a>
+    <a href="/q041"               class="nav-link">Q041</a>
+    <a href="/q042"               class="nav-link active">Q042</a>
+    <a href="/portfolio-backtest" class="nav-link">Port BT</a>
+    <a href="/performance"        class="nav-link">Performance</a>
+    <a href="/margin"             class="nav-link">Margin</a>
+  </div>
+  <div class="nav-right" id="nav-date">—</div>
+</nav>
+
+<div class="page">
+
+  <div class="page-hero">
+    <h1>Q042 <em>Drawdown Overlay</em></h1>
+    <div class="page-meta">SPX put spread · ddATH trigger · Sleeve A (dd4) / Sleeve B (dd15+MA10)</div>
+  </div>
+
+  <div class="page-tabs">
+    <a href="/q042"          class="page-tab active">Dashboard</a>
+    <a href="/q042/backtest" class="page-tab">Backtest</a>
+  </div>
+
+  <div class="caveat-banner">
+    Q042 is paper-trading only. Triggers generate Telegram alerts for manual execution. No automatic order placement.
+  </div>
+
+  <!-- C1: Sleeve Status Cards -->
+  <div class="section-label">Sleeve 状态</div>
+  <div class="sleeve-grid" id="sleeve-grid">
+    <div class="loading-msg" style="grid-column:1/-1">Loading…</div>
+  </div>
+
+  <!-- C2: SPX + ATH monitoring chart -->
+  <div class="section-label">SPX Price + ATH + ddATH% · 近 252 交易日</div>
+  <div class="chart-wrap">
+    <div class="chart-hd">
+      <span class="chart-title">SPX vs ATH（主轴）/ ddATH%（次轴）</span>
+      <div class="chart-legend">
+        <div class="chart-legend-item"><div class="chart-legend-line" style="background:#4888E8"></div>SPX</div>
+        <div class="chart-legend-item"><div class="chart-legend-line" style="background:rgba(201,168,64,0.7)"></div>ATH</div>
+        <div class="chart-legend-item"><div class="chart-legend-line" style="background:#E08040;border-top:2px dashed #E08040;height:0"></div>ddATH%</div>
+      </div>
+    </div>
+    <div id="spx-chart-area"><div class="loading-msg">Loading SPX history…</div></div>
+  </div>
+
+  <!-- C5: Active Positions -->
+  <div class="section-label">活跃仓位</div>
+  <div class="chart-wrap" style="padding:16px 20px">
+    <div id="positions-area"><div class="loading-msg">Loading…</div></div>
+  </div>
+
+</div>
+
+<script>
+document.getElementById('nav-date').textContent =
+  new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+
+const SLEEVE_A_THRESH = -4.0;   // dd4
+const SLEEVE_B_THRESH = -15.0;  // dd15
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function stateBadge(state) {
+  if (state === 'active')   return `<span class="state-badge badge-active">Active</span>`;
+  if (state === 'watching') return `<span class="state-badge badge-watching">Watching</span>`;
+  if (state === 'armed')    return `<span class="state-badge badge-armed">Armed</span>`;
+  return `<span class="state-badge badge-unknown">—</span>`;
+}
+
+function sleeveState(s, hasPosition) {
+  if (hasPosition) return 'active';
+  if (s.in_watching) return 'watching';
+  if (s.armed) return 'armed';
+  return 'unknown';
+}
+
+function gaugeColor(pct) {
+  if (pct >= 90) return 'var(--red)';
+  if (pct >= 60) return 'var(--orange)';
+  return 'var(--blue)';
+}
+
+// ── Load state ───────────────────────────────────────────────────────────────
+async function loadState() {
+  try {
+    const d = await (await fetch('/api/q042/state')).json();
+    if (d.error) throw new Error(d.error);
+
+    const ddath = d.ddath_pct ?? 0;
+    const spx   = d.spx_close ?? 0;
+    const ath   = d.ath_running_max ?? 0;
+
+    // Gauge pct: how close to threshold (clamped 0–100)
+    const gaugePctA = Math.min(Math.max(Math.abs(ddath) / Math.abs(SLEEVE_A_THRESH) * 100, 0), 100);
+    const gaugePctB = Math.min(Math.max(Math.abs(ddath) / Math.abs(SLEEVE_B_THRESH) * 100, 0), 100);
+    const remA = (SLEEVE_A_THRESH - ddath).toFixed(2);  // negative = remaining to fall
+    const remB = (SLEEVE_B_THRESH - ddath).toFixed(2);
+
+    const stateA = sleeveState(d.sleeve_a, !!d.sleeve_a?.active_position);
+    const stateB = sleeveState(d.sleeve_b, !!d.sleeve_b?.active_position);
+
+    const ddCls = ddath <= SLEEVE_A_THRESH ? 'danger' : ddath <= -2.5 ? 'warn' : '';
+
+    document.getElementById('sleeve-grid').innerHTML = `
+      <!-- Sleeve A -->
+      <div class="sleeve-card" style="border-top:3px solid var(--blue)">
+        <div class="sleeve-card-hd">
+          <div class="sleeve-card-row1">
+            <span class="sleeve-id" style="color:var(--blue)">Sleeve A</span>
+            ${stateBadge(stateA)}
+          </div>
+          <div class="sleeve-label">SPX put spread · ddATH ≤ −4% trigger</div>
+        </div>
+        <div class="sleeve-metrics">
+          <div class="sleeve-metric-row">
+            <span class="sm-label">Current ddATH%</span>
+            <span class="sm-value ${ddCls}">${ddath.toFixed(2)}%</span>
+          </div>
+          <div class="sleeve-metric-row">
+            <span class="sm-label">SPX</span>
+            <span class="sm-value">${spx ? spx.toFixed(2) : '—'}</span>
+          </div>
+          <div class="sleeve-metric-row">
+            <span class="sm-label">Running ATH</span>
+            <span class="sm-value">${ath ? ath.toFixed(2) : '—'}</span>
+          </div>
+        </div>
+        <div class="gauge-wrap">
+          <div class="gauge-hd">
+            <span class="gauge-label">距触发阈值（dd4）</span>
+            <span class="gauge-val" style="color:${gaugeColor(gaugePctA)}">${gaugePctA.toFixed(0)}%</span>
+          </div>
+          <div class="gauge-track">
+            <div class="gauge-fill" style="width:${gaugePctA.toFixed(1)}%;background:${gaugeColor(gaugePctA)}"></div>
+          </div>
+          <div class="gauge-sub">
+            ${stateA === 'active' ? '🔴 已触发，仓位开立中' : gaugePctA >= 100 ? '⚠ 已穿越阈值' : `还需下跌 ${Math.abs(remA)}% 触发`}
+          </div>
+        </div>
+      </div>
+
+      <!-- Sleeve B -->
+      <div class="sleeve-card" style="border-top:3px solid var(--orange)">
+        <div class="sleeve-card-hd">
+          <div class="sleeve-card-row1">
+            <span class="sleeve-id" style="color:var(--orange)">Sleeve B</span>
+            ${stateBadge(stateB)}
+          </div>
+          <div class="sleeve-label">SPX put spread · ddATH ≤ −15% + close > MA10</div>
+        </div>
+        <div class="sleeve-metrics">
+          <div class="sleeve-metric-row">
+            <span class="sm-label">Current ddATH%</span>
+            <span class="sm-value ${ddath <= SLEEVE_B_THRESH ? 'danger' : ddath <= -10 ? 'warn' : ''}">${ddath.toFixed(2)}%</span>
+          </div>
+          <div class="sleeve-metric-row">
+            <span class="sm-label">Watching since</span>
+            <span class="sm-value">${d.sleeve_b?.watch_start_date || '—'}</span>
+          </div>
+          <div class="sleeve-metric-row">
+            <span class="sm-label">MA10 condition</span>
+            <span class="sm-value" id="ma10-badge">Loading…</span>
+          </div>
+        </div>
+        <div class="gauge-wrap">
+          <div class="gauge-hd">
+            <span class="gauge-label">距触发阈值（dd15）</span>
+            <span class="gauge-val" style="color:${gaugeColor(gaugePctB)}">${gaugePctB.toFixed(0)}%</span>
+          </div>
+          <div class="gauge-track">
+            <div class="gauge-fill" style="width:${gaugePctB.toFixed(1)}%;background:${gaugeColor(gaugePctB)}"></div>
+          </div>
+          <div class="gauge-sub">
+            ${stateB === 'active' ? '🔴 已触发，仓位开立中' : gaugePctB >= 100 ? '⚠ 已穿越阈值' : `还需下跌 ${Math.abs(remB)}% 触发`}
+          </div>
+        </div>
+      </div>`;
+
+    // Positions table
+    const posA = d.sleeve_a?.active_position, posB = d.sleeve_b?.active_position;
+    const posRows = [posA ? { ...posA, sleeve: 'A' } : null, posB ? { ...posB, sleeve: 'B' } : null].filter(Boolean);
+    if (posRows.length) {
+      document.getElementById('positions-area').innerHTML = `
+        <table class="pos-table">
+          <thead><tr><th>Sleeve</th><th>Entry</th><th>Expiry</th><th>Spread</th><th>Contracts</th><th>DTE</th><th>Est. P&L</th></tr></thead>
+          <tbody>${posRows.map(p => `
+            <tr>
+              <td>${p.sleeve}</td>
+              <td>${p.entry_date || '—'}</td>
+              <td>${p.expiry_date || '—'}</td>
+              <td>${p.long_strike} / ${p.short_strike}</td>
+              <td>${p.contracts}</td>
+              <td>${p.days_to_expiry ?? '—'}</td>
+              <td style="color:${p.current_pnl >= 0 ? 'var(--green)' : 'var(--red)'}">${p.current_pnl != null ? (p.current_pnl >= 0 ? '+' : '') + '$' + Math.round(p.current_pnl).toLocaleString() : '—'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>`;
+    } else {
+      document.getElementById('positions-area').innerHTML =
+        `<div class="pos-none">No active positions</div>`;
+    }
+  } catch (e) {
+    document.getElementById('sleeve-grid').innerHTML =
+      `<div class="error-msg" style="grid-column:1/-1">State error: ${e.message}</div>`;
+  }
+}
+
+// ── Load SPX history chart ────────────────────────────────────────────────────
+let _spxChart = null;
+async function loadSpxChart() {
+  try {
+    const d = await (await fetch('/api/q042/spx-history')).json();
+    if (d.error) throw new Error(d.error);
+
+    const hist = d.history || [];
+    const cur  = d.current || {};
+
+    // Update MA10 badge
+    const ma10El = document.getElementById('ma10-badge');
+    if (ma10El && cur.ma10 != null) {
+      const above = cur.above_ma10;
+      ma10El.innerHTML = above
+        ? `<span style="color:var(--green)">✓ close > MA10 (${cur.ma10.toFixed(1)})</span>`
+        : `<span style="color:var(--red)">✗ close ≤ MA10 (${cur.ma10.toFixed(1)})</span>`;
+    }
+
+    const area = document.getElementById('spx-chart-area');
+    area.innerHTML = `<canvas id="spx-chart" height="220" style="width:100%"></canvas>`;
+
+    const labels = hist.map(h => h.date);
+    if (_spxChart) { _spxChart.destroy(); }
+    _spxChart = new Chart(document.getElementById('spx-chart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'SPX', data: hist.map(h => h.close),
+            borderColor: '#4888E8', backgroundColor: 'transparent',
+            borderWidth: 1.5, pointRadius: 0, tension: 0.1, yAxisID: 'yPrice', order: 1,
+          },
+          {
+            label: 'ATH', data: hist.map(h => h.ath),
+            borderColor: 'rgba(201,168,64,0.60)', backgroundColor: 'transparent',
+            borderWidth: 1, borderDash: [4,3], pointRadius: 0, tension: 0, yAxisID: 'yPrice', order: 2,
+          },
+          {
+            label: 'ddATH%', data: hist.map(h => h.ddath_pct),
+            borderColor: '#E08040', backgroundColor: 'rgba(224,128,64,0.06)',
+            borderWidth: 1.2, pointRadius: 0, tension: 0.1, fill: 'origin', yAxisID: 'yDD', order: 3,
+          },
+        ],
+      },
+      options: {
+        responsive: true, animation: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { mode: 'index', intersect: false, callbacks: {
+            label: ctx => ctx.dataset.label === 'ddATH%'
+              ? ` ddATH: ${ctx.parsed.y.toFixed(2)}%`
+              : ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}`,
+          }},
+        },
+        scales: {
+          x: { type: 'category', ticks: { color:'#606880', font:{family:'JetBrains Mono',size:10}, maxTicksLimit:10, maxRotation:0,
+                 callback:(v,i) => { const d=hist[i]?.date; return d?d.slice(0,7):v; }}, grid:{color:'#191E33'} },
+          yPrice: { position:'left', ticks:{ color:'#606880', font:{family:'JetBrains Mono',size:10}, callback: v=>v.toLocaleString() }, grid:{color:'#191E33'} },
+          yDD: {
+            position: 'right', grid: { drawOnChartArea: false },
+            ticks: { color:'#606880', font:{family:'JetBrains Mono',size:10}, callback: v=>v.toFixed(1)+'%' },
+            // Add threshold reference lines via annotation is complex; use simple min/max
+            min: Math.min(...hist.map(h=>h.ddath_pct), -17),
+            max: 1,
+          },
+        },
+      },
+    });
+  } catch (e) {
+    document.getElementById('spx-chart-area').innerHTML =
+      `<div class="error-msg">SPX history error: ${e.message}</div>`;
+  }
+}
+
+loadState();
+loadSpxChart();
+</script>
+</body>
+</html>

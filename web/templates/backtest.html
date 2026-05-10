@@ -271,7 +271,9 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 
 /* ── SPX chart overlay controls ── */
 .spx-chart-hd { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.spx-chart-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .overlay-bar { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.spx-marker-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .overlay-btn {
   font-family: var(--f-mono); font-size: 0.68rem; font-weight: 500;
   padding: 4px 9px; border-radius: 4px;
@@ -284,7 +286,6 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin-left: 10px;
   padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid var(--border-2);
@@ -818,7 +819,8 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
     <a href="/" class="nav-link">Portfolio</a>
     <a href="/spx" class="nav-link active">SPX</a>
     <a href="/es" class="nav-link">/ES</a>
-    <a href="/q041" class="nav-link">Q041</a>
+    <a href="/q041"               class="nav-link">Q041</a>
+    <a href="/q042"               class="nav-link">Q042</a>
     <a href="/portfolio-backtest" class="nav-link">Port BT</a>
     <a href="/performance" class="nav-link">Performance</a>
     <a href="/margin" class="nav-link">Margin</a>
@@ -1056,20 +1058,25 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
     <div class="chart-section">
       <div class="spx-chart-hd">
         <div class="section-title" id="spx-chart-title" style="margin-bottom:0">SPX Price — Trade Entry / Exit</div>
-        <div class="overlay-bar">
-          <span class="ctrl-label" style="margin-right:4px">Overlay:</span>
-          <button class="overlay-btn active" id="ovr-none" onclick="setSpxOverlay('none', this)">None</button>
-          <button class="overlay-btn" id="ovr-pnl"  onclick="setSpxOverlay('pnl',  this)">Cum. P&L</button>
-          <button class="overlay-btn" id="ovr-dd"   onclick="setSpxOverlay('dd',   this)">Drawdown</button>
-          <button class="overlay-btn" id="ovr-bp"   onclick="setSpxOverlay('bp',   this)">Total BP Used %</button>
-          <button class="overlay-btn" id="ovr-vix"  onclick="setSpxOverlay('vix',  this)">VIX</button>
-          <button class="overlay-btn" id="ovr-ivr"  onclick="setSpxOverlay('ivr',  this)">IV Rank</button>
-          <button class="overlay-btn" id="ovr-ivp"  onclick="setSpxOverlay('ivp',  this)">IV %ile</button>
-          <button class="overlay-btn" id="ovr-trend" onclick="setSpxOverlay('trend', this)">SPX Trend</button>
-          <label class="spx-aux-toggle">
-            <input type="checkbox" id="q019-flip-toggle" onchange="toggleQ019FlipDays(this.checked)">
-            <span>Show Q019 VIX Flip Days</span>
-          </label>
+        <div class="spx-chart-controls">
+          <div class="overlay-bar">
+            <span class="ctrl-label" style="margin-right:4px">Overlay:</span>
+            <button class="overlay-btn active" id="ovr-none" onclick="setSpxOverlay('none', this)">None</button>
+            <button class="overlay-btn" id="ovr-pnl"  onclick="setSpxOverlay('pnl',  this)">Cum. P&L</button>
+            <button class="overlay-btn" id="ovr-dd"   onclick="setSpxOverlay('dd',   this)">Drawdown</button>
+            <button class="overlay-btn" id="ovr-bp"   onclick="setSpxOverlay('bp',   this)">Total BP Used %</button>
+            <button class="overlay-btn" id="ovr-vix"  onclick="setSpxOverlay('vix',  this)">VIX</button>
+            <button class="overlay-btn" id="ovr-ivr"  onclick="setSpxOverlay('ivr',  this)">IV Rank</button>
+            <button class="overlay-btn" id="ovr-ivp"  onclick="setSpxOverlay('ivp',  this)">IV %ile</button>
+            <button class="overlay-btn" id="ovr-trend" onclick="setSpxOverlay('trend', this)">SPX Trend</button>
+          </div>
+          <div class="spx-marker-bar">
+            <span class="ctrl-label">Markers:</span>
+            <label class="spx-aux-toggle">
+              <input type="checkbox" id="q019-flip-toggle" onchange="toggleQ019FlipDays(this.checked)">
+              <span>Show Q019 VIX Flip Days</span>
+            </label>
+          </div>
         </div>
       </div>
       <div class="chart-wrap" style="height:260px">
