@@ -65,9 +65,14 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .status-pill { font-family:var(--f-ui);font-size:0.58rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;padding:3px 9px;border-radius:9999px; }
 .pill-watching { background:var(--green-bg);color:var(--green);border:1px solid var(--green-border); }
 .pill-observe  { background:var(--gray-bg);color:var(--text-2);border:1px solid var(--gray-border); }
+.pill-eliminated { background:var(--gray-bg);color:var(--text-2);border:1px solid var(--gray-border); }
 .tier-paper-ct { font-family:var(--f-mono);font-size:0.60rem;color:var(--text-muted); }
 .caveat-banner { margin:8px 16px 0;background:rgba(224,128,64,0.07);border:1px solid rgba(224,128,64,0.25);border-radius:6px;padding:7px 10px;font-family:var(--f-ui);font-size:0.60rem;color:var(--orange);line-height:1.5; }
 .caveat-banner b { font-weight:600; }
+.progress-wrap { padding:10px 16px 14px;border-top:1px solid var(--border); }
+.progress-hd { display:flex;justify-content:space-between;align-items:center;margin-bottom:5px; }
+.progress-track { height:6px;background:var(--border-2);border-radius:9999px;overflow:hidden; }
+.progress-fill { height:100%;background:var(--blue);border-radius:9999px; }
 .tier-spec { padding:10px 16px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:5px; }
 .spec-row { display:flex;gap:6px;align-items:baseline; }
 .spec-key { font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;flex:0 0 60px; }
@@ -277,7 +282,7 @@ function toggleStressDetail(btn) {
   btn.textContent = d.classList.contains('open') ? '收起 ▴' : '展开 +10 / +20 详情 ▾';
 }
 
-const COLORS = { SPX:'#C9A840', GOOGL:'#4888E8', AMZN:'#42CC7C' };
+const COLORS = { SPX:'#9AA3BB', GOOGL:'#4888E8', AMZN:'#42CC7C', COST:'#8088A6', JPM:'#8088A6' };
 const STRAT_LABEL = { csp:'Cash-Secured Put', earnings_ic:'Earnings Iron Condor' };
 
 // Strategy spec — sourced from doc/q041_execution_prep_packet_2026-05-05.md
@@ -344,7 +349,8 @@ function specBlock(sleeve_id) {
 }
 
 function statusPill(s) {
-  return s === 'watching'
+  if (s === 'eliminated') return `<span class="status-pill pill-eliminated">Eliminated</span>`;
+  return s === 'watching' || s === 'paper_trading_active'
     ? `<span class="status-pill pill-watching">Paper-trading</span>`
     : `<span class="status-pill pill-observe">Observe-only</span>`;
 }
@@ -354,19 +360,58 @@ function tierBadge(t) {
   return `<span class="tier-badge ${cls}">${lbl}</span>`;
 }
 
+function progressBlock(label, count, goal) {
+  const ratio = goal > 0 ? Math.min(count / goal, 1) : 0;
+  return `<div class="progress-wrap">
+    <div class="progress-hd"><span class="bp-row-lbl">${label}</span><span class="tier-paper-ct">${count} / ${goal}</span></div>
+    <div class="progress-track"><div class="progress-fill" style="width:${(ratio*100).toFixed(1)}%"></div></div>
+    <div class="bp-sub" style="margin-top:5px">Meaningful sample target for Tier 2 paper tracking</div>
+  </div>`;
+}
+
+function metricCell(val, cls='') {
+  return `<span class="mrow-val ${cls}">${val ?? '—'}</span>`;
+}
+
+function fmtBpDay(val) {
+  return typeof val === 'number' ? `$${val.toFixed(4)}` : '—';
+}
+
+function fmtPct(val) {
+  return typeof val === 'number' ? `${val.toFixed(1)}%` : '—';
+}
+
 async function loadStatus() {
   try {
-    const d = await (await fetch('/api/sleeve-candidates')).json();
-    const colorMap = { SPX:'#C9A840', GOOGL:'#4888E8', AMZN:'#42CC7C' };
-    document.getElementById('tier-active-grid').innerHTML = (d.sleeve_candidates||[]).map(sl => {
-      const color = colorMap[sl.underlying] || '#C4CEEC';
-      const tail = sl.tier==='tier2' && sl.candidate_status==='watching'
-        ? `<div class="caveat-banner"><b>⚠ Tail caveat</b> — COVID / 单名 mega-cap tail 未完整验证。pnl_ratio FAIL ≠ 必须平仓。</div>` : '';
-      return `<div class="tier-card" style="border-top:3px solid ${color}">
+    const d = await (await fetch('/api/q041/overview')).json();
+    const sleeves = d.candidate_surface?.sleeve_candidates || [];
+    const reviewOnly = d.candidate_surface?.review_only || [];
+    const tier2Count = d.paper_progress?.by_tier?.tier2?.count || 0;
+    const tier2Goal = d.paper_progress?.tier2_goal || 20;
+
+    const tier1 = {
+      sleeve_id: "q041_tier1_spx_csp_d20_dte30",
+      tier: "tier1",
+      underlying: "SPX",
+      strategy_type: "csp",
+      candidate_status: "eliminated",
+      bp_target_pct: 20.0,
+      caveat: d.tier_status?.tier1?.reason || "",
+    };
+    const activeCards = [tier1, ...sleeves.filter(sl => sl.underlying !== 'SPX')];
+    document.getElementById('tier-active-grid').innerHTML = activeCards.map(sl => {
+      const color = COLORS[sl.underlying] || '#C4CEEC';
+      const isTier1 = sl.underlying === 'SPX';
+      const tail = sl.tier==='tier2'
+        ? `<div class="caveat-banner"><b>⚠ Tail caveat</b> — COVID / single-name mega-cap tail remains unresolved. This sleeve stays paper-tracking only until that tail is better evidenced.</div>` : '';
+      const progress = sl.tier === 'tier2' && sl.underlying === 'GOOGL'
+        ? progressBlock('Tier 2 paper progress', tier2Count, tier2Goal)
+        : '';
+      return `<div class="tier-card" style="border-top:3px solid ${color};${isTier1?'opacity:0.72;':''}">
         <div class="tier-card-top">
           <div class="tier-card-row1">
             <span class="tier-sym" style="color:${color}">${sl.underlying}</span>
-            ${tierBadge(sl.tier)}
+            ${isTier1 ? `<span class="tier-badge badge-t3">ELIMINATED</span>` : tierBadge(sl.tier)}
           </div>
           <div class="tier-strat">${STRAT_LABEL[sl.strategy_type]||sl.strategy_type} · BP ≤${sl.bp_target_pct}%</div>
         </div>
@@ -374,11 +419,12 @@ async function loadStatus() {
         ${specBlock(sl.sleeve_id)}
         <div class="tier-card-status">
           ${statusPill(sl.candidate_status)}
-          <span class="tier-paper-ct">Paper trades: <b>0</b></span>
+          <span class="tier-paper-ct">${isTier1 ? 'Naked put slot removed by Q055' : `Paper trades: <b>${d.paper_progress?.by_symbol?.[sl.underlying]?.count || 0}</b>`}</span>
         </div>
+        ${progress}
       </div>`;
     }).join('');
-    document.getElementById('tier-observe-grid').innerHTML = (d.review_only||[]).map(sl =>
+    document.getElementById('tier-observe-grid').innerHTML = reviewOnly.map(sl =>
       `<div class="tier-card" style="border-top:3px solid var(--text-muted);opacity:0.72">
         <div class="tier-card-top">
           <div class="tier-card-row1">
@@ -408,27 +454,39 @@ function fmtD(n) {
 async function loadMetrics() {
   const grid = document.getElementById('metrics-grid');
   try {
-    const d = await (await fetch('/api/q041/backtest?start=2022-05-06')).json();
-    if (d.error) throw new Error(d.error);
-    grid.innerHTML = d.sleeves.map(s => {
-      const trades = s.trades||[];
-      const worst = trades.length ? Math.min(...trades.map(t=>t.pnl)) : null;
-      const avg = s.n_trades>0 ? s.total_pnl/s.n_trades : null;
-      const col = COLORS[s.symbol]||'#C4CEEC';
-      const tbadge = s.symbol==='SPX'?'badge-t1':'badge-t2';
-      const tlbl   = s.symbol==='SPX'?'Tier 1':'Tier 2';
-      return `<div class="metric-col" style="border-top:3px solid ${col}">
+    const d = await (await fetch('/api/q041/overview')).json();
+    const bySym = d.backtest_summary?.by_symbol || {};
+    const tier2 = d.backtest_summary?.tier2_combined;
+    const joint = d.risk_visibility?.joint_bp || {};
+    const shock = d.risk_visibility?.shock || {};
+    const rows = [
+      { title: 'Tier 1 · SPX CSP', key: 'SPX', tier: 'ELIMINATED', cls: 'dim', data: bySym.SPX, peakBp: 20.0, shock: shock.tier1_spx },
+      { title: 'Tier 2 · GOOGL + AMZN CSP', key: 'TIER2', tier: 'ACTIVE', cls: '', data: tier2, peakBp: joint.mean_pct, shock: null },
+      { title: 'Tier 3 · COST / JPM IC', key: 'TIER3', tier: 'OBSERVE', cls: 'dim', data: null, peakBp: 5.0, shock: null },
+    ];
+    grid.innerHTML = rows.map(row => {
+      const data = row.data || {};
+      const titleColor = row.key === 'SPX' ? '#9AA3BB' : (row.key === 'TIER2' ? '#4888E8' : '#8088A6');
+      const wrCls = (data.win_rate_pct ?? 0) >= 80 ? 'up' : 'warn';
+      const annCls = (data.ann_roe_pct ?? 0) > 15 ? 'up' : ((data.ann_roe_pct ?? 0) > 0 ? 'warn' : 'dim');
+      const shockLine = row.key === 'SPX'
+        ? `<div class="metric-row"><span class="mrow-lbl">VIX +40 shock</span>${metricCell(`${fmtD(row.shock?.mark_loss)} · ${fmtPct(row.shock?.pct_nlv)} · BP ${fmtPct(row.shock?.stress_bp_pct)}`, 'down')}</div>`
+        : row.key === 'TIER2'
+        ? `<div class="metric-row"><span class="mrow-lbl">Peak / mean BP</span>${metricCell(`${fmtPct(joint.max_pct)} peak · ${fmtPct(joint.mean_pct)} mean`, 'warn')}</div>`
+        : `<div class="metric-row"><span class="mrow-lbl">VIX gate</span>${metricCell('VIX ≥ 15 required', 'dim')}</div>`;
+      return `<div class="metric-col" style="border-top:3px solid ${titleColor};${row.cls?'opacity:0.72;':''}">
         <div class="metric-col-hd">
-          <span class="metric-col-sym" style="color:${col}">${s.symbol}</span>
-          <span class="tier-badge ${tbadge}">${tlbl}</span>
+          <span class="metric-col-sym" style="color:${titleColor}">${row.title}</span>
+          <span class="tier-badge ${row.key==='SPX'?'badge-t3':row.key==='TIER2'?'badge-t2':'badge-t3'}">${row.tier}</span>
         </div>
         <div class="metric-rows">
-          <div class="metric-row"><span class="mrow-lbl">Win Rate</span><span class="mrow-val ${s.win_rate_pct>=80?'up':'warn'}">${s.win_rate_pct.toFixed(1)}%</span></div>
-          <div class="metric-row"><span class="mrow-lbl">Stop Rate</span><span class="mrow-val ${s.stop_rate_pct>20?'down':'dim'}">${s.stop_rate_pct.toFixed(1)}%</span></div>
-          <div class="metric-row"><span class="mrow-lbl">Total P&L (backtest)</span><span class="mrow-val ${s.total_pnl>0?'up':'down'}">${fmtD(s.total_pnl)}</span></div>
-          <div class="metric-row"><span class="mrow-lbl">Avg P&L / trade</span><span class="mrow-val ${avg>=0?'up':'down'}">${fmtD(avg)}</span></div>
-          <div class="metric-row"><span class="mrow-lbl">N Trades</span><span class="mrow-val dim">${s.n_trades}</span></div>
-          <div class="metric-row"><span class="mrow-lbl">Worst single trade</span><span class="mrow-val down">${fmtD(worst)}</span></div>
+          <div class="metric-row"><span class="mrow-lbl">Ann ROE</span>${metricCell(data.ann_roe_pct != null ? fmtPct(data.ann_roe_pct) : '—', annCls)}</div>
+          <div class="metric-row"><span class="mrow-lbl">Sharpe</span>${metricCell(data.sharpe != null ? data.sharpe.toFixed(2) : '—', data.sharpe > 1 ? 'up' : row.cls)}</div>
+          <div class="metric-row"><span class="mrow-lbl">Win Rate</span>${metricCell(data.win_rate_pct != null ? fmtPct(data.win_rate_pct) : '—', wrCls)}</div>
+          <div class="metric-row"><span class="mrow-lbl">Avg P&L / BP-day</span>${metricCell(fmtBpDay(data.avg_pnl_per_bp_day), data.avg_pnl_per_bp_day > 0 ? 'up' : row.cls)}</div>
+          <div class="metric-row"><span class="mrow-lbl">Worst trade</span>${metricCell(data.worst_trade != null ? fmtD(data.worst_trade) : '—', 'down')}</div>
+          <div class="metric-row"><span class="mrow-lbl">Peak BP%</span>${metricCell(fmtPct(row.peakBp), 'warn')}</div>
+          ${shockLine}
         </div>
       </div>`;
     }).join('');

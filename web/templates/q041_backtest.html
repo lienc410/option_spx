@@ -166,6 +166,8 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 <script>
 const COLORS = { SPX:'#C9A840', GOOGL:'#4888E8', AMZN:'#42CC7C' };
 let charts = {};
+let _q041Overview = null;
+let _mainBpTimeline = [];
 
 document.getElementById('nav-date').textContent =
   new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
@@ -525,7 +527,7 @@ function toggleOverlay(canvasId, sleeve, key, checked) {
 }
 
 // ── Chart: Cumulative P&L ────────────────────────────────────────────────────
-function buildPnlChart(sleeves) {
+function buildPnlChart(sleeves, overview) {
   const canvas = document.getElementById('pnl-chart');
   if (!canvas) return;
   const datasets = sleeves.map(s => {
@@ -537,6 +539,21 @@ function buildPnlChart(sleeves) {
       backgroundColor: 'transparent',
       borderWidth: 1.8, pointRadius: 0, tension: 0.15,
     };
+  });
+  const paperCurves = overview?.paper_progress?.curves || {};
+  sleeves.forEach(s => {
+    const curve = paperCurves[s.symbol] || [];
+    if (!curve.length) return;
+    datasets.push({
+      label: `${s.symbol} paper`,
+      data: curve.map(r => ({ x: r.date, y: r.pnl })),
+      borderColor: COLORS[s.symbol] || '#C4CEEC',
+      backgroundColor: 'transparent',
+      borderWidth: 1.4,
+      pointRadius: 0,
+      tension: 0.1,
+      borderDash: [6, 4],
+    });
   });
   charts.pnl = new Chart(canvas, {
     type: 'line', data: { datasets },
@@ -557,6 +574,79 @@ function buildPnlChart(sleeves) {
       el.classList.toggle('muted', meta.hidden);
       charts.pnl.update();
     });
+  });
+}
+
+function buildVixRegimeChart(sleeves) {
+  const canvas = document.getElementById('vix-regime-chart');
+  if (!canvas) return;
+  const labels = ['<15', '15–24.9', '25+'];
+  const bucketIndex = v => v < 15 ? 0 : v < 25 ? 1 : 2;
+  const datasets = sleeves.map(s => {
+    const counts = [0,0,0];
+    (s.trades || []).forEach(t => {
+      if (t.vix_at_entry == null) return;
+      counts[bucketIndex(t.vix_at_entry)] += 1;
+    });
+    return {
+      label: s.symbol,
+      data: counts,
+      backgroundColor: (COLORS[s.symbol] || '#C4CEEC') + 'aa',
+      borderRadius: 3,
+    };
+  });
+  charts.vixRegime = new Chart(canvas, {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true, animation: false,
+      plugins: { legend: { display: true, labels: { color: '#606880', font: { family: 'DM Sans', size: 11 } } } },
+      scales: {
+        x: { stacked: true, ticks: { color:'#606880', font:{family:'JetBrains Mono', size:10} }, grid:{color:'#191E33'} },
+        y: { stacked: true, ticks: { color:'#606880', font:{family:'JetBrains Mono', size:10}, stepSize: 1 }, grid:{color:'#191E33'} },
+      },
+    },
+  });
+}
+
+function buildIvEntryPaperChart(overview) {
+  const canvas = document.getElementById('iv-entry-chart');
+  const empty = document.getElementById('iv-entry-empty');
+  if (!canvas || !empty) return;
+  const iv = overview?.paper_progress?.iv_entry || {};
+  const symbols = ['GOOGL', 'AMZN'];
+  const hasData = symbols.some(sym => Array.isArray(iv[sym]) && iv[sym].length);
+  if (!hasData) {
+    canvas.style.display = 'none';
+    empty.style.display = 'block';
+    empty.textContent = 'IV at entry unavailable until Q041 paper ledger records exist.';
+    return;
+  }
+  empty.style.display = 'none';
+  canvas.style.display = 'block';
+  const labels = ['0–19', '20–29', '30–39', '40–49', '50+'];
+  const binIndex = v => v < 20 ? 0 : v < 30 ? 1 : v < 40 ? 2 : v < 50 ? 3 : 4;
+  const datasets = symbols.map(sym => {
+    const counts = [0,0,0,0,0];
+    (iv[sym] || []).forEach(v => counts[binIndex(v)] += 1);
+    return {
+      label: sym,
+      data: counts,
+      backgroundColor: (COLORS[sym] || '#C4CEEC') + 'aa',
+      borderRadius: 3,
+    };
+  });
+  charts.ivEntry = new Chart(canvas, {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true, animation: false,
+      plugins: { legend: { display: true, labels: { color:'#606880', font:{family:'DM Sans', size:11} } } },
+      scales: {
+        x: { ticks:{ color:'#606880', font:{family:'JetBrains Mono', size:10} }, grid:{color:'#191E33'} },
+        y: { ticks:{ color:'#606880', font:{family:'JetBrains Mono', size:10}, stepSize: 1 }, grid:{color:'#191E33'} },
+      },
+    },
   });
 }
 
@@ -591,12 +681,14 @@ function buildDteChart(id, trades) {
   if (!canvas) return;
   const bins=[0,4,8,12,16,20,30,99];
   const labels=bins.slice(0,-1).map((b,i)=>`${b}–${bins[i+1]-1}d`);
+  const sums=new Array(bins.length-1).fill(0);
   const counts=new Array(bins.length-1).fill(0);
-  trades.forEach(t=>{const v=t.dte_at_exit??0;for(let i=0;i<bins.length-1;i++)if(v>=bins[i]&&v<bins[i+1]){counts[i]++;break;}});
-  charts[id]=new Chart(canvas,{type:'bar',data:{labels,datasets:[{data:counts,backgroundColor:'rgba(72,136,232,0.55)',borderRadius:3}]},
-    options:{responsive:true,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.parsed.y} trades`}}},
+  trades.forEach(t=>{const v=t.dte_at_exit??0;for(let i=0;i<bins.length-1;i++)if(v>=bins[i]&&v<bins[i+1]){sums[i]+=t.pnl||0;counts[i]+=1;break;}});
+  const avgPnl = sums.map((sum, i) => counts[i] ? Math.round(sum / counts[i]) : 0);
+  charts[id]=new Chart(canvas,{type:'bar',data:{labels,datasets:[{data:avgPnl,backgroundColor:avgPnl.map(v=>v>=0?'rgba(66,204,124,0.60)':'rgba(224,72,98,0.60)'),borderRadius:3}]},
+    options:{responsive:true,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${fmtD(ctx.parsed.y)} avg P&L (backtest data)`}}},
       scales:{x:{ticks:{color:'#606880',font:{family:'JetBrains Mono',size:9},maxRotation:0},grid:{color:'#191E33'}},
-        y:{ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},stepSize:1},grid:{color:'#191E33'}}}}});
+        y:{ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},callback:v=>'$'+Math.round(v).toLocaleString()},grid:{color:'#191E33'}}}}});
 }
 
 // ── Chart: P&L vs days held scatter ─────────────────────────────────────────
@@ -648,6 +740,59 @@ function tradeTable(trades) {
   </div>`;
 }
 
+function buildBpTimelineChart(overview, mainRows, showMain) {
+  const canvas = document.getElementById('bp-timeline-chart');
+  const empty = document.getElementById('bp-timeline-empty');
+  if (!canvas || !empty) return;
+  const qRows = overview?.paper_progress?.bp_timeline || [];
+  if (!qRows.length && !(showMain && mainRows.length)) {
+    canvas.style.display = 'none';
+    empty.style.display = 'block';
+    empty.textContent = 'BP utilization timeline unavailable until Q041 paper ledger entries exist.';
+    return;
+  }
+  empty.style.display = 'none';
+  canvas.style.display = 'block';
+  const datasets = [];
+  if (qRows.length) {
+    datasets.push({
+      label: 'Q041 paper BP',
+      data: qRows.map(r => ({ x: r.date, y: r.q041_bp_dollars })),
+      borderColor: 'rgba(72,136,232,0.78)',
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      pointRadius: 0,
+      tension: 0.1,
+    });
+  }
+  if (showMain && mainRows.length) {
+    datasets.push({
+      label: 'Main strategy BP %',
+      data: mainRows.map(r => ({ x: r.date, y: r.j3_bp_pct })),
+      borderColor: 'rgba(201,168,64,0.78)',
+      backgroundColor: 'transparent',
+      borderWidth: 1.2,
+      pointRadius: 0,
+      tension: 0.1,
+      yAxisID: 'y2',
+    });
+  }
+  if (charts.bpTimeline) { try { charts.bpTimeline.destroy(); } catch(_){} }
+  charts.bpTimeline = new Chart(canvas, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true, animation: false,
+      plugins: { legend: { display: true, labels: { color:'#606880', font:{family:'DM Sans', size:11} } } },
+      scales: {
+        x: { type:'category', ticks:{ color:'#606880', font:{family:'JetBrains Mono', size:10}, maxTicksLimit:10, maxRotation:0, callback:(v,i)=>datasets[0]?.data[i]?.x?.slice(0,7) || v }, grid:{color:'#191E33'} },
+        y: { ticks:{ color:'#606880', font:{family:'JetBrains Mono', size:10}, callback:v=>'$'+Math.round(v).toLocaleString() }, grid:{color:'#191E33'} },
+        y2: { display: showMain && mainRows.length>0, position:'right', grid:{drawOnChartArea:false}, ticks:{ color:'#606880', font:{family:'JetBrains Mono', size:10}, callback:v=>`${v}%` } },
+      },
+    },
+  });
+}
+
 function showTab(sym) {
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.sym===sym));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.dataset.sym===sym));
@@ -655,6 +800,7 @@ function showTab(sym) {
 
 // ── Render ────────────────────────────────────────────────────────────────────
 function render(data) {
+  const overview = _q041Overview || {};
   const legendHtml = data.sleeves.map(s =>
     `<div class="chart-legend-item pnl-legend-item">
       <div class="chart-legend-line" style="background:${COLORS[s.symbol]||'#C4CEEC'}"></div>${s.symbol}
@@ -668,6 +814,27 @@ function render(data) {
         <div class="chart-legend">${legendHtml}</div>
       </div>
       <canvas id="pnl-chart" height="180" style="width:100%"></canvas>
+    </div>
+
+    <div class="two-col-charts">
+      <div class="chart-wrap" style="margin-bottom:0">
+        <div class="chart-title" style="margin-bottom:12px">VIX Regime at Entry</div>
+        <canvas id="vix-regime-chart" height="150" style="width:100%"></canvas>
+      </div>
+      <div class="chart-wrap" style="margin-bottom:0">
+        <div class="chart-title" style="margin-bottom:12px">IV at Entry · GOOGL vs AMZN</div>
+        <canvas id="iv-entry-chart" height="150" style="width:100%"></canvas>
+        <div id="iv-entry-empty" class="loading-msg" style="display:none;padding:18px 0 6px;text-align:left"></div>
+      </div>
+    </div>
+
+    <div class="chart-wrap">
+      <div class="chart-hd">
+        <span class="chart-title">BP Utilization Timeline</span>
+        <label class="overlay-toggle"><input type="checkbox" id="toggle-main-bp" onchange="toggleMainBpTimeline(this.checked)"> Main strategy overlay</label>
+      </div>
+      <canvas id="bp-timeline-chart" height="150" style="width:100%"></canvas>
+      <div id="bp-timeline-empty" class="loading-msg" style="display:none;padding:18px 0 6px;text-align:left"></div>
     </div>
 
     <div class="section-label">标的价格 + 进出场 · 逐笔分析</div>
@@ -721,8 +888,8 @@ function render(data) {
       </div>
 
       <div class="two-col-charts">
-        <div class="chart-wrap" style="margin-bottom:0">
-          <div class="chart-title" style="margin-bottom:12px">DTE at Exit 分布</div>
+      <div class="chart-wrap" style="margin-bottom:0">
+        <div class="chart-title" style="margin-bottom:12px">P&L by DTE at Close <span style="font-size:0.58rem;color:var(--text-muted)">(backtest data)</span></div>
           <canvas id="dte-${s.symbol}" height="150" style="width:100%"></canvas>
         </div>
         <div class="chart-wrap" style="margin-bottom:0">
@@ -772,7 +939,9 @@ function render(data) {
   data.sleeves.forEach(s => { window._sleeves[s.symbol] = s; });
 
   // Build all charts
-  buildPnlChart(data.sleeves);
+  buildPnlChart(data.sleeves, overview);
+  buildVixRegimeChart(data.sleeves);
+  buildIvEntryPaperChart(overview);
   data.sleeves.forEach(s => {
     buildPriceOverlay(`ov-${s.symbol}`, s, { pnl: true, dd: false });
     buildWaterfallChart(`wf-${s.symbol}`, s.trades);
@@ -780,6 +949,11 @@ function render(data) {
     buildScatterChart(`sc-${s.symbol}`, s.trades);
     buildVixChart(`vix-${s.symbol}`, s.trades);
   });
+  buildBpTimelineChart(overview, _mainBpTimeline, document.getElementById('toggle-main-bp')?.checked);
+}
+
+function toggleMainBpTimeline(checked) {
+  buildBpTimelineChart(_q041Overview || {}, _mainBpTimeline || [], checked);
 }
 
 // ── Data loading ──────────────────────────────────────────────────────────────
@@ -791,8 +965,15 @@ async function loadBacktest() {
   destroyCharts();
   info.textContent = '';
   try {
-    const res  = await fetch(`/api/q041/backtest?start=${start}`);
+    const [res, ovRes, bpRes]  = await Promise.all([
+      fetch(`/api/q041/backtest?start=${start}`),
+      fetch('/api/q041/overview'),
+      fetch('/api/portfolio/bp-timeline'),
+    ]);
     const data = await res.json();
+    _q041Overview = await ovRes.json();
+    const bpData = await bpRes.json();
+    _mainBpTimeline = bpData.rows || [];
     if (data.error) throw new Error(data.error);
     if (data._cached_at) {
       info.textContent = `Cached · ${data._cached_at.slice(0,10)}`;

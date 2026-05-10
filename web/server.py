@@ -511,6 +511,22 @@ def api_portfolio_attribution():
     return jsonify(attribution_payload())
 
 
+@app.route("/api/q041/overview")
+def api_q041_overview():
+    try:
+        return jsonify(_build_q041_overview_payload())
+    except Exception as exc:
+        return jsonify({
+            "status": "error",
+            "error": str(exc),
+            "tier_status": {},
+            "backtest_summary": {"by_symbol": {}, "tier2_combined": None},
+            "paper_progress": {"status": "unavailable", "by_tier": {}, "by_symbol": {}, "curves": {}, "iv_entry": {}, "bp_timeline": []},
+            "attribution": {"status": "pending_quant_input"},
+            "risk_visibility": {"joint_bp": None, "idle_day_capture": None, "bp_fill_contribution": None, "worst_day_overlap": None, "shock": _q041_shock_metrics()},
+        })
+
+
 @app.route("/api/portfolio/bp-timeline")
 def api_portfolio_bp_timeline():
     import csv, os
@@ -608,6 +624,7 @@ _VIX_BY_DATE: dict | None = None
 _Q041_DISK_CACHE_PATH = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "data", "q041_backtest_cache.json")
 )
+_Q041_PAPER_LEDGER_FILE = Path(__file__).parent.parent / "data" / "q041_paper_trades.jsonl"
 _Q041_SCRIPT_PATH = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "research", "strategies", "q041_csp_backtest.py")
 )
@@ -648,6 +665,271 @@ def _save_q041_disk_cache(start_date: str, payload: dict) -> None:
         os.replace(tmp, _Q041_DISK_CACHE_PATH)
     except Exception:
         pass
+
+
+def _q041_paper_ledger_path() -> Path:
+    return Path(os.environ.get("Q041_PAPER_LEDGER_FILE", _Q041_PAPER_LEDGER_FILE))
+
+
+def _read_q041_paper_rows() -> list[dict]:
+    path = _q041_paper_ledger_path()
+    if not path.exists():
+        return []
+    rows: list[dict] = []
+    try:
+        for raw_line in path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            rows.append(json.loads(line))
+    except Exception:
+        return []
+    return rows
+
+
+def _get_q041_backtest_payload(start_date: str = "2022-05-06") -> dict:
+    cached = _Q041_BT_CACHE.get(start_date)
+    if cached:
+        return cached
+    disk = _load_q041_disk_cache(start_date)
+    if disk:
+        _Q041_BT_CACHE[start_date] = disk
+        return disk
+    payload = _build_q041_payload(start_date)
+    _Q041_BT_CACHE[start_date] = payload
+    _save_q041_disk_cache(start_date, payload)
+    return payload
+
+
+def _q041_shock_metrics() -> dict:
+    return {
+        "tier1_spx": {"mark_loss": 61585.0, "pct_nlv": 12.3, "stress_bp_pct": 27.2},
+        "tier2_googl": {"mark_loss": 4726.0, "pct_nlv": 0.9, "stress_bp_pct": 2.0},
+        "tier2_amzn": {"mark_loss": 3669.0, "pct_nlv": 0.7, "stress_bp_pct": 1.5},
+    }
+
+
+def _q041_sleeve_bp_cap_pct(symbol: str, attribution_data: dict | None = None) -> float | None:
+    attribution_data = attribution_data or {}
+    for sleeve in attribution_data.get("sleeves_simulated", []):
+        if str(sleeve.get("symbol")) == symbol:
+            return _num(sleeve.get("bp_cap_pct"))
+    return {"SPX": 20.0, "GOOGL": 7.5, "AMZN": 7.5}.get(symbol)
+
+
+def _q041_backtest_summaries(backtest_payload: dict, attribution_data: dict | None = None) -> dict:
+    attribution_data = attribution_data or {}
+    account_size = _num(attribution_data.get("account_size_usd")) or 500000.0
+    rows: dict[str, dict] = {}
+    sleeves = backtest_payload.get("sleeves", []) if isinstance(backtest_payload, dict) else []
+    for sleeve in sleeves:
+        symbol = str(sleeve.get("symbol") or "")
+        trades = sleeve.get("trades") or []
+        equity_curve = sleeve.get("equity_curve") or []
+        total_pnl = _num(sleeve.get("total_pnl")) or 0.0
+        bp_cap_pct = _q041_sleeve_bp_cap_pct(symbol, attribution_data) or 0.0
+        win_rate_pct = _num(sleeve.get("win_rate_pct")) or 0.0
+        worst_trade = min((_num(t.get("pnl")) or 0.0 for t in trades), default=0.0)
+        avg_pnl = total_pnl / len(trades) if trades else None
+        ann_roe = None
+        sharpe = None
+        avg_bp_day = None
+        if equity_curve and len(equity_curve) > 1:
+            init_equity = _num(equity_curve[0].get("equity")) or account_size
+            end_equity = _num(equity_curve[-1].get("equity")) or init_equity
+            first_date = equity_curve[0].get("date")
+            last_date = equity_curve[-1].get("date")
+            try:
+                years = max((datetime.fromisoformat(str(last_date)) - datetime.fromisoformat(str(first_date))).days / 365.25, 0.01)
+            except Exception:
+                years = None
+            if years and init_equity > 0:
+                ann_roe = ((end_equity / init_equity) ** (1.0 / years) - 1.0) * 100.0
+            returns: list[float] = []
+            for prev, cur in zip(equity_curve[:-1], equity_curve[1:]):
+                prev_eq = _num(prev.get("equity"))
+                cur_eq = _num(cur.get("equity"))
+                if prev_eq and cur_eq and prev_eq > 0 and cur_eq != prev_eq:
+                    returns.append((cur_eq - prev_eq) / prev_eq)
+            if len(returns) > 1:
+                mean_ret = sum(returns) / len(returns)
+                variance = sum((ret - mean_ret) ** 2 for ret in returns) / len(returns)
+                if variance > 0:
+                    sharpe = mean_ret / (variance ** 0.5) * (52 ** 0.5)
+        if trades and bp_cap_pct > 0:
+            bp_per_trade = account_size * bp_cap_pct / 100.0
+            bp_days = 0.0
+            for trade in trades:
+                entry_date = trade.get("entry_date")
+                exit_date = trade.get("exit_date")
+                try:
+                    held_days = max((datetime.fromisoformat(str(exit_date)[:10]) - datetime.fromisoformat(str(entry_date)[:10])).days, 1)
+                except Exception:
+                    held_days = 1
+                bp_days += bp_per_trade * held_days
+            if bp_days > 0:
+                avg_bp_day = total_pnl / bp_days
+        rows[symbol] = {
+            "symbol": symbol,
+            "label": sleeve.get("label"),
+            "n_trades": int(sleeve.get("n_trades") or len(trades)),
+            "win_rate_pct": round(win_rate_pct, 1),
+            "avg_pnl_per_trade": round(avg_pnl, 2) if avg_pnl is not None else None,
+            "ann_roe_pct": round(ann_roe, 2) if ann_roe is not None else None,
+            "sharpe": round(sharpe, 2) if sharpe is not None else None,
+            "avg_pnl_per_bp_day": round(avg_bp_day, 6) if avg_bp_day is not None else None,
+            "worst_trade": round(worst_trade, 2),
+            "bp_cap_pct": bp_cap_pct,
+        }
+    tier2_symbols = [rows[sym] for sym in ("GOOGL", "AMZN") if sym in rows]
+    tier2_combined = None
+    if tier2_symbols:
+        total_trades = sum(item["n_trades"] for item in tier2_symbols)
+        total_bp = sum((item["bp_cap_pct"] or 0.0) for item in tier2_symbols)
+        weighted = lambda key: (
+            sum((item[key] or 0.0) * item["n_trades"] for item in tier2_symbols) / total_trades
+            if total_trades else None
+        )
+        tier2_combined = {
+            "symbol": "TIER2",
+            "n_trades": total_trades,
+            "win_rate_pct": round(weighted("win_rate_pct"), 1) if weighted("win_rate_pct") is not None else None,
+            "avg_pnl_per_trade": round(weighted("avg_pnl_per_trade"), 2) if weighted("avg_pnl_per_trade") is not None else None,
+            "ann_roe_pct": round(sum((item["ann_roe_pct"] or 0.0) for item in tier2_symbols), 2) if any(item["ann_roe_pct"] is not None for item in tier2_symbols) else None,
+            "sharpe": round(weighted("sharpe"), 2) if weighted("sharpe") is not None else None,
+            "avg_pnl_per_bp_day": round(weighted("avg_pnl_per_bp_day"), 6) if weighted("avg_pnl_per_bp_day") is not None else None,
+            "worst_trade": round(min(item["worst_trade"] for item in tier2_symbols), 2),
+            "bp_cap_pct": round(total_bp, 2),
+        }
+    return {"by_symbol": rows, "tier2_combined": tier2_combined}
+
+
+def _q041_paper_progress() -> dict:
+    rows = _read_q041_paper_rows()
+    if not rows:
+        return {
+            "status": "unavailable",
+            "reason": "paper ledger unavailable",
+            "tier2_goal": 20,
+            "by_tier": {"tier1": {"count": 0}, "tier2": {"count": 0}, "tier3": {"count": 0}},
+            "by_symbol": {},
+            "curves": {},
+            "iv_entry": {},
+            "bp_timeline": [],
+        }
+
+    by_tier = {"tier1": {"count": 0}, "tier2": {"count": 0}, "tier3": {"count": 0}}
+    by_symbol: dict[str, dict] = {}
+    curves: dict[str, dict[str, float]] = {}
+    iv_entry: dict[str, list[float]] = {}
+    timeline: dict[str, dict[str, float]] = {}
+    for row in rows:
+        tier = str(row.get("tier") or "")
+        symbol = str(row.get("symbol") or "")
+        if tier in by_tier:
+            by_tier[tier]["count"] += 1
+        by_symbol.setdefault(symbol, {"count": 0, "closed": 0, "open": 0})
+        by_symbol[symbol]["count"] += 1
+        status = str(row.get("status") or "")
+        if status == "open":
+            by_symbol[symbol]["open"] += 1
+        else:
+            by_symbol[symbol]["closed"] += 1
+        iv_val = _num(row.get("iv_entry"))
+        if iv_val is not None:
+            iv_entry.setdefault(symbol, []).append(iv_val)
+        pnl = _num(row.get("pnl"))
+        close_date = str(row.get("close_date") or row.get("expiry") or "")[:10]
+        if pnl is not None and close_date:
+            curves.setdefault(symbol, {})
+            curves[symbol][close_date] = curves[symbol].get(close_date, 0.0) + pnl
+        entry_date = str(row.get("entry_date") or "")[:10]
+        close_bound = str(row.get("close_date") or row.get("expiry") or "")[:10]
+        bp_reserved = _num(row.get("bp_reserved")) or 0.0
+        if entry_date and close_bound and bp_reserved > 0:
+            try:
+                start_dt = datetime.fromisoformat(entry_date)
+                end_dt = datetime.fromisoformat(close_bound)
+            except ValueError:
+                start_dt = end_dt = None
+            if start_dt and end_dt:
+                current = start_dt
+                while current <= end_dt:
+                    key = current.date().isoformat()
+                    slot = timeline.setdefault(key, {"q041_bp_dollars": 0.0})
+                    slot["q041_bp_dollars"] += bp_reserved
+                    current += timedelta(days=1)
+
+    curve_rows = {}
+    for symbol, daily in curves.items():
+        cumulative = 0.0
+        curve_rows[symbol] = []
+        for date_key in sorted(daily):
+            cumulative += daily[date_key]
+            curve_rows[symbol].append({"date": date_key, "pnl": round(cumulative, 2)})
+    bp_timeline = [
+        {"date": date_key, "q041_bp_dollars": round(values["q041_bp_dollars"], 2)}
+        for date_key, values in sorted(timeline.items())
+    ]
+    return {
+        "status": "available",
+        "tier2_goal": 20,
+        "by_tier": by_tier,
+        "by_symbol": by_symbol,
+        "curves": curve_rows,
+        "iv_entry": iv_entry,
+        "bp_timeline": bp_timeline,
+    }
+
+
+def _build_q041_overview_payload() -> dict:
+    from web.portfolio_surface import attribution_payload, sleeve_candidates_payload
+
+    attr = attribution_payload()
+    attr_data = attr if attr.get("status") == "available" else {}
+    try:
+        backtest_payload = _get_q041_backtest_payload("2022-05-06")
+    except Exception as exc:
+        backtest_payload = {"status": "error", "error": str(exc), "sleeves": []}
+    paper = _q041_paper_progress()
+    summaries = _q041_backtest_summaries(backtest_payload, attr_data)
+    candidates = sleeve_candidates_payload()
+    return {
+        "status": "ok",
+        "as_of": _now_et_iso(),
+        "routing_note": "Tier 1 SPX CSP is eliminated by Q055; Tier 2 remains paper-trading active; Tier 3 remains observe-only.",
+        "tier_status": {
+            "tier1": {
+                "state": "eliminated",
+                "badge": "ELIMINATED",
+                "symbol": "SPX",
+                "reason": "Q055 naked put slot competition eliminated Tier 1 SPX CSP on 2026-05-10.",
+            },
+            "tier2": {
+                "state": "paper_trading_active",
+                "badge": "ACTIVE",
+                "symbols": ["GOOGL", "AMZN"],
+                "tail_caveat": "COVID / single-name mega-cap tail remains a mandatory visible caveat.",
+            },
+            "tier3": {
+                "state": "observe_only",
+                "badge": "OBSERVE-ONLY",
+                "symbols": ["COST", "JPM"],
+                "gate": "VIX >= 15 required before any paper event record.",
+            },
+        },
+        "candidate_surface": candidates,
+        "backtest_summary": summaries,
+        "paper_progress": paper,
+        "attribution": attr,
+        "risk_visibility": {
+            "joint_bp": attr_data.get("joint_bp_diagnostics"),
+            "idle_day_capture": attr_data.get("idle_day_capture"),
+            "bp_fill_contribution": attr_data.get("bp_fill_contribution"),
+            "worst_day_overlap": attr_data.get("worst_day_overlap"),
+            "shock": _q041_shock_metrics(),
+        },
+    }
 
 
 def _get_vix_by_date() -> dict:
