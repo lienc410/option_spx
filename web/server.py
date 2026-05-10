@@ -646,6 +646,10 @@ def _purge_v2f_cache_entries() -> None:
     with open(tmp, "w") as f:
         json.dump(next_store, f)
     os.replace(tmp, _ES_DISK_CACHE_PATH)
+
+
+def _is_v2f_m1_payload(payload: dict | None) -> bool:
+    return isinstance(payload, dict) and "v2f_baseline" in payload and "v2f_m1" in payload and "m1_delta" in payload
 _VIX_BY_DATE: dict | None = None
 
 _Q041_DISK_CACHE_PATH = os.path.normpath(
@@ -1199,12 +1203,17 @@ def api_es_backtest_v2f():
     cache_key = f"v2f:{mode}:{start_date}:{end_date or ''}"
 
     if cache_key in _ES_BT_CACHE:
-        return jsonify(_ES_BT_CACHE[cache_key])
+        cached = _ES_BT_CACHE[cache_key]
+        if _is_v2f_m1_payload(cached):
+            return jsonify(cached)
+        _purge_v2f_cache_entries()
 
     disk_cached = _load_es_disk_cache(cache_key)
-    if disk_cached:
+    if disk_cached and _is_v2f_m1_payload(disk_cached):
         _ES_BT_CACHE[cache_key] = disk_cached
         return jsonify(disk_cached)
+    if disk_cached:
+        _purge_v2f_cache_entries()
 
     try:
         from research.strategies.ES_puts.backtest import run_phase2_v2f
