@@ -225,17 +225,23 @@ function computeMetrics(s) {
   return { firstDate, lastDate, avgWin, avgLoss, expectancy, annROE, maxDD, sharpe };
 }
 
-function buildMetricCards(s) {
+function buildMetricCards(s, canonicalSummary) {
   const m = computeMetrics(s);
   const wr = s.win_rate_pct?.toFixed(1) + '%';
   const pnlStr = fmtD(s.total_pnl);
-  const annStr = m.annROE != null ? (m.annROE>=0?'+':'')+m.annROE.toFixed(1)+'%' : '—';
+  const canonicalAnnRoe = typeof canonicalSummary?.ann_roe_pct === 'number'
+    ? canonicalSummary.ann_roe_pct
+    : null;
+  const annSource = canonicalAnnRoe != null ? canonicalAnnRoe : m.annROE;
+  const annStr = annSource != null ? (annSource>=0?'+':'')+annSource.toFixed(1)+'%' : '—';
   const ddStr  = m.maxDD < 0 ? '-$'+Math.round(Math.abs(m.maxDD)).toLocaleString() : '$0';
   const shpStr = m.sharpe != null ? m.sharpe.toFixed(2) : '—';
   const exStr  = m.expectancy != null ? fmtD(m.expectancy) : '—';
   const winAvg = m.avgWin  != null ? '+$'+Math.round(m.avgWin).toLocaleString()  : '—';
   const lossAvg= m.avgLoss != null ? '-$'+Math.round(Math.abs(m.avgLoss)).toLocaleString() : '—';
-  const initEq = (s.equity_curve?.[0]?.equity || 50000) / 1000;
+  const annSub = canonicalAnnRoe != null
+    ? 'Geometric from equity curve'
+    : 'Fallback estimate';
 
   return `<div class="metric-grid">
     <div class="metric-card">
@@ -265,8 +271,8 @@ function buildMetricCards(s) {
     </div>
     <div class="metric-card">
       <div class="metric-label">Ann. ROE</div>
-      <div class="metric-value ${m.annROE!=null&&m.annROE>=20?'up':m.annROE>=10?'warn':'down'}">${annStr}</div>
-      <div class="metric-sub">on $${initEq.toFixed(0)}k baseline</div>
+      <div class="metric-value ${annSource!=null&&annSource>=20?'up':annSource>=10?'warn':'down'}">${annStr}</div>
+      <div class="metric-sub">${annSub}</div>
     </div>
     <div class="metric-card">
       <div class="metric-label">Max Drawdown</div>
@@ -846,10 +852,11 @@ function render(data) {
   html += data.sleeves.map((s,i) => {
     const col = COLORS[s.symbol]||'#C4CEEC';
     const ovId = `ov-${s.symbol}`;
+    const canonicalSummary = overview?.backtest_summary?.by_symbol?.[s.symbol] || null;
     return `
     <div class="tab-panel${i===0?' active':''}" data-sym="${s.symbol}">
 
-      ${buildMetricCards(s)}
+      ${buildMetricCards(s, canonicalSummary)}
 
       <!-- Price overlay chart -->
       <div class="chart-wrap">

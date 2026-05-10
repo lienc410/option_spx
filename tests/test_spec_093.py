@@ -112,6 +112,8 @@ class Spec093Tests(unittest.TestCase):
         self.assertIn("Main strategy overlay", text)
         self.assertIn("(backtest data)", text)
         self.assertIn("/api/q041/overview", text)
+        self.assertIn("Geometric from equity curve", text)
+        self.assertNotIn("on $${initEq.toFixed(0)}k baseline", text)
 
     @patch("web.server._build_q041_overview_payload", side_effect=RuntimeError("boom"))
     def test_overview_route_fails_soft(self, _mock_overview) -> None:
