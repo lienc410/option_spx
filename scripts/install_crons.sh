@@ -48,7 +48,7 @@ ssh "$REMOTE" "cat > ${PLIST_DIR}/com.spxstrat.schwab_refresh.plist" << 'EOF'
 </plist>
 EOF
 
-# ── 2. E-Trade daily headless re-auth (05:30 ET = 05:30 local if Mac is in ET) ─
+# ── 2. E-Trade token renewal at 23:45 ET (before midnight expiry) ─────────────
 ssh "$REMOTE" "cat > ${PLIST_DIR}/com.spxstrat.etrade_refresh.plist" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -59,14 +59,14 @@ ssh "$REMOTE" "cat > ${PLIST_DIR}/com.spxstrat.etrade_refresh.plist" << 'EOF'
     <key>ProgramArguments</key>
     <array>
         <string>/Users/macbook/SPX_strat/venv/bin/python3</string>
-        <string>/Users/macbook/SPX_strat/scripts/etrade_reauth_headless.py</string>
+        <string>/Users/macbook/SPX_strat/scripts/etrade_token_renew.py</string>
     </array>
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>
-        <integer>5</integer>
+        <integer>23</integer>
         <key>Minute</key>
-        <integer>30</integer>
+        <integer>45</integer>
     </dict>
     <key>StandardOutPath</key>
     <string>/Users/macbook/Library/Logs/spx-strat/etrade_refresh.log</string>
@@ -76,8 +76,6 @@ ssh "$REMOTE" "cat > ${PLIST_DIR}/com.spxstrat.etrade_refresh.plist" << 'EOF'
     <dict>
         <key>HOME</key>
         <string>/Users/macbook</string>
-        <key>DISPLAY</key>
-        <string>:0</string>
     </dict>
 </dict>
 </plist>
@@ -93,7 +91,7 @@ ssh "$REMOTE" "launchctl load  ${PLIST_DIR}/com.spxstrat.etrade_refresh.plist"
 echo ""
 echo "==> Done. Cron jobs installed:"
 echo "    Schwab  — every 6 hours (keep-alive, logs: ~/Library/Logs/spx-strat/schwab_refresh.log)"
-echo "    E-Trade — daily at 05:30 (headless re-auth, logs: ~/Library/Logs/spx-strat/etrade_refresh.log)"
+echo "    E-Trade — daily at 23:45 (token renewal before midnight, logs: ~/Library/Logs/spx-strat/etrade_refresh.log)"
 echo ""
 echo "==> Verify:"
 ssh "$REMOTE" "launchctl list | grep 'schwab_refresh\|etrade_refresh'"

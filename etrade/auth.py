@@ -259,13 +259,50 @@ def get_access_token(verifier: str) -> dict:
 
 
 def renew_access_token() -> dict:
+    """Renew the current access token before it expires at midnight ET.
+
+    Calls E-Trade's renew_access_token endpoint using the existing
+    oauth_token/oauth_token_secret — no user login or password needed.
+    Must be called while the token is still valid (i.e. before midnight ET).
+    """
     if not is_configured():
         return {"ok": False, "reason": "not_configured"}
     token = load_token() or {}
     if not token.get("oauth_token") or not token.get("oauth_token_secret"):
         record_token_issue("auth_required")
         return {"ok": False, "reason": "auth_required"}
-    # pyetrade does not expose an access-token renewal API; once the daily token
-    # expires, the runtime must re-enter the manual authorization flow.
-    record_token_issue("reauth_required")
-    return {"ok": False, "reason": "reauth_required"}
+
+    # Check current token is still valid before attempting renewal
+    status = token_status()
+    if not status.get("authenticated"):
+        record_token_issue("reauth_required")
+        return {"ok": False, "reason": "reauth_required"}
+
+    try:
+        OAuth1Session = _oauth1_session_class()
+        session = OAuth1Session(
+            consumer_key(),
+            consumer_secret(),
+            resource_owner_key=token["oauth_token"],
+            resource_owner_secret=token["oauth_token_secret"],
+            signature_type="AUTH_HEADER",
+        )
+        r = session.get(
+            "https://api.etrade.com/v1/oauth/renew_access_token",
+            timeout=20,
+        )
+        r.raise_for_status()
+    except Exception as exc:
+        reason = f"renewal_failed: {exc}"
+        record_token_issue(reason)
+        return {"ok": False, "reason": reason}
+
+    now = datetime.now(_ET)
+    updated = {
+        **token,
+        "expires_at": _next_midnight_et(now).isoformat(),
+        "updated_at": now.isoformat(timespec="seconds"),
+    }
+    save_token(updated)
+    clear_token_issue()
+    return {"ok": True, "expires_at": updated["expires_at"]}
