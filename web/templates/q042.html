@@ -98,7 +98,28 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .loading-msg { font-family:var(--f-ui);font-size:0.72rem;color:var(--text-muted);font-style:italic;padding:32px;text-align:center; }
 .error-msg { font-family:var(--f-mono);font-size:0.65rem;color:var(--red);padding:12px; }
 
-@media (max-width:700px) { .sleeve-grid { grid-template-columns:1fr; } }
+/* ── Strategy spec card ── */
+.spec-section { margin-bottom:28px; }
+.spec-shared { background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:12px; }
+.spec-shared-title { font-family:var(--f-ui);font-size:0.65rem;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px; }
+.spec-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px 20px; }
+.spec-item { display:flex;flex-direction:column;gap:2px; }
+.spec-key { font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em; }
+.spec-val { font-family:var(--f-mono);font-size:0.72rem;color:var(--text-2); }
+.spec-val b { color:var(--text);font-weight:500; }
+.spec-sleeve-grid { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
+.spec-sleeve-card { background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden; }
+.spec-sleeve-hd { padding:12px 16px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px; }
+.spec-sleeve-id { font-family:var(--f-mono);font-size:0.90rem;font-weight:600; }
+.spec-sleeve-body { padding:10px 16px;display:flex;flex-direction:column;gap:7px; }
+.spec-row { display:flex;gap:6px;align-items:baseline; }
+.spec-row-key { font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;flex:0 0 72px; }
+.spec-row-val { font-family:var(--f-mono);font-size:0.68rem;color:var(--text-2); }
+.spec-row-val b { color:var(--text);font-weight:500; }
+.spec-divider { height:1px;background:var(--border);margin:4px 0; }
+.spec-guard { font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);line-height:1.5;padding-top:6px;border-top:1px solid var(--border);margin-top:2px; }
+
+@media (max-width:700px) { .sleeve-grid,.spec-sleeve-grid { grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
@@ -139,6 +160,98 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
   <div class="sleeve-grid" id="sleeve-grid">
     <div class="loading-msg" style="grid-column:1/-1">Loading…</div>
   </div>
+
+  <!-- Strategy Spec -->
+  <div class="section-label">策略规格</div>
+  <div class="spec-section">
+
+    <!-- Shared structure -->
+    <div class="spec-shared">
+      <div class="spec-shared-title">共用结构 — 两 Sleeve 相同</div>
+      <div class="spec-grid">
+        <div class="spec-item">
+          <span class="spec-key">标的</span>
+          <span class="spec-val"><b>SPX</b>（S&P 500 指数期权，欧式现金结算）</span>
+        </div>
+        <div class="spec-item">
+          <span class="spec-key">方向 / 类型</span>
+          <span class="spec-val"><b>Long call vertical spread（debit）</b></span>
+        </div>
+        <div class="spec-item">
+          <span class="spec-key">Long leg</span>
+          <span class="spec-val"><b>ATM</b>（入场日 SPX close，取整到最近 $5）</span>
+        </div>
+        <div class="spec-item">
+          <span class="spec-key">Short leg</span>
+          <span class="spec-val"><b>ATM × 1.05</b>（+5% OTM，取整到最近 $5）</span>
+        </div>
+        <div class="spec-item">
+          <span class="spec-key">DTE 目标</span>
+          <span class="spec-val"><b>90 天</b></span>
+        </div>
+        <div class="spec-item">
+          <span class="spec-key">平仓</span>
+          <span class="spec-val"><b>持有至到期</b>（欧式现金结算，到期自动平）</span>
+        </div>
+        <div class="spec-item">
+          <span class="spec-key">每次 sizing</span>
+          <span class="spec-val"><b>10% 账户</b>（两 sleeve 合计上限 20%）</span>
+        </div>
+        <div class="spec-item">
+          <span class="spec-key">Joint BP gate</span>
+          <span class="spec-val">min(20%, max(0%, 60% − main_bp%))</span>
+        </div>
+        <div class="spec-item">
+          <span class="spec-key">叠仓</span>
+          <span class="spec-val">每 sleeve 内 max 1 active；跨 sleeve 完全独立</span>
+        </div>
+        <div class="spec-item">
+          <span class="spec-key">Re-arm 条件</span>
+          <span class="spec-val">仓位到期后 AND ddATH ≥ −2%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sleeve A / B trigger specs -->
+    <div class="spec-sleeve-grid">
+
+      <div class="spec-sleeve-card" style="border-top:3px solid var(--blue)">
+        <div class="spec-sleeve-hd">
+          <span class="spec-sleeve-id" style="color:var(--blue)">Sleeve A</span>
+          <span style="font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2)">dd4 · 即时触发</span>
+        </div>
+        <div class="spec-sleeve-body">
+          <div class="spec-row"><span class="spec-row-key">触发</span><span class="spec-row-val"><b>ddATH ≤ −4%</b>（首次穿越）</span></div>
+          <div class="spec-row"><span class="spec-row-key">MA filter</span><span class="spec-row-val"><b>无</b>——穿越后 T+1 开盘直接入场</span></div>
+          <div class="spec-row"><span class="spec-row-key">入场时机</span><span class="spec-row-val">信号日次日开盘（T+1 open）</span></div>
+          <div class="spec-row"><span class="spec-row-key">典型 ddATH</span><span class="spec-row-val">−4% ~ −8%（历史中位 ~−4.5%）</span></div>
+          <div class="spec-divider"></div>
+          <div class="spec-guard">
+            ⚠ 仅第一次穿越触发；armed=False 后不再响应，直至仓位到期 + ddATH 回升 ≥ −2%。
+          </div>
+        </div>
+      </div>
+
+      <div class="spec-sleeve-card" style="border-top:3px solid var(--orange)">
+        <div class="spec-sleeve-hd">
+          <span class="spec-sleeve-id" style="color:var(--orange)">Sleeve B</span>
+          <span style="font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2)">dd15 + MA10 reclaim</span>
+        </div>
+        <div class="spec-sleeve-body">
+          <div class="spec-row"><span class="spec-row-key">触发（外）</span><span class="spec-row-val"><b>ddATH ≤ −15%</b> → 进入 Watching</span></div>
+          <div class="spec-row"><span class="spec-row-key">触发（内）</span><span class="spec-row-val"><b>close > MA10</b>（MA10 reclaim）</span></div>
+          <div class="spec-row"><span class="spec-row-key">入场时机</span><span class="spec-row-val">MA10 reclaim 日次日开盘（T+1）</span></div>
+          <div class="spec-row"><span class="spec-row-key">Watching 窗口</span><span class="spec-row-val">最多 <b>30 个交易日</b>；超时则放弃</span></div>
+          <div class="spec-row"><span class="spec-row-key">MA10</span><span class="spec-row-val">SPX close 10 日滚动均值</span></div>
+          <div class="spec-divider"></div>
+          <div class="spec-guard">
+            ⚠ 两个阶段缺一不可：先 dd15 进入 watching，再 MA10 reclaim 才入场。30 日无 reclaim → 放弃，重新等待 dd15。
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div><!-- /spec-section -->
 
   <!-- C2: SPX + ATH monitoring chart -->
   <div class="section-label">SPX Price + ATH + ddATH% · 近 252 交易日</div>
