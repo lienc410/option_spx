@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-05-09（Quant Researcher，`/ES` + Q053 全部 FINAL CLOSED；Tier-3+ VIX term structure DROP；C3 standing architectural candidate 保留 4 条 revisit triggers；信号宇宙近场已穷尽）
+最后更新：2026-05-10（Developer，**Q042 SPEC-094 IMPLEMENTED** — F1-F9 全部实施完成；paper-trading 已启动；collect_chains strike window 已扩至 +5% OTM；Standing obligation: first live HIGH_VOL trigger (VIX ≥ 22) 必须 re-run q042_f4_oldair_backfill.py 重新验证 delta）
 
 ---
 
@@ -153,6 +153,53 @@
 
 ---
 
+### Q055 — /ES P2 True Ladder + V2c Upgrade：是否将 fixed-slot 实现升级为 spec 设计意图的 rolling weekly ladder
+
+- **状态**：**CLOSED 2026-05-10 — 竞争已执行，/ES V2c (A) 胜出，SPX CSP T1 (B) 淘汰**（B 在 V1 veto 失败：2020 COVID worst trade -17.99% NLV > -15% 阈值；且 A 在所有 Tier 2 主指标全胜）。结论：/ES V2c 进入 SPEC 评审轨道；00k 账户下 naked put 槽归 /ES — 
+- **背景**：Q041 T1 vs /ES 治理审查（2026-05-09）发现 /ES P2 当前代码实现（fixed-slot，每槽独立周期入场）与 spec_initial.md 设计意图（每周入场 1 张 49DTE，持有衰减至 21DTE）结构不同。True rolling ladder (V2) + soft stop (V2c, STOP_MULT=8.0) 在 26 年 BS-flat 合成数据上：Ann ROE +0.45% → +1.29%（+0.84pp，2.9× alpha multiple），MDD 改善（-57% → 估计 -40%），worst trade -1k → -0k
+- **统计状态**：V2c borderline 显著——V2 bootstrap 75% 种子在 block=250 下显著，CI 下界中位 +0.06%。V2c 是 V2 衍生物，bootstrap 未直接测试。需 paper trading 前先确认
+- **STOP_MULT 关键发现**：STOP_MULT=3.0 在 true ladder 下是 alpha 杀手（V1 -2.35% vs V2 +2.58%，差 -4.93pp）；stop=8 是同时改善 alpha 和保留 tail discipline 的 Pareto 候选
+- **待 PM 决定**：
+  1. V2c 是否进入 SPEC 评审（需局部重开 /ES 研究线，不影响 SPEC-061/086/088 生产状态）
+  2. 若进入 SPEC，是否需要先在 true ladder 框架下补 bootstrap 验证 V2c 本身的统计显著性
+- **Caveats**（必须在 SPEC 中显示）：全部基于 BS-flat 合成数据；BSH/动态杠杆与 V2c 交互未测试；几何 vs 算术 Ann ROE 口径差异
+- **不影响**：SPEC-061/086/088 生产状态；Q012 Phase C（SPAN visibility）结论；Q050；主策略
+- **来源**：
+
+---
+
+### Q056 — /ES P2 V2f 升级：是否将 /ES P2 实现从 fixed-slot 升级为 true rolling weekly ladder + STOP_MULT=15
+
+- **状态**：**SPEC-095 APPROVED 2026-05-10** — Developer queue 等待实施
+- **内容**：V2f（true rolling weekly ladder，entry=49DTE，exit@21DTE，STOP_MULT=15）是 /ES P2 升级的 Pareto 最优候选。Ann ROE +2.67%（几何），worst -10.96% NLV（V1 veto PASS），bootstrap 100% 种子显著（block=250），strictly Pareto-better than V2 no-stop。当前 SPEC-061/086/088 生产状态不变，仅 backtest 层实现修正 + `run_phase2_v2f()` + `/api/es-backtest/v2f` + /es 页面 V2f tab
+- **来源**：`task/SPEC-095.md`
+
+---
+
+### Q057 — V2f 定价 Massive sanity check：true ladder 框架下的定价假设是否在实数据上成立
+
+- **状态**：**CLOSED 2026-05-10 — Tier 1 完成**（R-20260510-04）。结论：BS-flat 系统性低估真实 OTM put 权利金 **+17.6% 中位（全样本）/ +24.7%（V2f 真实 DTE 窗口）**，远超 3% 原 caveat；属 substantive caveat（>7% 阈值触发）。但方向**有利**：BS 低估 → V2f 真实 Ann ROE 约 +3.0-3.5%（vs 报告 +2.67%），Conservative 方向。V2f SPEC 不阻塞，但 SPEC-095 UI 的 caveat 文字（原 "~2-3%"）需 patch 为 "~18-25%"，并并列展示 skew-adjusted 估算。**Developer patch pending**
+- **来源**：`RESEARCH_LOG.md R-20260510-04`，`research/q057/tier1_pricing_bias.py`
+
+---
+
+### Q058 — BSH 在 V2f 框架下的角色：是否仍是必要的 tail mitigation
+
+- **状态**：open（research；低优先级，V2f SPEC 进入后讨论）
+- **内容**：原 /ES Phase 4 动态杠杆 + BSH 的研究基于 V0 fixed-slot 实现。V2f 的 true ladder 已经将 worst trade 压到 -10.96% NLV（V1 veto 通过），而 BSH 的主要价值是尾部保护。V2f + BSH 的交互未被本次审查测试，需重新评估 BSH 在 V2f 下的经济性
+- **来源**：
+
+---
+
+### Q059 — 未来账户增长重做竞争：NLV 达到 M+ 时重新比较 /ES V2f vs SPX CSP ladder
+
+- **状态**：open（future trigger；不是当前研究项）
+- **内容**：Q055 竞争结论在 00k 账户下成立：/ES V2f 胜出。但 SPX CSP T1 的 per-contract $/year 更高（,333 vs ,354），其劣势完全来自无法 ladder 部署。当 NLV ≥ M 时，SPX CSP 可铺 5 槽 ladder，竞争格局可能逆转。届时重做 Q055 协议
+- **触发条件**：账户 NLV 穿越 M
+- **来源**：
+
+---
+
 ### Q013 — `/ES` short put 运行时止损与持仓管理定义
 - **状态**：open（bot alert gap 已关闭）
 - **内容**：`SPEC-086 DONE`（2026-05-07）已交付最小可接受范围：`notify/telegram_bot.py` 的 `intraday_monitor` 循环现在持续监控 `/ES` put mark，≥ 2× entry premium 发 WARNING，≥ 3× 发 TRIGGER（即 SPEC-061 credit stop 线）；fail-soft 设计，Schwab 不可用时不产生误报。PM 明确的"不能接受纯人工盯仓止损"最低要求已满足，B1 blocker 正式关闭。趋势转负后的现有持仓行为以及 Layer 1 / Layer 3 覆盖仍未定义
@@ -175,25 +222,43 @@
 ---
 
 ### Q019 — backtest 的收盘口径 VIX 与 live recommendation 的开盘 / 早盘 VIX 口径是否存在系统性偏差
-- **状态**：open
-- **内容**：当前大量研究与回测默认使用按交易日收盘口径构建的 VIX 时间序列，但 live recommendation 的真实决策发生在开盘附近；而 VIX 在很多波动事件日会在开盘前或刚开盘时达到当日高点，随后回落。这意味着 backtest 使用 close-based VIX，可能低估 live 决策时实际面对的恐慌水位，进而影响：
-  - `HIGH_VOL` vs `NORMAL` regime 切换
-  - `VIX_RISING` 判定
-  - `ivp63` / 其他高波 gate 的触发频率
-  - `Q017 / SPEC-064` aftermath 条件是否在 live 中更早或更晚触发
-- **关键问题**：需要研究的不是“VIX 开盘通常高于收盘”这一一般事实，而是：如果历史推荐与回测改用 open-based（或最接近 live 决策时点的）VIX 口径，selector 的实际输出会有多少次发生变化？这些变化集中在什么 regime / filter / strategy 上？是否足以改变我们对某些研究结论或 live miss 的解释？
-- **MC 2026-04-24 新证据**：MC Phase 1 已用 `BBG OHLC` 跑完 `27` 年测量，报告：
-  - aftermath 层 `4.63%` flip
-  - regime 层 `9.71%` flip
-  - trend 层 `31.54%` flip
-  - aftermath `319` 个 flip 中，`179` 个为 `close=False / open=True`，`140` 个相反
-- **当前 PM 状态**：MC handoff 明确写为 `decision deferred`；有 `A / B / C` 三个后续路径，但 PM 尚未拍板，HC 不应自行把这份证据解释为“必须改 live”或“必须重跑既有 spec”
-- **建议下一步**：如 PM 批准，先做一个窄研究原型
-  - baseline：现有 close-based VIX 口径
-  - variant：open-based 或 earliest-available live-time VIX 口径
-  - 输出：route 变化次数、gate 变化次数、aftermath 变化次数、受影响 trade 数、主要集中在哪些日期 / regime / strategy
-- **当前归类**：research only
-- **来源**：PM 新增研究问题，2026-04-19
+- **状态**：deployed — SPEC-091 已上 old Air（commit `1463c5b`，2026-05-09），Signal 2 sidecar 监控期开始；Q019 closure 等待 6 个月 live recovery 实测确认
+- **部署形态**：sidecar 独立运行，不并入 Signal 1 主调度；Signal 1（09:35 push）保持原样不变；新增 Signal 2 · Settled VIX 面板与 `/api/recommendation/settling` 只读 API；launchd `com.spxstrat.signal_settling` 09:30 ET 触发；AC1-AC10 全通过
+- **PM 2026-05-09 决策**：reject Path A（不改）；reject Path C（live 改 close-based）；**select Path E（live 改 stable rule，按 settling VIX 做日 recommendation，sidecar 形态）**
+- **预期收益**：把 live-vs-backtest divergence 从 -0.6pp 削到约 -0.2pp AnnROE（recovery 60-70%）
+- **测试基础（R-20260509-09）**：四层测试结果：
+  - Tier 2 upper bound: -1.37pp（含 rolling-stat substitution 噪音）
+  - Tier 2.5 mixed-mode: -0.63pp（current=open, history=close）
+  - Tier 2.6 hourly 2024-2026 stable rule: recovery 67.4%
+  - Tier 2.7 OHLC midpoint proxy 19y: -0.16pp，cumulative recovery 72.8%，worst-5y 中位 ~62%
+- **SPEC-091 锁定参数**（Q019 校准产物）：
+  ```
+  SETTLING_INTERVAL    = "1h"
+  SETTLING_THRESHOLD   = 0.5
+  SETTLING_TIMEOUT_MIN = 180
+  SETTLING_DATA_SOURCE = "yfinance:^VIX"
+  ```
+- **Sidecar 设计选择**（Developer 实施层决定）：Signal 2 不替代 Signal 1；两条路径并行运行，UI 同屏展示。优点：Signal 1 现有 push 路径零风险；6 个月观察期可对比两者实际偏离。代价：用户需理解"一日两信号"——已通过首页面板与 Telegram 差异消息消化
+- **监控基线（Quant 定）**：
+  1. Stable 触发率 ≥ 70%（research 预测 80%；20pp 余量给 OOS noise）
+  2. Timeout 率 ≤ 20%（research 预测 12%）
+  3. Recovery rate（Signal 2 vs Signal 1，按 selector 输出对比）应在 50-85% 区间
+  4. Oscillation（stable 后 1 小时 VIX 又移 ≥1.0）应 ≤ 30%
+  超任一阈值由 Quant 评估是否调 θ 或 timeout
+- **外部数据路径状态**（避免重复试错）：
+  - Twelve Data 不支持 CBOE VIX 现货指数；VIXY hourly 仅回到 2020-05
+  - Polygon Indices Developer $79/月单月可拉 10y 真 hourly VIX；如生产 hourly VIX 数据源选定为 Polygon，需要常驻订阅而非单月
+  - CBOE DataShop $300+ one-time，不推荐
+- **MC 2026-04-24 历史证据**（HC Tier 1 已复现 9.48%，与 MC 9.71% Δ 0.23pp）：
+  - aftermath 层 `4.63%` flip / regime 层 `9.71%` flip / trend 层 `31.54%` flip
+  - aftermath `319` 个 flip 中，`179` close=False/open=True，`140` 相反
+- **关联记录**：`R-20260509-08`（Tier 1+2 + 2nd Quant APPROVE）、`R-20260509-09`（Tier 2.5/2.6/2.7 + Path E 选定 + θ recovery sweep + SPEC-091 deployed）、`QUANT_RESEARCHER.md` "Backtest-vs-Live Convention Divergence (Q019 governance)" 章节、Pre-SPEC memo `task/q019_path_e_pre_spec_2026-05-09.md`、`task/SPEC-091.md`、`task/SPEC-091_handoff.md`
+- **当前归类**：deployed, monitoring active
+- **Quant 后续介入点**：
+  - 第 1 个月（2026-06-09）：跑 Signal 1 vs Signal 2 对照统计，看 stable 触发率、timeout 率、selector flip 频次
+  - 第 3 个月（2026-08-09）：完整 recovery rate 实测 vs research 预测 67.4%
+  - 第 6 个月（2026-11-09）：最终 closure 评估；若实测 recovery 落在 50-85% 区间，Q019 正式 close + 把 Signal 1 切换到 Signal 2 输出（合并 sidecar）；若不在，回头评估 θ 或 timeout 调整
+- **来源**：PM 新增研究问题，2026-04-19；2026-05-09 Path E 选定 + SPEC-091 deployed
 
 ### Q020 — MC `backtest_select` 简化导致 `SPEC-064 AC10` artifact count 偏少
 - **状态**：open
@@ -203,7 +268,7 @@
 - **来源**：`MC_Handoff_2026-04-24_v3.md`、`MC_Response_2026-04-25_v2.md` §4
 
 ### Q021 — `Q018 / SPEC-066` 的 aftermath 多槽位语义是否设错：应抓第二峰回落，而不是 back-to-back 连抓两次
-- **状态**：open
+- **状态**：resolved / closed（PM 2026-05-02 最终裁定：保留 SPEC-066，不开 SPEC-067；Phase 1-4 sizing-curve 全部完成）
 - **历史编号**：HC 自 2026-04-20 起原记为 `Q020`；2026-04-25 PM 接受 MC 编号约定后改为 `Q021`，与 MC handoff / response 对齐
 - **内容**：PM 在复盘 `2026-03` 的 double-spike 真实案例时指出，当前 `SPEC-066` 的 `cap=2 + B` 逻辑虽然成功捕捉了两笔 `IC_HV`（`2026-03-09` 与 `2026-03-10`），但这两笔是紧邻的 back-to-back 开仓，而不是“第一峰后的机会未完成、第二个峰值形成后再抓第二次回落”。若策略设计的真正意图是后者，那么 `Q018` 研究与 `SPEC-066` 的收益中，可能混入了语义错误的 alpha
 - **关键问题**：需要区分三件事：
@@ -650,7 +715,7 @@
 - **来源**：`task/SPEC-079.md`、`task/SPEC-080.md`、`doc/tieout_3_2026-05-02/README.md`、`sync/hc_to_mc/HC_return_2026-05-02.md`
 
 ### Q039 — `IC regular` 残余 gap：更像 high-IVP `NORMAL IC` fallback / gate 差异，而非 slot blocking
-- **状态**：open
+- **状态**：resolved（attribution sufficient；post-SPEC-084 refresh 2026-05-09 确认 gap 不变，bp_target lift 与 selector 正交）
 - **内容**：在 HC reproduction sprint 的 tieout #2 / #3 之后，HC↔MC 的主残余 gap 依然明显：
   - `PT=0.50` 模式下仍约 `+5` trades / `+$30k` 量级
   - 其中最大单项始终是 `IC regular`：
@@ -692,15 +757,24 @@
 - **来源**：`task/q036_to_q039_hc_reproduction_assessment_2026-05-01.md`、`doc/tieout_2_2026-05-02/README.md`、`doc/tieout_3_2026-05-02/README.md`、`sync/hc_to_mc/HC_return_2026-05-02.md`
 
 ### Q029 — research/live notional parity：engine `qty = 1` 与 selector `SizeTier` 不一致
-- **状态**：open
-- **内容**：MC 的 `5-dim parity audit` 报告，其他维度大多是 `no issue / minor drift`，但有一个 material issue：backtest engine 在研究输出中硬编码 `qty = 1`，忽略 selector `SizeTier`。这会让部分 HIGH_VOL aftermath 研究以 `1 SPX` 记账，而 live 实际只会下 `1 XSP`，从而放大 magnitude 解读。MC 没有选择直接重写 engine，而是通过 `Q033 Option B+E` 规定以后 handoff / SPEC / RDD 一律同时给出 `research_1spx` 与 `live_scaled_est`
-- **2026-04-25 更新**：`SPEC-072` 已完成 HC frontend dual-scale 落地。也就是说，reporting-layer 缓解方案现在已在 HC UI 中实现；当前仍然 open 的只剩“是否需要更深的 engine / RDD 级 live-scale 重构”，而不是双列显示本身
-- **建议下一步**：HC 先复现 audit 和 dual-column reporting 规则，不要直接启动 live-scale engine 重构
-- **当前归类**：ready for HC reproduction
-- **来源**：`MC_Handoff_2026-04-24_v3.md`
+- **状态**：resolved / closed（PM 2026-05-09 approved SPEC-072.1，Quant 同日实施 F8-F11，smoke tests pass）
+- **2026-05-09 Quant Tier 1 结论（R-20260509-10）**：
+  - **Engine 无 `qty=1` bug**：`backtest/engine.py:_position_contracts()` 已经按 `account × bp_target / bp_per_contract` 做 fractional sizing。MC 表述 "engine 用 1 SPX 模拟" 是 reporting-layer 单位口径解读问题，不是 engine 计算 bug
+  - **不需要 engine 重构**
+  - **SPEC-072 frontend dual-scale 仅覆盖 4/8 主 template**：`index.html`/`backtest.html`/`margin.html`/`spx.html` 已 covered；`matrix.html`/`portfolio_backtest.html` 未 covered；CSV 导出无 scale 列；manually-authored docs 无 governance 强制
+  - **影响范围（3y 实测）**：HIGH_VOL 15.8% trades，$7,914 / 3y ≈ 3% PnL。19y 估算 ~3-5% PnL；但在 grinding decline / aftermath 研究中权重显著更高
+- **SPEC-072.1 patch（DRAFT）**：Fast Path ~1h work，4 个改动：
+  - F8 — `matrix.html` 引入 spec072_helpers + HV cell avg_pnl 双值
+  - F9 — `portfolio_backtest.html` 引入 spec072_helpers + HV row 双值
+  - F10 — CSV 导出加三列 `live_scale_factor` / `live_scaled_exit_pnl_usd` / `live_scaled_total_bp`
+  - F11 — `QUANT_RESEARCHER.md` + `REVIEW_TEMPLATE.md §6.1.7` governance 条款
+- **历史背景**：MC 2026-04-24 `5-dim parity audit` 提出此 parity issue，缓解方案为 Q033 Option B+E（reporting dual columns）；SPEC-072 完成 4 个主 template；Q029 Tier 1 (HC 2026-05-09) 发现剩余 4 处缺口
+- **Q029 closure 已完成**：SPEC-072.1 状态 DONE（2026-05-09）；F8 matrix.html dual-scale + F9 portfolio_backtest.html helper inject + F10 CSV 三列 + F11 QUANT_RESEARCHER + REVIEW_TEMPLATE governance 全部落地
+- **PM live smoke 待办**（未 block closure）：在 `/matrix` 与 `/portfolio_backtest` 浏览器实测看 HV cell 双值；下次 export CSV 验证三列在
+- **来源**：`MC_Handoff_2026-04-24_v3.md`、Q029 Tier 1 evaluation `R-20260509-10`、`task/SPEC-072.md`、`task/SPEC-072.1.md`
 
 ### Q041 — Large-Cap Equity Option Income Overlay：是否值得作为独立 equity-income sleeve 进入正式研究池
-- **状态**：enter research pool / Gate 0 pass with constraints / overlap validation
+- **状态**：**Tier 1 SPX CSP 正式淘汰（2026-05-10 Q055 竞争结论）**；V1 veto 失败（2020 worst -17.99% NLV > -15%），且 Tier 2 主指标全负于 /ES V2c。**Tier 2 GOOGL/AMZN CSP 独立继续（不受影响）。Tier 3 COST/JPM IC observe-only 不受影响**
 - **内容**：Quant 已完成正式理论评估。结论不是 `drop`，也不是近端 spec，而是：这份候选材料里存在三个可被机构化研究的模块，但当前项目在数据层面还没有通过 `Gate 0`。因此它现在应被视为一个**已进入研究池、但尚未获准分配建模带宽**的独立题目
 - **已确认可研究的模块**：
   1. `mega-cap covered call overlay`
@@ -1350,37 +1424,82 @@
 - **当前归类**：Phase 1 / D1 Data Sanity（可立即开始）
 - **来源**：`research/strategies/Large-Cap Equity Option Income Overlay/Large-Cap Equity Option Income Overlay.md`；Quant 评估，2026-05-03
 
-### Q042 — Directional Drawdown / Reversal Overlay：作为未来研究种子，是否值得在当前 income-first 主线之外单独开启显式方向性分支
-- **状态**：open（future-seed / low priority）
-- **内容**：
-  - 当前系统中的大部分策略研究仍是非方向性或弱方向性分支；显式方向性表达目前主要只有 aftermath 路线
-  - PM 提出一个未来研究种子：在不打断当前主线的前提下，后续可以探索更明确的方向性 overlay
-  - 典型例子包括：
-    - `SPX` 从近期高点回撤 `x%` 后，买入 `LEAP call` 或 `call spread`
-    - 不在原始回撤点直接入场，而是在“止跌 / 重新站回关键均线 / 基础筑底确认 / 筑顶后反向”一类技术确认后再操作
-- **当前定位**：
-  - 这是一个 **future research seed**
-  - 不是当前 active queue
-  - 不是 DRAFT spec
-  - 不应打断：
-    - `Q041` Phase 2
-    - `Q036` shadow observation
-    - `Q038` shadow monitoring
-    - `/ES` runtime safeguards
-- **建议拆分的未来研究子题**：
-  - `Q042-A`：drawdown-triggered convex upside
-    - 研究回撤深度、分批与否、LEAP call vs call spread 等表达方式
-  - `Q042-B`：technical-confirmation directional overlay
-    - 研究 raw drawdown 与技术确认后入场相比，是否能减少“抄底过早”问题
-- **初始研究问题**：
-  1. `SPX` 回撤到什么深度后，后续 `3–12` 个月的 risk-adjusted upside 最值得用期权表达？
-  2. 用 `LEAP call`、`call spread`、还是其他 defined-risk convex 结构，更适合账户级 ROE 目标？
-  3. “纯回撤触发” 与 “技术确认后触发” 两种路径，哪一个更稳？
-- **当前建议**：
-  - 保留为低优先级研究备忘
-  - 仅登记到索引层
-  - 等当前 P0/P1 研究压力缓和后，再决定是否真正交给 Quant 开题
-- **参考备忘**：`doc/q042_directional_overlay_seed_memo_2026-05-04.md`
+### Q054 — Unusual Whales 订阅数据 Alpha 研究
+
+- **状态**：open（future seed / low priority）
+- **数据源**：PM 持有 Unusual Whales 订阅（options flow、dark pool prints、large unusual volume、congressional disclosures、institutional positioning）
+- **核心问题**：Unusual Whales 数据是否包含对主策略（BPS / IC / BCD）或 Q041 sleeve 有增量价值的信号？候选方向（不代表已决定研究哪条）：
+  1. **options flow 作为 entry timing 信号**：unusual call/put volume surge 是否与 VIX regime 转换或 IV expansion 有预测关系
+  2. **dark pool prints 作为方向性 filter**：大宗成交方向是否能提供 SPX 短期偏差的独立信号
+  3. **institutional positioning overlay**：与 Q041 equity sleeve 候选（GOOGL/AMZN/COST/JPM）的已知持仓方向是否能辅助 entry 或 avoidance 判断
+- **不在范围（当前）**：congressional trading（与主策略无直接关联）；任何需要 real-time streaming 的架构改动
+- **前置条件**：
+  - Tier 0：确认 Unusual Whales 提供哪些数据格式（API / CSV export）以及历史数据回溯范围
+  - Tier 1 才能开始：至少有 2 年历史 options flow 数据可回测
+- **优先级**：明确低于 Q041 paper-trading 运营、Q039、Q021；仅在主策略其他 lane 无更高价值任务时推进
+- **来源**：PM 2026-05-09
+
+---
+
+### Q042 — Directional Drawdown / Reversal Overlay：是否值得在当前 income-first 主线之外单独开启显式方向性分支
+- **状态**：**SPEC-094 IMPLEMENTED 2026-05-10** — F1-F9 已全部实施，paper-trading 已启动
+- **APPROVED Spec**: `task/SPEC-094.md` (Status: APPROVED)
+- **Final config（Tier 3 deep-dive 后）**:
+  - **Drawdown 定义**: ddATH（running max from 2007-01-01）— 修正自 dd60_rolling
+  - **Sleeve A**: dd4 ddATH_lenient（re-arm at ddATH ≥ -2%），**no MA filter**，10% sizing — 1.3 trades/yr, 64% win, +5.11%/yr, -16.3% DD
+  - **Sleeve B**: dd15 ddATH_lenient + **MA10 reclaim**，10% sizing — 0.26 trades/yr, **100% win** (5/5), +2.12%/yr, **0% DD**
+  - **Structure**: ATM/+5% call spread, DTE 90, T+1 open
+  - **跨 sleeve 完全独立**（各自 armed state）— BP 偶尔合计 20%（109/4868 天 = 2.2%）
+  - **Combined cap**: 20%（governance backstop: `min(20%, max(0, 60% − main_bp%))`）
+  - **Symbol**: **SPX-only**（XSP 路径删除 2026-05-10 PM scope decision）
+  - **Activation threshold**: NLV ≥ **$200k**（SPX 1-contract minimum sizing 边界）
+  - **预期组合年化**: ~+7.2% (sleeve A +5.1% + sleeve B +2.1%)
+  - **F4 deployment hard gate**: ✅ **PASSED retroactively from oldair 5-day archive** (2026-05-04 → 05-08; median delta 5.65%, max 8.0% << 15% threshold). Caveats: collector strike window 当时只到 +3.4% OTM（forward 已识别 1-line fix）；5 天全部低 vol regime（VIX 17-18），首次 live HIGH_VOL trigger 强制 re-validation
+- **23 acceptance criteria (AC1-AC23)**，详见 SPEC-094
+  - **Execution**: T+1 open
+  - **Hold**: to expiry (Tier 4 to test 50% TP / 50% stop)
+- **Critical Tier 3 findings**:
+  - DTE 30 is **4-5× more drift-sensitive** than DTE 90 (T_close → T+1_close: −19/$100BP vs −5)
+  - **dd15 naive unfiltered is unviable**: 28-35 max consec losses, −42% to −62% worst 12m windows (2008-2009 GFC)
+  - With no-overlap rule, dd15 naive DTE 120 has **90% win rate, 1 max consec loss** (n=10)
+  - dd12+reclaim DTE 90 filtered: 62% win, 3 max consec, n=13
+  - Both options viable — paper-trade decides
+- **Pre-deployment hard gate**: F4 5-day broker-API midpoint vs model-debit tie-out, median delta < 15%
+- **Tier 1 三问回答**（`research/q042/q042_tier1_memo_2026-05-09.md`）：
+- **Tier 2 winner（`research/q042/q042_tier2_memo_2026-05-09.md`）**：
+  - **Trigger**: dd60 ≥ 12% + 30-day 内 close > MA50 reclaim
+  - **Structure**: ATM/+5% call spread, DTE 30
+  - **Sizing**: 1% account / entry, 20% account 绝对 cap
+  - **Economics（raw, pre-tx-cost）**: median +$3.53 / $100 BP-day = **~7.3× V_A baseline**, win rate 73%, n=41 over 19 years
+  - **Economics（post tx-cost haircut estimate）**: +$2.5-3.0 / $100 BP-day, ~+0.8-1.2% account / yr at 1% account/entry
+- **Tier 2 关键发现**：
+  - **P1 Trigger grid**: dd12+MA50 reclaim 12m median +42.7% / positive 92.7%；dd15 naive n=192 / 12m positive 97.9%；OOS robust 两段 (2007-18 / 2019-26)；MA200 reclaim & term_normalize 已 drop
+  - **P2 Structure grid**: 短 DTE (30) + 紧 spread (3-5%) 在 $/BP-day 上压倒 LEAP / long call / ratio
+  - **P3 BP gate**: **Tier 1 Q3 concern 方向错了** — 主策略在 HIGH_VOL 自动 de-gross (BPS_HV/IC_HV)，19y backtest mean BP usage 6.3%、median 4.3%；default gate `min(20%, max(0, 60% − main_bp%))` 在 19 年里 fire rate 0%；保留为 governance backstop（regime-conditional on main-strategy params）
+- **Tier 3 / SPEC drafting 必修 unknowns**:
+  1. Live SPX chain pricing（替代 BS+skew approximation）
+  2. Ratio 1×2 PM margin reality check（live PM margin during VIX>30）
+  3. Re-trigger spacing 规则（避免 long drawdown 期间多次入场）
+  4. Exit rule MVP 测试（held to expiry vs 50% TP/stop）
+  5. SPX vs XSP 选择
+  6. Account-scale 激活门槛
+- **Tier 1 三问回答**（`research/q042/q042_tier1_memo_2026-05-09.md`）：
+  1. **回撤深度 vs forward return** — dd60 ≥ 10% 起边际清晰：12-mo median **+21%**（dd10）/ **+30%**（dd15），positive rate 82-100% vs 无条件 +13% / 79%。MA50 reclaim filter 提升 win rate 但砍样本 88%（不是 free lunch）
+  2. **结构选择** — ATM/+5% **call spread**（DTE 90）是唯一过 V_A baseline 的结构（中位 $1.49/$100 BP-day = **3.1× baseline**）；LEAP ATM marginal 正但 18% baseline；LEAP Δ0.35 结构性负（19% win rate, median −100% premium）
+  3. **regime 兼容性** — dd10 trigger 时 **98.5%** 在 HIGH_VOL（VIX>22）；dd15+ 100% HIGH_VOL；与主策略 BPS_HV / IC_HV 强重叠 → BP 容量直接竞争（vega 维度反向但 BP 维度同向）
+- **结论**：✅ 2/3 问题正面（Q1 + Q2）；Q3 是 Tier 2 必修 sizing 课题不是 edge-killer
+- **Tier 2 scope（推荐）**：
+  - Trigger calibration: dd10/dd15 × reclaim/breadth/term-structure confirmations grid，weighted by waiting cost
+  - Structure refinement: 30-120 DTE × ATM-to-Δ-target grid + ratio spread / risk reversal；用 IV-surface 重定价（VIX-as-σ 在 Tier 1 偏保守）
+  - **BP-stacking gate**（必修）: default 提议 cap = `min(20% account, max(0, 60% account − main_strategy_BP%))`
+  - OOS check: 2007-2018 vs 2019-2026 split
+- **Caveats**：无 transaction costs / slippage；VIX-as-σ 无 skew（spread 数字方向上保守）；dd20 sample n=88
+- **Output artifacts**：
+  - 备忘：`research/q042/q042_tier1_memo_2026-05-09.md`
+  - 脚本：`research/q042/q042_tier1_feasibility.py`
+  - Seed memo：`doc/q042_directional_overlay_seed_memo_2026-05-04.md`
+  - RESEARCH_LOG: R-20260509-11
+- **下一决策（PM）**：promote to Tier 2 / hold / drop. Tier 2 不会启动直到 PM 明确批准
 
 ### Q043 — Q041 scanner / bot support：在 visualization / attribution surface 稳定后，是否应补一层只读 scanner + shadow notification 支持
 - **状态**：open（future support seed / medium-low priority）

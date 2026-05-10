@@ -861,6 +861,18 @@ body {
     <div id="portfolio-surface-body" class="surface-note">Loading portfolio observation surface...</div>
   </div>
 
+  <!-- Q042 Dual-Sleeve Overlay Card (F7) -->
+  <div id="q042-panel" class="portfolio-panel" style="margin-top:12px">
+    <div class="portfolio-head">
+      <div>
+        <div class="portfolio-title">Q042 · Directional Overlay</div>
+        <div class="portfolio-sub">ATM/+5% SPX call spread, DTE 90 · paper-trading · dual sleeve</div>
+      </div>
+      <span class="badge badge-gray">PAPER</span>
+    </div>
+    <div id="q042-body" class="surface-note">Loading Q042 state…</div>
+  </div>
+
   <div id="trade-modal-wrap" class="modal-wrap hidden">
     <div class="modal">
       <div class="modal-hd">
@@ -1941,6 +1953,113 @@ async function loadPortfolioSurface() {
   }
 }
 
+// ── Q042 Dual-Sleeve Overlay (F7) ────────────────────────────────────────────
+
+function renderQ042(d) {
+  const body = document.getElementById('q042-body');
+  if (!body) return;
+  if (d.error) {
+    body.className = 'surface-note';
+    body.textContent = `Q042 unavailable: ${d.error}`;
+    return;
+  }
+
+  function sleeveStatus(sl, inWatch) {
+    if (sl.active_position?.is_active) return { label: 'ACTIVE', color: 'blue' };
+    if (inWatch) return { label: 'WATCHING', color: 'gold' };
+    if (sl.armed) return { label: 'ARMED', color: 'green' };
+    return { label: 'RE-ARM', color: 'gray' };
+  }
+
+  function fmtPos(pos) {
+    if (!pos || !pos.is_active) return '<span class="sleeve-note">No active position</span>';
+    return `<span class="sleeve-note" style="font-family:var(--f-mono);font-size:.68rem">
+      ${pos.long_strike}/${pos.short_strike} · ${pos.contracts}ct · exp ${pos.expiry_date} (${pos.days_to_expiry}d)
+    </span>`;
+  }
+
+  function fmtStats(stats) {
+    if (!stats || !stats.trades) return '—';
+    return `${stats.trades} trades · ${stats.win_rate ?? '—'}% WR · $${(stats.total_pnl ?? 0).toLocaleString()}`;
+  }
+
+  const ddPct = typeof d.ddath_pct === 'number' ? d.ddath_pct : 0;
+  const ddColor = ddPct <= -15 ? 'var(--red)' : ddPct <= -4 ? 'var(--orange)' : 'var(--green)';
+  const bpColor = d.combined_bp_pct > 20 ? 'var(--red)' : d.combined_bp_pct > 15 ? 'var(--orange)' : 'var(--text)';
+
+  const sa = d.sleeve_a || {};
+  const sb = d.sleeve_b || {};
+  const sa_status = sleeveStatus(sa, false);
+  const sb_status = sleeveStatus(sb, sb.in_watching);
+
+  body.className = '';
+  body.innerHTML = `
+    <div class="portfolio-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:12px">
+      <div class="portfolio-cell">
+        <div class="portfolio-label">SPX</div>
+        <div class="portfolio-val">${d.spx_close ? Math.round(d.spx_close).toLocaleString() : '—'}</div>
+      </div>
+      <div class="portfolio-cell">
+        <div class="portfolio-label">ATH</div>
+        <div class="portfolio-val">${d.ath_running_max ? Math.round(d.ath_running_max).toLocaleString() : '—'}</div>
+      </div>
+      <div class="portfolio-cell">
+        <div class="portfolio-label">ddATH</div>
+        <div class="portfolio-val" style="color:${ddColor}">${ddPct >= 0 ? '+' : ''}${ddPct.toFixed(2)}%</div>
+      </div>
+    </div>
+    <div class="portfolio-body">
+      <div class="portfolio-section">
+        <div class="portfolio-label">Sleeve A — dd4 (1.3/yr)</div>
+        <div class="sleeve-row" style="padding:8px 0">
+          <div>${badge(sa_status.label, sa_status.color)}</div>
+          <div>
+            <div class="sleeve-name">ddATH ≤ −4% · no MA filter · T+1 open</div>
+            ${fmtPos(sa.active_position)}
+          </div>
+          <div class="portfolio-val" style="font-size:.68rem">${fmtStats(sa.stats)}</div>
+        </div>
+      </div>
+      <div class="portfolio-section">
+        <div class="portfolio-label">Sleeve B — dd15 + MA10 reclaim (0.26/yr)</div>
+        <div class="sleeve-row" style="padding:8px 0">
+          <div>${badge(sb_status.label, sb_status.color)}</div>
+          <div>
+            <div class="sleeve-name">ddATH ≤ −15% → MA10 reclaim (30-day window)</div>
+            ${sb.in_watching && sb.watch_start_date
+              ? `<div class="sleeve-note">Watching since ${sb.watch_start_date}</div>`
+              : ''}
+            ${fmtPos(sb.active_position)}
+          </div>
+          <div class="portfolio-val" style="font-size:.68rem">${fmtStats(sb.stats)}</div>
+        </div>
+      </div>
+      <div class="portfolio-section">
+        <div class="portfolio-label">Combined Q042 BP</div>
+        <div class="sleeve-note" style="font-family:var(--f-mono);color:${bpColor}">${(d.combined_bp_pct || 0).toFixed(1)}%</div>
+      </div>
+    </div>
+    <div class="surface-note" style="margin-top:8px">Paper-trading observation. First live HIGH_VOL trigger (VIX ≥ 22): re-run q042_f4_oldair_backfill.py to re-validate delta.</div>`;
+}
+
+function badge(label, color) {
+  return `<span class="badge badge-${color}">${label}</span>`;
+}
+
+async function loadQ042() {
+  try {
+    const res = await fetch('/api/q042/state');
+    const data = await res.json();
+    renderQ042(data);
+  } catch (e) {
+    const body = document.getElementById('q042-body');
+    if (body) {
+      body.className = 'surface-note';
+      body.textContent = 'Q042 state unavailable.';
+    }
+  }
+}
+
 // ── Intraday panel ──────────────────────────────────────────────────────────
 
 const SPIKE_LEVEL_RANK = { CALM: 0, WARNING: 1, ALERT: 2 };
@@ -2013,10 +2132,12 @@ document.getElementById('nav-date').textContent = now.toLocaleDateString('en-US'
   load();
   loadPosition();
   loadPortfolioSurface();
+  loadQ042();
   loadIntraday();
   setInterval(load,          5 * 60 * 1000);
   setInterval(loadPosition,      30 * 1000);
   setInterval(loadPortfolioSurface, 5 * 60 * 1000);
+  setInterval(loadQ042,      5 * 60 * 1000);
   setInterval(loadIntraday,      60 * 1000);
 })();
 </script>

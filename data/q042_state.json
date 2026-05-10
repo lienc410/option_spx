@@ -1,0 +1,17 @@
+{
+  "ath_running_max": 0.0,
+  "ath_last_update": "",
+  "sleeve_a": {
+    "armed": true,
+    "active_position_id": null,
+    "active_position_expiry": null
+  },
+  "sleeve_b": {
+    "armed": true,
+    "in_watching": false,
+    "watch_start_date": null,
+    "active_position_id": null,
+    "active_position_expiry": null
+  },
+  "combined_bp_pct": 0.0
+}

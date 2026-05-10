@@ -58,10 +58,12 @@ HTTP_TIMEOUT = 90
 REQUEST_PAUSE_SEC = 0.4  # gentle pacing between symbols
 
 # Schwab API gateway has a response-body size limit ("TooBigBody").
-# $SPX has 5-pt increments and many weeklies; 100 strikes × 180-day window
-# stays under the limit while covering 40 expirations and ±250 pts (~±4.5%).
+# $SPX has 5-pt increments and many weeklies. 160 strikes × 180-day window
+# covers ±400 pts at $5 increments — at SPX 7400 that is ±5.4% — fully
+# enclosing the +5% OTM short leg used by Q042 call spreads.
+# (Prior value was 100 = ±250 pts ≈ +3.4% at current SPX levels.)
 _STRIKE_COUNT: dict[str, int] = {
-    "$SPX": 100,
+    "$SPX": 160,
 }
 _DTE_WINDOW: dict[str, int] = {
     "$SPX": 180,
