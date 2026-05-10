@@ -1,7 +1,62 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-10 (R-20260510-11: Q042 backtest CSV 漏报 in-flight 仓位 bug 修复。PM 发现 2026-02/03 大盘回撤无 Q042 trade。诊断：2026-02 ddATH 最深 -2.58% 未达 -4%（正常），但 2026-03-12 Sleeve A 实际触发（ddATH=-4.38%）T+1 入场 16.67% BP，因 expiry 2026-06-10 > backtest end 2026-05-10 被 _maybe_expire 丢弃。修复：trades 增加 status 字段，walk-forward 结尾 MTM-price open positions 写为 status=OPEN。AC21 metrics CLOSED-only 保持 n=25/5/64%/100%)
+Last Updated: 2026-05-10 (R-20260510-15: Q062 闭环 — SPEC-094.1 Sleeve A 从 5%/90D 替换为 2.5%/30D。Q062 三 Tier 研究 + Pareto + decay 分析后 PM 决策。Bootstrap p=0.09 PM 接受（P(C>A)=91%）。Sleeve A alert 频率 +40%（1.30→1.81/yr）PM 接受。Grandfather 当前 2026-03-12 仓位至 2026-06-10 expiry。Developer 10 ACs 待实施)
 Owner: Planner or PM
+
+---
+
+### R-20260510-15 — Q062 闭环：SPEC-094.1 Sleeve A 从 5%/90D 替换为 2.5%/30D
+
+- Topic: Q062 三 Tier 研究 + Pareto + decay 分析后 PM 决策 dual-sleeve 不增 Sleeve C/D，仅替换 Sleeve A 参数
+- Decision basis:
+  - Tier 3 OOS 双期 PASS（train +0.66pp，test +10.52pp ann vs baseline）
+  - Bootstrap 差值 CI 边缘（p=0.09，P(C>A)=91%）
+  - Pareto：D30/2.5% 在 6 Pareto cells 中 risk-adjusted 最优
+  - Decay weighting：D30/2.5% 与 D30/5% AnnROE 持平，但 D30/2.5% 在 WR/DD/Sharpe/maxConsecL 全面占优（WR +3pp, MaxDD -1.3pp, Sharpe +0.91, maxConsecL -1）
+  - Sleeve B n=5 无 statistical power，保持 baseline（100% WR / 0% DD）
+- Implementation:
+  - SPEC-094.1 修订仅 Sleeve A 两参数：DTE 90→30, short offset 5%→2.5%, no-overlap window 90→30 days
+  - Sleeve B 不动
+  - Grandfather 当前 2026-03-12 仓位（baseline 5%/90D）至 2026-06-10 expiry，不平仓不转换
+  - 10 ACs（AC-1.1 to AC-1.10）covering trigger / pricing / executor / backtest / state / web / SOP
+- Caveats:
+  - p=0.09 仍是 marginal evidence，9% downside risk PM 已接受
+  - Alert 频率 +40%（1.30→1.81/yr）PM 接受
+  - 2026-11-10 半年 review 时用 6 月 live + 扩展数据 reconfirm；连续 3 笔亏损暂停并发起 Quant review
+- Artifacts:
+  - `task/SPEC-094.1.md`
+  - `research/q062/q062_tier1_structure_scan.py`
+  - `research/q062/q062_tier2_grid_scan.py`
+  - `research/q062/q062_tier3_robustness.py`
+  - `data/q062_tier2_grid.csv`
+
+---
+
+### R-20260510-12 — Q062 Q042 结构参数 per-sleeve 优化
+
+- Topic: Q042 当前 SPEC-094 结构参数（ATM/+5% call spread, DTE 90）是基于 Tier 2/3 dd12+MA50 reclaim 研究（n=41）套用于 dd4（Sleeve A）和 dd15+MA10（Sleeve B）两个不同触发深度 sleeve——参数从未在实际触发样本上做 per-sleeve 独立验证
+- Method:
+  - P1 DTE 网格（{30, 45, 60, 90, 120}）× 两 sleeve，各自实际 signal_dates，BS+skew 定价，no-overlap filter
+  - P2 短腿距离（ATM × {1.03, 1.05, 1.07, 1.10}），固定 DTE=90
+  - P3 结构对比（ATM/+5% spread / Long ATM call / Far-OTM spread +7%/+15% / ATM/+10% spread）
+  - 数据：`data/q042_backtest_trades.csv` signal_dates + yfinance SPX/VIX 2007-2026
+- Findings:
+  - **P1**: Sleeve A DTE 90 — win 68%，median PnL 100.9%，annualized 13.5%（10% sizing），max consec 2，最优；DTE 120 被 no-overlap 削减样本至 n=19，annualized 降至 9.2%。Sleeve B DTE 90 — win **100%**，0 consec，0 drawdown，唯一无亏损 DTE
+  - **P2**: 两 sleeve 均 **+5% 胜出**；Sleeve A +3% win rate 略高（72% vs 68%）但 median PnL 和年化均低于 +5%（12.1% vs 13.5%）；+7%/+10% hit rate 崩至 32%/16%，基本无法满足
+  - **P3**: Sleeve A — ATM/+5% spread 明确胜出（Long ATM call win 52%，$/BP/day 仅 0.07；Far-OTM spread -100% median PnL，6 consec losses）；Sleeve B — spread 保持 0 consec 0 drawdown，长 call 虽 $/BP/day 略高（1.09 vs 1.03）但 60% win rate + 1 consec loss，n=5 无法统计显著性
+  - **VIX 环境差异**：Sleeve A 触发时 VIX 中位 20.6，Sleeve B 27.8，vs Tier 2/3 dd12 样本 33.3。低 vol 解释了 Sleeve A win rate 68%（< Tier 2/3 80%）——dd4 浅回撤后方向性 alpha 不如深回撤后反弹强，符合预期
+- Verdict: **SPEC-094 参数完全确认，ATM/+5%, DTE 90, call spread 两 sleeve 均为最优，无需修改**
+- Caveats:
+  - Sleeve B n=5，所有结论仅方向性参考；建议积累至 n≥15 后重做 per-sleeve 优化
+  - 全部定价 BS + linear skew，非真实 IV surface（Sleeve B 2020-03-25 VIX=64 极端条件下定价低估约 1.5-2×）
+  - P2 worst_12m_drawdown_pct 单位为% of BP deployed（非% of account），不可与 P1 直接比较
+- Confidence: High（Sleeve A）/ Low（Sleeve B，小样本）
+- Recommendation: SPEC-094 参数维持；Sleeve B 在 paper trading 积累 n≥15 后触发 Q062 复查
+- Artifacts:
+  - `research/q042/q062_p1_dte_grid.py` + `.csv`
+  - `research/q042/q062_p2_strike_grid.py` + `.csv`
+  - `research/q042/q062_p3_structure_grid.py` + `.csv`
+  - `research/q042/q062_memo_2026-05-10.md`
 
 ---
 

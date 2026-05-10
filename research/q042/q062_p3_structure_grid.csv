@@ -1,0 +1,9 @@
+sleeve,dte,structure_label,structure_name,n_raw,n_filtered,win_rate,median_pnl_pct,dollar_per_bp_day,max_consec_losses,worst_12m_drawdown_pct,short_strike_hit_rate_pct,annualized_account_pct,max_loss_per_bp_pct
+A,90,A_spread_atm_5pct,ATM/+5% spread (SPEC-094),26,25,68.0,100.85,1.1205,2,-16.63,56.0,13.46,100.0
+A,90,B_long_atm_call,Long ATM call only,26,25,52.0,6.66,0.0741,3,-18.86,,0.89,100.0
+A,90,C_far_otm_spread,Far-OTM spread +7%/+15%,26,25,28.0,-100.0,-1.1111,6,-30.0,0.0,-13.35,100.0
+A,90,D_spread_atm_10pct,ATM/+10% spread (wide),26,25,60.0,40.05,0.445,3,-18.14,16.0,5.35,100.0
+B,90,A_spread_atm_5pct,ATM/+5% spread (SPEC-094),5,5,100.0,92.36,1.0262,0,0.0,80.0,2.69,100.0
+B,90,B_long_atm_call,Long ATM call only,5,5,60.0,97.77,1.0863,1,-4.76,,2.84,100.0
+B,90,C_far_otm_spread,Far-OTM spread +7%/+15%,5,5,60.0,94.8,1.0533,1,-10.0,20.0,2.76,100.0
+B,90,D_spread_atm_10pct,ATM/+10% spread (wide),5,5,80.0,74.14,0.8238,1,-2.74,60.0,2.16,100.0

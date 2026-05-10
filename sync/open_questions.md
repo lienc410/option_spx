@@ -1516,6 +1516,20 @@
   - Seed memo：`doc/q042_directional_overlay_seed_memo_2026-05-04.md`
   - RESEARCH_LOG: R-20260509-11
 - **下一决策（PM）**：promote to Tier 2 / hold / drop. Tier 2 不会启动直到 PM 明确批准
+- **Q062 结构参数验证（2026-05-10）**：在 Sleeve A dd4（n=25）和 Sleeve B dd15+MA10（n=5）实际触发样本上独立验证（三 Tier）。结论：SPEC-094 参数（ATM/+5%, DTE 90, call spread）在 per-sleeve 基础测试中成立。进一步 Tier 1→2→3 全网格扫描（D30 候选）后 PM 决策升级为 **SPEC-094.1**：Sleeve A 替换为 D30/2.5%（AnnROE +9.94% vs baseline +5.02%，bootstrap p=0.09 PM 接受）。见 `task/SPEC-094.1.md` 和 `RESEARCH_LOG.md R-20260510-15`。
+- **SPEC-094.1 APPROVED（2026-05-10）**：Sleeve A 参数替换（DTE 90→30, offset 5%→2.5%, no-overlap 90→30 days）。Sleeve B 不变。当前 2026-03-12 仓位 grandfather 至 2026-06-10。Developer 10 ACs 待实施。
+
+---
+
+### Q062 — Q042 结构参数 per-sleeve 优化
+- **状态**：**CLOSED 2026-05-10**（R-20260510-12）
+- **来源**：PM 授权（2026-05-10）— Q042 SPEC-094 参数从未在 dd4 / dd15+MA10 实际触发样本上 per-sleeve 验证
+- **结论**：SPEC-094 参数完全确认，ATM/+5%, DTE 90, call spread 两 sleeve 均最优
+- **Key finding**：Sleeve A VIX 中位 20.6（低于 dd12 样本 33.3），win rate 68% < Tier 2/3 80%（预期；dd4 浅回撤 alpha 弱于深回撤）；结构排名不受 VIX 差异影响
+- **不在范围**：Far-OTM spread（Sleeve A 明确反推荐，6 consec losses）；Sleeve B long call 统计不显著
+- **复查触发**：Sleeve B paper trading 积累至 n≥15（当前 n=5）
+- **Artifacts**：`research/q042/q062_memo_2026-05-10.md`，`q062_p1/p2/p3_*.csv`
+
 
 ### Q043 — Q041 scanner / bot support：在 visualization / attribution surface 稳定后，是否应补一层只读 scanner + shadow notification 支持
 - **状态**：open（future support seed / medium-low priority）

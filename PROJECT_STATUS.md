@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-10 (Q054 KILLED — UW 无 API/CSV，EV 负；eyeball check 折入 Q042 SOP；SPEC-098 Q042 前端 Developer 实施中)
+Last Updated: 2026-05-10 (SPEC-094.1 APPROVED — Q042 Sleeve A 参数替换：DTE 90→30, short offset 5%→2.5%, no-overlap 90→30 days；Sleeve B 不变；当前 2026-03-12 仓位 grandfather 至 2026-06-10 expiry；Developer 10 ACs 待实施)
 Owner: Planner or PM
 
 ## Current Phase
@@ -28,6 +28,7 @@ Owner: Planner or PM
 
 ## Active APPROVED Specs
 
+- `SPEC-094.1` — Q042 Sleeve A 参数替换（D30/2.5%）. **APPROVED 2026-05-10.** Sleeve A：DTE 90→30, short offset 5%→2.5%, no-overlap window 90→30 days；Sleeve B 不变（100% WR / 0% DD n=5 保持 baseline）。Q062 Tier 1→2→3 三级研究路径 + decay-weighted + Pareto 支持；Bootstrap p=0.09 PM 接受（P(C>A)=91%）。当前 2026-03-12 in-flight 仓位 grandfather 至 2026-06-10 expiry。Developer 10 ACs：trigger no-overlap / pricing DTE+offset / executor Telegram format / backtest 重现 / state.json grandfather / web dashboard 文案 / SOP 修订 — `See: task/SPEC-094.1.md`
 - `SPEC-098` — Q042 Drawdown Overlay Independent Frontend Dashboard. **APPROVED 2026-05-10.** 独立路由 `/q042`（Dashboard：Sleeve 状态卡 / SPX+ATH 监控图 / 触发距离 gauge / MA10 badge / 活跃仓位）+ `/q042/backtest`（19yr SPX+ATH+entry/exit overlay / 累计 P&L / ddATH 分布 / Sleeve 对比表 / P&L by year / BP timeline）；nav 入口；paper fail-soft；AC1-AC12 — `See: task/SPEC-098.md`
 
 ## Recently Closed Specs
