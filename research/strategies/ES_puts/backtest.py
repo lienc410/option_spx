@@ -71,6 +71,8 @@ V2F_ENTRY_DTE      = 49
 V2F_EXIT_DTE       = 21
 V2F_ENTRY_FREQ     = 5
 V2F_MAX_SLOTS      = 5
+V2F_CLUSTER_THRESHOLD  = 4
+V2F_CLUSTER_ENTRY_FREQ = 10
 V2F_STOP_MULT      = 15.0
 V2F_PROFIT_TARGET  = 0.10
 
@@ -140,6 +142,7 @@ class BacktestResult:
     trades:            list[PutTrade]  = field(default_factory=list)
     portfolio_metrics: dict            = field(default_factory=dict)
     bootstrap:         dict            = field(default_factory=dict)
+    stress_metrics:    dict            = field(default_factory=dict)
     daily_rows:        list            = field(default_factory=list)  # DailyPortfolioRow list
 
 
@@ -627,25 +630,17 @@ def run_phase2(
     return result
 
 
-def run_phase2_v2f(
-    mode: Literal["baseline", "filtered"] = "filtered",
-    start_date: str = "2000-01-01",
-    end_date: str | None = None,
-    verbose: bool = False,
+def _run_phase2_v2f_on_frame(
+    sim: pd.DataFrame,
+    full_spx: pd.DataFrame,
+    *,
+    mode: Literal["baseline", "filtered"],
+    verbose: bool,
+    enable_m1: bool,
+    phase: str,
+    cadence_mode: Literal["legacy", "relative"] = "legacy",
 ) -> BacktestResult:
-    """
-    True rolling weekly ladder:
-    - every 5 trading days, open one new 49-DTE short put if trend filter allows
-    - max 5 concurrent positions
-    - each position decays daily and exits normally at 21 DTE
-    - stop/profit remain active but use wider backtest-only stop multiple
-    """
-    data, full_spx = _load_data()
-    sim = data[data.index >= pd.Timestamp(start_date)]
-    if end_date:
-        sim = sim[sim.index <= pd.Timestamp(end_date)]
-
-    result = BacktestResult(phase="phase2_v2f", mode=mode)
+    result = BacktestResult(phase=phase, mode=mode)
     exp_id = f"es_puts_p2_v2f_{mode}"
     equity = P2_INITIAL_EQUITY
     peak_eq = P2_INITIAL_EQUITY
@@ -653,6 +648,7 @@ def run_phase2_v2f(
     trades: list[PutTrade] = []
     positions: dict[int, PutPosition] = {}
     day_counter = 0
+    days_since_entry = V2F_ENTRY_FREQ
     next_position_id = 0
 
     for date, row in sim.iterrows():
@@ -662,6 +658,7 @@ def run_phase2_v2f(
         dstr = date.strftime("%Y-%m-%d")
         daily_pnl = 0.0
         day_counter += 1
+        days_since_entry += 1
 
         window = full_spx[full_spx.index <= date].iloc[-200:]
         warmed = len(window) >= WARMUP_DAYS
@@ -708,12 +705,17 @@ def run_phase2_v2f(
         for pos_id in to_close:
             del positions[pos_id]
 
-        should_enter = (
-            warmed
-            and trend_ok
-            and day_counter % V2F_ENTRY_FREQ == 0
-            and len(positions) < V2F_MAX_SLOTS
+        n_active = len(positions)
+        entry_freq = (
+            V2F_CLUSTER_ENTRY_FREQ if enable_m1 and n_active >= V2F_CLUSTER_THRESHOLD
+            else V2F_ENTRY_FREQ
         )
+        cadence_ok = (
+            days_since_entry >= entry_freq
+            if cadence_mode == "relative" or enable_m1
+            else day_counter % entry_freq == 0
+        )
+        should_enter = warmed and trend_ok and cadence_ok and n_active < V2F_MAX_SLOTS
         if should_enter:
             k = find_strike_for_delta(spx, V2F_ENTRY_DTE, sig, TARGET_DELTA, False)
             prem = put_price(spx, k, V2F_ENTRY_DTE, sig)
@@ -734,6 +736,8 @@ def run_phase2_v2f(
                     profit_premium=prem * V2F_PROFIT_TARGET,
                     prev_val=prem,
                 )
+                if cadence_mode == "relative" or enable_m1:
+                    days_since_entry = 0
                 if verbose:
                     print(f"{dstr}  OPEN  id={next_position_id}  K={k:.0f}  prem={prem:.2f}")
 
@@ -753,6 +757,127 @@ def run_phase2_v2f(
                 years=years,
             )
         )
+    return result
+
+
+def _build_v2f_shocked_frame(sim_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Timestamp, pd.Timestamp]:
+    anchor_target = pd.Timestamp("2022-11-09")
+    mask = sim_df.index >= anchor_target
+    anchor_idx = int(mask.argmax())
+    anchor_actual_date = sim_df.index[anchor_idx]
+    anchor_spx = float(sim_df.iloc[anchor_idx]["spx"])
+    anchor_vix = float(sim_df.iloc[anchor_idx]["vix"])
+
+    shocked = sim_df.copy()
+    shock_indices = list(range(anchor_idx + 1, min(anchor_idx + 6, len(sim_df))))
+    spx_at_t5 = anchor_spx * (0.93 ** 5)
+    vix_target_at_t5 = 60.0
+    for i_, idx in enumerate(shock_indices, start=1):
+        new_spx = anchor_spx * (0.93 ** i_)
+        new_vix = anchor_vix + (vix_target_at_t5 - anchor_vix) * (i_ / 5)
+        d = sim_df.index[idx]
+        shocked.loc[d, "spx"] = new_spx
+        shocked.loc[d, "vix"] = new_vix
+
+    recovery_indices = list(range(anchor_idx + 6, min(anchor_idx + 16, len(sim_df))))
+    for j, idx in enumerate(recovery_indices, start=1):
+        new_vix = vix_target_at_t5 - (vix_target_at_t5 - anchor_vix) * (j / 10)
+        d = sim_df.index[idx]
+        shocked.loc[d, "vix"] = new_vix
+
+    if anchor_idx + 5 < len(sim_df):
+        shock_factor = spx_at_t5 / float(sim_df.iloc[anchor_idx + 5]["spx"])
+        post_shock_dates = sim_df.index[anchor_idx + 6:]
+        for d in post_shock_dates:
+            shocked.loc[d, "spx"] = float(sim_df.loc[d, "spx"]) * shock_factor
+
+    shock_end = sim_df.index[min(anchor_idx + 15, len(sim_df) - 1)]
+    return shocked, anchor_actual_date, shock_end
+
+
+def _extract_v2f_shock_outcomes(
+    result: BacktestResult,
+    *,
+    shock_start: pd.Timestamp,
+    shock_end: pd.Timestamp,
+) -> dict:
+    if not result.trades:
+        return {
+            "stress_worst_single_pct_nlv": 0.0,
+            "stress_cluster_pct": 0.0,
+            "stress_n_active": 0,
+        }
+
+    trades = pd.DataFrame([
+        {"entry_dt": pd.Timestamp(t.entry_date), "exit_dt": pd.Timestamp(t.exit_date), "pnl": float(t.pnl)}
+        for t in result.trades
+    ])
+    active = trades[(trades["entry_dt"] <= shock_end) & (trades["exit_dt"] >= shock_start)]
+    worst_single = float(active["pnl"].min()) if not active.empty else 0.0
+
+    sub_rows = [dr for dr in result.daily_rows if shock_start.strftime("%Y-%m-%d") <= dr.date <= shock_end.strftime("%Y-%m-%d")]
+    if not sub_rows:
+        return {
+            "stress_worst_single_pct_nlv": worst_single / P2_INITIAL_EQUITY,
+            "stress_cluster_pct": 0.0,
+            "stress_n_active": int(len(active)),
+        }
+    daily_pnls = [float(dr.total_pnl) for dr in sub_rows]
+    cum = pd.Series(daily_pnls).cumsum()
+    worst_cluster = float(cum.min()) if not cum.empty else 0.0
+    eq_pre = float(sub_rows[0].start_equity or P2_INITIAL_EQUITY)
+    return {
+        "stress_worst_single_pct_nlv": worst_single / P2_INITIAL_EQUITY,
+        "stress_cluster_pct": (worst_cluster / eq_pre) if eq_pre > 0 else 0.0,
+        "stress_n_active": int(len(active)),
+    }
+
+
+def run_phase2_v2f(
+    mode: Literal["baseline", "filtered"] = "filtered",
+    start_date: str = "2000-01-01",
+    end_date: str | None = None,
+    verbose: bool = False,
+    enable_m1: bool = True,
+) -> BacktestResult:
+    """
+    True rolling weekly ladder:
+    - every 5 trading days, open one new 49-DTE short put if trend filter allows
+    - max 5 concurrent positions
+    - each position decays daily and exits normally at 21 DTE
+    - stop/profit remain active but use wider backtest-only stop multiple
+    - M1: when >=4 positions active, throttle entry cadence to every 10 TD
+    """
+    data, full_spx = _load_data()
+    sim = data[data.index >= pd.Timestamp(start_date)]
+    if end_date:
+        sim = sim[sim.index <= pd.Timestamp(end_date)]
+
+    phase = "phase2_v2f_m1" if enable_m1 else "phase2_v2f"
+    result = _run_phase2_v2f_on_frame(
+        sim,
+        full_spx,
+        mode=mode,
+        verbose=verbose,
+        enable_m1=enable_m1,
+        phase=phase,
+    )
+
+    shocked_sim, shock_start, shock_end = _build_v2f_shocked_frame(sim)
+    stressed = _run_phase2_v2f_on_frame(
+        shocked_sim,
+        full_spx,
+        mode=mode,
+        verbose=False,
+        enable_m1=enable_m1,
+        phase=phase,
+        cadence_mode="relative",
+    )
+    result.stress_metrics = _extract_v2f_shock_outcomes(
+        stressed,
+        shock_start=shock_start,
+        shock_end=shock_end,
+    )
     return result
 
 

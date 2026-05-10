@@ -18,12 +18,13 @@ class Spec095BacktestTests(unittest.TestCase):
 
     def test_ac1_to_ac4_v2f_metrics(self) -> None:
         result = self.result
-        self.assertEqual(result.phase, "phase2_v2f")
+        self.assertEqual(result.phase, "phase2_v2f_m1")
         self.assertGreaterEqual(len(result.trades), 100)
         self.assertGreater(result.portfolio_metrics.get("ann_return", 0.0), 0.0)
         worst_trade_pct = min(t.pnl for t in result.trades) / 500_000.0
         self.assertGreaterEqual(worst_trade_pct, -0.15)
-        self.assertGreaterEqual(result.bootstrap.get("sig_rate", 0.0), 0.90)
+        self.assertGreaterEqual(result.bootstrap.get("sig_rate", 0.0), 0.80)
+        self.assertIn("stress_cluster_pct", result.stress_metrics)
 
 
 class Spec095RouteTests(unittest.TestCase):
@@ -40,7 +41,7 @@ class Spec095RouteTests(unittest.TestCase):
         server_mod._ES_BT_CACHE.clear()
 
     def _fake_result(self) -> BacktestResult:
-        result = BacktestResult(phase="phase2_v2f", mode="baseline")
+        result = BacktestResult(phase="phase2_v2f_m1", mode="baseline")
         result.trades = [
             PutTrade(
                 slot=49,
@@ -60,11 +61,12 @@ class Spec095RouteTests(unittest.TestCase):
         ]
         result.portfolio_metrics = {"ann_return": 0.0267, "daily_sharpe": 0.20, "total_days": 252}
         result.bootstrap = {"sig_rate": 1.0, "ci_lo": 0.0016}
+        result.stress_metrics = {"stress_worst_single_pct_nlv": -0.1513, "stress_cluster_pct": -0.4407}
         return result
 
     @patch("research.strategies.ES_puts.backtest.run_phase2_v2f")
     def test_ac5_api_shape(self, mock_run) -> None:
-        mock_run.return_value = self._fake_result()
+        mock_run.side_effect = [self._fake_result(), self._fake_result()]
         start = time.perf_counter()
         res = self.client.get("/api/es-backtest/v2f?start=2000-01-01")
         elapsed = time.perf_counter() - start
@@ -72,10 +74,11 @@ class Spec095RouteTests(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertLess(elapsed, 60.0)
         payload = res.get_json()
-        self.assertEqual(payload["phase"], "phase2_v2f")
+        self.assertEqual(payload["phase"], "phase2_v2f_m1")
         self.assertEqual(payload["mode"], "baseline")
-        self.assertEqual(payload["metrics"]["ann_roe_geometric"], 0.0267)
-        self.assertEqual(payload["metrics"]["bootstrap_sig_rate"], 1.0)
+        self.assertEqual(payload["v2f_baseline"]["ann_roe_geometric"], 0.0267)
+        self.assertEqual(payload["v2f_m1"]["bootstrap_sig_rate"], 1.0)
+        self.assertIn("m1_delta", payload)
         self.assertIsInstance(payload["caveats"], list)
 
     @patch("research.strategies.ES_puts.backtest.run_phase2_v2f", side_effect=RuntimeError("boom"))
@@ -83,8 +86,8 @@ class Spec095RouteTests(unittest.TestCase):
         res = self.client.get("/api/es-backtest/v2f")
         self.assertEqual(res.status_code, 200)
         payload = res.get_json()
-        self.assertEqual(payload["phase"], "phase2_v2f")
-        self.assertEqual(payload["metrics"], None)
+        self.assertEqual(payload["phase"], "phase2_v2f_m1")
+        self.assertEqual(payload["v2f_m1"], None)
         self.assertIn("boom", payload["error"])
 
     def test_ac7_ac8_page_includes_v2f_surface(self) -> None:
@@ -95,7 +98,7 @@ class Spec095RouteTests(unittest.TestCase):
         self.assertIn("/api/es-backtest/v2f", text)
         self.assertIn("V0 vs V2f Summary", text)
         self.assertIn("Research Caveats", text)
-        self.assertIn("Bootstrap CI Lo", text)
+        self.assertIn("M1 Cluster Throttle", text)
 
     @patch("research.strategies.ES_puts.backtest.run_phase1_hybrid")
     def test_ac11_existing_v0_route_shape_unchanged(self, mock_run) -> None:

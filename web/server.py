@@ -604,6 +604,7 @@ def _es_trade_summary_metrics(result) -> dict:
     trades = result.trades
     portfolio = result.portfolio_metrics or {}
     bootstrap = result.bootstrap or {}
+    stress = result.stress_metrics or {}
     wins = sum(1 for trade in trades if trade.pnl > 0)
     worst_trade = min((trade.pnl for trade in trades), default=0.0)
     initial_equity = 500_000.0
@@ -614,6 +615,8 @@ def _es_trade_summary_metrics(result) -> dict:
         "win_rate": (wins / len(trades)) if trades else 0.0,
         "bootstrap_sig_rate": bootstrap.get("sig_rate"),
         "bootstrap_ci_lo": bootstrap.get("ci_lo"),
+        "stress_worst_single_pct_nlv": stress.get("stress_worst_single_pct_nlv"),
+        "stress_cluster_pct": stress.get("stress_cluster_pct"),
     }
 
 
@@ -623,7 +626,26 @@ def _default_v2f_caveats() -> list[str]:
         "STOP_MULT=15 triggered rarely in 26y research; live trigger frequency remains unvalidated.",
         "Bootstrap significance is alive-but-borderline edge, not production-grade alpha proof.",
         "BSH / dynamic leverage interaction with V2f remains untested; Phase 3/4 results still belong to V0.",
+        "M1 1987 stress worst single remains slightly beyond the original -15% veto threshold.",
     ]
+
+
+def _purge_v2f_cache_entries() -> None:
+    for key in list(_ES_BT_CACHE.keys()):
+        if str(key).startswith("v2f:"):
+            _ES_BT_CACHE.pop(key, None)
+    try:
+        with open(_ES_DISK_CACHE_PATH, "r") as f:
+            store = json.load(f)
+    except Exception:
+        return
+    next_store = {k: v for k, v in store.items() if not str(k).startswith("v2f:")}
+    if next_store == store:
+        return
+    tmp = _ES_DISK_CACHE_PATH + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(next_store, f)
+    os.replace(tmp, _ES_DISK_CACHE_PATH)
 _VIX_BY_DATE: dict | None = None
 
 _Q041_DISK_CACHE_PATH = os.path.normpath(
@@ -1187,23 +1209,41 @@ def api_es_backtest_v2f():
     try:
         from research.strategies.ES_puts.backtest import run_phase2_v2f
 
-        result = run_phase2_v2f(mode=mode, start_date=start_date, end_date=end_date)
+        baseline_result = run_phase2_v2f(mode=mode, start_date=start_date, end_date=end_date, enable_m1=False)
+        m1_result = run_phase2_v2f(mode=mode, start_date=start_date, end_date=end_date, enable_m1=True)
+        baseline_metrics = _es_trade_summary_metrics(baseline_result)
+        m1_metrics = _es_trade_summary_metrics(m1_result)
+        baseline_ann = baseline_metrics.get("ann_roe_geometric")
+        m1_ann = m1_metrics.get("ann_roe_geometric")
+        baseline_sharpe = baseline_metrics.get("sharpe")
+        m1_sharpe = m1_metrics.get("sharpe")
+        baseline_cluster = baseline_metrics.get("stress_cluster_pct")
+        m1_cluster = m1_metrics.get("stress_cluster_pct")
         payload = {
-            "phase": result.phase,
-            "mode": result.mode,
-            "metrics": _es_trade_summary_metrics(result),
+            "phase": m1_result.phase,
+            "mode": m1_result.mode,
+            "v2f_baseline": baseline_metrics,
+            "v2f_m1": m1_metrics,
+            "m1_delta": {
+                "ann_roe_pp": ((m1_ann - baseline_ann) * 100.0) if isinstance(m1_ann, (int, float)) and isinstance(baseline_ann, (int, float)) else None,
+                "sharpe_delta": (m1_sharpe - baseline_sharpe) if isinstance(m1_sharpe, (int, float)) and isinstance(baseline_sharpe, (int, float)) else None,
+                "stress_improvement_pp": ((m1_cluster - baseline_cluster) * 100.0) if isinstance(m1_cluster, (int, float)) and isinstance(baseline_cluster, (int, float)) else None,
+            },
             "caveats": _default_v2f_caveats(),
             "start_date": start_date,
             "end_date": end_date,
         }
+        _purge_v2f_cache_entries()
         _ES_BT_CACHE[cache_key] = payload
         _save_es_disk_cache(cache_key, payload)
         return jsonify(payload)
     except Exception as exc:
         payload = {
-            "phase": "phase2_v2f",
+            "phase": "phase2_v2f_m1",
             "mode": mode,
-            "metrics": None,
+            "v2f_baseline": None,
+            "v2f_m1": None,
+            "m1_delta": None,
             "caveats": _default_v2f_caveats(),
             "error": str(exc),
             "start_date": start_date,

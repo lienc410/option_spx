@@ -635,8 +635,16 @@ function renderV2fCompareCard(title, rows) {
     </div>`;
 }
 
+function fmtSignedDelta(value, digits=2, suffix='') {
+  if (typeof value !== 'number' || Number.isNaN(value)) return '—';
+  const sign = value > 0 ? '+' : '';
+  return `${sign}${value.toFixed(digits)}${suffix}`;
+}
+
 function renderV2fPanel(v0Summary, v2fPayload) {
-  const metrics = v2fPayload?.metrics || null;
+  const baseline = v2fPayload?.v2f_baseline || null;
+  const metrics = v2fPayload?.v2f_m1 || null;
+  const delta = v2fPayload?.m1_delta || null;
   const caveats = Array.isArray(v2fPayload?.caveats) ? v2fPayload.caveats : [];
   const v0Rows = [
     ['Ann. ROE (acct.)', typeof v0Summary?.ann_return_pct === 'number' ? (v0Summary.ann_return_pct * 100).toFixed(2) + '%' : '—'],
@@ -645,13 +653,28 @@ function renderV2fPanel(v0Summary, v2fPayload) {
     ['Max Drawdown', typeof v0Summary?.max_drawdown_pct === 'number' ? v0Summary.max_drawdown_pct.toFixed(2) + '%' : '—'],
     ['Bootstrap', '—'],
   ];
+  const baselineRows = [
+    ['Ann. ROE (acct.)', fmtPctFrac(baseline?.ann_roe_geometric, 2)],
+    ['Sharpe', typeof baseline?.sharpe === 'number' ? baseline.sharpe.toFixed(2) : '—'],
+    ['Worst Trade % NLV', fmtPctFrac(baseline?.worst_trade_pct_nlv, 2)],
+    ['1987 stress single', fmtPctFrac(baseline?.stress_worst_single_pct_nlv, 2)],
+    ['1987 stress cluster', fmtPctFrac(baseline?.stress_cluster_pct, 1)],
+    ['Bootstrap Sig', fmtPctFrac(baseline?.bootstrap_sig_rate, 0)],
+  ];
   const v2fRows = [
     ['Ann. ROE (acct.)', fmtPctFrac(metrics?.ann_roe_geometric, 2)],
     ['Sharpe', typeof metrics?.sharpe === 'number' ? metrics.sharpe.toFixed(2) : '—'],
-    ['Win Rate', fmtPctFrac(metrics?.win_rate, 1)],
     ['Worst Trade % NLV', fmtPctFrac(metrics?.worst_trade_pct_nlv, 2)],
+    ['1987 stress single', fmtPctFrac(metrics?.stress_worst_single_pct_nlv, 2)],
+    ['1987 stress cluster', fmtPctFrac(metrics?.stress_cluster_pct, 1)],
     ['Bootstrap Sig', fmtPctFrac(metrics?.bootstrap_sig_rate, 0)],
-    ['Bootstrap CI Lo', fmtPctFrac(metrics?.bootstrap_ci_lo, 2)],
+  ];
+  const m1Rows = [
+    ['Ann. ROE (acct.)', `${fmtPctFrac(baseline?.ann_roe_geometric, 2)} → ${fmtPctFrac(metrics?.ann_roe_geometric, 2)} (${fmtSignedDelta(delta?.ann_roe_pp, 2, 'pp')})`],
+    ['Sharpe', `${typeof baseline?.sharpe === 'number' ? baseline.sharpe.toFixed(2) : '—'} → ${typeof metrics?.sharpe === 'number' ? metrics.sharpe.toFixed(2) : '—'} (${fmtSignedDelta(delta?.sharpe_delta, 2)})`],
+    ['1987 stress single', `${fmtPctFrac(baseline?.stress_worst_single_pct_nlv, 2)} → ${fmtPctFrac(metrics?.stress_worst_single_pct_nlv, 2)}`],
+    ['1987 stress cluster', `${fmtPctFrac(baseline?.stress_cluster_pct, 1)} → ${fmtPctFrac(metrics?.stress_cluster_pct, 1)} (${fmtSignedDelta(delta?.stress_improvement_pp, 2, 'pp')})`],
+    ['Rule', 'M1: entry frequency reduced to every 10 trading days when ≥4 positions active'],
   ];
   const caveatHtml = caveats.length
     ? `<div class="caveat-banner"><h3>Research Caveats</h3><ul>${caveats.map(item => `<li>${item}</li>`).join('')}</ul></div>`
@@ -676,11 +699,12 @@ function renderV2fPanel(v0Summary, v2fPayload) {
       This is <em>not</em> a tail bound.<br>
       1987-magnitude stress test shows:
       <ul style="margin:4px 0 0 16px">
-        <li>Single-trade worst: <strong>~-17% NLV</strong> (exceeds V1 veto threshold)</li>
-        <li>Cluster loss (5 concurrent positions): <strong>~-47% of equity</strong></li>
+        <li>Single-trade worst: <strong>${fmtPctFrac(metrics?.stress_worst_single_pct_nlv, 2) || '—'}</strong> NLV</li>
+        <li>Cluster loss (5 concurrent positions): <strong>${fmtPctFrac(metrics?.stress_cluster_pct, 1) || '—'}</strong> of equity</li>
       </ul>
       STOP_MULT=15 triggers on sudden gaps but cannot prevent full-premium loss on open contracts.
-      Paper trading is mandatory before any live execution.
+      Paper trading is mandatory before any live execution.<br>
+      <strong>M1 cluster throttle active in current backtest variant.</strong>
     </div>`;
 
   return `
@@ -688,7 +712,9 @@ function renderV2fPanel(v0Summary, v2fPayload) {
     <div class="section-label">V0 vs V2f Summary</div>
     <div class="compare-grid">
       ${renderV2fCompareCard('V0 · Current Fixed-Slot Phase 1', v0Rows)}
-      ${renderV2fCompareCard('V2f · True Weekly Ladder', v2fRows)}
+      ${renderV2fCompareCard('V2f baseline · True Weekly Ladder', baselineRows)}
+      ${renderV2fCompareCard('V2f + M1 · Cluster Throttle', v2fRows)}
+      ${renderV2fCompareCard('M1 Cluster Throttle', m1Rows)}
     </div>
     ${body}
     ${tailRiskHtml}`;
