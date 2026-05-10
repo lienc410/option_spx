@@ -185,9 +185,27 @@
 
 ### Q058 — BSH 在 V2f 框架下的角色：是否仍是必要的 tail mitigation
 
-- **状态**：open（research；低优先级，V2f SPEC 进入后讨论）
-- **内容**：原 /ES Phase 4 动态杠杆 + BSH 的研究基于 V0 fixed-slot 实现。V2f 的 true ladder 已经将 worst trade 压到 -10.96% NLV（V1 veto 通过），而 BSH 的主要价值是尾部保护。V2f + BSH 的交互未被本次审查测试，需重新评估 BSH 在 V2f 下的经济性
-- **来源**：
+- **状态**：**CLOSED 2026-05-10 — Tier 1 + Tier 2-A 双轮验证，Tier 2-B 关闭；Verdict: DROP BSH in V2f（FINAL）**
+- **结论**：BSH 在 V2f 框架下双轮验证均 NET-NEGATIVE：Tier 1（fixed 1-contract）-0.57pp Ann ROE；Tier 2-A（dynamic leverage）-0.46pp——dynamic leverage 仅改善 +0.11pp，不改变 DROP 结论。V2f 的 true ladder + STOP=15 已内嵌 Phase 4 BSH 想解决的尾部问题，BSH redundant。Tier 2-B（Massive 定价 sanity check）关闭——BSH 已 DROP，bias 方向由 Q057 已覆盖。**独立发现**：V2f + dynamic leverage WITHOUT BSH 给出 +0.86pp Ann ROE（+2.46% → +3.32%），但 worst trade -14.03% NLV（V1 veto 余量仅 -0.97pp）——留 PM 决策是否开 Q060
+- **治理归档**：`task/q041_t1_es_governance_review_archive_2026-05-09.md §13-§15`（正式 CLOSED）
+- **来源**：`RESEARCH_LOG.md R-20260510-05`（Tier 1）、`R-20260510-06`（Tier 2-A）
+
+---
+
+### Q060 — /ES V2f + Dynamic VIX Leverage：独立升级候选的统计稳健性与尾部风险
+
+- **状态**：**CLOSED 2026-05-10** — bootstrap 95% PASS；stress test -23.94% NLV ❌ FAIL → 不进 SPEC
+- **结论**：V2f + dynamic leverage alpha 真实（+0.86pp，95% bootstrap），但 1987 量级 stress 下单 trade -23.94% NLV（超 -20% PM 阈值），降级为观察项。**关键副发现**：V2f_alone 自身在 1987 量级 stress 下 single-trade worst -16.85% NLV（违 V1 -15%），cluster loss -47.1%——"-9.24% historical worst ≠ tail-bounded"。PM 决策点已开为 Q061
+- **治理归档**：`task/q041_t1_es_governance_review_archive_2026-05-09.md §16–§18`（正式 CLOSED）
+- **来源**：`RESEARCH_LOG.md R-20260510-07`，`backtest/prototype/q060_dynlev_bootstrap_stress.py`
+
+---
+
+### Q061 — V2f 尾部风险缓解：三条路径 PM 决策
+
+- **状态**：**CLOSED 2026-05-10** — PM 决策完成：M3 ✅ DONE（SPEC-096）；M1 ✅ → SPEC-097；M2 ❌ DROP（路径依赖致 stress 恶化）
+- **结论**：M1（cluster N≥4 降速 10TD）推荐接受 as-is（PM 选 A）：Δalpha=-0.11pp，stress worst -15.13%（V1 近似恢复），Sharpe 微升。M2 在当前形式效果反向，正式 DROP（PM 选 X）。M1 进 SPEC-097 实施
+- **来源**：`RESEARCH_LOG.md R-20260510-08`，`backtest/prototype/q061_m1_m2_alpha_impact.py`
 
 ---
 
@@ -1426,18 +1444,16 @@
 
 ### Q054 — Unusual Whales 订阅数据 Alpha 研究
 
-- **状态**：open（future seed / low priority）
+- **状态**：**KILLED 2026-05-10**（Tier 0 完成，R-20260510-10）— 当前订阅层级无 CSV export / API，历史数据不足，EV 为负，不启动 Tier 1
 - **数据源**：PM 持有 Unusual Whales 订阅（options flow、dark pool prints、large unusual volume、congressional disclosures、institutional positioning）
 - **核心问题**：Unusual Whales 数据是否包含对主策略（BPS / IC / BCD）或 Q041 sleeve 有增量价值的信号？候选方向（不代表已决定研究哪条）：
   1. **options flow 作为 entry timing 信号**：unusual call/put volume surge 是否与 VIX regime 转换或 IV expansion 有预测关系
   2. **dark pool prints 作为方向性 filter**：大宗成交方向是否能提供 SPX 短期偏差的独立信号
   3. **institutional positioning overlay**：与 Q041 equity sleeve 候选（GOOGL/AMZN/COST/JPM）的已知持仓方向是否能辅助 entry 或 avoidance 判断
 - **不在范围（当前）**：congressional trading（与主策略无直接关联）；任何需要 real-time streaming 的架构改动
-- **前置条件**：
-  - Tier 0：确认 Unusual Whales 提供哪些数据格式（API / CSV export）以及历史数据回溯范围
-  - Tier 1 才能开始：至少有 2 年历史 options flow 数据可回测
-- **优先级**：明确低于 Q041 paper-trading 运营、Q039、Q021；仅在主策略其他 lane 无更高价值任务时推进
-- **来源**：PM 2026-05-09
+- **Tier 0 结论**：当前订阅无 API / CSV export（仅 web UI）；历史回溯不足；EV 估算为负。research/q054/ 保留（若 PM 升级到 3yr prepay 或 Lifetime 解锁 CSV，pilot 可原地重启）
+- **副产品**：UW eyeball check（可选 sanity check）已折入 `task/q042_manual_sop.md §B`，含学术 disclaimer 和 < 10% override 频率约束
+- **来源**：PM 2026-05-09；`RESEARCH_LOG.md R-20260510-10`
 
 ---
 

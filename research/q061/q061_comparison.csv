@@ -1,0 +1,5 @@
+variant,ann_roe_%,sharpe,worst_full_%NLV,n_trades,stress_worst_single_%NLV,stress_cluster_%,stress_n_active
+V2f_alone,2.46,0.223,-9.24,1223,-16.85,-47.12,6
+V2f + M1,2.347,0.233,-10.96,1048,-15.13,-44.07,7
+V2f + M2,2.82,0.253,-9.24,1219,-18.13,-57.33,7
+V2f + M1 + M2,2.263,0.229,-10.96,1048,-18.13,-42.26,5

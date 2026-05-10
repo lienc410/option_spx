@@ -322,5 +322,116 @@ Overlap validation 正在进行 20 天正式窗口（从 2026-05-04 起）。
 
 ---
 
+## 十一、IV-Expansion Stress Visibility Appendix（2026-05-09 追加）
+
+**来源：** R-20260509-02 Action A3。使用 Action A1 工具 `research/tools/iv_expansion_stress_test.py` 对当前 Tier 1 / Tier 2 候选进行 IV expansion stress test。
+
+**目的：** 在 paper trading 启动前，量化各候选在 VIX shock 路径下的 mark loss、BP expansion、stop proximity 暴露——补足 Q041 执行包此前缺失的 IV-expansion 维度（参见 R-20260509-02 must-absorb principle 1：IV expansion 领先于 lagging signals）。
+
+**模型说明：**
+
+- VIX shock：当前 19 + shock（+10 / +20 / +40 → new VIX 29 / 39 / 59）
+- 相关下跌：每 +3 VIX shock 对应 -1% underlying 下跌（Phase A 校准）
+- IV 扩张：entry IV × (new_vix / current_vix)，单名通过 `iv_proxy_factor` 表达（GOOGL ≈ 1.58，AMZN ≈ 1.84）
+- BP 模型：SPX 用 OCC PM；单名同口径
+- `pnl_ratio = mark_loss / entry_credit`（CSP 口径，非 spread 口径）
+
+**Q041 vs /ES stop rule 重要差异：** Q041 CSP **不使用** /ES 类的硬 credit-multiple stop（SPEC-061 STOP_MULT=3）。Q041 通常允许 ITM 时被 assigned（持有 underlying）。`pnl_ratio = -2.0` 在表中作为**参考标记**，不代表 Q041 触发该值时必须平仓。Survival 列同样基于 reference 阈值，仅用于可见性，非 actionable rule。
+
+---
+
+### 11.1 Tier 1 — SPX CSP Δ0.20 DTE30
+
+**Entry state（VIX=19.0, spot=5400）：**
+
+- Strike: 5150
+- Premium per share: $41.08
+- Credit (1 contract × 100): $4,108
+- Entry BP (OCC PM): $60,108 (12.0% NLV)
+
+| VIX shock | New VIX | New spot | Mark loss | Stress BP | BP exp% | pnl_ratio | Survival |
+|---|---|---|---|---|---|---|---|
+| 0 | 19 | 5400 | $0 | $60,108 | +0.0% | -0.00 | pass |
+| +10 | 29 | 5220 | $12,015 | $87,423 | +45.4% | -2.92 | fail |
+| +20 | 39 | 5040 | $27,471 | $107,179 | +78.3% | -6.69 | fail |
+| +40 | 59 | 4680 | $61,585 | $135,893 | +126.1% | -14.99 | fail |
+
+**Worst-case (+40 shock)**：mark loss **$61,585** (12.3% NLV)，stress BP **$135,893** (27.2% NLV)。
+
+---
+
+### 11.2 Tier 2 — GOOGL CSP Δ0.20 DTE21
+
+**Entry state（VIX=19.0, GOOGL spot=$386）：**
+
+- Strike: $361
+- Premium per share: $3.77
+- Credit (1 contract × 100): $377
+- Entry BP (OCC PM): $3,987 (0.8% NLV)
+
+| VIX shock | New VIX | New spot | Mark loss | Stress BP | BP exp% | pnl_ratio | Survival |
+|---|---|---|---|---|---|---|---|
+| 0 | 19 | 386 | $0 | $3,987 | +0.0% | -0.00 | pass |
+| +10 | 29 | 373 | $955 | $5,716 | +43.4% | -2.53 | fail |
+| +20 | 39 | 360 | $2,143 | $7,924 | +98.7% | -5.68 | fail |
+| +40 | 59 | 335 | $4,726 | $10,122 | +153.9% | -12.53 | fail |
+
+**Worst-case (+40 shock)**：mark loss **$4,726** (0.9% NLV)，stress BP **$10,122** (2.0% NLV)。
+
+---
+
+### 11.3 Tier 2 — AMZN CSP Δ0.25 DTE21
+
+**Entry state（VIX=19.0, AMZN spot=$268）：**
+
+- Strike: $253
+- Premium per share: $4.36
+- Credit (1 contract × 100): $436
+- Entry BP (OCC PM): $2,966 (0.6% NLV)
+
+| VIX shock | New VIX | New spot | Mark loss | Stress BP | BP exp% | pnl_ratio | Survival |
+|---|---|---|---|---|---|---|---|
+| 0 | 19 | 268 | $0 | $2,966 | +0.0% | -0.00 | pass |
+| +10 | 29 | 259 | $807 | $4,522 | +52.4% | -1.85 | warn |
+| +20 | 39 | 250 | $1,732 | $5,921 | +99.6% | -3.97 | fail |
+| +40 | 59 | 232 | $3,669 | $7,590 | +155.8% | -8.41 | fail |
+
+**Worst-case (+40 shock)**：mark loss **$3,669** (0.7% NLV)，stress BP **$7,590** (1.5% NLV)。
+
+---
+
+### 11.4 综合判断
+
+| Tier | Worst shock | Mark loss | Stress BP% NLV | Reference survival |
+|------|------------|-----------|----------------|--------|
+| Tier 1 SPX CSP | +40 | $61,585 (12.3% NLV) | 27.2% | FAIL |
+| Tier 2 GOOGL | +40 | $4,726 (0.9% NLV) | 2.0% | FAIL |
+| Tier 2 AMZN | +40 | $3,669 (0.7% NLV) | 1.5% | FAIL |
+
+### 11.5 对 paper trading 启动的含义
+
+1. **Tier 1 SPX CSP** 在 +40 VIX shock（VIX 19→59，类 2008/2020 极端）下 mark loss 可达 ~$62k（12.3% NLV）；stress BP 扩张到 27% NLV，**接近但未触发 35% FAIL 阈值**。这与 Q041 paper-trading 1-合约 scope 在账户层风险吸收范围内一致。
+2. **Tier 2 GOOGL/AMZN** 因 single-name IV 高于 VIX，shock 同 VIX 量级时 pnl_ratio 比例更大；这与 Q041 packet §3.3 既有的 tail caveat（同名 8–10% 单月移动会深度穿越 strike）一致。但绝对 mark loss 占 NLV 比例很小（< 1%），因为 single-name BP 也小。
+3. **`pnl_ratio` FAIL 标记不等于必须平仓**：Q041 设计上接受 assignment（被指派持有 underlying，等同于股票仓位）。Stress 表是**可见性工具**，用于在 paper-trading 中记录每个 cycle 的最差 mark 对照本表估算，而**不是**新增 actionable rule。
+4. **数据收集要求（新增）**：paper-trading 阶段每个 cycle **必须记录**：
+   - max observed mark loss in window
+   - max observed BP/margin
+   - 任何 IV expansion event 的实际幅度
+   
+   这些数据用于反向校准本工具的 IV expansion 模型，并在 Q041 后续 review 中作为模型校准证据。
+5. **不重开 Q041 研究边界**：本附件不修改 Tier 1 或 Tier 2 的 paper-trading scope，只补足风险可见性维度。
+
+### 11.6 工具与代码引用
+
+| 引用 | 路径 |
+|------|------|
+| 工具源代码 | `research/tools/iv_expansion_stress_test.py` |
+| A3 stress matrix 生成脚本 | `research/q012/a3_q041_stress_matrix.py` |
+| 上游研究依据 | `RESEARCH_LOG.md` R-20260509-02 (5 must-absorb principles) |
+| 参考原则 | `QUANT_RESEARCHER.md` "Short-Premium Risk Management Principles" |
+
+---
+
 *文档由 Quant Researcher 生成，2026-05-05。*  
-*2nd Quant PASS — Routing B 确认。*
+*2nd Quant PASS — Routing B 确认。*  
+*2026-05-09 追加 §11 IV-Expansion Stress Visibility Appendix（R-20260509-02 Action A3）。*

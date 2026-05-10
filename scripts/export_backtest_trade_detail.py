@@ -302,6 +302,28 @@ def export_trade_detail_csv(start_date: str, end_date: str | None, output_path: 
                 "total_bp": trade.total_bp,
                 "bp_pct_account": trade.bp_pct_account,
                 "open_at_end": trade.open_at_end,
+                # SPEC-072.1 F10 — Q029 dual-scale annotation
+                "live_scale_factor": (
+                    0.1 if signal.get("regime") == "HIGH_VOL"
+                    else 2.0 if signal.get("regime") == "LOW_VOL"
+                    else 1.0
+                ),
+                "live_scaled_exit_pnl_usd": round(
+                    trade.exit_pnl * (
+                        0.1 if signal.get("regime") == "HIGH_VOL"
+                        else 2.0 if signal.get("regime") == "LOW_VOL"
+                        else 1.0
+                    ),
+                    2,
+                ),
+                "live_scaled_total_bp": round(
+                    trade.total_bp * (
+                        0.1 if signal.get("regime") == "HIGH_VOL"
+                        else 2.0 if signal.get("regime") == "LOW_VOL"
+                        else 1.0
+                    ),
+                    2,
+                ),
                 **leg_cols,
             }
         )

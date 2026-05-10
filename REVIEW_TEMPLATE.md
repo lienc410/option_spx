@@ -101,6 +101,10 @@
 - **Scale dependence（Principle 5）** — 无豁免：
   - [ ] 明确这个策略在什么账户规模下经济成立
   - [ ] 如果 scale-dependent，给出 revisit gate 条件（如"NLV ≥ X 后激活"）
+- **HIGH_VOL aggregate scale annotation (Q029 / SPEC-072.1)** — 适用于任何引用 HIGH_VOL aggregate 数字的 spec：
+  - [ ] spec / research 引用 HIGH_VOL aggregate metric（avg PnL / total PnL / stop rate / recovery rate / cumulative return 等）时，是否显式标注口径（`(research)` 或 `(live est)`）？
+  - [ ] 未标注视为 research scale；2nd Quant 应主动询问并要求补注
+  - 参考：`QUANT_RESEARCHER.md` "HIGH_VOL Aggregate Scale Convention" 章节
 
 ---
 

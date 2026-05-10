@@ -1,0 +1,10 @@
+trigger,gate,n_entries,blocked_pct,partial_pct,full_pct,avg_q042_allowed_pct,combined_peak_bp_pct,main_bp_median_at_trig,main_bp_p75_at_trig,vix_median_at_trig
+dd10_ma50_reclaim,default,56,0.0,0.0,100.0,20.0,54.28,2.78,3.4525,32.73500061035156
+dd10_ma50_reclaim,conservative,56,0.0,0.0,100.0,15.0,49.28,2.78,3.4525,32.73500061035156
+dd10_ma50_reclaim,aggressive,56,0.0,0.0,100.0,25.0,59.28,2.78,3.4525,32.73500061035156
+dd12_ma50_reclaim,default,41,0.0,0.0,100.0,20.0,51.07,2.77,2.79,33.290000915527344
+dd12_ma50_reclaim,conservative,41,0.0,0.0,100.0,15.0,46.07,2.77,2.79,33.290000915527344
+dd12_ma50_reclaim,aggressive,41,0.0,0.0,100.0,25.0,56.07,2.77,2.79,33.290000915527344
+dd15_naive,default,192,0.0,0.0,100.0,20.0,56.48,0.0,3.6375,46.0
+dd15_naive,conservative,192,0.0,0.5208333333333333,99.47916666666666,14.992291666666667,50.0,0.0,3.6375,46.0
+dd15_naive,aggressive,192,0.0,0.0,100.0,25.0,61.48,0.0,3.6375,46.0

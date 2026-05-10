@@ -174,3 +174,14 @@ Verified by adjacent regression:
 - `tests.test_state_and_api`
 
 `SPEC-093` changes are isolated to Q041 overview aggregation and Q041 templates.
+
+### Quant 对齐验证（2026-05-10）✅
+
+独立验证所有 Tier 状态与 research record 完全一致：
+- Tier 1 ELIMINATED 卡片 — 与 Q055 竞争结论对齐（V1 veto -17.99% NLV；Tier 2 主指标全负）
+- Tier 2 tail-caveat banner — 与 2nd Quant review 要求对齐（"explicit tail caveat in all downstream docs"）
+- Tier 3 observe-only 未变更 — Q055 不影响 Tier 3
+- Q041 ↔ Q042 零交叉影响（不同 ledger / routes / launchd jobs）
+- paper fail-soft 行为合理（live ledger 初次 deployment 时不存在属正常）
+
+**Quant 视角无阻塞，可部署到 old Air。**

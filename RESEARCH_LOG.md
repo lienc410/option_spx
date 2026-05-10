@@ -1,11 +1,717 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-09 (R-20260509-08: Q019 Tier 1+2 + 2nd Quant APPROVE; Tier 2.5 next gate)
+Last Updated: 2026-05-10 (R-20260510-11: Q042 backtest CSV 漏报 in-flight 仓位 bug 修复。PM 发现 2026-02/03 大盘回撤无 Q042 trade。诊断：2026-02 ddATH 最深 -2.58% 未达 -4%（正常），但 2026-03-12 Sleeve A 实际触发（ddATH=-4.38%）T+1 入场 16.67% BP，因 expiry 2026-06-10 > backtest end 2026-05-10 被 _maybe_expire 丢弃。修复：trades 增加 status 字段，walk-forward 结尾 MTM-price open positions 写为 status=OPEN。AC21 metrics CLOSED-only 保持 n=25/5/64%/100%)
 Owner: Planner or PM
 
 ---
 
-## Entries
+### R-20260510-11 — Q042 Backtest Open-Position Reporting Fix
+
+- Topic: PM 报告「2026-02/03 大盘回撤无 Q042 trade」，怀疑策略 bug
+- Method:
+  - 检查 SPX 实际 ddATH：2026-02 最深 -2.58%（2/5），2026-03 最深 -9.10%（3/30）
+  - 模拟 `_find_triggers_ddath` + `_apply_no_overlap`（与 research methodology 一致）确认 Sleeve A 在 2026-03-12 触发（-4.38%）且通过 no-overlap（last_close=2026-02-18 ≤ 3-12）
+  - 跑 `backtest/q042_engine.py` 检查 daily_rows，确认 sleeve_a_bp_pct=16.67% 从 2026-03-12 一路保持到 2026-05-08 → 仓位 in-flight
+  - 定位根因：`_maybe_expire` 仅在 `today >= expiry_date` 写入 trades；2026-03-13 entry → expiry 2026-06-10 > backtest end 2026-05-10 → trade 永不写入 → CSV 漏报
+- Findings:
+  - **不是策略 bug，是 backtest reporting gap**
+  - 2026-02 无 trigger 是预期（-2.58% 未达 -4% 阈值）
+  - 2026-03-12 trigger 正常 fire，且 daily_rows 诚实记录 BP usage
+  - Sleeve B 全 2026 未触发也是预期（最深 -9.10% << -15% 阈值）
+- Verdict:
+  - 修复方案 A（最小改动）：walk-forward 结尾把 active positions MTM-price 写为 status=OPEN
+  - 修复方案 B（延 backtest end）会污染 win_rate 统计，rejected
+- Implementation:
+  - `Q042Trade` 增加 `status: str = "CLOSED"`
+  - `run_backtest` 末尾新增 `_record_open()`，对 active_a / active_b 用 `_price_spread(end_close, K_long, K_short, end_vix, dte_remaining)` MTM 定价
+  - `_metrics` 用 `status == "CLOSED"` 子集计算 n / win_rate（AC21 reproduction 保持）；`n_open` 新报告字段
+  - CSV 末列增加 `status`
+- Verification:
+  - 再跑：Sleeve A n=25 ✓ / n_open=1 / win=64% ✓ / total=97.3% ✓ / max_dd=-15.9% ✓
+  - Sleeve B n=5 ✓ / n_open=0 / win=100% ✓ / total=42.5% ✓
+  - CSV 末尾 OPEN row：sleeve A signal 2026-03-12 entry 2026-03-13 long 6675 short 7005 debit $166.71 MTM exit_pnl +$13,150 account_pct +7.89%
+- Confidence: High（AC21 reproduction 保持，OPEN row 与 daily_rows BP 一致，逻辑路径清晰）
+- Caveats:
+  - OPEN trade 的 PnL 是 MTM snapshot，不是 realized；6 月到期前可能反转
+  - 当前 OPEN 仓位 +7.89% account_pct 已属盈利区间（比 dd4 baseline 中位胜率 64% × 中位 winner +9.6% 略低），但还有 1 个月（30 cal days）才到期
+  - Live 端不受影响（live 用 `data/q042_state.json` 跟踪仓位状态）
+- Recommendation:
+  - 修复已落地，无需 redeploy（仅 backtest 文件，不影响 production executor / sizing / gate）
+  - PM 现在可以从 CSV 直接看到 in-flight Q042 仓位
+- Artifacts:
+  - `backtest/q042_engine.py` 修订（4 处）
+  - `data/q042_backtest_trades.csv` 新格式（增 status 列）
+  - `task/SPEC-094_handoff.md` 修訂ノート 2026-05-10 追加
+
+---
+
+### R-20260510-10 — Q054 Pilot KILLED + UW Eyeball 折叠进 Q042 SOP
+
+- Topic: 接 R-20260510-09。PM 尝试 UW web export，发现 CSV download 在 Retail Basic 被 paywall（需 Retail Pro / 3-yr prepay / Lifetime / API 任一才解锁）
+- Method:
+  - 核 UW 现行档位：CSV 解锁最便宜路径是 3-yr prepay = $1,337 / 3yr = $446/yr（按摊销略低于当前 Basic Annual $480/yr）
+  - 期望值贝叶斯估算（3 年累积，$500k NLV）：
+    - PASS（25%）→ +$7.5k–15k；BORDERLINE（30%）→ +$1.5k；FAIL（45%）→ -$1.3k
+    - EV ≈ +$2,650 / 3yr = +$880/yr
+  - 学术先验：Pan-Poteshman / Cremers-Weinbaum / Augustin et al 都认为通用 unusual flow 预测力 51-54%；SPX/SPY 索引 flow 因机构 hedging 主导更弱
+- Verdict:
+  - EV 正但不显著且高度依赖 25% PASS 概率（学术先验认为应该更低 10-15%）
+  - 在 PM 1h/天 day-job 约束下，Q057/Q058/Q060/Q061 ongoing thread 的机会成本更高
+  - 选 Path A（KILL THREAD，零成本，UW eyeball 折叠进 Q042 SOP）
+- Recommendation:
+  - 创建 `task/q042_manual_sop.md`，统一 Q042 daily/T+1/到期 SOP，含 UW eyeball 作为 optional sanity check
+  - eyeball 规则：仅在「强烈反向 flow（≥ 3 笔 ≥ $500k）」时考虑 override（降码 50% 或跳过），频率应 < 10%
+  - 学术 disclaimer 写入 SOP，明确 eyeball 不是量化信号
+- Caveats:
+  - 保留 `research/q054/q054_pilot_hit_rate.py` 与 `task/q054_pilot_export_instructions_2026-05-10.md` 不删除——PM 未来若升 3-yr prepay 或 Lifetime，pilot 可重启
+  - 若 PM 实际 SOP 中 eyeball override 频率 > 10%，说明信号噪声，关闭此规则（未来 retro 检查）
+- Artifacts:
+  - `task/q042_manual_sop.md`：Q042 完整 manual SOP（含 UW eyeball check section B）
+  - Q054 thread 关闭，文件保留以备未来重启
+
+---
+
+### R-20260510-09 — Q054 Tier 0 收口 + Pilot 启动 (Unusual Flow → Forward Hit Rate)
+
+### R-20260510-09 — Q054 Tier 0 收口 + Pilot 启动 (Unusual Flow → Forward Hit Rate)
+
+- Topic: PM 提议利用 UW 订阅做 quant 信号研究。Tier 0 必须先确认 PM 当前订阅级别能拿到什么数据，再决定 Tier 1 方向
+- Method:
+  - 拉取 UW 官方 OpenAPI 全规范（722KB YAML at `/tmp/uw_openapi.yaml`）+ 公开 changelog + pricing substack post
+  - 确认 PM 持有 `Retail Basic - Annual`（web 端 ~$48/mo），与 `API Basic = $150/mo` 是两个独立 product
+  - 评估三条岔路：A 不加钱做 web-eyes-on / B 升 API Basic 启动 13F + flow-alerts 浅史 / C 全套 Advanced + Data Shop ($625/mo)
+  - PM 反提议 zero-cost pilot：手动 export 90 天 web flow alerts，做 forward SPY-excess return hit rate 研究
+- Findings (Tier 0 数据约束):
+  - **API token 不在 Retail Basic 内**：必须 upgrade $150/mo 才能 REST/WebSocket 抓数
+  - **历史深度上限**：API flow-alerts endpoint 2024-03-06 才上线，最多回溯 ~2 年；full-tape 仅 last 3 days；深度历史需 Data Shop +$250/mo
+  - **SPX/SPXW 在覆盖内**（OpenAPI schema 字段示例 `underlying_symbol: AAPL, SPX`，专属页公开）
+  - **暗池对 index 不适用**（SPX 不在 lit/off-lit exchange 报价；SPY 可代理）
+  - Web export 路径可行但需手动分段（list view 单次显示有限）
+- Verdict:
+  - Tier 0 答复 PM 的 4 个问题完成（数据格式 / 历史深度 / 覆盖 / 量级）
+  - PM 选 A 方案：half-day pilot，零增量成本，最差 fail 即关 thread
+  - 设计 Pilot：90 天 × 9 段 manual export → 去重（5td 同 ticker × 同 side）→ ask/bid ≥70% 分类 → SPY-excess return T+1/T+5/T+10 → binomial test
+  - Pass bar 三条 AND：hit_rate_t5 ≥ 55% / median |excess_t5| ≥ 0.8% / p<0.05；任一 slice (all / non_earnings) 触发即 PASS
+  - 切片：earnings-window 必须单独跑（防止 IV crush confound）
+  - 学术先验：Pan-Poteshman 2006 / Cremers-Weinbaum 2010 / Augustin et al 2015 都得出 unusual flow 有微小预测力但集中于 M&A/earnings 前；通用样本 hit rate 期望 51-54%
+- Confidence:
+  - High on 数据约束诊断（OpenAPI 是 first-party source）
+  - Medium on pilot 能否产出可用信号（学术先验偏悲观但 PM 的 specific filter 设定 - DTE 7-45, OTM 2-15%, premium ≥ $200k - 是合理 unusual flow 圈层）
+- Recommendation:
+  - PM 端 60-90min 手动 export 9 段；落到 `data/q054_flow_pilot/seg_NN_*.csv`
+  - 完成后跑 `research/q054/q054_pilot_hit_rate.py` 自动产出报告
+  - 写 `task/q054_pilot_results_2026-05-10.md`：hit rate by slice + Q042 集成可行性结论
+  - 若 SPY/SPX-self 切片 hit_rate ≥ 60%，可作为 Q042 entry confirm layer（dd4/dd15 触发当天 UW 当日 SPY flag bullish 才入场）
+- Caveats:
+  - **Lookback snapshot vs real-time flag** 是潜在 fatal flaw：必须确认 web export 保留 rule_name 触发时的 snapshot，否则 look-ahead bias
+  - Web UI 实际历史窗口可能 < 90 天（依赖 Retail Basic 权限），届时样本量缩水
+  - 单一 90 天窗（2026-02 至 2026-05）样本可能 regime 偏单一（牛市后期）
+  - Beta 污染必须用 SPY-excess 而非 raw return
+  - earnings_dates yfinance 接口不稳定，可能部分 ticker 拿不到
+- Artifacts:
+  - `task/q054_pilot_export_instructions_2026-05-10.md`：PM 操作指引（filter 规则、命名约定、列要求）
+  - `research/q054/q054_pilot_hit_rate.py`：分析 pipeline（load → classify → dedup → fetch prices → earnings flag → hit rate）
+  - `data/q054_flow_pilot/`：PM export 落点（含 README）
+
+---
+
+### R-20260510-08 — Q061 Tier 1: M1 (Cluster Cadence) + M2 (VIX Jump Pause) Alpha Impact
+
+- Topic: Q060 incidental finding 提出 V2f_alone 在 1987-magnitude shock 下违反 V1 veto（-16.85% NLV）。PM 授权同时推进 M1（n_active≥4 时 entry 间隔 5→10 TD）与 M2（VIX 5d jump >50% 暂停新入场）。SPEC 决策需先量化两条规则对 alpha 的影响——只看尾部不够，需同时保住 Ann ROE
+- Method: 复用 q060 的 sim_df + shock 注入（anchor 2022-11-09，SPX -7%/d×5 → -30%，VIX 25→60，10d 恢复）；对 4 变体跑 baseline（无 shock）+ stressed 两版，提取 Ann ROE（geometric）/ Sharpe（daily-return annualized）/ stress worst single trade（V1 veto 口径）/ stress cluster cumulative loss（5w 窗口 PnL）
+- Findings (comparison table):
+
+  | 变体 | Ann ROE | Sharpe | stress worst single | stress cluster | n_trades |
+  |---|---|---|---|---|---|
+  | V2f_alone (baseline) | +2.46% | 0.22 | -16.85% NLV | -47.12% | 1223 |
+  | V2f + M1 | +2.35% | 0.23 | **-15.13% NLV** | **-44.07%** | 1048 |
+  | V2f + M2 | +2.82% | 0.25 | -18.13% NLV | -57.33% | 1219 |
+  | V2f + M1 + M2 | +2.26% | 0.23 | -18.13% NLV | -42.26% | 1048 |
+
+  - **M1 是 dominant winner**：Δalpha 仅 -0.11pp（well within 0.5pp tolerance），Sharpe 微升 0.22→0.23，stress worst single -16.85 → **-15.13**（仅 -0.13pp 距 V1 veto），cluster +3.05pp 改善。**几乎恢复 V1 veto 同时无 alpha 损失**
+  - **M2 反直觉变差**：alpha +0.36pp（看似最优），但 stress worst single 恶化至 -18.13%（vs baseline -16.85%），cluster -57.33% 也比 baseline 差 -10.21pp。原因推测：anchor 2022-11-09 前 5 日 VIX 实际未跳升 >50%（pause 未触发），但 M2 在过去 26 年其他真实 VIX spike 时（2008/2020/2022）确实改变了入场路径——到 anchor 时持仓配置不同，恰好持有不同的 vulnerable trades。M2 是路径敏感型工具，不能简单 "pause = 安全"
+  - **M1+M2 联合不优于 M1 单独**：worst single -18.13%（被 M2 主导），alpha -0.20pp，Sharpe 0.23。仅 cluster 进一步改善至 -42.26%。M2 把 worst single 拖坏后 M1 救不回来
+  - **n_trades**: M1 把 1223→1048（-14% 入场频次，与 cluster 阈值触发频率一致）；M2 仅减 4 笔（VIX 5d>50% 是稀有事件）
+- Verdict:
+  - **M1 单独推荐进 SPEC**：alpha 几乎不变（-0.11pp），stress worst single 几乎恢复 V1 veto（-15.13%，剩 0.13pp 缺口），cluster 改善 +3.05pp。生产侧实施成本极低（仅修改 entry frequency 判断）
+  - **M2 不推荐进 SPEC**：alpha 提升是 noise（+0.36pp 在 26 年样本下不显著），但尾部反而恶化。需重新设计（如 pause 持续 N 日而非仅触发日；或 pause 时 force-close 而非 hold）
+  - **M1+M2 不推荐**：被 M1 主导，M2 副作用拖累
+- Confidence:
+  - High on M1 direction（Δalpha 小且 stress 双指标都改善）
+  - Medium on M1 absolute magnitudes（单一 anchor、单一 shock magnitude，与 Q060 同样限制）
+  - Medium-low on M2 verdict：单一 anchor 测出 M2 反直觉差是真实的还是 anchor-specific？M2 在不同 anchor 下可能行为不同。但即使乐观估计，M2 不能 "免费" 提供 V1 veto 恢复
+- Recommendation:
+  - 进 SPEC：仅 M1（V2F_M1_THRESHOLD=4, V2F_M1_FREQ_TD=10）
+  - SPEC review 中明确：M1 把 V1 veto stress worst 从 -16.85% 改善到 -15.13%，仍未完全恢复 -15% 门槛；如果 PM 要求严格 -15% 余量，需进一步研究（M1 阈值调到 3？或加 short-DTE force-close 规则？）
+  - M2 设计返工：当前形式（仅触发日 pause）效果反向；若要保留概念，需测 N 日持续 pause、或 pause + 强制平仓最近开仓的位置
+- Caveats:
+  - M2 反直觉结果建议 Tier 2 sensitivity（不同 anchor、不同 VIX jump 阈值 30%/40%/60%）确认是否 anchor-specific
+  - Sharpe 0.22 vs 之前研究引用的 0.15 差异是 daily-return 口径差（这里用 daily PnL/equity；Q058 之前可能用 trade-level）。绝对值用于 cross-variant 比较稳健，跨研究比较需注意口径
+  - 1987-magnitude shock 为单一 anchor，不代表所有 tail 情境
+  - BS-flat 合成数据 stop_loss 触发动态可能与真实 skew 偏离
+- Next Tests:
+  - Tier 2: M1 阈值 sensitivity (3/4/5)；M1 cadence sensitivity (8/10/12 TD)
+  - M1 在不同 anchor / shock magnitude 下 robustness
+  - 若 PM 要求完全恢复 V1 veto -15% 余量：探索 M1 + short-DTE force-close 组合
+- Related: R-20260510-07 (Q060 incidental tail finding 的 follow-up), SPEC-095 (V2f production)
+- Output:
+  - `backtest/prototype/q061_m1_m2_alpha_impact.py`
+  - `research/q061/q061_m1_m2_alpha_impact.pkl`
+  - `research/q061/q061_comparison.csv`
+
+---
+
+### R-20260510-07 — Q060 Tier 1: V2f_dynlev SPEC validation — Task A PASS, Task B FAIL；V2f_alone 自身的 tail 边界发现
+
+- Topic: Q058 Tier 2-A 浮现 V2f + dynamic VIX leverage 作为独立升级候选（+0.86pp Ann ROE，worst -14.03% NLV 贴近 V1 阈值）。Q060 Tier 1 用 bootstrap + extreme tail stress 双重门槛验证是否可进 SPEC
+- Method:
+  - Task A: 复用 V2 / V2f bootstrap protocol（block_size=250, 20 seeds, ≥60% PASS 标准）
+  - Task B: 注入合成 1987-magnitude shock：anchor 2022-11-09 (VIX=26)，5 日累计 -30% SPX + VIX 25→60，10 日 VIX 恢复；对比 V2f_alone vs V2f_dynlev_alone 在 shock 窗口内的 worst trade
+- Findings:
+  - **Task A PASS — V2f_dynlev bootstrap 比 V2f baseline 更强**：sig_rate 95%（19/20，vs V2f 75%）；CI lo 中位 +0.287% Ann ROE（vs V2f +0.06%）；smooth B1 transition，最小显著 block=200。**alpha signal 比 V2f 本身更稳健**
+  - **Task B FAIL — V2f_dynlev shock worst trade -$119,720 = -23.94% NLV**（超过 PM 决策阈值 -20%，远超 V1 veto -15%）。Loss amplification dynlev/alone = 1.42×（与 entry contracts 1.4-1.8 比例一致）
+  - **Incidental V2f_alone tail 边界**: V2f_alone 在同一 shock 下 worst trade **-$84,266 = -16.85% NLV**——也违反 V1 veto -15% 阈值。SPEC-095 部署的 -9.24% worst 是历史 BS-flat 最坏情况（COVID 2020），不是 worst-imaginable
+  - **Cluster loss 是真实风险**: V2f_alone shock 期间 5 个并发持仓中 4 个 simultaneously 击穿（2 触发 stop_loss，2 ladder_exit 至 deep ITM）。Account-level cumulative loss V2f_alone -47.1% of pre-shock equity；V2f_dynlev -53.8%
+  - **stop_loss 触发了但来不及救**: STOP=15 在 -7%/day shock 下 mark 价快速突破 15× entry，但触发时已经 deep ITM；每 stop 锁定 -16% NLV（alone）或 -24% NLV（dynlev）
+  - **shock window 5 个 trades 中 2 个 profit_target**: 注意 2022-11-17 entry (VIX=56.6) 和 2022-11-25 entry (VIX=39.7) 在 shock 窗口期反而盈利——高 VIX 入场后 IV 收缩 + 反弹 → profit target 触发
+- Verdict (Q060 主问题): **V2f_dynlev 不进 SPEC**。Task A PASS 但 Task B FAIL（-23.94% NLV 超 PM 阈值）。Combined gate 不通过
+- Verdict (incidental): **V2f_alone 自身的 V1 veto 在历史数据下 PASS（-9.24%），但在 1987-magnitude synthetic shock 下 FAIL（-16.85%）**。这不是 SPEC-095 的回归 issue（生产参数不变），但是 tail risk 假设的重要修正
+- Confidence:
+  - Task A: high（95% sig rate 是稳健的 bootstrap signal）
+  - Task B: medium-high（单一 anchor + 单一 shock magnitude；可做 sensitivity）；shock magnitude 校准 contestable（-30%/5d 比 1987 单日 -22% 更分散，但比 2020 5 日窗口 -16% 更急；近似但非完全等同 1987）
+- Recommendation:
+  - **Q060 主问题：V2f_dynlev 不进 SPEC，relegate 为研究观察项**——alpha 优势真实但被 tail risk 抵消
+  - **Incidental tail finding 升级为正式 PM 评估点**：V2f production 在 SPEC-095 中是否需要：
+    a. Cluster loss 监控规则（同时活跃 N+ 个位置时降低新入场频率？）
+    b. VIX 跳升时的 entry pause（VIX 5 日跳升 >50% 暂停新入场？）
+    c. 显式 tail risk 文档化在 SPEC review caveat 中
+- Caveats:
+  - Single-anchor stress test：未测试不同 anchor / shock magnitude 的 sensitivity
+  - 1987 magnitude 接近但非精确等同（1987 是单日 -22%；本次模拟是 5 日 -30%）
+  - BS-flat 假设下 stop_loss 触发动态可能与真实市场偏离（skew 在 deep ITM 行为不同）
+  - Cluster loss 数字（-47%/-54%）受 5 个 concurrent positions 的入场时点影响——anchor 选 9-10 月正好 ladder 满载
+- Next Tests:
+  - Tier 2: shock magnitude / anchor sensitivity（不同 VIX 水平、不同 SPX 跌幅、不同分布日数）
+  - V2f production tail-control rules 设计（cluster size cap / VIX-jump entry pause）
+  - 用 Massive 实数据子窗口验证 stop_loss 真实触发动态
+- Related: R-20260510-04 (Q057), R-20260510-05 (Q058 T1), R-20260510-06 (Q058 T2A), SPEC-095 (V2f production)
+- Output:
+  - `backtest/prototype/q060_dynlev_bootstrap_stress.py`
+  - `research/q060/q060_dynlev_validation.pkl`
+
+---
+
+### R-20260510-06 — Q058 Tier 2-A: Dynamic VIX leverage 没救 BSH，但浮现 V2f 独立升级机会
+
+- Topic: Tier 1 显示 BSH 在 V2f fixed-1-contract 下 NET-NEGATIVE。Tier 2-A 检验 Phase 3-style dynamic VIX leverage 是否改变这个 verdict，并量化 dynamic leverage 自身的影响
+- Method: 26-yr BS-flat，5 变体对比，无 Massive 实数据对照
+  - V2f_alone, V2f_bsh_full（Tier 1 baseline）
+  - V2f_dynlev_alone, V2f_dynlev_cost, V2f_dynlev_full（新增）
+  - Dynamic leverage = Phase 3 的 P3_LEVERAGE_TABLE 应用到 per-slot BP target，contract sizing 用 _bp_per_contract 计算
+- Findings:
+  - **BSH 在 dynamic leverage 下仍 NET-NEGATIVE**：net effect -0.46pp Ann ROE（vs Tier 1 fixed -0.57pp），改变仅 +0.11pp。Sharpe net change 不变（-0.15）。**Tier 1 verdict 强化**
+  - **BSH hit rate（payoff/cost）从 57% 提升到 80%**，但仍未达 100%——dynamic leverage 让 cost 和 payoff 同时按 NLV scale 上升，但 cost 仍占优
+  - **独立发现**：V2f_dynlev_alone（无 BSH）给 V2f 带来 +0.86pp Ann ROE 独立提升（+2.46% → +3.32%），Sharpe 微涨（0.15 → 0.16）
+  - **代价**：worst trade -9.24% → -14.03% NLV（贴近 V1 veto -15% 阈值），account MDD -42% → -70%（实质恶化）
+  - **VIX bucket scaling 验证**: VIX<15 下 avg 1.39 contracts；VIX≥40 下 avg 2.84 contracts。Phase 3 leverage table 在 V2f 下按预期缩放
+  - **2020 COVID 反直觉**: V2f_dynlev_alone 2020 全年 POSITIVE +$4,278（V2f_alone -$29,357）。高 VIX 触发更大仓位 → 多数 ladder cycle 走到 successful exit → COVID 反弹 V-shape 回收。但含 BSH 的 dynlev 变体在 2020 反而更差——BSH cost drag 抹掉了 dynlev 优势
+- Verdict (BSH question): **BSH NET-NEGATIVE under dynamic leverage. Tier 1 DROP recommendation reinforced.**
+- New question surfaced (NOT BSH-related): Should V2f independently adopt dynamic VIX leverage? Tradeoff:
+  - Pro: +0.86pp Ann ROE, Sharpe微升
+  - Con: worst trade -14% NLV（V1 veto 余量从 -5.76pp 缩到 -0.97pp）；MDD -70% vs -42%
+  - 这是 PM 决策点，不是 quant 单独可决
+- Confidence: high on direction（5 个变体一致显示 BSH net-negative）；medium on absolute magnitudes（同 Tier 1，BS-flat 合成数据局限）
+- Recommendation:
+  - DROP BSH from V2f (final, both Tier 1 and Tier 2-A 验证)
+  - V2f + dynamic leverage 作为独立升级候选留给 PM 决策；不在本研究范围内做最终推荐
+- Caveats:
+  - Dynamic leverage 在历史 black swan 下 worst trade 加深；2020 数据集只代表 V-shape 反弹，1987/1929 量级 sudden gap 不在样本内
+  - V1 veto 余量从 -5.76pp 缩到 -0.97pp——若未来出现稍极端事件（VIX 70+ 加速崩盘），可能突破 -15%
+  - Tier 2-B（Massive 实数据 sanity check）尚未做；BSH put 定价 bias 可能让 BSH net effect 改变方向（见 Q057 +17-25% bias 量级）
+- Next Tests:
+  - Tier 2-B: Massive 子窗口（2022-2026）验证 BSH 定价 bias 对 net effect 的实际影响
+  - 若 PM 想推进 V2f+dynlev 独立候选：bootstrap 显著性 + extreme tail stress 模拟
+- Related: R-20260510-05 (Tier 1), Q057 (pricing bias), Phase 3/4, V2f SPEC-095
+- Output:
+  - `backtest/prototype/q058_tier2a_dynlev_bsh.py`
+  - `research/q058/q058_tier2a_dynlev_bsh.pkl`
+
+---
+
+### R-20260510-05 — Q058 Tier 1: BSH economics under V2f framework — net-negative, recommend DROP
+
+- Topic: 验证 BSH（Black Swan Hedges）在 V2f 框架下是否仍有经济性。Phase 3/4 BSH 设计基于 V0 fixed-slot；V2f 已将 worst trade 控在 -9.24% NLV，BSH 边际保护价值需要重测
+- Method: 三变体 26-yr BS-flat 对比，$500k 账户，无 dynamic VIX leverage（Tier 2 单独研究）
+  - V2f_alone: 纯 V2f（SPEC-095 baseline）
+  - V2f_bsh_cost: V2f + 仅 BSH 成本拖累（weekly 0.04% NLV + monthly 0.08% NLV when VIX<15）
+  - V2f_bsh_full: V2f + BSH cost + Phase 4 SPY put payoff MTM 模型
+- Findings:
+  - **V2f_alone**: Ann ROE +2.46%, Sharpe 0.15, worst trade -9.24% NLV (-$46,176)
+  - **V2f_bsh_cost**: Ann ROE +1.14%（**cost drag -1.32pp**）, Sharpe 0.06
+  - **V2f_bsh_full**: Ann ROE +1.89%（**净效应 -0.57pp**, payoff 仅恢复 +0.75pp）, Sharpe 0.00
+  - **2020 COVID stress test**: V2f_alone 全年 daily-pnl -$29.4k；V2f_bsh_full -$37.8k（**BSH 在 COVID 整年 net contribution ≈ 0**——payoffs 刚抵消年度成本）
+  - **Stop_loss 触发分布**: V2f 1170 trades 中 stop_loss 仅 8 次（0.7%）；ladder_exit 594 次（50.8%）；profit_target 568 次（48.5%）。Phase 4 BSH 的经济假设（频繁 stop_loss 锁定损失，BSH 在尾部回补）在 V2f 框架下不成立
+  - **Account MDD 解读警告**: V2f_full 报告 MDD -93.4%（vs V2f_alone -42.3%），但这是 MTM artifact——COVID 期间 BSH puts 的 mark spike 推高 equity peak，随后 BSH puts 衰减/到期蒸发，造成 paper drawdown。真实 cycle worst 仍是 V2f short trade 的 -9.24% NLV，BSH 不改变此项
+- Mechanism: V2f 的 STOP=15 + true ladder 已经吸收了 Phase 4 BSH 想解决的尾部问题。V2f short trades 几乎都走完 ladder cycle 自然退出（profit_target 或 ladder_exit），不像 V0 频繁触发 stop_loss → 锁定大额单笔损失。BSH 在 V2f 下变成 redundant insurance
+- Verdict: **BSH NET-NEGATIVE in V2f framework — DROP recommended**
+  - Ann ROE -0.57pp
+  - Sharpe -0.15
+  - 2020 stress test fail（payoff ≈ cost）
+  - V1 veto 已 PASS（worst -9.24% NLV），BSH 边际尾部保护不必要
+- Confidence: high on direction (1-day Tier 1)；medium on absolute magnitudes (BS-flat 合成数据，BSH put 定价同样受 skew bias 影响)
+- Recommendation: drop — V2f SPEC 不再绑定 BSH；Phase 3/4 的 V0 baseline 结论与 V2f 框架不可移植
+- Caveats:
+  - BS-flat 合成数据可能低估 BSH put 的真实 cost 和 payoff（Q057 显示 +17-25% bias on Δ0.20 puts；BSH 用 10%/20% OTM 量级未测）
+  - V2f stop 触发频率 ~0.3×/year 全在 BS-flat 假设下；Massive sanity check 未做
+  - 1987/1929 量级 sudden gap 不在 26 年样本内；真正不可逆 tail 事件下 BSH absolute insurance 价值未被本研究覆盖
+  - **Tier 1 显式排除 dynamic VIX leverage**（Phase 3 高 VIX 加 BP 表）；与 BSH 组合的交互留 Tier 2
+- Next Tests:
+  - Tier 2: dynamic VIX leverage + BSH 组合在 V2f 下是否改变结论（高 VIX 时 BP 更大 → 短 put 暴露更大 → BSH payoff 占比可能上升）
+  - Tier 3: Massive 实数据子窗口（2022-2026）验证 BSH put 定价 bias 是否改变 net effect
+- Related: Q055, Q057, SPEC-095, Phase 3/4 baseline, task/q041_t1_es_governance_review_archive_2026-05-09.md §11
+- Output:
+  - `backtest/prototype/q058_bsh_v2f.py`
+  - `research/q058/q058_bsh_v2f_results.pkl`
+
+---
+
+### R-20260510-04 — Q057 Tier 1: V2f BS-flat pricing bias — substantive underestimate of real market premium
+
+---
+
+### R-20260510-04 — Q057 Tier 1: V2f BS-flat pricing bias — substantive underestimate of real market premium
+
+- Topic: validate BS-flat (VIX as flat sigma) pricing assumption against Massive real SPX put chain on Δ=0.20 puts; quantify bias for V2f Ann ROE caveat
+- Method: 1002 daily comparisons (2022-05 to 2026-05), find Δ=0.20 strike via BS-flat, fetch market price at that strike, compute (actual − bs) / bs %
+- Findings:
+  - **Full sample (cal-DTE [42, 56], user spec)**: median bias **+17.57%**, mean +17.55%, p25/p75 [+7.83%, +26.38%], p95 +43.67%
+  - **V2f-actual window (cal-DTE [64, 78], V2f's 49 trading-day = ~71 cal-day actual)**: median bias **+24.71%** — even larger
+  - **2022 grinding sub-window (May-Dec)**: median **+25.86%**, peak Aug +36.31%
+  - **Direction unambiguous**: BS UNDERESTIMATES actual market premium (consistent with put skew — market IV at Δ=0.20 is +1.23pp above VIX median)
+  - **Year-by-year**: 2022 +25.86%, 2023 +19.64%, 2024 +5.78%, 2025 +18.21%, 2026 +21.11% — bias persistent across regimes; 2024 calmest year still +5.78%
+  - **VIX conditioning**: bias is highest when VIX in 15-25 range (+19% to +20%); lowest when VIX < 15 (+12.66%) and VIX ≥ 30 (+7.89%); inverse-U pattern
+  - **Convention sanity check**: V2f's "49 DTE" is 49 trading days = ~71 calendar days (per backtest decrement-per-trading-day loop). User-spec [42, 56] window is ~33 trading-day equivalent; V2f-actual [64, 78] window is the relevant comparison
+- Quantitative impact on V2f:
+  - **V2f real-data adjusted Ann ROE**: roughly +2.67% × (1 + 0.18) ≈ **+3.15%** (Window A) or +2.67% × (1 + 0.247) ≈ **+3.33%** (Window B — V2f-actual DTE)
+  - **Direction is favorable**: BS-flat underestimates premium → V2f's reported Ann ROE is CONSERVATIVE, not optimistic
+  - Stop-loss settlement scaling: BS_entry × 1.18 vs unchanged settle → real loss slightly smaller in $ terms; net effect compounds to ~+0.4-0.6pp Ann ROE upside
+- Verdict per pre-set thresholds:
+  - ≤ 3% (robust) ❌ FAILED
+  - 3-7% (flag in SPEC review) ❌ FAILED
+  - **> 7% (substantive caveat) ✅ TRIGGERED**
+- Confidence: high (1002 daily samples, both windows agree directionally, mechanism is structural skew)
+- Recommendation: **proceed with V2f SPEC**, but add explicit caveat:
+  - "BS-flat backtest systematically underestimates real OTM put premium by ~18-25% (skew effect)"
+  - "Real Ann ROE estimate: +3.0% to +3.5% (vs +2.67% reported); direction is favorable but absolute number conservative"
+  - "Paper-trading mandatory to validate stop-loss trigger frequency under real skew dynamics"
+  - "If SPEC-095 UI shows backtest Ann ROE, surface skew-adjusted estimate alongside; do not show BS-flat number standalone"
+- Next Tests:
+  - Tier 2: rerun V2f backtest with Massive prices for 2022-2026 sub-window; compare to BS-flat directly; quantify exact PnL impact (not just credit-side)
+  - Tier 3: extend Massive coverage if pre-2022 data becomes available
+  - Q012 thesis-revisit: Phase 4 BSH economics may shift if entry credit is +18-25% higher than assumed
+- Related: Q055, Q056, Q058, V2f SPEC pending, task/q041_t1_es_governance_review_archive_2026-05-09.md §11
+- Output:
+  - `research/q057/tier1_pricing_bias.py`
+  - `research/q057/tier1_pricing_bias_results.pkl`
+  - `research/q057/tier1_pricing_bias_window_A.csv` (1002 records)
+  - `research/q057/tier1_pricing_bias_window_B.csv` (894 records)
+
+---
+
+### R-20260510-02 — V2c bootstrap 失败（0/20 种子显著）+ V2f (STOP=15) 发现为 /ES P2 升级的 Pareto 最优候选
+
+- Topic: /ES V2c (STOP_MULT=8) 的独立 bootstrap 验证失败，进而发现 V2f (STOP_MULT=15) 是 strictly Pareto-better 的生产候选
+- Findings:
+  - **V2c bootstrap 完全失败**：20/20 种子在 block=250 下不显著（CI 下界全部 < 0）；PnL 的 58% 被 STOP=8 过早止损消耗。STOP=8 在 true ladder 框架下仍属于过紧——止损了大量 would-have-recovered trades
+  - **STOP_MULT sweep (5→25)**：Ann ROE vs STOP 呈非单调，peak 在 STOP=15；STOP=5-8 alpha 几乎清零；STOP > 20 尾部回到 V2 no-stop 水平但 worst case 恶化
+  - **V2f (STOP_MULT=15) sweet spot**：
+    - Ann ROE 几何 +2.67%（比 V2 no-stop +2.58% 高 +0.09pp）
+    - Worst trade -10.96% NLV（V1 veto PASS，< -15% 阈值）
+    - Bootstrap 100% 种子显著（block=250，20/20）；CI 下界中位 +0.32%
+    - 严格 Pareto-better than V2 no-stop on all metrics（higher ROE + lower worst + lower MDD + higher WR）
+  - **完整对比**：V2 no-stop +2.58% / worst -15.5% NLV；V2c +1.29% / worst -10.96%（boot fail）；V2f +2.67% / worst -10.96%（boot 100% pass）
+- Confidence: high on V2f being the production candidate; the STOP=15 finding is robust across block sizes and seeds
+- Recommendation: enter SPEC — V2f replaces V2c as the /ES P2 upgrade target
+- Next Tests: Massive sanity check on V2f pricing；BSH role under V2f framework；re-run competition at NLV M+
+- Related: Q055, Q056, Q057, Q058, task/q041_t1_es_governance_review_archive_2026-05-09.md §10-11
+
+---
+
+### R-20260510-03 — Q042 F4 deployment gate PASS retroactively from oldair 5-day archive
+
+- Topic: PM 提示 "Massive snapshot SPX 和 Schwab live SPX call chain 可能在 oldair 上"
+- Discovery: oldair 有 5 天 Schwab SPX chain 完整 archive（2026-05-04 → 05-08）
+  - launchd job `com.spxstrat.q041_massive_snapshot.plist` 每天 16:35 ET 自动抓
+  - 落到 `data/q041_chains/<date>/SPX.parquet`，bid/ask/mid/iv/delta/Greeks **100% 填充**
+- 对每天数据跑 q042_f4_oldair_backfill.py:
+  - DTE 84-88，ATM/+3-3.4% OTM spread（collector 当时 strike window 没到 +5%，但 +3% 在同样的 skew 区域代表性强）
+  - 5 天 broker midpoint vs model debit deltas: 4.85%, 4.96%, 5.65%, 7.83%, 8.00%
+  - **Median delta 5.65% << 15%** → ✅ **AC13 deployment gate PASSED**
+- Caveats:
+  - **Caveat 1**: collector strike window 当时只到 +3.4% OTM。Forward 应一行改 `research/q041/collect_chains.py` 的 strike_window 让 +5% 进入 archive；当前 +3.4% tie-out 通过 smooth skew 推广到 +5%
+  - **Caveat 2**: 5 天 archive 全部低 vol regime（VIX 17-18）。Q042 实际触发在 HIGH_VOL (VIX ≥ 22)。**First live HIGH_VOL trigger 是强制 re-validation 时点** — 那一天回放 backfill 脚本对当天 chain 数据做 delta 计算
+- Effect on SPEC-094:
+  - F4 status: WAITING → ✅ PASSED (retroactive)
+  - 无需额外 3-day Schwab live collection 阻塞 deployment
+  - Pre-deployment hard gate 全部满足
+- Output: `data/q042_f4_tieout_history.csv` (5 days), `research/q042/q042_f4_oldair_backfill.py`
+- Status: ✅ Q042 SPEC-094 **deployment-ready**, 进入 Developer 实施 queue
+- Confidence: high — 5 天数据显著优于 single-day，但单一 vol regime 是真实 caveat
+
+---
+
+### R-20260510-01 — Q042 SPEC-094 简化: SPX-only, F4 cut to 3-day, Massive cross-check 加入
+
+- Topic: PM 在 SPEC-094 deployment 前提出两个简化:
+  - "F4 tie-out 还需要吗?" → 探索 Massive 替代 Schwab API
+  - "我们需要 XSP 做什么?" → 评估 XSP 路径必要性
+- Massive coverage 实测（2026-05-04 snapshot）:
+  - ✅ SPX call chain DTE 80-100 范围 280 strikes，ATM 和 +5% 都覆盖
+  - ✅ `day_close`, `day_vwap`, `day_volume`, `open_interest` 都填充
+  - ❌ **`last_quote_bid` / `last_quote_ask` = 0% 填充** — 没 live quote
+  - ❌ **IV / Greeks = 0% 填充**
+  - ❌ **XSP 不在 Massive universe**
+  - ⚠️ 仓库内只有 1 天 snapshot
+  - 实证 day_close 在 day_volume=1 strikes 出现 ordering 错乱（7330 strike $205 vs 7400 strike $142）→ stale single-trade noise 5-15%
+- F4 决定 — Hybrid 方案：
+  - **3-day** Schwab live SPX tie-out（cut from 5 days）
+  - 同期 Massive day_close 作 cross-check（验证 Schwab call 端 vs Massive 一致性，extends prior put-only validation）
+  - AC13 修订: 3-day median delta < 15%（XSP 删除后只验 SPX）
+- XSP 决定 — 删除（PM scope 2026-05-10）：
+  - Sizing precision 实测: NLV $500k 时 SPX-only 偏差 12%（可接受）；XSP 偏差 1%
+  - PM 当前 NLV ≥ $500k → SPX 1-contract 步长 ($11k) 在此 scale 下足够精细
+  - 删 XSP 简化 F2/F4/F5/F6/F8: 单 symbol path、tie-out 工作量减半、运营复杂度降低
+  - **Activation threshold 调整**: NLV ≥ **$200k**（原 $111k 下界改为 SPX-only 的最小有意义 sizing 边界）
+  - XSP 路径保留为未来 revisit option（when NLV < $200k）
+- 修订后的 SPEC-094 关键变更:
+  - F2: 删 symbol selection 分支，固定 SPX
+  - F4: 5 days Schwab → 3 days Schwab + Massive cross-check
+  - F5/F6/F8: 删 symbol 字段（trade record / backtest output）
+  - Activation threshold: NLV $111k → $200k
+- Status: ✅ SPEC-094 修订版仍然 APPROVED（PM 已确认两个简化）
+- Confidence: high — 两个简化都基于实证数据，没有改变 strategy 核心
+
+---
+
+### R-20260509-15 — Q042 Tier 3 deep-dive: ddATH methodology + dual-sleeve config + SPEC-094 APPROVED
+
+- Topic: PM 在 Tier 3 review 阶段提出 4 个 deep-dive 问题，依次解决后 SPEC-094 配置全面修订
+- Deep-dive 1 — Drawdown 定义（PM 怀疑 dd60_rolling 在熊市自我重置导致接刀子）:
+  - 实证：dd60_rolling 在 GFC 触发 8 次（其中 4 次全亏，构成 -30.7% Max DD）
+  - 修正：改用 **ddATH = SPX / cummax(SPX) - 1**（running ATH 永不下降）
+  - GFC 期间 ddATH_strict 仅触发 1 次（2007-11-07），完全避免接刀子
+  - 全 dd 阈值（3-15%）下 ddATH 比 dd60_rolling 更稳定
+- Deep-dive 2 — Re-arm 逻辑（lenient vs strict）:
+  - lenient (re-arm at ddATH ≥ -2%) 比 strict (创新 ATH) 多捕捉 5 个事件
+  - dd4 lenient 25 trades / +99% / -16.3% DD vs strict 20 trades / +83% / -25.7% DD
+  - **lenient 是更好的选择**：捕捉"差点恢复又再跌"的合理事件，不损失风险控制
+- Deep-dive 3 — Full ddATH scan dd3% 到 dd15% with sizing 10%:
+  - **U 型胜率曲线**：dd3-5 高（64-72%）；dd6-12 低（50-64% 中段 falling-knife）；dd13-15 高（67-100%）
+  - **Top 配置（lenient）**: dd4 (+5.11%/-16.3%), dd5 (+4.20%/-20%), dd15 (+1.97%/0%)
+  - dd4 lenient 是 risk-adjusted annualized 冠军
+- Deep-dive 4 — MA filter（MA10/MA20/MA50/MA10×MA50）on dd4 and dd15:
+  - dd4: MA10 reclaim 加 +0.76pp 年化但 max DD 加深 4pp（-16.3% → -20.5%）—— **不值得**
+  - dd15: MA10 reclaim 加 +0.15pp 年化，max DD 维持 0%，胜率维持 100% —— **几乎纯赚**
+  - MA20/MA50/Cross 在两个 dd 阈值都损害 alpha
+- Deep-dive 5 — Sleeve interaction（PM 担心 dd5 触发会影响 dd15 触发）:
+  - 验证：两个 sleeve 各自有独立 armed flag，不互相干涉
+  - 实证：5 个 dd15 历史事件全部对应一个 dd4 触发（同一个回撤事件）
+  - BP 重叠：109 / 4868 天（2.2%），最大重叠 63 天（2020 COVID）
+  - **设计选择 Option A**：保持独立 sleeve（不加 cross-sleeve no-overlap）
+- Deep-dive 6 — Live pricing tie-out (F4):
+  - 单日 Schwab live snapshot @ SPX 7400 / VIX 17.2: model debit $25.05 vs broker $27.35
+  - **delta 2.5%** << 15% 阈值，单日 PASS
+  - Caveat: 当前是 low-vol regime，Q042 实际触发在 HIGH_VOL；F4 deployment gate 仍要求 5-day median 验证（次周 collect）
+- 最终 SPEC-094 锁定配置:
+  - **Sleeve A (dd4 ddATH_lenient, no MA filter)**: 10% sizing, 1.3 trades/yr, 64% win, +5.11%/yr, -16.3% DD
+  - **Sleeve B (dd15 ddATH_lenient + MA10 reclaim)**: 10% sizing, 0.26 trades/yr, 100% win (5/5), +2.12%/yr, 0% DD
+  - **组合**: ~+7.2%/yr, max DD -16% 到 -20%
+  - **跨 sleeve 独立**：各自 armed state，BP 偶尔合计 20%（5/19y 事件）
+  - Symbol: XSP (NLV $111k-1.1M) / SPX (NLV ≥ $1.1M)
+  - Joint BP gate: `min(20%, max(0, 60% − main_bp%))`
+- Status: ✅ **SPEC-094 APPROVED → Developer 实施 queue**
+  - 23 acceptance criteria (AC1-AC23)
+  - F4 deployment gate 待 5-day live tie-out（next week M-F）
+  - Tier 4 / paper-trade plan: 6 months observation + 12 months size review
+- Confidence: high on ddATH methodology + dual sleeve 独立设计；medium on Sleeve B 100% win rate（n=5 sample CI 宽）
+
+---
+
+### R-20260509-14 — Q042 Tier 3: 6 reviewer adjustments executed, DRAFT SPEC-094 issued
+
+- Topic: 2nd Quant stage review (R-20260509-13) 给的 APPROVE WITH ADJUSTMENTS — 6 项 required changes 全部 accept；PM 选 D1=A（multi-metric DTE 选择，不只 $/BP-day）；Quant 实施 7 个 sub-phase A1-A7
+- Phase A1 — DTE path-tolerance multi-metric (`research/q042/a1_dte_path_tolerance.csv`):
+  - Reviewer 先验：DTE30 efficiency / DTE60 production / DTE90 robustness
+  - **Empirical 修正**: DTE90 实际是 production winner（不是 DTE60）
+    - dd12+reclaim DTE 30: 73% win, $3.52/$100BP/day, 51% trades hit short strike
+    - dd12+reclaim **DTE 90**: **80% win**, $0.97/$100BP/day, **73% hit short strike**, max consec losses 6
+    - dd12+reclaim DTE 120: 78% win, $0.67, 71% hit, 5 max consec
+  - Delayed-recovery rescue insight: of 11 DTE 30 losers, DTE 90 rescues only 5/11 (45%) — 当 DTE 30 输时，longer DTE 也常输（结构性失败而非纯 timing）
+- Phase A2 — Execution timing T+0/T+1/T+2 (`a2_execution_timing.csv`):
+  - 决定性证据 reviewer Q5/Q7 论点正确：
+  - DTE 30 T_close → T+1_close: median PnL **−19/$100BP (dd12+reclaim) / −28 (dd15 naive)**, win rate 76% (improved)
+  - DTE 90 T_close → T+1_close: median PnL **−5/$100BP / −8**, win rate 80% (unchanged)
+  - DTE 30 是 4-5× 比 DTE 90 对 1-day execution drift 更敏感
+  - **Recommendation: T+1 open execution + DTE 90 lock**
+- Phase A3 — Unfiltered sequence metrics (`a3_sequence_metrics.csv`):
+  - **dd15 naive 不带 spacing rule 是结构性 unviable**: 28-36 max consec losses, **−42% to −62% worst 12m windows**（全部 2008-2009 GFC clustering）
+  - dd12+reclaim 健康: 5-7 max consec, −2.4% to −4.1% worst 12m
+- Phase A3b — Filtered sequence metrics with no-overlap rule (`a3b_filtered_sequence.csv`):
+  - **意外结果**: dd15 naive + no-overlap rule 反而成为 co-equal lead candidate（不是只 benchmark）
+    - dd15 naive DTE 90 filtered: n=11, **win rate 82%**, max consec losses **2**, total +5.79% 19y, max DD -2%
+    - dd15 naive DTE 120 filtered: n=10, **win rate 90%**, max consec **1**, total +5.66%
+    - dd12+reclaim DTE 90 filtered: n=13, win 62%, max consec 3, total +1.93%
+  - 机制：dd15 first-trigger per cluster 落在 trough 附近 = 自然 "buy near bottom" 规则
+  - 但 sample n=10-11 → CI 宽，需要 paper-trade 确认
+- Phase A4 — Re-trigger spacing rule:
+  - dd12+reclaim raw 28/40 gaps < 30 days (GFC clustering)
+  - **Rule: max 1 active Q042 spread at any time = no-overlap rule = min spacing = DTE**
+  - DRAFT Spec 锁定此规则
+- Phase A5 — SPX vs XSP economics:
+  - SPX 1 contract debit ~$11,098 (1% spread cost), bid-ask 0.4-0.9% of debit
+  - XSP 1 contract debit ~$1,110, bid-ask 0.9-2.7% of debit
+  - 两者均 Section 1256 (60/40 tax), cash-settled European
+- Phase A6 — Account-scale activation:
+  - **NLV ≥ $111k → activate Q042 with XSP** (1% sizing)
+  - **NLV ≥ $1.1M → switch to SPX**
+  - **NLV < $111k → skip Q042**
+- Phase A7 — Tier 3 memo + DRAFT SPEC-094:
+  - `research/q042/q042_tier3_memo_2026-05-09.md` (full Tier 3 study)
+  - `task/SPEC-094.md` (DRAFT — 9 features F1-F9, 18 acceptance criteria AC1-AC18, F4 live pricing tie-out 是 deployment hard gate)
+- Status: ✅ **DRAFT SPEC-094 ready for PM review**
+  - All 6 reviewer adjustments incorporated
+  - Two surprises forced revision of Tier 2 winner: (1) DTE 90 over DTE 30 as production winner; (2) dd15 naive + no-overlap is co-equal lead, not just benchmark
+  - Both Trigger A (dd12+reclaim) and Trigger B (dd15 naive) supported in MVP; live paper trading determines primary
+  - 5% sleeve cap MVP (vs Tier 2 proposed 20%); upgrade to 10% after 2-quarter paper validation
+  - F4 deployment gate: 5-day broker-API midpoint vs model-debit tie-out, median delta < 15%
+
+---
+
+### R-20260509-13 — Q042 Tier 3 paused: 2nd Quant stage review packet handoff
+
+- Topic: PM 批 Tier 3 promotion 后，Quant 决定先做 stage review（before DRAFT Spec drafting）以确保 Tier 1+2 chain 方法论 + recommended winner config + 6 个 Tier 3 unknowns 完整性
+- Packet: `task/q042_tier1_tier2_2nd_quant_review_packet_2026-05-09.md`
+- Review request：Tier 1 → Tier 2 chain 方法论是否 sound、winner config 是否定到对的位置、6 unknowns 是否齐全、有没有结构性遗漏的 failure mode
+- 6 specific review questions:
+  - Q1 — dd12+MA50_reclaim (n=41) vs dd15 naive (n=192) winner 选择是否正确（trade-off：edge 高 vs sample 大）
+  - Q2 — `$/BP-day` metric 是否对 overlay sleeve 是对的目标函数（vs `$/trade` / risk-adjusted ROE / DTE 60 path tolerance）
+  - Q3 — ratio 1×2 BP proxy fragile（0.20×S×2 是 PM naked margin guess），是否结构性低估了 truncated-downside 候选
+  - Q4 — BP gate `min(20%, max(0, 60% − main_bp%))` 在 19y 0% fire rate；是否应更结构性保守（max 10% 而非 20%）以应对 Q021 V_D/V_J 未来 regime 变化
+  - Q5 — 6 个 Tier 3 unknowns 是否齐全（earnings/FOMC blackout / time-of-day / wash-sale / correlation / gap risk 是否需要补）
+  - Q6 — 隐藏 failure mode（是否有路径产生显著 < -100% premium 的损失）
+- §6.1 short-premium standard checks 标记为不适用（long premium 结构）；HIGH_VOL aggregate scale annotation 在 packet §5.2/5.3 已用 (research) 标注
+- 不期望 reviewer:
+  - 重开 Tier 1 verdict（PM 已 accept）
+  - 重设计 trigger 宇宙（P1 已 grid-scan 6 dd × 5 confirmation）
+  - 反对 BS-flat-VIX + skew haircut（PM scope D1 已批）
+- 状态: 等 2nd Quant 回复 → 根据结论决定是否调整 Tier 2 conclusion，再启动 Tier 3 / DRAFT Spec drafting
+
+---
+
+### R-20260509-12 — Q042 Tier 2: trigger grid + structure grid + 19y BP envelope simulation
+
+- Topic: PM-authorised Tier 2 promotion；scope confirmed (D1: BS-flat-VIX + skew haircut；D2: 3y trade log + 19y baseline backtest；D3: Tier 2 memo only)
+- Phase 1 — Trigger grid:
+  - 6 dd thresholds × 5 confirmation rules × 3 forward windows
+  - **Winner: dd60 ≥ 12% + close > MA50 reclaim within 30 trading days** — n=41, 12m positive 92.7%, 12m median **+42.7%**
+  - Runner-up: dd60 ≥ 15% naive — n=192, 12m positive **97.9%**, 12m median +29.8%
+  - OOS robust: dd12+ma50_reclaim 88% (2007-2018) / 96% (2019-2026)；dd15 naive 97% / 100%
+  - Dropped: MA200 reclaim (sample collapses)；term_normalize (unreliable)；dd5/dd8 (marginal vs unconditional)；dd20 (falling-knife 3m path)
+- Phase 2 — Structure grid (BS + linear skew haircut, term-structure multiplier):
+  - **Winner: ATM/+5% call spread DTE 30** with dd12+ma50_reclaim trigger — median **+$3.53 per $100 BP per day = ~7.3× V_A baseline ($0.485 per $100 BP-day)**, win rate 73.2%, worst -$100, n=41
+  - Short DTE (30) dominates due to BP-day denominator effect
+  - LEAP ATM (DTE 365): only $0.42/$100BP/day despite 90% win rate (denominator too large)
+  - LEAP Δ0.30: barely positive ($0.12)
+  - Ratio 1×2: lower $/BP-day but truncated downside (-$30 worst vs -$100); BP proxy fragile (live PM margin needed)
+  - Long ATM call: high variance, ~50% win rate path-dependent
+- Phase 3 — BP-stacking gate (19y baseline backtest, 282 trades, 4,868 daily BP rows):
+  - **Tier 1 Q3 concern was directionally wrong** — main strategy de-grosses in HIGH_VOL by design (BPS_HV / IC_HV), so the regime overlap ≠ BP collision
+  - Main BP envelope: mean **6.3%**, median 4.3%, max 53.2% (2007 GFC era)；2017-2026 era mean 1-4%
+  - At Q042 trigger dates: main_bp median **2.8%**, p75 3.5%, max 36.5%
+  - Default gate `min(20%, max(0, 60% − main_bp%))`: **fire rate 0%** across all 19 years on all 3 finalist triggers
+  - Hold-period combined peak BP (winner config 30-day hold): median 22.8%, p75 35.6%, max 67.2% — well within PM margin headroom
+  - Gate kept as governance backstop (regime-conditional on main-strategy parameters; if Q021 V_D/V_J ever promote, gate becomes load-bearing)
+- Recommended Tier 3 / DRAFT Spec params:
+  - Trigger: dd60 ≥ 12% + MA50 reclaim within 30 trading days
+  - Structure: ATM/+5% call spread DTE 30
+  - BP per entry: 1% account (start small)
+  - Q042 absolute cap: 20% account
+  - Joint gate: keep as backstop
+  - Exit MVP: held to expiry (Tier 4 to test 50% TP / 50% stop)
+  - Expected economics post tx-cost haircut: +$2.5-3.0 / $100 BP-day, ~+0.8-1.2% account / yr
+- Tier 3 unknowns must resolve before SPEC:
+  - Live SPX chain pricing (replaces BS+skew approximation)
+  - Ratio 1×2 PM margin reality check
+  - Re-trigger spacing rule (min N days between entries during long drawdown)
+  - Exit-rule MVP test on intraday data
+  - SPX vs XSP symbol selection
+  - Account-scale activation threshold
+- Risks / Counterarguments:
+  - tx-cost not modeled (estimate 1.6-4% per-trade drag); doesn't reverse winner ranking
+  - skew haircut linear approximation likely conservative in HIGH_VOL (real skew is steeper) → real $/BP-day potentially better than +$3.5
+  - sample n=41 over 19 years means medium statistical confidence (95% CI on 73% win rate ≈ ±10pp); validate post-spec OOS
+  - Q042 BP-stacking gate redundant in current era but is regime-conditional (main strategy parameter changes can flip this)
+- Confidence: high on Q1 (real edge, OOS-robust)；medium-high on Q2 ($/BP-day winner ranking, but absolute number subject to tx + IV-surface uncertainty)；high on Q3 (BP envelope is empirically tight)
+- Recommendation: ✅ **Promote to Tier 3 / DRAFT Spec**
+  - Output artifacts: `research/q042/q042_tier2_memo_2026-05-09.md` + 4 scripts + 7 CSVs (P1/P2/P3 + 19y baseline)
+  - Status: Tier 2 DONE → Q042 在 PM decision queue (Tier 3 promote / DRAFT Spec / hold)
+
+---
+
+### R-20260509-11 — Q042 Tier 1: directional drawdown overlay feasibility (3 questions)
+
+- Topic: PM-authorised Q042 Tier 1 — feasibility scan only，回答 (Q1) 回撤深度 vs forward return 关系、(Q2) LEAP / call spread 哪种结构在账户级 ROE 框架下更优、(Q3) 与主策略 regime 兼容性。**Not a Spec; no implementation work.**
+- Data scope: SPX & VIX daily 2007-01-03 → 2026-05-08 (Yahoo, n=4,868 days)
+- Script: `research/q042/q042_tier1_feasibility.py`；Memo: `research/q042/q042_tier1_memo_2026-05-09.md`
+- Findings (Q1 — drawdown vs forward return):
+  - dd60 ≥ 5%: 12-mo median +17.4% (n=1,153) — barely above unconditional +12.7%
+  - dd60 ≥ 10%: 12-mo median **+21.2%** (n=480), positive rate 81.7% — clear edge starts here
+  - dd60 ≥ 15%: 12-mo median **+29.8%** (n=192), positive rate **97.9%** — strongest edge
+  - dd60 ≥ 20%: 3-mo median **−7.2%** (n=88) "falling knife" but 12-mo +27.6% / 100% positive
+  - MA50 reclaim filter at dd10 lifts 3-mo win rate 69%→75%, 12-mo win rate 82%→93% but cuts sample 88% (480→56) — real but expensive
+- Findings (Q2 — option structure, BS pricing with VIX-as-σ, hold to expiry):
+  - LEAP ATM (DTE 365, K=S): median +32% on premium, $0.088/$100 BP/day → **18% of V_A baseline**
+  - LEAP Δ0.35 (DTE 365, K>S): median **−100% premium** (typically expires OTM), 19% win rate → **structurally negative**
+  - **Call spread** (ATM/+5%, DTE 90): median +$133.7/$100 BP, 64% win rate, $1.486/$100 BP/day → **3.1× V_A baseline ($4.85 / $1000 BP-day)**
+  - Mechanism: short-DTE shrinks BP-day denominator 4× and median forward 90d at dd10 (+5.2%) is exactly where ATM/+5% spreads expire near max
+- Findings (Q3 — regime overlap):
+  - At dd60 ≥ 10% trigger, **98.5% of entries are HIGH_VOL** (VIX>22) vs unconditional 27.9%
+  - At dd60 ≥ 15% / 20%: **100%** HIGH_VOL
+  - Q042 entries stack precisely when main strategy is in BPS_HV / IC_HV reduced posture
+  - Vega offset is real (Q042 long-premium vs main strategy short-premium) but BP capacity competes — must be gated, not assumed orthogonal
+- Conclusion: ✅ **Tier 1 PASS — promote to Tier 2**. 2/3 questions show clear positive edge (Q1 + Q2)；Q3 is a Tier 2 must-solve sizing problem, not an edge-killer.
+- Tier 2 scope (recommendation):
+  - Trigger calibration: dd10 vs dd15 vs dd15+reclaim grid，weighted by waiting cost
+  - Structure refinement: 30/60/90/120 DTE × ATM/+5%/+10%/Δ-target grid，加 ratio spread / risk reversal；用 IV-surface（含 skew 和 term structure）重新定价（VIX-as-σ 在 Tier 1 偏保守）
+  - **BP-stacking gate**（必修）: default 提议 cap = `min(20% account, max(0, 60% account − main_strategy_BP%))`
+  - OOS check: 2007-2018 vs 2019-2026 split（后者含 post-COVID 不同 vol regime）
+- Caveats:
+  - 无 transaction costs / slippage（SPX/SPXW 每腿 $0.20-0.50 spread；Tier 2 必haircut）
+  - VIX-as-σ 无 skew → ATM call 高估 / OTM 低估；spread 数字方向上保守
+  - dd20 sample n=88 confidence interval 宽
+  - V_A baseline 单位（$/BP-day）依赖 bp_days 是否 $1000-day 单位的解读；rank order LEAP_Δ35 < LEAP_ATM < spread 在所有合理单位假设下 robust
+- Confidence: high on Q1 & Q3 (实证大样本)；medium on Q2 (BS-flat-vol 简化定价)
+- Status: Tier 1 DONE → Q042 进入 PM decision queue（promote to Tier 2 / hold / drop）
+
+---
+
+### R-20260509-10 — Q029 Tier 1: engine 无 qty=1 hardcoding；reporting 缓解 4 处缺口；SPEC-072.1 patch 路径
+
+- Topic: PM-authorised Q029 Tier 1 — 量化 engine `qty=1` hardcoding 影响范围、评估 SPEC-072 双列 reporting 是否覆盖所有 PM 分析界面、判断是否需要 engine 重构
+- Findings (engine layer):
+  - **No qty=1 hardcoding bug**. `backtest/engine.py:208,217,247` 中的 `qty` 是 leg 结构性比例（spread 1:1, IC 1:1:1:1）。Position size 由 `_position_contracts()` 计算 = `account × bp_target × overlay / bp_per_contract`，输出 fractional contracts
+  - 3y trade log (`data/backtest_trades_3y_2026-04-29.csv`) 实测：HIGH_VOL 9 trades 平均 0.31 contracts、$10.5k total_bp、$879 avg PnL。Engine **已经在做 account-scaled fractional sizing**
+  - MC 2026-04-24 audit 表述 "engine 用 1 SPX 模拟" 是 reporting-layer 解读问题（unit-economic 单位是 fractional SPX vs live discrete 1 XSP），不是 engine 计算 bug
+- Findings (reporting coverage):
+  - SPEC-072 helpers 当前仅引入 4 个 template：`index.html`、`backtest.html`、`margin.html`、`spx.html`
+  - **未覆盖**：`matrix.html`（PM 跨 regime 比较主界面，cell stats avg_pnl 单列）；`portfolio_backtest.html`（结构性预防）；CSV 导出（`scripts/export_backtest_trade_detail.py` 输出无 scale 列）；manually-authored docs（`RESEARCH_LOG.md`、specs、handoffs 中 HV 数字无 governance 强制标注）
+  - 不适用：`q041*.html`、`es*.html`（不同 underlying，不涉及 SPX/XSP scale）；`performance.html`（live realized PnL，非 research）
+- Findings (impact magnitude):
+  - HIGH_VOL trade share: 3y 实测 15.8%（9/57），全部 IC_HV / BPS_HV
+  - HIGH_VOL PnL share: 3y 实测 $7,914 / 3y ≈ 3% 总 PnL
+  - 19y 估算: ~50-60 HV trades，~$50-80k engine-scale PnL，~3-5% 总 PnL
+  - **关键**：HV trades 在 grinding decline / aftermath 类研究中权重显著高于在均值年份（Q053 Tier 1 已实证 2022 Q4 HV 集中亏损 $26.8k），混用 research/live scale 解读时累积偏差最大
+- Conclusion: **Reporting mitigation insufficient (option 2 of 3)**. 不需要 engine 重构（option 3 错误前提）；不能直接关闭 Q029（option 1）；需要 SPEC-072.1 patch 补完 4 处覆盖
+- SPEC-072.1 path (Fast Path, ~1h work):
+  - F8 — `matrix.html` 引入 spec072_helpers + HV cell avg_pnl 双值
+  - F9 — `portfolio_backtest.html` 引入 spec072_helpers + HV row 双值
+  - F10 — CSV 导出加 `live_scale_factor` / `live_scaled_exit_pnl_usd` / `live_scaled_total_bp` 三列
+  - F11 — `QUANT_RESEARCHER.md` + `REVIEW_TEMPLATE.md §6.1.7` governance 条款
+- Risks / Counterarguments:
+  - F11 governance 条款强制力有限；依赖 2nd Quant review 时检查
+  - CSV 三列追加可能影响下游 schema parsing（mitigation: dict-style read + 列名追加到末尾）
+  - 2nd Quant 可能反对 "10x scale factor" 是否在所有 HV cells 都正确（特别是大账户下 fractional contracts 已经接近 0.5+ 的情况）；本 patch 沿用 SPEC-072 既定的 0.1×，不重开此讨论
+- Confidence: high on engine-no-bug 结论；high on coverage gap 实证；medium on impact magnitude 量级（19y 数字是 3y 实测外推估算）
+- Recommendation: ✅ DONE（2026-05-09）
+  - PM 同日 approved SPEC-072.1
+  - Quant 同日实施 F8-F11，smoke tests pass：
+    - F8 `matrix.html`：HV cell avg_pnl 双值（cell column dual-scale；strategy column 保持单值因为跨 regime aggregate）
+    - F9 `portfolio_backtest.html`：spec072_helpers 引入（structural prevention，无 HV-specific 渲染点）
+    - F10 `scripts/export_backtest_trade_detail.py`：CSV 加 `live_scale_factor` / `live_scaled_exit_pnl_usd` / `live_scaled_total_bp` 三列
+    - F11 `QUANT_RESEARCHER.md` 新增 "HIGH_VOL Aggregate Scale Convention" 章节 + `REVIEW_TEMPLATE.md §6.1` 新增 "HIGH_VOL aggregate scale annotation" 检查项
+  - Engine 不动；后续 spec / research 引用 HV 数字遵循新 governance（强制标注 research / live est）
+  - Q029 line CLOSED
+- Related: `Q029` (closed), `SPEC-072` (parent DONE), `SPEC-072.1` (DONE)、MC `5-dim parity audit`（`MC_Handoff_2026-04-24_v3.md`）
+- See: `task/SPEC-072.1.md`、`task/SPEC-072.md`、`backtest/engine.py:208-227`、`web/static/spec072_helpers.js`、`web/templates/matrix.html`、`web/templates/portfolio_backtest.html`、`scripts/export_backtest_trade_detail.py`、`QUANT_RESEARCHER.md` "HIGH_VOL Aggregate Scale Convention"、`REVIEW_TEMPLATE.md §6.1`
+
+---
+
+### R-20260509-09 — Q019 Tier 2.5/2.6/2.7 + θ recovery sweep + SPEC-091 deployed (sidecar form, monitoring active)
+
+- Topic: Q019 final closure. Continued from R-20260509-08 (Tier 1+2 + 2nd Quant APPROVE). Ran Tier 2.5 mixed-mode, Tier 2.6 real-hourly worst-year window, and Tier 2.7 full-history OHLC-midpoint proxy. Investigated three external data paths (Twelve Data direct VIX, Twelve Data VIXY proxy, Polygon paid) to extend Tier 2.6 backwards to 2018-2023. All external paths rejected on cost or coverage grounds. PM accepted Tier 2.7 proxy as terminal evidence.
+- Findings (Tier 2.5 mixed-mode, 19.3y, current-VIX = open while history stays close-based):
+  - **AnnROE 7.92% → 7.29% (-0.63pp)** — falls in MARGINAL bucket (0.5pp ≤ |ΔAnnROE| < 1.0pp)
+  - About 46% of Tier 2 upper bound (-1.37pp) is attributable to current-VIX threshold straddle; remaining 54% comes from rolling-stat substitution (5d MA / IV history / peak_10d) that real live system does NOT do
+  - Confirms Tier 2 was a genuine UPPER BOUND, not a tight estimate
+- Findings (Tier 2.6 real-hourly worst-year window 2024-05 → 2026-05, Yahoo 730-day cap):
+  - 4 modes tested: close, open, eleven (11:00 ET reading), stable (|VIX_h − VIX_{h-1}| < 0.5)
+  - **stable rule recovers 67.4% of open's drag** within the 2-year window
+  - Per-year: 2024 stable -$9k vs open -$83k; 2025 stable break-even vs open negative
+  - Validates the directional hypothesis: a settling-rule that defers regime evaluation until the intraday VIX print stabilises substantially reduces threshold-flip noise
+- Findings (Tier 2.7 OHLC-midpoint stable proxy, full 19y):
+  - Proxy: synthetic stable_VIX = (Open + Close) / 2 per day (no minute data needed)
+  - **Full 19y ΔAnnROE -0.16pp** (vs open -1.37pp upper bound, vs mixed-mode -0.63pp)
+  - **Cumulative recovery 72.8%** of open drag (proxy lands close to close-baseline)
+  - Worst-5-year median recovery **~62%**: 2018 recovery 57.9%, 2019 recovery 79.1%, 2021 partial
+  - Caveat: midpoint is a static proxy, not a true intraday path. It overstates calmness on days where the open-to-close path is monotone and understates it on V-shaped days. But on 19y aggregate the bias is roughly self-cancelling.
+- Findings (external data path investigation):
+  - **Twelve Data direct VIX index**: NOT supported. `/indices` endpoint catalog of 1,297 indices includes only INDIA VIX; CBOE VIX has zero coverage on any naming variant (`VIX`, `VIX:CBOE`, `.VIX`, `$VIX`, `VIX:INDEX`, `VIX:INDX`, `USVIX`, `VIX_INDEX`, `CBOE:VIX:INDX`). All return 404 "invalid symbol". Path closed.
+  - **Twelve Data VIXY (ETF proxy)**: hourly history starts ~2020-05/06. Misses 2018, 2019, COVID H1 2020 — exactly the worst years we needed. Path closed.
+  - **Polygon Indices Developer single-month**: $79 covers 10y of hourly VIX with CBOE-official source. Cleanest real-data path. PM declined on cost-benefit grounds given Tier 2.7 already provides decision-grade evidence.
+- Verdict (PM 2026-05-09): **Path E selected — implement stable rule on live**.
+  - Initial Path A framing (no change) was based on conflating Tier 2.7 proxy ΔAnnROE -0.16pp with current-state expected drag. Corrected on PM follow-up:
+    - Current-state (live=open) expected drag: -0.6pp to -0.2pp AnnROE
+    - Path E expected drag (live=stable rule): -0.2pp to -0.07pp AnnROE
+    - Expected recovery from Path E: ~0.4pp AnnROE / ~$2,000/year on $500k NLV
+  - Tier 2.6 real hourly 67.4% recovery + Tier 2.7 proxy 72.8% cumulative recovery + 62% worst-5y median recovery → consistent directional evidence stable rule materially closes the gap
+  - PM accepted operational tradeoff: live recommendation may delay 30-90 minutes after market open (until VIX intraday stabilises)
+- Path E SPEC drafting + θ calibration (Quant follow-on, same day):
+  - **F2 30m attempt**: `research/q019/spec091_threshold_scan_30m.py` ran θ ∈ {0.25, 0.30, 0.35} over 60 days (Yahoo 30m hard cap). Results favoured θ=0.35 on operational stats (10% timeout, 34% oscillation), but single calm regime + 60-day sample insufficient
+  - **F2 1h fallback**: switched to 1h bar (Yahoo 730d cap) → exposed `SETTLING_TIMEOUT_MIN = 90` is invalid for 1h interval (first stable bar fires at 120m due to Yahoo bar timestamp structure)
+  - **F2 1h recovery sweep**: `research/q019/spec091_recovery_sweep.py` ran full engine across θ ∈ {0.4, 0.5, 0.6, 0.7, 0.8} on 2y window. Results:
+    - θ=0.40 → 43.9% recovery (too tight, falls back to early-bar reading on too many days)
+    - **θ=0.50 → 67.4% recovery (optimum)**
+    - θ=0.60 → 65.0%
+    - θ=0.70 → 65.6%
+    - θ=0.80 → 66.9%
+  - **SPEC-091 final locked params** (PM approved 2026-05-09):
+    ```
+    SETTLING_INTERVAL    = "1h"
+    SETTLING_THRESHOLD   = 0.5
+    SETTLING_TIMEOUT_MIN = 180
+    SETTLING_DATA_SOURCE = "yfinance:^VIX"
+    ```
+- SPEC-091 deployment (Developer, 2026-05-09):
+  - Deployed to old Air at commit `1463c5b`
+  - **Sidecar form**: Signal 2 runs independently of Signal 1; Signal 1 (09:35 push) unchanged; new Signal 2 panel + `/api/recommendation/settling` API; launchd `com.spxstrat.signal_settling` 09:30 ET
+  - AC1-AC10 all PASS; manual non-trading-day kickstart returned `status=skipped` correctly
+  - Files: `production/vix_settling.py`, `web/server.py`, `web/templates/portfolio_home.html`, `tests/test_spec_091.py`, `task/SPEC-091.md`, `task/SPEC-091_handoff.md`
+- Quant monitoring baseline (Q019 closure gates):
+  - Trigger 1 — Stable 触发率 ≥ 70% (research predicted 80%; 20pp OOS buffer)
+  - Trigger 2 — Timeout 率 ≤ 20% (research predicted 12%)
+  - Trigger 3 — Recovery rate Signal 2 vs Signal 1 selector output: 50-85%
+  - Trigger 4 — Oscillation (stable 后 1h 又 ≥1.0): ≤ 30%
+  - Beyond any threshold → Quant evaluates θ or timeout adjustment
+- Risks / Counterarguments:
+  - Tier 2.6 real hourly evidence is only 2 years (2024-2026). 2018-style extreme regimes are not directly tested with real intraday data.
+  - Path E in extreme regimes (e.g. 2018-02-05 Volmageddon) may never stabilise within reasonable timeout — fallback behaviour must be carefully designed.
+  - OHLC midpoint Tier 2.7 proxy is static; real-time stable rule may differ in V-shaped intraday days. Bias roughly self-cancels on 19y aggregate but per-event behaviour can deviate.
+  - Path E adds operational complexity: live recommendation delay, hourly VIX dependency, fallback for data outage.
+  - Net expected benefit ~$2,000/year on $500k NLV is modest; SPEC + paper-trading + 2nd Quant review effort must remain proportionate.
+  - VIXY-proxy reconstruction was ruled out due to data depth (Twelve Data ≥ 2020-05 only) AND because VIXY is futures-based, introducing contango basis distortion exactly during stress periods we wanted to validate.
+- Confidence: high on bracketing (Tier 2 upper bound + Tier 2.5 mixed-mode); medium on Path E expected recovery rate (Tier 2.6 limited to 2-year sample; Tier 2.7 is a static proxy).
+- Next Tests / Actions:
+  - **Quant retrospective at 1 month (2026-06-09)**: parse `data/q019_settling_log.jsonl`, compute stable/timeout rates, compare Signal 2 vs Signal 1 selector flips
+  - **Quant retrospective at 3 months (2026-08-09)**: full recovery rate measurement (Signal 2 vs Signal 1 PnL attribution)
+  - **Quant retrospective at 6 months (2026-11-09)**: closure decision — if recovery in 50-85% band and ops thresholds clean, propose merging Signal 1 → Signal 2 output
+- Recommendation:
+  - Path E deployed in sidecar form, monitoring active.
+  - Q019 line stays open until 6-month retrospective confirms recovery within band.
+  - During 6-month observation window, Signal 1 remains the binding decision; Signal 2 is shadow.
+- Related: `Q019`, `R-20260509-08` (Tier 1+2 + 2nd Quant APPROVE), MC's prior 9.71% reference in `sync/open_questions.md`
+- See: `research/q019/tier2_5_mixed_mode.py`, `research/q019/tier2_6_hourly_live_simulation.py`, `research/q019/tier2_7_stable_proxy_extended.py`, `research/q019/spec091_threshold_scan_30m.py`, `research/q019/spec091_threshold_scan_1h.py`, `research/q019/spec091_recovery_sweep.py`, `task/q019_close_vs_open_2nd_quant_review_packet_2026-05-09.md`, `task/q019_path_e_pre_spec_2026-05-09.md`, `task/SPEC-091.md`, `task/SPEC-091_handoff.md`, `production/vix_settling.py`, `logs/q019_settling_state.json`, `data/q019_settling_log.jsonl`
+
+---
 
 ### R-20260509-08 — Q019 Tier 1 + Tier 2 done; 2nd Quant APPROVE; Tier 2.5 mixed-mode is next gate
 

@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SPX Strategy · Signal Matrix</title>
+<script src="{{ url_for('static', filename='spec072_helpers.js') }}"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
@@ -616,20 +617,32 @@ function buildMatrix(regime) {
       const avgClass = pnl => pnl >= 0 ? 'pnl-pos' : 'pnl-neg';
       const statsLoaded = Object.keys(_cellStats).length > 0;
       const showStats = statsLoaded && strat !== 'reduce_wait';
-      const stat = s => s
-        ? `<span class="cell-stat-wr ${wrClass(s.win_rate)}">WR ${s.win_rate}%</span><span class="cell-stat-pnl ${avgClass(s.avg_pnl || 0)}">avg ${s.avg_pnl >= 0 ? '$+' : '$-'}${Math.abs(s.avg_pnl || 0)}</span><span class="cell-stat-n">n=${s.n}</span>`
-        : '<span class="cell-stat-na">NA</span>';
+      // SPEC-072.1 F8: dual-scale avg_pnl for HIGH_VOL cells (per-cell stats are regime-specific)
+      const isHV = (regime === 'HIGH_VOL');
+      const fmtAvg = pnl => `${pnl >= 0 ? '$+' : '$-'}${Math.abs(pnl)}`;
+      const statBase = (s, dualScale) => {
+        if (!s) return '<span class="cell-stat-na">NA</span>';
+        const avgPnl = s.avg_pnl || 0;
+        const avgHtml = dualScale && isHV && typeof liveScaleFactor === 'function'
+          ? `<span class="cell-stat-pnl ${avgClass(avgPnl)}">avg ${fmtAvg(avgPnl)} <span class="dual-est" style="opacity:.7;font-size:.85em">+ ${fmtAvg(Math.round(avgPnl * liveScaleFactor('HIGH_VOL') * 100) / 100)} est</span></span>`
+          : `<span class="cell-stat-pnl ${avgClass(avgPnl)}">avg ${fmtAvg(avgPnl)}</span>`;
+        return `<span class="cell-stat-wr ${wrClass(s.win_rate)}">WR ${s.win_rate}%</span>${avgHtml}<span class="cell-stat-n">n=${s.n}</span>`;
+      };
+      // Strategy column: aggregate across all regimes — NO dual-scaling (would be misleading)
+      const statStrat = s => statBase(s, false);
+      // Cell column: regime-specific — dual-scale when HV
+      const statCell = s => statBase(s, true);
       const stratCol = showStats ? `
         <div class="cell-stat-col">
-          <div class="cell-stat-row"><span class="cell-stat-label">3Y</span>${stat(s3)}</div>
-          <div class="cell-stat-row"><span class="cell-stat-label">10Y</span>${stat(s10)}</div>
-          <div class="cell-stat-row"><span class="cell-stat-label">All</span>${stat(sAll)}</div>
+          <div class="cell-stat-row"><span class="cell-stat-label">3Y</span>${statStrat(s3)}</div>
+          <div class="cell-stat-row"><span class="cell-stat-label">10Y</span>${statStrat(s10)}</div>
+          <div class="cell-stat-row"><span class="cell-stat-label">All</span>${statStrat(sAll)}</div>
         </div>` : '';
       const cellCol = showStats ? `
         <div class="cell-stat-col cell-stat-col-right">
-          <div class="cell-stat-row"><span class="cell-stat-label">3Y⊙</span>${stat(c3)}</div>
-          <div class="cell-stat-row"><span class="cell-stat-label">10Y⊙</span>${stat(c10)}</div>
-          <div class="cell-stat-row"><span class="cell-stat-label">All⊙</span>${stat(cAll)}</div>
+          <div class="cell-stat-row"><span class="cell-stat-label">3Y⊙</span>${statCell(c3)}</div>
+          <div class="cell-stat-row"><span class="cell-stat-label">10Y⊙</span>${statCell(c10)}</div>
+          <div class="cell-stat-row"><span class="cell-stat-label">All⊙</span>${statCell(cAll)}</div>
         </div>` : '';
       const statHtml = (stratCol || cellCol) ? `<div class="cell-stats">${stratCol}${cellCol}</div>` : '';
       const guardrailTag = (isCurrent && currentStrategy && currentStrategy !== strat)
