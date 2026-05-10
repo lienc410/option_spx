@@ -122,12 +122,20 @@ def refresh_access_token(token: dict | None = None) -> dict:
         "refresh_token": token["refresh_token"],
         "redirect_uri": redirect_uri(),
     })
+    new_refresh = data.get("refresh_token")
     merged = {
         **token,
         "access_token": data["access_token"],
-        "refresh_token": data.get("refresh_token", token["refresh_token"]),
+        "refresh_token": new_refresh or token["refresh_token"],
         "expires_at": (now + timedelta(seconds=int(data.get("expires_in", 1800)))).isoformat(),
-        "refresh_expires_at": token.get("refresh_expires_at") or (now + timedelta(days=7)).isoformat(),
+        # If Schwab issued a new refresh_token, reset the 7-day expiry window.
+        # Without this, the local expiry clock keeps ticking from the original
+        # OAuth grant date even though the rotating refresh_token is still valid.
+        "refresh_expires_at": (
+            (now + timedelta(days=7)).isoformat()
+            if new_refresh and new_refresh != token.get("refresh_token")
+            else token.get("refresh_expires_at") or (now + timedelta(days=7)).isoformat()
+        ),
     }
     save_token(merged)
     return merged
