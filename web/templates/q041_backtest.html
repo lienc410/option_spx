@@ -240,8 +240,8 @@ function buildMetricCards(s, canonicalSummary) {
   const winAvg = m.avgWin  != null ? '+$'+Math.round(m.avgWin).toLocaleString()  : '—';
   const lossAvg= m.avgLoss != null ? '-$'+Math.round(Math.abs(m.avgLoss)).toLocaleString() : '—';
   const annSub = canonicalAnnRoe != null
-    ? 'Geometric from equity curve'
-    : 'Fallback estimate';
+    ? 'Based on $500k account'
+    : 'Based on $500k account (est.)';
 
   return `<div class="metric-grid">
     <div class="metric-card">
@@ -270,8 +270,8 @@ function buildMetricCards(s, canonicalSummary) {
       <div class="metric-sub">net realized</div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">Ann. ROE</div>
-      <div class="metric-value ${annSource!=null&&annSource>=20?'up':annSource>=10?'warn':'down'}">${annStr}</div>
+      <div class="metric-label">Ann. ROE (acct.)</div>
+      <div class="metric-value ${annSource!=null&&annSource>=3?'up':annSource>=1?'warn':'down'}">${annStr}</div>
       <div class="metric-sub">${annSub}</div>
     </div>
     <div class="metric-card">

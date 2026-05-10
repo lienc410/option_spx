@@ -468,7 +468,7 @@ async function loadMetrics() {
       const data = row.data || {};
       const titleColor = row.key === 'SPX' ? '#9AA3BB' : (row.key === 'TIER2' ? '#4888E8' : '#8088A6');
       const wrCls = (data.win_rate_pct ?? 0) >= 80 ? 'up' : 'warn';
-      const annCls = (data.ann_roe_pct ?? 0) > 15 ? 'up' : ((data.ann_roe_pct ?? 0) > 0 ? 'warn' : 'dim');
+      const annCls = (data.ann_roe_pct ?? 0) > 3 ? 'up' : ((data.ann_roe_pct ?? 0) > 0 ? 'warn' : 'dim');
       const shockLine = row.key === 'SPX'
         ? `<div class="metric-row"><span class="mrow-lbl">VIX +40 shock</span>${metricCell(`${fmtD(row.shock?.mark_loss)} · ${fmtPct(row.shock?.pct_nlv)} · BP ${fmtPct(row.shock?.stress_bp_pct)}`, 'down')}</div>`
         : row.key === 'TIER2'
@@ -480,7 +480,7 @@ async function loadMetrics() {
           <span class="tier-badge ${row.key==='SPX'?'badge-t3':row.key==='TIER2'?'badge-t2':'badge-t3'}">${row.tier}</span>
         </div>
         <div class="metric-rows">
-          <div class="metric-row"><span class="mrow-lbl">Ann ROE</span>${metricCell(data.ann_roe_pct != null ? fmtPct(data.ann_roe_pct) : '—', annCls)}</div>
+          <div class="metric-row"><span class="mrow-lbl">Ann ROE (acct.)</span>${metricCell(data.ann_roe_pct != null ? fmtPct(data.ann_roe_pct) : '—', annCls)}</div>
           <div class="metric-row"><span class="mrow-lbl">Sharpe</span>${metricCell(data.sharpe != null ? data.sharpe.toFixed(2) : '—', data.sharpe > 1 ? 'up' : row.cls)}</div>
           <div class="metric-row"><span class="mrow-lbl">Win Rate</span>${metricCell(data.win_rate_pct != null ? fmtPct(data.win_rate_pct) : '—', wrCls)}</div>
           <div class="metric-row"><span class="mrow-lbl">Avg P&L / BP-day</span>${metricCell(fmtBpDay(data.avg_pnl_per_bp_day), data.avg_pnl_per_bp_day > 0 ? 'up' : row.cls)}</div>

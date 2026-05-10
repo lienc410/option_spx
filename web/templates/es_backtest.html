@@ -585,9 +585,9 @@ function renderMetrics(s, label, color) {
         <div class="metric-sub">SPX-equiv $</div>
       </div>
       <div class="metric-card">
-        <div class="metric-label">Ann. ROE</div>
+        <div class="metric-label">Ann. ROE (acct.)</div>
         <div class="metric-value ${annNum != null ? (annNum>=3?'up':annNum>=1?'warn':'down') : ''}">${ann}</div>
-        <div class="metric-sub">CAGR on NLV</div>
+        <div class="metric-sub">Based on $500k account</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Sharpe</div>
@@ -639,14 +639,14 @@ function renderV2fPanel(v0Summary, v2fPayload) {
   const metrics = v2fPayload?.metrics || null;
   const caveats = Array.isArray(v2fPayload?.caveats) ? v2fPayload.caveats : [];
   const v0Rows = [
-    ['Ann. ROE', typeof v0Summary?.ann_return_pct === 'number' ? (v0Summary.ann_return_pct * 100).toFixed(2) + '%' : '—'],
+    ['Ann. ROE (acct.)', typeof v0Summary?.ann_return_pct === 'number' ? (v0Summary.ann_return_pct * 100).toFixed(2) + '%' : '—'],
     ['Sharpe', typeof v0Summary?.sharpe === 'number' ? v0Summary.sharpe.toFixed(2) : '—'],
     ['Win Rate', typeof v0Summary?.win_rate_pct === 'number' ? v0Summary.win_rate_pct.toFixed(1) + '%' : '—'],
     ['Max Drawdown', typeof v0Summary?.max_drawdown_pct === 'number' ? v0Summary.max_drawdown_pct.toFixed(2) + '%' : '—'],
     ['Bootstrap', '—'],
   ];
   const v2fRows = [
-    ['Ann. ROE', fmtPctFrac(metrics?.ann_roe_geometric, 2)],
+    ['Ann. ROE (acct.)', fmtPctFrac(metrics?.ann_roe_geometric, 2)],
     ['Sharpe', typeof metrics?.sharpe === 'number' ? metrics.sharpe.toFixed(2) : '—'],
     ['Win Rate', fmtPctFrac(metrics?.win_rate, 1)],
     ['Worst Trade % NLV', fmtPctFrac(metrics?.worst_trade_pct_nlv, 2)],
@@ -659,7 +659,7 @@ function renderV2fPanel(v0Summary, v2fPayload) {
   const body = metrics
     ? `
       <div class="metric-grid">
-        <div class="metric-card"><div class="metric-label">Ann. ROE</div><div class="metric-value ${metrics.ann_roe_geometric > 0 ? 'up' : 'down'}">${fmtPctFrac(metrics.ann_roe_geometric, 2)}</div><div class="metric-sub">Geometric</div></div>
+        <div class="metric-card"><div class="metric-label">Ann. ROE (acct.)</div><div class="metric-value ${metrics.ann_roe_geometric > 0 ? 'up' : 'down'}">${fmtPctFrac(metrics.ann_roe_geometric, 2)}</div><div class="metric-sub">Based on $500k account</div></div>
         <div class="metric-card"><div class="metric-label">Sharpe</div><div class="metric-value">${typeof metrics.sharpe === 'number' ? metrics.sharpe.toFixed(2) : '—'}</div></div>
         <div class="metric-card"><div class="metric-label">Win Rate</div><div class="metric-value">${fmtPctFrac(metrics.win_rate, 1)}</div></div>
         <div class="metric-card"><div class="metric-label">Worst Trade % NLV</div><div class="metric-value ${metrics.worst_trade_pct_nlv >= -0.15 ? 'warn' : 'down'}">${fmtPctFrac(metrics.worst_trade_pct_nlv, 2)}</div></div>

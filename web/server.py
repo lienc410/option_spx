@@ -555,6 +555,11 @@ def api_portfolio_bp_timeline():
 _ES_BT_CACHE: dict = {}
 _Q041_BT_CACHE: dict = {}
 
+# ROE denominator constants (SPEC-096)
+# Research layer uses $50k per-sleeve equity; display layer scales to $500k account level.
+_Q041_ACCOUNT_EQUITY = 500_000.0   # account-level denominator (same as /ES)
+_Q041_SLEEVE_EQUITY  =  50_000.0   # per-sleeve BP deployed (research layer starting equity)
+
 _ES_DISK_CACHE_PATH = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "data", "es_backtest_cache.json")
 )
@@ -744,7 +749,10 @@ def _q041_backtest_summaries(backtest_payload: dict, attribution_data: dict | No
             except Exception:
                 years = None
             if years and init_equity > 0:
-                ann_roe = ((end_equity / init_equity) ** (1.0 / years) - 1.0) * 100.0
+                sleeve_ann_roe = ((end_equity / init_equity) ** (1.0 / years) - 1.0) * 100.0
+                # Scale sleeve-level ROE to account level (SPEC-096 F1):
+                # sleeve basis = $50k; account basis = $500k → ÷ 10
+                ann_roe = sleeve_ann_roe * (_Q041_SLEEVE_EQUITY / _Q041_ACCOUNT_EQUITY)
             returns: list[float] = []
             for prev, cur in zip(equity_curve[:-1], equity_curve[1:]):
                 prev_eq = _num(prev.get("equity"))
