@@ -144,7 +144,9 @@ def _fetch_nlv() -> float:
     try:
         from schwab.client import get_account_balances
         bal = get_account_balances()
-        return float(bal.get("net_liquidation_value", 0.0))
+        # key is "net_liquidation" (Schwab API), not "net_liquidation_value"
+        nlv = bal.get("net_liquidation") or bal.get("net_liquidation_value")
+        return float(nlv) if nlv is not None else 0.0
     except Exception:
         return 0.0
 
