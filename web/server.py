@@ -355,35 +355,6 @@ def api_aftermath_state():
         }), 200
 
 
-@app.route("/api/svix/history")
-def api_svix_history():
-    """Settled VIX signal history — reads data/q019_settling_log.jsonl."""
-    import json as _json
-    from production.vix_settling import LOG_FILE
-    try:
-        limit = max(1, min(int(flask_req.args.get("limit", 30)), 365))
-    except Exception:
-        limit = 30
-    if not LOG_FILE.exists():
-        return jsonify({"history": [], "count": 0, "note": "no_log_file"})
-    try:
-        entries: list[dict] = []
-        with LOG_FILE.open(encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    entries.append(_json.loads(line))
-                except _json.JSONDecodeError:
-                    continue
-        recent = entries[-limit:] if entries else []
-        recent.reverse()  # newest first
-        return jsonify({"history": recent, "count": len(recent), "total": len(entries)})
-    except Exception as exc:
-        return jsonify({"history": [], "count": 0, "error": str(exc)}), 200
-
-
 @app.route("/api/q019/flip-days")
 def api_q019_flip_days():
     return jsonify(_load_q019_flip_days())

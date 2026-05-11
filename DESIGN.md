@@ -224,17 +224,29 @@ CSS class names: `.discipline-section` / `.discipline-card` / `.discipline-row` 
 - **Grid:** Single column, centered, 880px max-width, 24px side padding
 - **Nav:** Sticky top, 50px height, blur backdrop, `--border` bottom edge
 - **Multi-page structure:**
-  - `/` — Portfolio Command Center (Today's Actions + Portfolio Snapshot + account positions)
-  - `/spx` — SPX strategy detail (current recommendation + backtest)
-  - `/es` — /ES short put detail (signal cards + credit stop bar) [RESEARCH]
-  - `/q042` — Drawdown Overlay dashboard + backtest (display name: "Drawdown Overlay"; route kept as `/q042` for stability) [PAPER]
-  - `/svix` — Settled VIX dashboard + signal history [OBSERVATION]
-  - `/q041` — Q041 strategy matrix (T2/T3 research iteration only)
-  - `/q041/archive` — Q041 T1 retired strategy archive [RETIRED]
-  - `/backtest` — SPX strategy backtest (on-demand)
-  - `/portfolio-backtest` — joint J0 vs J3 BP simulation (873-day chart)
-  - `/performance` — live trade performance
-  - `/margin` — margin estimator + Schwab live BP
+  - **Home**
+    - `/` — Portfolio Command Center (Today's Actions + Portfolio Snapshot + account positions)
+  - **SPX family** [LIVE — share `Strategy | Backtest | Matrix` page-tabs]
+    - `/spx` — SPX strategy detail (current recommendation + Signal 2 embedded panel)
+    - `/backtest` — SPX strategy backtest (on-demand)
+    - `/matrix` — SPX strategy matrix (regime × IV × trend decision table)
+  - **/ES family** [RESEARCH — share `Strategy | Backtest` page-tabs]
+    - `/es` — /ES short put strategy detail (signal cards + credit stop bar)
+    - `/es-backtest` — /ES backtest
+  - **Addon: Drawdown Overlay** [PAPER — share `Dashboard | Backtest` page-tabs]
+    - `/q042` — Drawdown Overlay dashboard (display name "Drawdown Overlay"; route stays `/q042` for stability)
+    - `/q042/backtest` — Drawdown Overlay backtest
+  - **Addon: Aftermath** [OBSERVATION — share `Dashboard | Backtest` page-tabs]
+    - `/aftermath` — Aftermath window dashboard
+    - `/aftermath/backtest` — Aftermath backtest
+  - **Research: Q041** [Active iteration; T1 retired]
+    - `/q041` — Q041 strategy matrix (T2/T3 research iteration only)
+    - `/q041/backtest` — Q041 backtest (per-sleeve)
+    - `/q041/archive` — Q041 T1 retired strategy archive [RETIRED]
+  - **Account / cross-strategy**
+    - `/portfolio-backtest` — joint J0 vs J3 BP simulation (873-day chart)
+    - `/performance` — live trade performance
+    - `/margin` — margin estimator + Schwab live BP
 - **Border radius:** sm: 5px (buttons, badges), md: 9px (cards), lg: 12px (large panels), pill: 9999px (dots, status indicators)
 - **Card spacing:** 12px margin-bottom between cards, 16px internal padding (strip), 20px internal padding (full card)
 
@@ -278,3 +290,7 @@ Display name `Drawdown Overlay` replaces the old `Q042` label; route stays `/q04
 | 2026-05-10 | Tier badges separate from action state badges | Action states change daily; lifecycle tier (LIVE/RESEARCH/PAPER/OBSERVATION/RETIRED) is stable. Two layers of meaning need two badge slots |
 | 2026-05-10 | PAPER uses muted `badge-obs` not orange | Orange = WARNING in action state vocab; reusing it for paper-trade tier would create reading collision (Q042 card always looking like a warning) |
 | 2026-05-10 | Q042 display name → "Drawdown Overlay", route unchanged | Strategy name conveys what it does; route stability avoids breaking bookmarks and reduces refactor scope |
+| 2026-05-10 | Aftermath promoted to top-level addon (Phase 7); Settled VIX returned to SPX 2nd-signal panel | Spec re-check: Aftermath is the VIX-peak-falls trade (broken-wing V3-A trigger); Settled VIX is SPX morning 2nd-look. Earlier Phase 4 elevation of Settled VIX was based on a misread |
+| 2026-05-10 | Backtest Page Template formalized in DESIGN.md (Phase 6) | Cross-strategy comparability requires identical structure: metric cards + SPX overlay + Trading Discipline. Was implicit; making it explicit avoids future drift |
+| 2026-05-10 | Language rule clarified with domain-jargon exemption (Phase 6 audit) | Strict per-element-one-language flagged false positives on Chinese prose with embedded tickers/Greek/margin terms. Banned only sentence-level prose switches |
+| 2026-05-10 | All SPX/ES family pages migrated to `.page-tab` class | Two parallel systems (`.strat-tab` inline-styled vs `.page-tab` CSS class) existed across the site; normalized to the cleaner class-based approach. matrix.html got a tab strip for the first time |
