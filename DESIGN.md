@@ -23,6 +23,24 @@
 
 **Rule:** Every number on screen must use `--f-mono`. Label that says "VIX" uses `--f-ui`. Value "18.4" uses `--f-mono`. Recommendation sentence uses `--f-display`.
 
+## Language Rules
+
+Single-user internal tool with bilingual author. Mixed Chinese/English is intentional but must follow strict positional rules to avoid the "pasted-together" feeling.
+
+| Position | Language | Examples |
+|---|---|---|
+| Navigation, tabs, buttons | English | `Today's Actions`, `Refresh`, `Save` |
+| Badges (state + tier) | English | `LIVE`, `PAPER`, `WARNING`, `RETIRED` |
+| Chart axes, metric names, table headers | English | `ddATH%`, `Win Rate`, `BP Usage` |
+| Numeric values (always mono) | N/A | `21.3%`, `$600,804` |
+| Strategy descriptions, rationale notes | Chinese | 「基于 Schwab NLV 计算」 |
+| Error/status messages | Chinese | 「账户数据不可用」 |
+| Research narratives, strategy spec cards | Chinese | 策略细节卡 |
+
+**DOM-level rule:** A single HTML element (`<span>`, `<div>`, `<label>`) contains exactly one language. Numeric values appended to either language are exempt (e.g., `Total Margin 21.3%` and `总仓位 21.3%` are both valid). A single sentence must not switch languages mid-clause.
+
+**Badge text is always English**, even inside an otherwise Chinese-language card. Badges are semantic tokens, not prose.
+
 **Scale (base 14px):**
 - 2xs: 0.60rem (8.4px) — micro labels, badge text
 - xs:  0.68rem (9.5px) — mono data values, secondary labels
@@ -76,26 +94,47 @@ Used in the Portfolio Command Center "Today's Actions" zone and per-strategy car
 
 Action state badges use `--f-ui` 0.60rem, 500 weight, uppercase, letter-spacing 0.10em.
 
+## Strategy Tier Badge Vocabulary
+
+Distinct from Action State Vocabulary. Action states change daily (HOLD → CLOSE → WAIT). Tier badges describe the **lifecycle stage** of a strategy and rarely change. Both can appear on the same card (action state in header right, tier badge inline next to strategy name).
+
+| Tier | CSS class | Visual | Meaning |
+|---|---|---|---|
+| LIVE | `badge-review` | Gold | Production strategy, real-money execution (currently only SPX) |
+| RESEARCH | `badge-hold` | Blue | Active research / monitoring, no live trading (ES) |
+| PAPER | `badge-obs` | Muted gray, uppercase small | Paper-trade tracking, decisions logged but not executed (Q042 Drawdown Overlay) |
+| OBSERVATION | `badge-readonly` | Gray | Signal display only, no positions (Settled VIX) |
+| RETIRED | `badge-unavail` | Gray italic | Archived strategy, kept for historical reference (Q041 T1) |
+
+**CSS class reuse note:**
+- `badge-hold` is also used for action state HOLD (position open, no action). Visual collision is acceptable in this single-user tool — context (where the badge appears on the card) disambiguates. If future strategies need finer distinction, introduce dedicated `badge-research` class.
+- `badge-review` overlaps with watching/timeout action states. Same rationale.
+- `PAPER` deliberately does NOT use orange (orange = WARNING in Action State Vocabulary). The muted `badge-obs` style is the canonical paper-trade indicator and matches the existing Q041/Q042 "Observation" badges already in production.
+
 ## Strategy Card Hierarchy
 
-Three visual tiers for the multi-strategy portfolio layout. All cards use the same surface token, but differ in accent color and visual prominence.
+Three visual tiers for the multi-strategy portfolio layout. All cards use the same surface token, but differ in accent color, content density, and visual prominence.
 
-**Primary (SPX live trading)**
-- Accent: `--gold` — the main production strategy
-- Border: `--border-2` with `--gold-border` left-edge accent on active state
-- Full card width (880px)
-- Recommendation text in `--f-display`
+**Primary — `tier-primary` (SPX, live trading)**
+- Accent: `--gold-border` left-edge
+- Full content: signal chips + rationale narrative + structure + position + BP impact + settling sub-panel
+- Recommendation text in `--f-display` (Newsreader serif italic)
+- Reserved for the single live production strategy
 
-**Secondary (live production candidates, /ES)**
-- Accent: `--orange` — production-ready but separate risk pool
-- Border: `--border-2` with `--orange-border` left-edge accent
-- Full card width (880px), slightly reduced heading prominence
-- Recommendation text in `--f-ui` (not serif — secondary strategies don't carry the same "this is the signal" narrative weight)
+**Secondary — `tier-secondary` (/ES, research candidates)**
+- Accent: `--orange-border` left-edge
+- Medium content: action state badge + current position + 1-2 core metrics (e.g. SPAN ratio)
+- Recommendation text in `--f-ui`
+- For strategies that are research-stage but already parallel to primary (not buried in observation tier)
 
-**Sleeve / Observation (/Q041, read-only)**
-- Accent: `--gray-border` — research / paper-trade / observe-only
-- Explicit "READ ONLY" or "OBSERVATION" badge in `--text-muted`
-- Can be collapsed by default; expands on click
+**Addon — `tier-tertiary` (overlay signals, paper sleeves, Q041 candidate list)**
+- Accent: muted gray left-edge (`rgba(96,104,128,0.40)`)
+- Light content: state badge + 1-2 inline signal values + link to full detail page
+- Use for: Drawdown Overlay, Settled VIX, Q041 sleeve list, anything that lives "alongside" but is not the main event
+- Title with tier-context badge: `Paper`, `Observation`, etc. (in `badge-obs` style)
+
+**Visual weight ordering on homepage Today's Actions:**
+Primary → Secondary → Addon(s). Research iteration sleeves (Q041 T2/T3) live in a separate section below Today's Actions, not in this hierarchy.
 
 ## Spacing
 
@@ -119,8 +158,11 @@ Three visual tiers for the multi-strategy portfolio layout. All cards use the sa
 - **Multi-page structure:**
   - `/` — Portfolio Command Center (Today's Actions + Portfolio Snapshot + account positions)
   - `/spx` — SPX strategy detail (current recommendation + backtest)
-  - `/es` — /ES short put detail (signal cards + credit stop bar)
-  - `/q041` — Q041 sleeves + paper trades + attribution
+  - `/es` — /ES short put detail (signal cards + credit stop bar) [RESEARCH]
+  - `/q042` — Drawdown Overlay dashboard + backtest (display name: "Drawdown Overlay"; route kept as `/q042` for stability) [PAPER]
+  - `/svix` — Settled VIX dashboard + signal history [OBSERVATION]
+  - `/q041` — Q041 strategy matrix (T2/T3 research iteration only)
+  - `/q041/archive` — Q041 T1 retired strategy archive [RETIRED]
   - `/backtest` — SPX strategy backtest (on-demand)
   - `/portfolio-backtest` — joint J0 vs J3 BP simulation (873-day chart)
   - `/performance` — live trade performance
@@ -143,8 +185,10 @@ Three visual tiers for the multi-strategy portfolio layout. All cards use the sa
 Nav links for the multi-page portfolio architecture:
 
 ```
-Portfolio  |  SPX  |  /ES  |  Q041  |  Backtest  |  Port BT  |  Performance  |  Margin
+Portfolio  |  SPX  |  /ES  |  Drawdown Overlay  |  Settled VIX  |  Q041  |  Backtest  |  Port BT  |  Performance  |  Margin
 ```
+
+Display name `Drawdown Overlay` replaces the old `Q042` label; route stays `/q042`. `Q041 T1 Archive` is reachable from the `/q041` page via inline retired-tier link, not a top-level nav item.
 
 - Active page: `--gold` text + `--gold-bg` background
 - Hover: `--text` + `--surface-hi`
@@ -161,3 +205,8 @@ Portfolio  |  SPX  |  /ES  |  Q041  |  Backtest  |  Port BT  |  Performance  |  
 | 2026-05-07 | Action-first layout for Portfolio Command Center | User opens once daily; wants to know what to do, not browse strategy state. Action summary at top, strategy detail on drill-down pages |
 | 2026-05-07 | Orange for secondary strategy (/ES) accent | Distinguishes /ES from primary SPX (gold) and from warning state (orange is also warning — acceptable because /ES card context makes meaning clear); avoids blue (too neutral) and red (too alarming) |
 | 2026-05-07 | No light mode | Single-user internal tool; dark-only eliminates dual-palette maintenance cost with zero UX cost |
+| 2026-05-10 | Bilingual rules formalized (English chrome / Chinese narrative) | Mixed language was accumulating ad-hoc; explicit positional rules let future page work stay consistent without per-page discussion |
+| 2026-05-10 | Three card tiers renamed: Sleeve → Addon (`tier-tertiary`) | "Sleeve" was Q041-specific; "Addon" generalizes to overlay signals (Drawdown Overlay, Settled VIX) sitting alongside primary strategies |
+| 2026-05-10 | Tier badges separate from action state badges | Action states change daily; lifecycle tier (LIVE/RESEARCH/PAPER/OBSERVATION/RETIRED) is stable. Two layers of meaning need two badge slots |
+| 2026-05-10 | PAPER uses muted `badge-obs` not orange | Orange = WARNING in action state vocab; reusing it for paper-trade tier would create reading collision (Q042 card always looking like a warning) |
+| 2026-05-10 | Q042 display name → "Drawdown Overlay", route unchanged | Strategy name conveys what it does; route stability avoids breaking bookmarks and reduces refactor scope |
