@@ -304,6 +304,96 @@ def api_recommendation_settling():
         }), 200
 
 
+_AFTERMATH_HISTORY_CACHE: dict = {}
+
+
+@app.route("/api/aftermath/history")
+def api_aftermath_history():
+    """Historical scan of all aftermath windows.
+
+    Aftermath active day: rolling-10d VIX peak >= 28 AND current VIX <= peak * 0.90
+    AND current VIX < 40. Consecutive active days are grouped into windows.
+    """
+    import time as _time
+    # Memory cache (24h TTL — VIX history only adds one bar per day)
+    cached = _AFTERMATH_HISTORY_CACHE.get("data")
+    if cached and (_time.time() - _AFTERMATH_HISTORY_CACHE.get("ts", 0)) < 86400:
+        return jsonify(cached)
+    try:
+        import pandas as pd
+        from strategy.selector import AFTERMATH_PEAK_VIX_10D_MIN, AFTERMATH_OFF_PEAK_PCT
+        vix_path = os.path.join(os.path.dirname(__file__), "..", "data", "market_cache", "yahoo__VIX__max__1d.pkl")
+        df = pd.read_pickle(vix_path)
+        vix = df["Close"].copy()
+        vix.index = pd.to_datetime([d.date() for d in vix.index])
+        vix = vix.sort_index()
+
+        peak10 = vix.rolling(10, min_periods=10).max()
+        off_peak = (peak10 - vix) / peak10
+        active = (peak10 >= AFTERMATH_PEAK_VIX_10D_MIN) & (off_peak >= AFTERMATH_OFF_PEAK_PCT) & (vix < 40.0)
+
+        # Group consecutive True spans into windows
+        windows = []
+        in_win = False
+        cur_start = None
+        cur_peak_at_start = None
+        for d, is_active in active.items():
+            if is_active and not in_win:
+                in_win = True
+                cur_start = d
+                cur_peak_at_start = float(peak10.loc[d])
+            elif not is_active and in_win:
+                in_win = False
+                end_d = d - pd.Timedelta(days=1)
+                # find last actual active date <= end_d
+                prior_active = active.loc[cur_start:end_d]
+                last_active = prior_active[prior_active].index[-1] if (prior_active.any()) else cur_start
+                windows.append({
+                    "start": cur_start.strftime("%Y-%m-%d"),
+                    "end":   last_active.strftime("%Y-%m-%d"),
+                    "days":  int((last_active - cur_start).days) + 1,
+                    "peak_at_start": round(cur_peak_at_start, 2),
+                    "max_off_peak_pct": round(float(off_peak.loc[cur_start:last_active].max()) * 100, 2),
+                })
+        if in_win:  # still active at end of series
+            last_d = active.index[-1]
+            windows.append({
+                "start": cur_start.strftime("%Y-%m-%d"),
+                "end":   last_d.strftime("%Y-%m-%d"),
+                "days":  int((last_d - cur_start).days) + 1,
+                "peak_at_start": round(cur_peak_at_start, 2),
+                "max_off_peak_pct": round(float(off_peak.loc[cur_start:last_d].max()) * 100, 2),
+                "ongoing": True,
+            })
+
+        total_days = int(active.sum())
+        total_obs  = int(active.notna().sum())
+        scan_start = vix.index[0].strftime("%Y-%m-%d") if len(vix) else None
+        scan_end   = vix.index[-1].strftime("%Y-%m-%d") if len(vix) else None
+
+        payload = {
+            "scan_start": scan_start,
+            "scan_end":   scan_end,
+            "total_windows": len(windows),
+            "total_active_days": total_days,
+            "active_days_pct": round((total_days / total_obs * 100) if total_obs else 0, 2),
+            "avg_window_days": round(sum(w["days"] for w in windows) / len(windows), 1) if windows else None,
+            "max_window_days": max((w["days"] for w in windows), default=None),
+            "last_window": windows[-1] if windows else None,
+            "windows": windows,
+            "thresholds": {
+                "peak_min": AFTERMATH_PEAK_VIX_10D_MIN,
+                "off_peak_pct": AFTERMATH_OFF_PEAK_PCT * 100,
+                "vix_max": 40.0,
+            },
+        }
+        _AFTERMATH_HISTORY_CACHE["data"] = payload
+        _AFTERMATH_HISTORY_CACHE["ts"] = _time.time()
+        return jsonify(payload)
+    except Exception as exc:
+        return jsonify({"error": str(exc), "windows": [], "total_windows": 0}), 200
+
+
 @app.route("/api/aftermath/state")
 def api_aftermath_state():
     """Aftermath addon state — surfaces is_aftermath() trigger from SPX selector.
