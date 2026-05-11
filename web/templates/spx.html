@@ -408,6 +408,25 @@ body {
   margin-top: 12px;
   font-size: 0.8rem;
 }
+/* Settled VIX panel */
+.settling-panel { margin-top:14px;padding:11px 13px;background:rgba(72,136,232,0.05);border:1px solid rgba(72,136,232,0.14);border-radius:8px; }
+.settling-header { display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px; }
+.settling-title { font-family:var(--f-ui);font-size:0.64rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-2); }
+.settling-body { font-family:var(--f-ui);font-size:0.76rem;color:var(--text); }
+.settling-note { margin-top:5px;font-family:var(--f-mono);font-size:0.62rem;color:var(--text-2); }
+.settling-compare { display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px; }
+.settling-box { padding:8px 9px;background:var(--surface-hi);border:1px solid var(--border-2);border-radius:6px; }
+.settling-box-label { font-family:var(--f-mono);font-size:0.58rem;color:var(--text-2);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px; }
+.settling-box-main { font-family:var(--f-ui);font-size:0.74rem;color:var(--text); }
+.settling-box-sub { margin-top:3px;font-family:var(--f-mono);font-size:0.60rem;color:var(--text-2); }
+.state-badge { display:inline-flex;align-items:center;padding:3px 9px;border-radius:5px;font-family:var(--f-ui);font-size:0.60rem;font-weight:500;text-transform:uppercase;letter-spacing:0.10em; }
+.state-badge.badge-readonly { color:var(--text-2);background:rgba(96,104,128,0.08);border:1px solid rgba(96,104,128,0.2); }
+.state-badge.badge-open { color:var(--green);background:var(--green-bg);border:1px solid rgba(66,204,124,0.22); }
+.state-badge.badge-warning { color:var(--orange);background:var(--orange-bg);border:1px solid var(--orange-border); }
+.state-badge.badge-review { color:var(--gold);background:var(--gold-bg);border:1px solid var(--gold-border); }
+.state-badge.badge-wait { color:var(--text-2);background:rgba(96,104,128,0.08);border:1px solid rgba(96,104,128,0.2); }
+.state-badge.badge-unavail { color:var(--text-2);background:rgba(96,104,128,0.08);border:1px solid rgba(96,104,128,0.2);font-style:italic; }
+
 .pos-panel.pos-empty {
   border-left-color: var(--border-2);
   color: var(--text-2);
@@ -776,6 +795,16 @@ body {
     <span>No open position on record.</span>
   </div>
   <div id="pos-actions" class="pos-actions"></div>
+
+  <!-- Settled VIX (Signal 2) -->
+  <div class="settling-panel" id="settling-panel-spx">
+    <div class="settling-header">
+      <div class="settling-title">Signal 2 · Settled VIX</div>
+      <span class="state-badge badge-readonly" id="settling-badge-spx">WAITING</span>
+    </div>
+    <div class="settling-body" id="settling-body-spx">Loading settled-VIX state…</div>
+    <div class="settling-note" id="settling-note-spx">Forward-tracking observation only. Not an actionable trade recommendation.</div>
+  </div>
 
 
   <div id="trade-modal-wrap" class="modal-wrap hidden">
@@ -1866,6 +1895,88 @@ document.getElementById('nav-date').textContent = now.toLocaleDateString('en-US'
   weekday:'short', month:'short', day:'numeric', year:'numeric'
 });
 
+// ── Settled VIX (Signal 2) ───────────────────────────────────────────────────
+function applyBadgeSpx(id, obj) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'state-badge ' + (obj.cls || 'badge-wait');
+  el.textContent = obj.label || '';
+}
+function _fmtNumS(n, d) { return typeof n === 'number' ? n.toFixed(d ?? 1) : '—'; }
+function _shortRec(sig) {
+  if (!sig) return '—';
+  const action = String(sig.position_action || '').toUpperCase();
+  if (action === 'WAIT' || action === 'CLOSE_AND_WAIT') return 'WAIT';
+  const key = String(sig.strategy_key || '').toLowerCase();
+  if (key.includes('iron_condor')) return 'IC';
+  if (key.includes('bull_put_spread')) return 'BPS';
+  if (key.includes('bear_call_spread')) return 'BCS';
+  if (key.includes('diagonal')) return 'DIAG';
+  if (key.includes('aftermath')) return 'AFTERMATH';
+  return sig.strategy || key || '—';
+}
+function _settlingBadge(status, changed) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'stable' && changed) return { cls: 'badge-warning', label: 'CHANGED' };
+  if (s === 'stable') return { cls: 'badge-open', label: 'CONFIRMED' };
+  if (s === 'timeout' && changed) return { cls: 'badge-warning', label: 'TIMEOUT' };
+  if (s === 'timeout') return { cls: 'badge-review', label: 'TIMEOUT' };
+  if (s === 'waiting') return { cls: 'badge-readonly', label: 'WAITING' };
+  if (s === 'skipped') return { cls: 'badge-wait', label: 'SKIPPED' };
+  return { cls: 'badge-unavail', label: 'N/A' };
+}
+async function loadSettling() {
+  const bodyEl = document.getElementById('settling-body-spx');
+  const noteEl = document.getElementById('settling-note-spx');
+  if (!bodyEl || !noteEl) return;
+  try {
+    const res = await fetch('/api/recommendation/settling');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    applyBadgeSpx('settling-badge-spx', _settlingBadge(data.status, data.changed));
+    const sig1 = data.signal1 || null;
+    const sig2 = data.signal2 || null;
+    const elapsed = data.elapsed_min;
+    if (data.status === 'waiting') {
+      bodyEl.innerHTML = `VIX stabilising... current ${_fmtNumS(data.current_vix, 1)} / prev ${_fmtNumS(data.prev_vix, 1)} / Δ=${_fmtNumS(data.delta_vix, 1)} (threshold ${_fmtNumS(data.threshold, 1)})`;
+      noteEl.textContent = 'Signal 1 remains canonical until Signal 2 settles. Forward-tracking observation only.';
+      return;
+    }
+    if (data.status === 'stable' || data.status === 'timeout') {
+      const stableLabel = data.status === 'timeout'
+        ? `timeout (12:30 ET · ${_fmtNumS(data.current_vix, 1)} · ${elapsed}m)`
+        : `stable at VIX ${_fmtNumS(data.current_vix, 1)} · ${elapsed}m`;
+      bodyEl.innerHTML = `
+        <div>${data.changed ? 'Signal 2 differs from Signal 1.' : 'Signal 2 confirms Signal 1.'}</div>
+        <div class="settling-compare">
+          <div class="settling-box">
+            <div class="settling-box-label">Signal 1 · Opening</div>
+            <div class="settling-box-main">${_shortRec(sig1)}</div>
+            <div class="settling-box-sub">VIX ${_fmtNumS(sig1?.vix, 1)}</div>
+          </div>
+          <div class="settling-box">
+            <div class="settling-box-label">Signal 2 · Settled</div>
+            <div class="settling-box-main">${_shortRec(sig2)}</div>
+            <div class="settling-box-sub">${stableLabel}</div>
+          </div>
+        </div>`;
+      noteEl.textContent = 'Forward-tracking observation only. Not an actionable trade recommendation.';
+      return;
+    }
+    if (data.status === 'skipped') {
+      bodyEl.textContent = 'Non-trading day — Signal 2 inactive.';
+      noteEl.textContent = 'No settled-VIX observation on weekends or US holidays.';
+      return;
+    }
+    bodyEl.textContent = 'Settled-VIX state unavailable.';
+    noteEl.textContent = data.note || 'Signal 2 sidecar has not published a current session state yet.';
+  } catch (e) {
+    applyBadgeSpx('settling-badge-spx', { cls: 'badge-unavail', label: 'N/A' });
+    bodyEl.textContent = 'Settled-VIX state unavailable.';
+    noteEl.textContent = e.message || 'Could not load settled-VIX state.';
+  }
+}
+
 // ── Auto-refresh ─────────────────────────────────────────────────────────────
 // Recommendation: every 5 min  |  Intraday: every 60 s  |  Position: every 30 s
 (async () => {
@@ -1874,9 +1985,11 @@ document.getElementById('nav-date').textContent = now.toLocaleDateString('en-US'
   load();
   loadPosition();
   loadIntraday();
+  loadSettling();
   setInterval(load,        5 * 60 * 1000);
   setInterval(loadPosition,    30 * 1000);
   setInterval(loadIntraday,    60 * 1000);
+  setInterval(loadSettling,    60 * 1000);
 })();
 </script>
 </body>
