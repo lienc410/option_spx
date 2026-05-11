@@ -248,8 +248,11 @@ def run_backtest(start: str = "2007-01-01", end: str = "2026-05-10") -> Backtest
     daily_rows: list[DailyRow] = []
     account = _NLV_SEED
 
-    def _exp_date(sig_str: str, dte: int) -> str:
-        return (datetime.strptime(sig_str, "%Y-%m-%d") + timedelta(days=dte)).strftime("%Y-%m-%d")
+    def _exp_date(entry_str: str, dte: int) -> str:
+        # Expiry is DTE calendar days from entry (T+1 open), not signal (T close).
+        # Live PM buys spread on entry day with X-DTE listed contract, then holds X days.
+        # Pre-fix used signal+DTE, causing trades to exit ~1 trading day early (Q062 R-20260510-15).
+        return (datetime.strptime(entry_str, "%Y-%m-%d") + timedelta(days=dte)).strftime("%Y-%m-%d")
 
     def _maybe_expire(pos: Optional[_ActivePos], trades: list, today: str, close: float) -> Optional[_ActivePos]:
         if pos is None or today < pos.expiry_date:
@@ -295,7 +298,7 @@ def run_backtest(start: str = "2007-01-01", end: str = "2026-05-10") -> Backtest
             ath_at_signal=ath_val, ddath_at_signal=dd_val,
             long_strike=float(K_long), short_strike=float(K_short),
             debit_per_share=debit_ps, contracts=1.0,
-            expiry_date=_exp_date(signal_dt.strftime("%Y-%m-%d"), dte),
+            expiry_date=_exp_date(df.index[i + 1].strftime("%Y-%m-%d"), dte),
             account_at_entry=_NLV_SEED,
         )
 

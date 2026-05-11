@@ -108,7 +108,10 @@ def _token_request(data: dict) -> dict:
         data=data,
         timeout=20,
     )
-    res.raise_for_status()
+    if not res.ok:
+        raise requests.HTTPError(
+            f"{res.status_code} {res.reason}: {res.text}", response=res
+        )
     return res.json()
 
 

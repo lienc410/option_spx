@@ -37,7 +37,20 @@ Single-user internal tool with bilingual author. Mixed Chinese/English is intent
 | Error/status messages | Chinese | 「账户数据不可用」 |
 | Research narratives, strategy spec cards | Chinese | 策略细节卡 |
 
-**DOM-level rule:** A single HTML element (`<span>`, `<div>`, `<label>`) contains exactly one language. Numeric values appended to either language are exempt (e.g., `Total Margin 21.3%` and `总仓位 21.3%` are both valid). A single sentence must not switch languages mid-clause.
+**DOM-level rule:** A single HTML element (`<span>`, `<div>`, `<label>`) contains exactly one **prose language**. Numeric values (`21.3%`) and **domain jargon tokens** are exempt and may appear inside either-language prose. Sentences (clauses with subject+verb) must not switch languages mid-element.
+
+**Domain jargon exemptions** (these may appear inside Chinese prose without violating the rule):
+- Tickers / instruments: `SPX`, `VIX`, `/ES`, `GOOGL`, `AMZN`, `COST`, `JPM`
+- Greek / option terms: `delta`, `gamma`, `vega`, `theta`, `DTE`, `IVR`, `IVP`
+- Margin / risk terms: `BP`, `NLV`, `PM`, `SPAN`, `IMR`, `notional`
+- Strategy abbreviations: `CSP`, `BPS`, `IC`, `BWB`, `MA10`, `ddATH`
+- Code identifiers: function/variable names in `<code>` tags
+
+**Sentence-level violation example** (DO NOT do this):
+> `Daily selector tick decides entry — 上一笔 close 后立即可入下一笔。`
+
+This mixes an English imperative clause ("Daily selector tick decides entry") with Chinese prose ("上一笔 close 后立即可入下一笔") in the same element. The fix is to write the whole sentence in one language:
+> `Selector 每日 tick 决定是否新开仓 · 上一笔 close 后立即可入下一笔` ✓ (Chinese prose with jargon `tick`, `close`)
 
 **Badge text is always English**, even inside an otherwise Chinese-language card. Badges are semantic tokens, not prose.
 

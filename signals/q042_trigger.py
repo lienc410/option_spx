@@ -341,7 +341,8 @@ def get_q042_history(
 
         if act_a["action"] == "fire_A":
             entry_date = (dt + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-            expiry = (dt + pd.Timedelta(days=30)).strftime("%Y-%m-%d")  # SPEC-094.1: 30 DTE
+            # Expiry from entry (T+1), not signal (T). Backtest engine fix R-20260510-15.
+            expiry = (dt + pd.Timedelta(days=31)).strftime("%Y-%m-%d")  # SPEC-094.1: entry+30 DTE
             entries_a.append({
                 "signal_date": today_str,
                 "entry_date": entry_date,
@@ -353,7 +354,7 @@ def get_q042_history(
 
         if act_b["action"] == "fire_B":
             entry_date = (dt + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-            expiry = (dt + pd.Timedelta(days=90)).strftime("%Y-%m-%d")  # Sleeve B unchanged
+            expiry = (dt + pd.Timedelta(days=91)).strftime("%Y-%m-%d")  # entry+90 DTE (Sleeve B unchanged)
             entries_b.append({
                 "signal_date": today_str,
                 "entry_date": entry_date,

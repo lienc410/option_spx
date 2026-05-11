@@ -929,7 +929,7 @@ async function _renderBacktestResult(data, start) {
         <div class="discipline-row">
           <div class="discipline-key">Frequency</div>
           <div class="discipline-val">
-            Daily selector tick decides entry — 上一笔 close 后立即可入下一笔。同 strategy 同时间最多 1 position（single-slot）。
+            Selector 每日 tick 决定是否新开仓 · 上一笔 close 后立即可入下一笔 · 同时间最多 <code>1 position</code>（single-slot 规则）。
           </div>
         </div>
         <div class="discipline-footnote">

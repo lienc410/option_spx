@@ -1,34 +1,68 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-10 (R-20260510-15: Q062 闭环 — SPEC-094.1 Sleeve A 从 5%/90D 替换为 2.5%/30D。Q062 三 Tier 研究 + Pareto + decay 分析后 PM 决策。Bootstrap p=0.09 PM 接受（P(C>A)=91%）。Sleeve A alert 频率 +40%（1.30→1.81/yr）PM 接受。Grandfather 当前 2026-03-12 仓位至 2026-06-10 expiry。Developer 10 ACs 待实施)
+Last Updated: 2026-05-10 (R-20260510-15: Q062 闭环 — SPEC-094.1 Sleeve A 5%/90D → 2.5%/30D。Q062 三 Tier + Pareto + decay。Bootstrap p=0.09 PM 接受。Developer 实施完成；AC-1.4 初次回测 ann=9.03% 偏离 -0.91pp，Quant 诊断 `_exp_date` 应用 entry_dt 而非 signal_dt；3-file fast-path fix 后 AC-1.4 命中 9.94%（exact）。Sleeve B 不变；Grandfather 仓位 expiry 由 2026-06-10 调整为 2026-06-11)
 Owner: Planner or PM
 
 ---
 
-### R-20260510-15 — Q062 闭环：SPEC-094.1 Sleeve A 从 5%/90D 替换为 2.5%/30D
+### R-20260510-15 — Q062 闭环：SPEC-094.1 Sleeve A 从 5%/90D 替换为 2.5%/30D + `_exp_date` fast-path fix
 
-- Topic: Q062 三 Tier 研究 + Pareto + decay 分析后 PM 决策 dual-sleeve 不增 Sleeve C/D，仅替换 Sleeve A 参数
-- Decision basis:
-  - Tier 3 OOS 双期 PASS（train +0.66pp，test +10.52pp ann vs baseline）
-  - Bootstrap 差值 CI 边缘（p=0.09，P(C>A)=91%）
-  - Pareto：D30/2.5% 在 6 Pareto cells 中 risk-adjusted 最优
-  - Decay weighting：D30/2.5% 与 D30/5% AnnROE 持平，但 D30/2.5% 在 WR/DD/Sharpe/maxConsecL 全面占优（WR +3pp, MaxDD -1.3pp, Sharpe +0.91, maxConsecL -1）
-  - Sleeve B n=5 无 statistical power，保持 baseline（100% WR / 0% DD）
-- Implementation:
-  - SPEC-094.1 修订仅 Sleeve A 两参数：DTE 90→30, short offset 5%→2.5%, no-overlap window 90→30 days
-  - Sleeve B 不动
-  - Grandfather 当前 2026-03-12 仓位（baseline 5%/90D）至 2026-06-10 expiry，不平仓不转换
-  - 10 ACs（AC-1.1 to AC-1.10）covering trigger / pricing / executor / backtest / state / web / SOP
+- Topic: PM 提问 SPEC-094 Sleeve A 三个参数（structure/strike/DTE）是否最优，接受两 sleeve 独立优化。重做完整 grid search + 后续 Pareto/decay 分析后修订 Sleeve A，并修复发现的 backtest engine expiry 计算 bug
+- Prior context: R-20260510-12 是早期一次 Q042 结构参数研究（5×{DTE} × 4×{width} 子 grid），结论 "ATM/+5% DTE 90 无需修改"。本研究扩大 grid 至 3 structures × 5 widths × 6 DTEs × 2 sleeves（84 cells），并增加 OOS / disaster window / decay-weighted 后续分析，结论与 R-12 不同——非冲突，是 R-12 grid 子集未覆盖 DTE 30
+- Method (Q062 三 Tier + 后续 Pareto/decay):
+  - **Tier 1 feasibility scan**（5 candidates per sleeve）：strict pass bar (≥2/3 of {ann +1.0pp, worst +5pp, dd +3pp}) → FAIL on both sleeves。但暴露 sizing cap 让 worst-trade metric 饱和（-10% per sizing × max loss）
+  - **Tier 2 full grid**（42 cells per sleeve = 84 total）：S1 vertical (5 widths × 6 DTEs) + S2 naked ATM call (6 DTEs) + S3 ITM-5% call (6 DTEs)。Sleeve A 暴露 D30 short-DTE alpha cluster (ann +9.94%, n=35, WR 74% vs baseline 5.02%/25/64%)。Sleeve B 90D row dominant，其他 DTE 全撞 -10% sizing cap
+  - **Tier 3 robustness** on Sleeve A D30 candidates（S1_2.5%/30D, S1_5.0%/30D, S1_2.5%/180D）：
+    1. OOS split 2007-2017 train / 2018-2026 test：D30 双期 PASS（train +0.66pp ann, test **+10.52pp** ann）
+    2. Disaster windows 2008/2020/2022：D30 不输 baseline
+    3. Improved metrics 替代饱和 worst-trade：freq_-10%, CVaR_10%, maxConsecL → D30/2.5% 与 baseline tied (freq 20%, maxConsecL 2)
+    4. Bootstrap 95% CI on 差值 (D30 - baseline)：[-2.32, +11.89]pp, point +4.88pp, **P(C>A)=91%**, one-sided p=0.09（marginal）
+  - **Pareto 后续分析** (S1 vertical 30 cells)：3D Pareto (AnnROE × MaxDD × Sharpe) frontier 仅 6 cells；D30 cluster (high alpha) + D90 cluster (baseline territory) + D180/2.5% (risk-reduction extreme)
+  - **Decay-weighted analysis** (half-life 3y/5y/10y)：D30/2.5% 在 3y HL 涨至 +12.12% ann（recent regime favorable）；S1_2.5%/D90 candidate 在 decay 下走弱 -0.66pp（demoted）；D180/2.5% 升级（+1.46pp from decay）
+  - **D30/2.5% vs D30/5% head-to-head**：unweighted ann tied (+9.94%)；D30/2.5% 在 WR +3pp / MaxDD +1.3pp / Sharpe +0.91 / maxConsecL -1 全面占优；D30/5% 仅 5y HL ann +0.08pp 边缘优势（noise 内）
+- Decision rationale:
+  - **Sleeve A 替换为 D30/2.5%**：Tier 3 OOS PASS + Pareto frontier 内 risk-adjusted 最优 + decay-weighting 支持 + Bayesian-flavored P(better)=91% 强证据
+  - **Sleeve B 不动**：n=5 across 19y，所有 width 候选 statistically 无法 reject baseline；wider widths 的 decay 优势是 "2008 outlier suppression" regime selection，不是真实结构优势
+  - **不增 Sleeve C/D**：PM 选择保持 dual-sleeve 简洁结构，不平行运行多策略
+  - **Grandfather** 当前 2026-03-12 baseline 仓位至自然 expiry，不强制平仓/转换（避免 P&L gap + state machine 复杂化）
+- Implementation timeline:
+  1. Quant 写 SPEC-094.1（[task/SPEC-094.1.md](task/SPEC-094.1.md)）含 10 ACs
+  2. Developer 实施完成 5 文件 ~15 行：`signals/q042_trigger.py`, `strategy/q042_pricing.py`（per-sleeve DTE/OTM）, `production/q042_executor.py`, `backtest/q042_engine.py`, `web/templates/q042.html`, `task/q042_manual_sop.md`
+  3. AC 验收：n=35 ✓, WR=71.4% ✓, MaxDD=-19.0% ✓, **AnnROE=9.03% 偏离 target 9.94% -0.91pp**（落在 ±0.5pp tolerance 外）
+  4. Quant 诊断：完整对比 research / hybrid / production 三种 methodology variants，定位 `_exp_date(signal_dt, dte)` 是 -0.91pp gap 的**唯一**源（strike $5 rounding 零影响）。机制：production 用 signal+DTE 让每笔 trade 比 entry+DTE 少持 ~1 trading day；30 DTE 下放大到 3.3% time loss × 35 trades = -0.91pp ann
+  5. Fast-path fix（3 文件 12 行）：
+     - `backtest/q042_engine.py`：`_exp_date(entry_str, dte)` 改用 entry date；caller 改用 `df.index[i+1]`
+     - `production/q042_executor.py`：`expiry_a/b` 改用 `entry_date + DTE`
+     - `signals/q042_trigger.py`：`expiry` 改为 `dt + (DTE+1)` 等价 entry+DTE
+  6. Post-fix 验收：Sleeve A n=35 ✓ WR=**74.3% ✓**（exact match research target）total=192.3% ann=**9.94% ✓**（exact）MaxDD=-19.0% ✓；Sleeve B 全 metrics 不变（5/100%/2.2%/0%）
+- AC verification final:
+  | AC | 内容 | Status |
+  |---|---|---|
+  | AC-1.1 | no-overlap 30d (n=35) | ✅ exact |
+  | AC-1.2 | DTE 30, short 2.5% pricing | ✅ |
+  | AC-1.3 | Telegram alert format | ✅ |
+  | AC-1.4 | 回测 metrics 重现 research | ✅ exact (post-fix) |
+  | AC-1.5 | Grandfather 2026-03-12 仓位 | ✅ expiry 6-10 → 6-11（+1 cal day, 影响微小） |
+  | AC-1.6 | state.json grandfather 期保护 | ✅ |
+  | AC-1.7-1.8 | Web dashboard | ✅ |
+  | AC-1.9 | SOP 修订 | ✅ |
+  | AC-1.10 | RESEARCH_LOG 此条目 | ✅ |
 - Caveats:
-  - p=0.09 仍是 marginal evidence，9% downside risk PM 已接受
-  - Alert 频率 +40%（1.30→1.81/yr）PM 接受
-  - 2026-11-10 半年 review 时用 6 月 live + 扩展数据 reconfirm；连续 3 笔亏损暂停并发起 Quant review
+  - Bootstrap p=0.09 仍是 marginal evidence；9% 事后无 alpha 提升 downside risk PM 已 disclosed 并接受
+  - Alert 频率从 1.30/yr → 1.81/yr（+40%）PM 接受 manual execution 工作量上升
+  - Grandfather 2026-03-12 仓位 expiry 由 6-10 调整为 6-11（+1 cal day），是 `_exp_date` fix 副作用；state.json 现有值可保留不需手动 patch
+  - 2026-11-10 半年 review obligations：6 月 live + 6 月扩展 19y 数据重跑 Q062 Tier 3 bootstrap 差值 CI；若 CI 跨过 0 reject H0 confirm 修订正确；若 CI 仍 overlap 监控但不 revert
+  - 首次 SPEC-094.1 生效后 live HIGH_VOL trigger（VIX ≥ 22）：Quant 必须 re-run F4 oldair backfill 对 D30/2.5% chain 重新验证 broker mid vs model
+  - 连续 3 笔 Sleeve A 亏损：暂停后续入场，发起 Quant review
+- `_exp_date` fix 的二次影响:
+  - 旧 baseline historical AC21 重现也得到改进：原本 production 97.3% vs research target 99% 差 -1.7pp，fix 后预期 ~99%（exact）。**未来如需重做 SPEC-094 baseline 历史回测，metric 应当 reproduce research 更紧**
+  - production live 端的 active_position_expiry 现在与 backtest engine 一致
 - Artifacts:
-  - `task/SPEC-094.1.md`
-  - `research/q062/q062_tier1_structure_scan.py`
-  - `research/q062/q062_tier2_grid_scan.py`
-  - `research/q062/q062_tier3_robustness.py`
-  - `data/q062_tier2_grid.csv`
+  - `task/SPEC-094.1.md`（spec 修订主文档）
+  - `task/q062_tier1_memo_2026-05-10.md`, `task/q062_tier2_memo_2026-05-10.md`, `task/q062_tier3_memo_2026-05-10.md`（三 Tier memo）
+  - `research/q062/q062_tier1_structure_scan.py`, `q062_tier2_grid_scan.py`, `q062_tier3_robustness.py`
+  - `data/q062_tier2_grid.csv`（84 cells 完整 grid 结果）
+  - 修订的 `backtest/q042_engine.py`, `production/q042_executor.py`, `signals/q042_trigger.py`
 
 ---
 

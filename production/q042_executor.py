@@ -222,8 +222,9 @@ def run_eod_evaluation(
         log.info(f"gate: main_bp={main_bp:.1f}% cap={gate.q042_combined_cap:.1f}%")
 
         entry_date  = (datetime.strptime(today_str, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
-        expiry_a    = (datetime.strptime(today_str, "%Y-%m-%d") + timedelta(days=30)).strftime("%Y-%m-%d")  # SPEC-094.1
-        expiry_b    = (datetime.strptime(today_str, "%Y-%m-%d") + timedelta(days=90)).strftime("%Y-%m-%d")  # Sleeve B unchanged
+        # Expiry is DTE from entry (T+1), not signal (T). Aligns with backtest engine fix (R-20260510-15).
+        expiry_a    = (datetime.strptime(entry_date, "%Y-%m-%d") + timedelta(days=30)).strftime("%Y-%m-%d")  # SPEC-094.1
+        expiry_b    = (datetime.strptime(entry_date, "%Y-%m-%d") + timedelta(days=90)).strftime("%Y-%m-%d")  # Sleeve B unchanged
 
         act_a = update_sleeve_a(state["sleeve_a"], ddath, today_str)
         if act_a["action"] == "fire_A" and gate.sleeve_a_allowance > 0:
