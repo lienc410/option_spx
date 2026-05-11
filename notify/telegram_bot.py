@@ -397,17 +397,18 @@ def _profit_check_from_state(state: dict, entry_premium: float) -> tuple[bool, f
             or positions_payload.get("stale")):
         return False, None, False
 
-    spx_pos = next(
-        (p for p in positions_payload.get("positions", [])
-         if p.get("category") == "spx_options"),
-        None,
-    )
-    if spx_pos is None:
+    # SPEC-099 follow-up fix: schwab/client.py never sets a `category` field;
+    # the legacy `category == "spx_options"` filter never matched real Schwab data.
+    # Match SPX option legs by asset_type + symbol (same as fallback path) and
+    # sum market_value across all legs to get the spread's net close cost.
+    spx_legs = [
+        p for p in positions_payload.get("positions", [])
+        if p.get("asset_type") == "OPTION" and "SPX" in (p.get("symbol") or "")
+    ]
+    if not spx_legs:
         return False, None, False
 
-    net_mv = _num(spx_pos.get("market_value"))
-    if net_mv is None:
-        return False, None, False
+    net_mv = sum((_num(p.get("market_value")) or 0.0) for p in spx_legs)
 
     # market_value is negative for a short spread (cost to close = abs(mv))
     close_cost_pts = abs(net_mv) / contracts / 100

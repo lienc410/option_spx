@@ -17,6 +17,7 @@ import sys
 import os
 import types
 import importlib
+from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -65,6 +66,7 @@ from notify.telegram_bot import (  # noqa: E402
     _check_broker_state_mismatch,
     _identify_spx_spread_legs,
     _profit_check_from_schwab,
+    _profit_check_from_state,
     _check_spx_profit_target,
     _intraday_state,
     _reset_intraday_state,
@@ -297,3 +299,56 @@ def test_reset_clears_mismatch_flag():
     _reset_intraday_state()
     assert _intraday_state["mismatch_alerted"] is False
     assert _intraday_state["profit_alerted"] is False
+
+
+# ── SPEC-099 follow-up: primary path category-filter fix ──────────────────────
+
+def test_profit_check_from_state_uses_asset_type_filter():
+    """Follow-up fix: _profit_check_from_state must find SPX option legs via
+    asset_type + symbol (matching real Schwab payload shape — no `category` field).
+    Regression test for pre-existing bug: previous filter `category == "spx_options"`
+    never matched real Schwab data because schwab/client.py never sets `category`.
+    """
+    # State: entry credit = $5/share, 1 contract, opened 30 days ago
+    state = {
+        "underlying": "SPX",
+        "status": "open",
+        "actual_premium": 5.0,
+        "contracts": 1,
+        "opened_at": (date.today() - timedelta(days=30)).isoformat(),
+    }
+    # Schwab returns 2 legs with NO category field (real shape)
+    # Short leg market_value -100, long leg +0 → net = -100 → close cost = $1/share
+    # captured% = (5 - 1) / 5 = 80% (above 60% target)
+    short = _spx_leg(-1, 5.0, -100.0)
+    long_ = _spx_leg(1,  0.0,    0.0)
+    payload = _ok_positions_payload([short, long_])
+
+    reached, pct, via_fallback = _profit_check_from_state(state, 5.0)
+
+    # Need to patch get_account_positions inside the function
+    with patch("schwab.client.get_account_positions", return_value=payload):
+        reached, pct, via_fallback = _profit_check_from_state(state, 5.0)
+
+    assert via_fallback is False, "must report as primary path, not fallback"
+    assert reached is True, "80% captured should trip 60% profit target"
+    assert pct == 80.0, f"expected 80.0% captured, got {pct}"
+
+
+def test_profit_check_from_state_no_spx_legs():
+    """_profit_check_from_state returns False when Schwab has no SPX option legs."""
+    state = {
+        "underlying": "SPX",
+        "status": "open",
+        "actual_premium": 5.0,
+        "contracts": 1,
+        "opened_at": (date.today() - timedelta(days=30)).isoformat(),
+    }
+    payload = _ok_positions_payload([])  # empty positions
+
+    with patch("schwab.client.get_account_positions", return_value=payload):
+        reached, pct, via_fallback = _profit_check_from_state(state, 5.0)
+
+    assert reached is False
+    assert pct is None
+    assert via_fallback is False  # still primary path (early return)
