@@ -684,6 +684,15 @@ body {
     </div>
   </div>
 
+  <!-- E-Trade re-auth banner (hidden by default, shown when token invalid) -->
+  <div id="etrade-reauth-banner" style="display:none;background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:9px;padding:10px 16px;margin-bottom:14px;font-family:var(--f-ui);font-size:0.70rem;color:var(--orange);display:none;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-family:var(--f-mono);font-size:0.58rem;letter-spacing:0.10em;text-transform:uppercase;padding:2px 8px;border-radius:4px;background:rgba(224,128,64,0.18)">E-TRADE EXPIRED</span>
+      <span>E-Trade token 已过期 — 账户数据不可用。30 秒可完成 re-auth。</span>
+    </div>
+    <a href="/etrade/reauth" style="font-family:var(--f-ui);font-size:0.65rem;color:var(--orange);text-decoration:none;border:1px solid var(--orange-border);background:rgba(224,128,64,0.10);padding:5px 12px;border-radius:5px;white-space:nowrap">→ Re-Auth Now</a>
+  </div>
+
   <!-- Today's Actions section label -->
   <div class="section-label" style="margin-bottom:10px">Today's Actions</div>
 
@@ -1252,6 +1261,23 @@ async function loadQ042() {
     sigEl.innerHTML = `<span class="pos-none">${e.message}</span>`;
     listEl.innerHTML = '';
     applyBadge('badge-q042', { cls: 'badge-unavail', label: 'N/A' });
+  }
+}
+
+// ── E-Trade auth banner ──────────────────────────────────────────────────────
+async function loadEtradeAuthBanner() {
+  const banner = document.getElementById('etrade-reauth-banner');
+  if (!banner) return;
+  try {
+    const s = await fetch('/api/etrade/status').then(r => r.json());
+    // Show banner when configured but not authenticated
+    if (s.configured && !s.authenticated) {
+      banner.style.display = 'flex';
+    } else {
+      banner.style.display = 'none';
+    }
+  } catch (_) {
+    banner.style.display = 'none';
   }
 }
 
@@ -1871,7 +1897,7 @@ async function syncPortfolio() {
   const ts  = document.getElementById('sync-ts');
   if (btn) { btn.textContent = '↻ Syncing…'; btn.disabled = true; }
   if (ts)  ts.textContent = '';
-  await Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadQ041(), loadQ042(), loadAftermath(), loadSnapshot(), loadPositionComposition()]);
+  await Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadQ041(), loadQ042(), loadAftermath(), loadEtradeAuthBanner(), loadSnapshot(), loadPositionComposition()]);
   if (btn) { btn.textContent = '↻ Sync'; btn.disabled = false; }
   if (ts)  ts.textContent = 'synced ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
@@ -1899,12 +1925,12 @@ function _initDefaultView() {
 // ── Boot ──────────────────────────────────────────────────────────────────────
 (async () => {
   _initDefaultView();
-  await Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadQ041(), loadQ042(), loadAftermath(), loadSnapshot(), loadPositionComposition()]);
+  await Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadQ041(), loadQ042(), loadAftermath(), loadEtradeAuthBanner(), loadSnapshot(), loadPositionComposition()]);
   const ts = document.getElementById('sync-ts');
   if (ts) ts.textContent = 'loaded ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
   // Auto-refresh: strategy cards (recommendation+position) every 60s — picks up close→re-entry transitions
-  setInterval(() => Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadQ041(), loadQ042(), loadAftermath()]), 60 * 1000);
+  setInterval(() => Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadQ041(), loadQ042(), loadAftermath(), loadEtradeAuthBanner()]), 60 * 1000);
   // Snapshot + Schwab positions every 5min — heavier, less frequent
   setInterval(() => Promise.allSettled([loadSnapshot(), loadPositionComposition()]), 5 * 60 * 1000);
 })();

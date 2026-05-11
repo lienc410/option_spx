@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>E-Trade Re-Auth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+:root {
+  --bg:#080A13; --surface:#0D1020; --surface-hi:#131728;
+  --border:#191E33; --border-2:#232A42;
+  --text:#C4CEEC; --text-2:#606880; --text-muted:#363C52;
+  --gold:#C9A840; --gold-bg:rgba(201,168,64,0.07); --gold-border:rgba(201,168,64,0.22);
+  --green:#42CC7C; --green-bg:rgba(66,204,124,0.07); --green-border:rgba(66,204,124,0.22);
+  --red:#E04862; --red-bg:rgba(224,72,98,0.07); --red-border:rgba(224,72,98,0.22);
+  --blue:#4888E8; --blue-bg:rgba(72,136,232,0.07); --blue-border:rgba(72,136,232,0.22);
+  --orange:#E08040; --orange-bg:rgba(224,128,64,0.07); --orange-border:rgba(224,128,64,0.22);
+  --gray-bg:rgba(96,104,128,0.08); --gray-border:rgba(96,104,128,0.2);
+  --f-display:'Newsreader',Georgia,serif; --f-mono:'JetBrains Mono','Courier New',monospace; --f-ui:'DM Sans',system-ui,sans-serif;
+}
+html { font-size:14px; }
+body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-height:100vh; line-height:1.55; }
+
+.nav { position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:50px;background:rgba(8,10,19,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border); }
+.nav-brand { font-family:var(--f-display);font-size:1.05rem;color:var(--gold); }
+.nav-brand em { font-style:italic; }
+.nav-links { display:flex;gap:18px;align-items:center; }
+.nav-link { font-family:var(--f-ui);font-size:0.72rem;color:var(--text-2);text-decoration:none;padding:6px 10px;border-radius:5px;transition:0.12s; }
+.nav-link:hover { color:var(--text);background:var(--surface-hi); }
+.nav-link.active { color:var(--gold);background:var(--gold-bg); }
+.nav-right { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-muted); }
+
+.page { max-width:720px;margin:0 auto;padding:32px 24px 64px; }
+.page-hero { margin-bottom:24px; }
+.page-hero h1 { font-family:var(--f-display);font-size:1.80rem;font-weight:400;line-height:1.1;margin-bottom:6px; }
+.page-hero h1 em { font-style:italic;color:var(--text-2); }
+.page-meta { font-family:var(--f-ui);font-size:0.70rem;color:var(--text-2); }
+
+.status-banner { padding:12px 18px;border-radius:9px;margin-bottom:18px;font-family:var(--f-ui);font-size:0.74rem;line-height:1.5;display:flex;align-items:center;gap:12px;flex-wrap:wrap; }
+.status-banner.ok    { background:var(--green-bg); border:1px solid var(--green-border); color:var(--green); }
+.status-banner.warn  { background:var(--orange-bg);border:1px solid var(--orange-border);color:var(--orange); }
+.status-banner.error { background:var(--red-bg);   border:1px solid var(--red-border);   color:var(--red); }
+.status-banner .badge { font-family:var(--f-mono);font-size:0.60rem;letter-spacing:0.08em;text-transform:uppercase;padding:2px 8px;border-radius:4px;background:rgba(0,0,0,0.2); }
+.status-banner .meta { font-family:var(--f-mono);font-size:0.62rem;color:var(--text-muted);margin-left:auto; }
+
+.step-card { background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:20px 22px;margin-bottom:14px;position:relative; }
+.step-card.active { border-color:var(--blue-border);background:rgba(72,136,232,0.04); }
+.step-card.done { border-color:var(--green-border);background:rgba(66,204,124,0.04); }
+.step-num { position:absolute;top:14px;right:18px;font-family:var(--f-mono);font-size:0.55rem;color:var(--text-muted);letter-spacing:0.10em;text-transform:uppercase; }
+.step-title { font-family:var(--f-ui);font-size:0.74rem;font-weight:600;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:8px; }
+.step-title .check { color:var(--green);font-family:var(--f-mono); }
+.step-body { font-family:var(--f-ui);font-size:0.70rem;color:var(--text-2);line-height:1.6;margin-bottom:14px; }
+
+.btn { font-family:var(--f-ui);font-size:0.70rem;font-weight:500;padding:8px 18px;border-radius:6px;border:1px solid var(--blue-border);background:var(--blue-bg);color:var(--blue);cursor:pointer;transition:0.12s;text-decoration:none;display:inline-flex;align-items:center;gap:6px; }
+.btn:hover:not(:disabled) { background:rgba(72,136,232,0.18); }
+.btn:disabled { opacity:0.4;cursor:default; }
+.btn.primary { border-color:var(--green-border);background:var(--green-bg);color:var(--green); }
+.btn.primary:hover:not(:disabled) { background:rgba(66,204,124,0.18); }
+.btn.muted { border-color:var(--gray-border);background:var(--gray-bg);color:var(--text-2); }
+
+.auth-link-box { background:var(--surface-hi);border:1px solid var(--border-2);border-radius:7px;padding:12px 14px;font-family:var(--f-mono);font-size:0.62rem;color:var(--text);word-break:break-all;margin-bottom:10px;display:none; }
+.auth-link-box a { color:var(--blue);text-decoration:none; }
+.auth-link-box.visible { display:block; }
+.auth-link-hint { font-family:var(--f-mono);font-size:0.58rem;color:var(--text-muted);margin-top:6px; }
+
+.verifier-input { width:100%;max-width:280px;font-family:var(--f-mono);font-size:0.95rem;letter-spacing:0.10em;text-transform:uppercase;padding:9px 12px;background:var(--surface-hi);border:1px solid var(--border-2);border-radius:5px;color:var(--text);outline:none;transition:0.12s; }
+.verifier-input:focus { border-color:var(--blue-border); }
+.verifier-input.error { border-color:var(--red-border); }
+.verifier-row { display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap; }
+.verifier-hint { font-family:var(--f-ui);font-size:0.62rem;color:var(--text-muted);font-style:italic; }
+
+.flow-msg { font-family:var(--f-mono);font-size:0.62rem;color:var(--text-2);margin-top:8px;padding:8px 10px;background:var(--surface-hi);border:1px solid var(--border-2);border-radius:5px;display:none; }
+.flow-msg.visible { display:block; }
+.flow-msg.error { color:var(--red);border-color:var(--red-border);background:var(--red-bg); }
+.flow-msg.success { color:var(--green);border-color:var(--green-border);background:var(--green-bg); }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav-brand">SPX <em>Strategy</em></span>
+  <div class="nav-links">
+    <a href="/"                   class="nav-link">Portfolio</a>
+    <a href="/spx"                class="nav-link">SPX</a>
+    <a href="/es"                 class="nav-link">/ES</a>
+    <a href="/q042"               class="nav-link">Drawdown Overlay</a>
+    <a href="/aftermath"          class="nav-link">Aftermath</a>
+    <a href="/q041"               class="nav-link">Q041</a>
+    <a href="/portfolio-backtest" class="nav-link">Port BT</a>
+    <a href="/performance"        class="nav-link">Performance</a>
+    <a href="/margin"             class="nav-link">Margin</a>
+  </div>
+  <div class="nav-right" id="nav-date">—</div>
+</nav>
+
+<div class="page">
+
+  <div class="page-hero">
+    <h1>E-Trade <em>Re-Auth</em></h1>
+    <div class="page-meta">E-Trade access tokens expire at midnight ET. Use this page to refresh the token without SSH or command line.</div>
+  </div>
+
+  <!-- Current token status -->
+  <div class="status-banner" id="status-banner">
+    <span class="badge" id="status-badge">CHECKING</span>
+    <span id="status-text">Checking E-Trade token status…</span>
+    <span class="meta" id="status-meta"></span>
+  </div>
+
+  <!-- Step 1: Get authorization link -->
+  <div class="step-card" id="step1">
+    <div class="step-num">Step 1</div>
+    <div class="step-title">Get authorization link from E-Trade</div>
+    <div class="step-body">
+      生成新的 request token（有效期约 5 分钟）。下一步会显示 E-Trade 授权链接。
+    </div>
+    <button class="btn primary" id="btn-request" onclick="onRequestToken()">→ Get authorization link</button>
+    <div class="flow-msg" id="step1-msg"></div>
+    <div class="auth-link-box" id="auth-link-box">
+      <div style="font-family:var(--f-ui);font-size:0.60rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Authorization URL</div>
+      <a id="auth-link" href="#" target="_blank" rel="noopener noreferrer">—</a>
+      <div class="auth-link-hint">点击上方链接 → 登录 E-Trade → 点击 Accept → 复制显示的 5 位 verifier code → 粘贴到下方 Step 2 输入框</div>
+    </div>
+  </div>
+
+  <!-- Step 2: Enter verifier code -->
+  <div class="step-card" id="step2">
+    <div class="step-num">Step 2</div>
+    <div class="step-title">Paste verifier code</div>
+    <div class="step-body">
+      E-Trade 授权后会显示一个 5 位 code（字母+数字）。立即粘贴到下方 — request token 5 分钟内有效。
+    </div>
+    <div class="verifier-row">
+      <input type="text" class="verifier-input" id="verifier-input" placeholder="ABC12" maxlength="20" autocomplete="off" spellcheck="false" disabled>
+      <button class="btn primary" id="btn-exchange" onclick="onExchangeVerifier()" disabled>→ Exchange for token</button>
+    </div>
+    <div class="verifier-hint">输入 verifier code 后按回车或点击按钮</div>
+    <div class="flow-msg" id="step2-msg"></div>
+  </div>
+
+  <!-- Help / notes -->
+  <div class="step-card" style="border-color:var(--border)">
+    <div class="step-title" style="font-size:0.68rem">Why this is necessary daily</div>
+    <div class="step-body" style="margin-bottom:0">
+      E-Trade access tokens 设计上 <strong>每日午夜 ET 强制过期</strong>，与活跃度无关。
+      <code style="font-family:var(--f-mono);font-size:0.65rem;background:var(--surface-hi);padding:1px 5px;border-radius:3px">renew_access_token</code>
+      只能处理 2 小时 inactivity timeout，无法跨越午夜边界 — 这是 E-Trade API 设计，不是 bug。
+      <br><br>
+      Cron 在每天 06:00 ET 自动检测 token，过期会通过 Telegram bot 发送提醒，附本页链接。
+    </div>
+  </div>
+
+</div>
+
+<script>
+const now = new Date();
+document.getElementById('nav-date').textContent = now.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+
+function setStatus(cls, badge, text, meta) {
+  const banner = document.getElementById('status-banner');
+  banner.className = 'status-banner ' + cls;
+  document.getElementById('status-badge').textContent = badge;
+  document.getElementById('status-text').textContent = text;
+  document.getElementById('status-meta').textContent = meta || '';
+}
+
+function showMsg(id, cls, text) {
+  const el = document.getElementById(id);
+  el.className = 'flow-msg visible ' + cls;
+  el.textContent = text;
+}
+
+function hideMsg(id) {
+  document.getElementById(id).className = 'flow-msg';
+}
+
+async function refreshStatus() {
+  try {
+    const s = await fetch('/api/etrade/status').then(r => r.json());
+    if (!s.configured) {
+      setStatus('error', 'NOT CONFIGURED', 'ETRADE_CONSUMER_KEY / ETRADE_CONSUMER_SECRET not set in .env.');
+      return s;
+    }
+    if (s.authenticated) {
+      const hours = s.token_expires_in != null ? (s.token_expires_in / 3600).toFixed(1) : '?';
+      setStatus('ok', 'AUTHENTICATED', `E-Trade token is valid.`, `expires in ${hours} h`);
+    } else {
+      const ago = s.token_expires_in != null ? Math.abs(Math.round(s.token_expires_in / 60)) : '?';
+      setStatus('warn', 'EXPIRED', `E-Trade token has expired — run the two steps below.`, s.token_expires_in != null ? `${ago} min ago` : '');
+    }
+    return s;
+  } catch (e) {
+    setStatus('error', 'API ERROR', e.message);
+    return null;
+  }
+}
+
+async function onRequestToken() {
+  const btn = document.getElementById('btn-request');
+  const card = document.getElementById('step1');
+  btn.disabled = true;
+  btn.textContent = '⟳ Fetching…';
+  hideMsg('step1-msg');
+  document.getElementById('auth-link-box').classList.remove('visible');
+  try {
+    const r = await fetch('/api/etrade/request-token', { method: 'POST' });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'request_token failed');
+    const linkEl = document.getElementById('auth-link');
+    linkEl.href = d.authorize_url;
+    linkEl.textContent = d.authorize_url;
+    document.getElementById('auth-link-box').classList.add('visible');
+    card.classList.add('done');
+    btn.textContent = '↻ Get fresh link';
+    btn.disabled = false;
+    // Enable Step 2
+    document.getElementById('step2').classList.add('active');
+    const inp = document.getElementById('verifier-input');
+    inp.disabled = false;
+    document.getElementById('btn-exchange').disabled = false;
+    setTimeout(() => inp.focus(), 100);
+    showMsg('step1-msg', 'success', `✓ Authorization link ready. Valid for ~${d.expires_in_min || 5} minutes.`);
+  } catch (e) {
+    btn.textContent = '→ Get authorization link';
+    btn.disabled = false;
+    showMsg('step1-msg', 'error', `Failed: ${e.message}`);
+  }
+}
+
+async function onExchangeVerifier() {
+  const inp = document.getElementById('verifier-input');
+  const btn = document.getElementById('btn-exchange');
+  const card = document.getElementById('step2');
+  const verifier = (inp.value || '').trim().toUpperCase();
+  if (!verifier) {
+    inp.classList.add('error');
+    showMsg('step2-msg', 'error', 'Please paste the verifier code.');
+    return;
+  }
+  inp.classList.remove('error');
+  btn.disabled = true;
+  inp.disabled = true;
+  btn.textContent = '⟳ Exchanging…';
+  hideMsg('step2-msg');
+  try {
+    const r = await fetch('/api/etrade/exchange-verifier', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ verifier }),
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'exchange failed');
+    card.classList.remove('active');
+    card.classList.add('done');
+    btn.textContent = '✓ Done';
+    showMsg('step2-msg', 'success', `✓ E-Trade re-auth complete. Token valid until next midnight ET.`);
+    await refreshStatus();
+  } catch (e) {
+    inp.disabled = false;
+    btn.disabled = false;
+    btn.textContent = '→ Exchange for token';
+    showMsg('step2-msg', 'error', `Failed: ${e.message} · If this says 'token expired/invalid', go back to Step 1 to fetch a fresh authorization link.`);
+  }
+}
+
+document.getElementById('verifier-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !document.getElementById('btn-exchange').disabled) {
+    onExchangeVerifier();
+  }
+});
+
+refreshStatus();
+</script>
+</body>
+</html>

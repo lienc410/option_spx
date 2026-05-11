@@ -48,7 +48,12 @@ ssh "$REMOTE" "cat > ${PLIST_DIR}/com.spxstrat.schwab_refresh.plist" << 'EOF'
 </plist>
 EOF
 
-# ── 2. E-Trade token renewal at 23:45 ET (before midnight expiry) ─────────────
+# ── 2. E-Trade daily status check + Telegram notify at 06:00 ET ───────────────
+# E-Trade tokens hard-expire at midnight ET. We can't auto-renew across midnight
+# (renew_access_token only handles 2h inactivity timeout, not the midnight
+# boundary). So instead, check the token each morning and notify if it's
+# expired — user clicks the link in the Telegram message to use the web UI
+# re-auth at /etrade/reauth.
 ssh "$REMOTE" "cat > ${PLIST_DIR}/com.spxstrat.etrade_refresh.plist" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -59,14 +64,14 @@ ssh "$REMOTE" "cat > ${PLIST_DIR}/com.spxstrat.etrade_refresh.plist" << 'EOF'
     <key>ProgramArguments</key>
     <array>
         <string>/Users/macbook/SPX_strat/venv/bin/python3</string>
-        <string>/Users/macbook/SPX_strat/scripts/etrade_token_renew.py</string>
+        <string>/Users/macbook/SPX_strat/scripts/etrade_status_notify.py</string>
     </array>
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>
-        <integer>23</integer>
+        <integer>6</integer>
         <key>Minute</key>
-        <integer>45</integer>
+        <integer>0</integer>
     </dict>
     <key>StandardOutPath</key>
     <string>/Users/macbook/Library/Logs/spx-strat/etrade_refresh.log</string>
@@ -91,7 +96,7 @@ ssh "$REMOTE" "launchctl load  ${PLIST_DIR}/com.spxstrat.etrade_refresh.plist"
 echo ""
 echo "==> Done. Cron jobs installed:"
 echo "    Schwab  — every 6 hours (keep-alive, logs: ~/Library/Logs/spx-strat/schwab_refresh.log)"
-echo "    E-Trade — daily at 23:45 (token renewal before midnight, logs: ~/Library/Logs/spx-strat/etrade_refresh.log)"
+echo "    E-Trade — daily at 06:00 ET (status check + Telegram notify if expired, logs: ~/Library/Logs/spx-strat/etrade_refresh.log)"
 echo ""
 echo "==> Verify:"
 ssh "$REMOTE" "launchctl list | grep 'schwab_refresh\|etrade_refresh'"

@@ -605,6 +605,53 @@ def api_etrade_positions():
     return jsonify(payload)
 
 
+@app.route("/etrade/reauth")
+def etrade_reauth_page():
+    return render_template("etrade_reauth.html")
+
+
+@app.route("/api/etrade/status")
+def api_etrade_status():
+    from etrade.auth import token_status
+    return jsonify(token_status())
+
+
+@app.route("/api/etrade/request-token", methods=["POST"])
+def api_etrade_request_token():
+    """Get a fresh E-Trade request token + authorize URL. Saves request token
+    to ~/.spxstrat/etrade_token.json so subsequent verifier exchange can find it."""
+    from etrade.auth import request_token, is_configured
+    if not is_configured():
+        return jsonify({"ok": False, "error": "not_configured"}), 400
+    try:
+        payload = request_token()
+        url = payload.get("authorize_url")
+        if not url:
+            return jsonify({"ok": False, "error": "no_authorize_url"}), 500
+        return jsonify({"ok": True, "authorize_url": url, "expires_in_min": 5})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
+@app.route("/api/etrade/exchange-verifier", methods=["POST"])
+def api_etrade_exchange_verifier():
+    """Exchange a verifier code for an access token. Verifier must be from the
+    request_token issued via /api/etrade/request-token within the last ~5 min."""
+    from etrade.auth import get_access_token, is_configured, token_status
+    if not is_configured():
+        return jsonify({"ok": False, "error": "not_configured"}), 400
+    verifier = (flask_req.get_json(silent=True) or {}).get("verifier", "").strip()
+    if not verifier:
+        verifier = flask_req.form.get("verifier", "").strip()
+    if not verifier:
+        return jsonify({"ok": False, "error": "missing_verifier"}), 400
+    try:
+        get_access_token(verifier)
+        return jsonify({"ok": True, "status": token_status()})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
 @app.route("/etrade/auth")
 def api_etrade_auth():
     from etrade.auth import get_access_token, request_token
