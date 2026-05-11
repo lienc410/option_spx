@@ -136,6 +136,41 @@ Three visual tiers for the multi-strategy portfolio layout. All cards use the sa
 **Visual weight ordering on homepage Today's Actions:**
 Primary → Secondary → Addon(s). Research iteration sleeves (Q041 T2/T3) live in a separate section below Today's Actions, not in this hierarchy.
 
+## Backtest Page Template (minimum requirements)
+
+Every strategy backtest page must include these two elements in this order, before any strategy-specific content. This is a hard requirement, not a suggestion — consistency across backtest pages is the user's primary navigation aid when comparing strategies.
+
+**1. Key metrics row** (top of page, after page tabs)
+
+A row of cards using `.m-card` / `.metric-grid` (or local equivalent). Required for any **trade-based** strategy:
+
+| Card | Why it matters |
+|---|---|
+| Total Trades | Sample size |
+| Win Rate | Hit ratio |
+| Avg P&L (or Expectancy) | Per-trade unit economics |
+| Total P&L | Cumulative outcome |
+| Max Drawdown | Worst peak-to-trough |
+| Sharpe Ratio | Risk-adjusted return |
+| Annualized ROE | Capital efficiency |
+
+For **observation-only** strategies (no trades, e.g. Settled VIX) substitute:
+
+| Card | Substitute meaning |
+|---|---|
+| Total Signals | Days the signal evaluated |
+| Flip Rate | % of days Signal 1 ≠ Signal 2 |
+| Flip Count | Absolute flip events |
+| Outcome split | e.g. stable / timeout / skipped |
+
+**2. SPX Price chart — Trade Entry / Exit overlay** (second section)
+
+Chart title pattern: `SPX Price — <Strategy Name> Trade Entry / Exit` for trade strategies; `SPX Price — <Signal Name> Events` for observation strategies. Markers must be SPX-priced on the date the event occurred (entry/exit/flip), so user can read "what kind of SPX day was this".
+
+**Per-underlying exception:** Strategies that trade an instrument other than SPX (Q041 T2/T3 on GOOGL/AMZN/COST/JPM) use that underlying's price chart instead — title becomes `<Symbol> Price — Trade Entry / Exit`. Same overlay style.
+
+Below these two required elements, each backtest page may add strategy-specific analysis (waterfalls, regime breakdowns, sensitivity tables, etc.) freely.
+
 ## Spacing
 
 - **Base unit:** 4px

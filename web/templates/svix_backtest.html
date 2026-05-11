@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
 :root {
@@ -70,6 +71,18 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .todo-row { display:flex;gap:14px;font-family:var(--f-ui);font-size:0.70rem;color:var(--text-2);line-height:1.5; }
 .todo-bullet { flex:0 0 18px;color:var(--text-muted);font-family:var(--f-mono); }
 .todo-text { flex:1; }
+
+/* SPX overlay chart */
+.chart-hd { display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px; }
+.chart-title { font-family:var(--f-ui);font-size:0.72rem;color:var(--text-2); }
+.chart-legend { display:flex;gap:14px; }
+.chart-legend-item { display:flex;align-items:center;gap:5px;font-family:var(--f-mono);font-size:0.60rem;color:var(--text-2); }
+.chart-legend-dot { width:8px;height:8px;border-radius:50%; }
+.chart-legend-line { width:14px;height:2px;border-radius:2px; }
+.range-btns { display:flex;gap:4px;align-items:center; }
+.range-btn { font-family:var(--f-mono);font-size:0.60rem;padding:2px 9px;border-radius:4px;border:1px solid var(--border-2);background:none;color:var(--text-2);cursor:pointer;transition:0.12s; }
+.range-btn:hover { color:var(--text);border-color:var(--border-2); }
+.range-btn.active { background:var(--surface-hi);color:var(--text);border-color:var(--border-2); }
 </style>
 </head>
 <body>
@@ -114,6 +127,27 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
     </div>
   </div>
 
+  <!-- SPX Price overlay with flip event markers -->
+  <div class="card">
+    <div class="chart-hd">
+      <div class="card-title" style="margin-bottom:0">SPX Price — Settled VIX Flip Events</div>
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div class="chart-legend">
+          <div class="chart-legend-item"><div class="chart-legend-line" style="background:#4888E8"></div>SPX</div>
+          <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#E08040"></div>Flip event</div>
+        </div>
+        <div class="range-btns">
+          <button class="range-btn" onclick="setSpxRange('1yr')">1yr</button>
+          <button class="range-btn" onclick="setSpxRange('3yr')">3yr</button>
+          <button class="range-btn" onclick="setSpxRange('5yr')">5yr</button>
+          <button class="range-btn active" onclick="setSpxRange('all')">All</button>
+        </div>
+      </div>
+    </div>
+    <canvas id="svix-spx-chart" height="240" style="width:100%"></canvas>
+    <div id="svix-spx-empty" class="empty-msg" style="display:none">No SPX data available</div>
+  </div>
+
   <!-- Flip events -->
   <div class="card">
     <div class="card-title">Flip Events · Signal 1 ≠ Signal 2</div>
@@ -153,10 +187,14 @@ document.getElementById('nav-date').textContent = now.toLocaleDateString('en-US'
 
 function fmt(n, dec) { return typeof n === 'number' ? n.toFixed(dec ?? 1) : '—'; }
 
+let spxChart = null;
+let _spxFullData = null;  // {labels, prices, idxByDate, flipPoints}
+
 async function loadAll() {
-  const [histRes, flipRes] = await Promise.allSettled([
+  const [histRes, flipRes, spxRes] = await Promise.allSettled([
     fetch('/api/svix/history?limit=365').then(r => r.json()),
     fetch('/api/q019/flip-days').then(r => r.json()),
+    fetch('/api/q042/spx-history?full=1').then(r => r.json()),
   ]);
 
   // Summary metrics
@@ -228,6 +266,121 @@ async function loadAll() {
   } else {
     fbody.innerHTML = '<div class="empty-msg">Flip events API unavailable</div>';
   }
+
+  // SPX overlay chart
+  if (spxRes.status === 'fulfilled' && Array.isArray((spxRes.value || {}).history)) {
+    const hist = spxRes.value.history;
+    const flipRows = (flipRes.status === 'fulfilled' && Array.isArray(flipRes.value)) ? flipRes.value : [];
+    buildSpxChart(hist, flipRows);
+  } else {
+    document.getElementById('svix-spx-chart').style.display = 'none';
+    document.getElementById('svix-spx-empty').style.display = 'block';
+    document.getElementById('svix-spx-empty').textContent = 'SPX history API unavailable';
+  }
+}
+
+function buildSpxChart(history, flipRows) {
+  const labels = history.map(h => h.date);
+  const prices = history.map(h => h.close);
+  const idxByDate = {};
+  history.forEach((h, i) => { idxByDate[h.date] = i; });
+
+  const flipPoints = flipRows.map(r => {
+    const i = idxByDate[r.date];
+    if (i == null) return null;
+    return { x: i, y: prices[i], date: r.date, rec: `${r.rec_signal1 || '?'} → ${r.rec_signal2 || '?'}` };
+  }).filter(p => p != null);
+
+  _spxFullData = { labels, prices, idxByDate, flipPoints };
+
+  const ctx = document.getElementById('svix-spx-chart').getContext('2d');
+  if (spxChart) spxChart.destroy();
+
+  spxChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      datasets: [
+        {
+          label: 'SPX',
+          data: prices.map((p, i) => ({ x: i, y: p })),
+          borderColor: '#4888E8',
+          backgroundColor: 'rgba(72,136,232,0.06)',
+          fill: true,
+          pointRadius: 0,
+          tension: 0,
+          borderWidth: 1.2,
+          order: 2,
+        },
+        {
+          label: 'Flip event',
+          type: 'scatter',
+          data: flipPoints,
+          backgroundColor: '#E08040',
+          borderColor: '#E08040',
+          pointStyle: 'triangle',
+          pointRadius: 6,
+          pointHoverRadius: 8,
+          showLine: false,
+          order: 1,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: 'nearest', intersect: false },
+      scales: {
+        x: {
+          type: 'linear',
+          ticks: {
+            color: '#606880',
+            font: { family: 'JetBrains Mono', size: 9 },
+            callback: (v) => labels[Math.round(v)] || '',
+            maxRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: 8,
+          },
+          grid: { color: 'rgba(25,30,51,0.5)' },
+        },
+        y: {
+          ticks: { color: '#606880', font: { family: 'JetBrains Mono', size: 9 } },
+          grid: { color: 'rgba(25,30,51,0.5)' },
+          title: { display: true, text: 'SPX', color: '#363C52', font: { family: 'DM Sans', size: 9 } },
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: (items) => {
+              const idx = Math.round(items[0].parsed.x);
+              return labels[idx] || '';
+            },
+            label: (ctx) => {
+              if (ctx.dataset.label === 'Flip event') {
+                const p = ctx.raw;
+                return [`Flip: ${p.rec}`, `SPX: ${p.y.toFixed(2)}`];
+              }
+              return `SPX: ${ctx.parsed.y.toFixed(2)}`;
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+function setSpxRange(range) {
+  document.querySelectorAll('.range-btn').forEach(b => b.classList.toggle('active', b.textContent.includes(range) || (range === 'all' && b.textContent === 'All')));
+  if (!spxChart || !_spxFullData) return;
+  const N = _spxFullData.prices.length;
+  if (N === 0) return;
+  const ranges = { '1yr': 252, '3yr': 756, '5yr': 1260 };
+  const cutoff = ranges[range] ? Math.max(0, N - ranges[range]) : 0;
+  spxChart.options.scales.x.min = cutoff;
+  spxChart.options.scales.x.max = N - 1;
+  spxChart.update('none');
 }
 
 loadAll();
