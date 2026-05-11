@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-10 (SPEC-094.1 DONE — Q042 Sleeve A 替换 D30/2.5%；Developer 实施 + Quant `_exp_date` fast-path fix；AC-1.4 exact match ann=9.94%；in-flight 仓位 grandfather 至 2026-06-11)
+Last Updated: 2026-05-10 (SPEC-098 DONE — Q042 独立前端 /q042 + /q042/backtest，12 ACs 全 PASS，commit 20476ff；handoff 补写完成；old Air 同步)
 Owner: Planner or PM
 
 ## Current Phase
@@ -28,10 +28,11 @@ Owner: Planner or PM
 
 ## Active APPROVED Specs
 
-- `SPEC-098` — Q042 Drawdown Overlay Independent Frontend Dashboard. **APPROVED 2026-05-10.** 独立路由 `/q042`（Dashboard：Sleeve 状态卡 / SPX+ATH 监控图 / 触发距离 gauge / MA10 badge / 活跃仓位）+ `/q042/backtest`（19yr SPX+ATH+entry/exit overlay / 累计 P&L / ddATH 分布 / Sleeve 对比表 / P&L by year / BP timeline）；nav 入口；paper fail-soft；AC1-AC12 — `See: task/SPEC-098.md`
+（无——当前无待实施 SPEC）
 
 ## Recently Closed Specs
 
+- `SPEC-098` — Q042 Drawdown Overlay Independent Frontend Dashboard. Closed **DONE + deployed old Air** 2026-05-10（commit 20476ff；handoff 20476ff）. AC1-AC12 全 PASS：独立路由 `/q042`（C1-C5 Dashboard）+ `/q042/backtest`（C6-C11 分析页）；4 个新 API 端点；nav 全页入口；paper fail-soft；两个关键修复：scatter 对齐（54c5afd）/ MTM OPEN 行（0fe90ca）— `See: task/SPEC-098.md`, `task/SPEC-098_handoff.md`
 - `SPEC-094.1` — Q042 Sleeve A 参数替换（D30/2.5%）. **DONE 2026-05-10.** Sleeve A：DTE 90→30, short offset 5%→2.5%, no-overlap 90→30 days；Sleeve B 不变。Developer 实施 5 文件 ~15 行（trigger / pricing / executor / backtest / state / web / SOP），AC-1.1/1.3/1.5-1.10 全 PASS；AC-1.4 初次回测 ann=9.03% 偏 -0.91pp，Quant 诊断 `_exp_date` 应用 entry_dt 而非 signal_dt（每笔少持 ~1 trading day，30 DTE 放大 3.3% × 35 trades = -0.91pp）；Quant fast-path fix 3 文件 12 行（backtest engine + production executor + signals trigger），post-fix AC-1.4 exact match：n=35/WR=74.3%/ann=9.94%/MaxDD=-19.0%/total=192.3%。Sleeve B 不动（5/100%/2.2%/0%）。Grandfather 2026-03-12 in-flight 仓位 expiry 由 6-10 调整为 6-11（+1 cal day 副作用）。Bootstrap p=0.09 / P(C>A)=91% PM disclosed 并接受；alert 频率 +40%（1.30→1.81/yr）PM 接受。**Quant standing obligations**：首次 SPEC-094.1 生效后 HIGH_VOL trigger F4 re-validation；2026-11-10 半年 review 重跑 bootstrap；连续 3 笔 Sleeve A 亏损暂停 — `See: task/SPEC-094.1.md`, `RESEARCH_LOG.md R-20260510-15`
 - `SPEC-097` — V2f Cluster Loss Mitigation: M1 Entry Frequency Throttle. Closed **DONE + deployed old Air** 2026-05-10（commit 4586a32）. AC1-AC6 全 PASS：live M1 Ann ROE +2.38%，Sharpe 0.235，stress cluster -44.45%（Δ +3.12pp）；baseline +2.65%；`/api/es-backtest/v2f` 新 shape（baseline + m1 + delta）；V2f tab 含对比表 + M1 标注；cache 定向 purge + 旧 shape guard — `See: task/SPEC-097.md`
 
