@@ -258,6 +258,13 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .deferred-badge { font-family: var(--f-ui); font-size: 0.58rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); background: var(--gray-bg); border: 1px solid var(--gray-border); padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
 
 .footer { text-align: center; padding: 20px 0 0; font-size: 0.65rem; color: var(--text-muted); }
+
+
+/* Page tabs (Strategy / Backtest / Matrix family — per DESIGN.md) */
+.page-tabs { display:flex;gap:2px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border); }
+.page-tab { font-family:var(--f-ui);font-size:0.72rem;padding:5px 14px;border-radius:5px;text-decoration:none;color:var(--text-2);border:1px solid transparent;transition:0.15s; }
+.page-tab.active { color:var(--text);background:var(--surface-hi);border-color:var(--border-2); }
+.page-tab:hover:not(.active) { color:var(--text-2);background:var(--surface); }
 </style>
 </head>
 <body>
@@ -296,9 +303,9 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     </div>
   </div>
 
-  <div class="strat-tabs" style="display:flex;gap:2px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
-    <a href="/es" class="strat-tab active" style="font-family:var(--f-ui);font-size:0.72rem;padding:5px 14px;border-radius:5px;text-decoration:none;color:var(--text);background:var(--surface-hi);border:1px solid var(--border-2)">Strategy</a>
-    <a href="/es-backtest" class="strat-tab" style="font-family:var(--f-ui);font-size:0.72rem;padding:5px 14px;border-radius:5px;text-decoration:none;color:var(--text-2);border:1px solid transparent">Backtest</a>
+  <div class="page-tabs">
+    <a href="/es"          class="page-tab active">Strategy</a>
+    <a href="/es-backtest" class="page-tab">Backtest</a>
   </div>
 <!-- Signal grid -->
   <div class="section-label">Market Environment</div>

@@ -821,6 +821,13 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
 .discipline-val strong { color:var(--text);font-weight:500; }
 .discipline-val code { font-family:var(--f-mono);font-size:0.68rem;background:var(--surface-hi);padding:1px 5px;border-radius:3px;color:var(--text); }
 .discipline-footnote { margin-top:14px;padding-top:12px;border-top:1px solid var(--border-2);font-family:var(--f-ui);font-size:0.62rem;color:var(--text-muted);line-height:1.5; }
+
+
+/* Page tabs (Strategy / Backtest / Matrix family — per DESIGN.md) */
+.page-tabs { display:flex;gap:2px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border); }
+.page-tab { font-family:var(--f-ui);font-size:0.72rem;padding:5px 14px;border-radius:5px;text-decoration:none;color:var(--text-2);border:1px solid transparent;transition:0.15s; }
+.page-tab.active { color:var(--text);background:var(--surface-hi);border-color:var(--border-2); }
+.page-tab:hover:not(.active) { color:var(--text-2);background:var(--surface); }
 </style>
 </head>
 <body>
@@ -847,9 +854,10 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
     <a href="/spx" class="strat-link">← SPX Strategy</a>
   </div>
 
-  <div style="display:flex;gap:2px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
-    <a href="/spx" style="font-family:var(--f-ui);font-size:0.72rem;padding:5px 14px;border-radius:5px;text-decoration:none;color:var(--text-2);border:1px solid transparent">Strategy</a>
-    <a href="/backtest" style="font-family:var(--f-ui);font-size:0.72rem;padding:5px 14px;border-radius:5px;text-decoration:none;color:var(--text);background:var(--surface-hi);border:1px solid var(--border-2)">Backtest</a>
+  <div class="page-tabs">
+    <a href="/spx"      class="page-tab">Strategy</a>
+    <a href="/backtest" class="page-tab active">Backtest</a>
+    <a href="/matrix"   class="page-tab">Matrix</a>
   </div>
   <!-- Controls -->
   <div class="controls">

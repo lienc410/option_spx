@@ -357,6 +357,13 @@ table.mt-tbl { width: 100%; border-collapse: collapse; min-width: 640px; }
 }
 
 .hidden { display: none !important; }
+
+
+/* Page tabs (Strategy / Backtest / Matrix family — per DESIGN.md) */
+.page-tabs { display:flex;gap:2px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border); }
+.page-tab { font-family:var(--f-ui);font-size:0.72rem;padding:5px 14px;border-radius:5px;text-decoration:none;color:var(--text-2);border:1px solid transparent;transition:0.15s; }
+.page-tab.active { color:var(--text);background:var(--surface-hi);border-color:var(--border-2); }
+.page-tab:hover:not(.active) { color:var(--text-2);background:var(--surface); }
 </style>
 </head>
 <body>
@@ -364,15 +371,26 @@ table.mt-tbl { width: 100%; border-collapse: collapse; min-width: 640px; }
 <nav class="nav">
   <span class="nav-brand">SPX <em>Strategy</em></span>
   <div class="nav-links">
-    <a href="/" class="nav-link">Dashboard</a>
-    <a href="/matrix" class="nav-link active">Matrix</a>
-    <a href="/margin" class="nav-link">Margin</a>
-    <a href="/performance" class="nav-link">Performance</a>
+    <a href="/"                   class="nav-link">Portfolio</a>
+    <a href="/spx"                class="nav-link">SPX</a>
+    <a href="/es"                 class="nav-link">/ES</a>
+    <a href="/q042"               class="nav-link">Drawdown Overlay</a>
+    <a href="/aftermath"          class="nav-link">Aftermath</a>
+    <a href="/q041"               class="nav-link">Q041</a>
+    <a href="/portfolio-backtest" class="nav-link">Port BT</a>
+    <a href="/performance"        class="nav-link">Performance</a>
+    <a href="/margin"             class="nav-link">Margin</a>
   </div>
   <div class="nav-right" id="nav-date">—</div>
 </nav>
 
 <div class="container">
+
+  <div class="page-tabs">
+    <a href="/spx"      class="page-tab">Strategy</a>
+    <a href="/backtest" class="page-tab">Backtest</a>
+    <a href="/matrix"   class="page-tab active">Matrix</a>
+  </div>
 
   <!-- Current signal path -->
   <div class="signal-banner" id="sig-banner">
