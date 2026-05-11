@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-10 (SPEC-098 DONE — Q042 独立前端 /q042 + /q042/backtest，12 ACs 全 PASS，commit 20476ff；handoff 补写完成；old Air 同步)
+Last Updated: 2026-05-11 (SPEC-099 DONE — bot profit-target alert resilience Layer B+C（broker reconciliation + Schwab-direct fallback），commit d6c4b4b+566789c；Q063 CLOSED — IVP<55 gate robustness confirmed，PM hypothesis reversed，no SPEC change，commit d9020e5)
 Owner: Planner or PM
 
 ## Current Phase
@@ -32,6 +32,7 @@ Owner: Planner or PM
 
 ## Recently Closed Specs
 
+- `SPEC-099` — Telegram Bot SPX Profit-Target Alert Resilience. Closed **DONE 2026-05-11**（Developer impl 566789c + Quant fast-path fix d6c4b4b）. 触发背景：live BPS 到达 profit target 0.60 但 bot silent miss（state.json 残留 stale `status=closed`，PM 未跑 `/opened`）. Layer B：broker-state reconciliation alert（Schwab 有 SPX option 仓位但 local state 无记录时推 warning）. Layer C：Schwab-direct profit-target fallback（state.json 缺失/stale 时直接用 Schwab `averagePrice` 计算 capture%）. Quant fix：`_profit_check_from_state` category-filter bug（d6c4b4b）— `See: task/SPEC-099.md`
 - `SPEC-098` — Q042 Drawdown Overlay Independent Frontend Dashboard. Closed **DONE + deployed old Air** 2026-05-10（commit 20476ff；handoff 20476ff）. AC1-AC12 全 PASS：独立路由 `/q042`（C1-C5 Dashboard）+ `/q042/backtest`（C6-C11 分析页）；4 个新 API 端点；nav 全页入口；paper fail-soft；两个关键修复：scatter 对齐（54c5afd）/ MTM OPEN 行（0fe90ca）— `See: task/SPEC-098.md`, `task/SPEC-098_handoff.md`
 - `SPEC-094.1` — Q042 Sleeve A 参数替换（D30/2.5%）. **DONE 2026-05-10.** Sleeve A：DTE 90→30, short offset 5%→2.5%, no-overlap 90→30 days；Sleeve B 不变。Developer 实施 5 文件 ~15 行（trigger / pricing / executor / backtest / state / web / SOP），AC-1.1/1.3/1.5-1.10 全 PASS；AC-1.4 初次回测 ann=9.03% 偏 -0.91pp，Quant 诊断 `_exp_date` 应用 entry_dt 而非 signal_dt（每笔少持 ~1 trading day，30 DTE 放大 3.3% × 35 trades = -0.91pp）；Quant fast-path fix 3 文件 12 行（backtest engine + production executor + signals trigger），post-fix AC-1.4 exact match：n=35/WR=74.3%/ann=9.94%/MaxDD=-19.0%/total=192.3%。Sleeve B 不动（5/100%/2.2%/0%）。Grandfather 2026-03-12 in-flight 仓位 expiry 由 6-10 调整为 6-11（+1 cal day 副作用）。Bootstrap p=0.09 / P(C>A)=91% PM disclosed 并接受；alert 频率 +40%（1.30→1.81/yr）PM 接受。**Quant standing obligations**：首次 SPEC-094.1 生效后 HIGH_VOL trigger F4 re-validation；2026-11-10 半年 review 重跑 bootstrap；连续 3 笔 Sleeve A 亏损暂停 — `See: task/SPEC-094.1.md`, `RESEARCH_LOG.md R-20260510-15`
 - `SPEC-097` — V2f Cluster Loss Mitigation: M1 Entry Frequency Throttle. Closed **DONE + deployed old Air** 2026-05-10（commit 4586a32）. AC1-AC6 全 PASS：live M1 Ann ROE +2.38%，Sharpe 0.235，stress cluster -44.45%（Δ +3.12pp）；baseline +2.65%；`/api/es-backtest/v2f` 新 shape（baseline + m1 + delta）；V2f tab 含对比表 + M1 标注；cache 定向 purge + 旧 shape guard — `See: task/SPEC-097.md`
@@ -68,6 +69,7 @@ Owner: Planner or PM
 
 ## Open Questions Summary
 
+- `Q063` — **CLOSED 2026-05-11**. SPX 主策略 IVP<55 gate robustness review。PM hypothesis「gate 在低 VIX 环境产生 false alarm」被四层检验精确反向 reject：Phase 1 低 VIX blocked entries WR 63%（vs allowed 83%）；Phase 2 候选 A 19y +$6k 但 OOS test 期 -$907/yr；Phase 4 decay-weighted 3y HL A 输 -$19k，last 5y A 输 -$13.7k（2024-2026 gate 挡住 5 笔 counterfactual -$13.7k loss）。结论：**Keep IVP<55 gate unchanged，no SPEC change** — `See: task/q063_phase4_closure_memo_2026-05-11.md`, `RESEARCH_LOG.md R-20260511-01`
 - `Q002` — Shock active mode still needs Phase B validation — `open`
 - `Q012` — **closed.** `/ES` shared-BP governance clarification is complete for the current live scale. Quant `Phase A+B+C` showed that at the current production posture (`1` contract on a `$500k` account), allocator / gating / priority logic is overdesigned relative to the sleeve’s size and moves account-level ROE by only about `±0.01pp`. The correct implementation outcome was narrowed to stressed-SPAN visibility / monitoring, which has now shipped via `SPEC-088 DONE`. No further shared-BP governance work is active at the current scale; if `/ES` later expands materially, reopen under `Q050` rather than under `Q012`.
 - `Q013` — `/ES` short put runtime stop execution: bot alerting for the credit stop condition is now live via `SPEC-086 DONE`; remaining open item is post-entry management and Layer 1 / Layer 3 coverage. The `/ES` stop-semantics mismatch identified in the Quant audit is now closed at the parameter layer: backtest and monitoring both use `3.0x credit`, and `/ES` runtime / research parameters now share a single `EsShortPutParams` source — `open (bot alert gap closed; remaining work is post-entry / leverage scope)`

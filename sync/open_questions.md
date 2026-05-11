@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-05-10（Developer，**Q042 SPEC-094 IMPLEMENTED** — F1-F9 全部实施完成；paper-trading 已启动；collect_chains strike window 已扩至 +5% OTM；Standing obligation: first live HIGH_VOL trigger (VIX ≥ 22) 必须 re-run q042_f4_oldair_backfill.py 重新验证 delta）
+最后更新：2026-05-11（Q063 CLOSED — IVP<55 gate robustness confirmed，PM hypothesis reversed；SPEC-099 DONE — bot profit-target alert Layer B+C）
 
 ---
 
@@ -1530,6 +1530,21 @@
 - **复查触发**：Sleeve B paper trading 积累至 n≥15（当前 n=5）
 - **Artifacts**：`research/q042/q062_memo_2026-05-10.md`，`q062_p1/p2/p3_*.csv`
 
+
+### Q063 — SPX 主策略 IVP<55 Gate Robustness Review
+- **状态**：**CLOSED 2026-05-11**（R-20260511-01，commit d9020e5）
+- **来源**：PM hypothesis「IVP<55 gate 在低 VIX 环境下产生 false alarm，应放宽」
+- **结论**：**REJECT relaxation，keep gate unchanged，no SPEC change**
+- **研究路径**：Phase 1 VIX-stratified blocked trades → Phase 2 candidate gate comparison → Phase 3 OOS robustness → Phase 4 decay-weighted
+- **关键发现**：
+  - Phase 1：低 VIX blocked entries WR 63%（vs allowed 83%），avg P&L $389（vs $2,323）——低 VIX 时 gate 仍有效
+  - Phase 2：候选 A（relax gate）19y unweighted +$6k，但 Phase 3 OOS test 期 A loses -$907/yr
+  - Phase 4：decay 越重 A 越差——3y HL A loses -$19,237；last 5y A loses -$13,730；last 3y A loses -$7,700
+  - 2024-2026 gate 挡住 5 笔 entries，counterfactual P&L = -$13.7k（gate 是高价值真信号）
+- **Mechanism**：VIX=15-17 + IVP=60-65 不矛盾——vol 已 compress 到 1y 高分位（相对）即使 absolute 低；gate 在 recent regime shift（2022+ 结构性低 vol 但 IV spike 仍阶段性高）下更重要
+- **Artifacts**：`task/q063_phase4_closure_memo_2026-05-11.md`，`research/q063/q063_phase1-4_*.py`，`RESEARCH_LOG.md R-20260511-01`
+
+---
 
 ### Q043 — Q041 scanner / bot support：在 visualization / attribution surface 稳定后，是否应补一层只读 scanner + shadow notification 支持
 - **状态**：open（future support seed / medium-low priority）
