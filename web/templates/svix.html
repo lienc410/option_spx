@@ -38,10 +38,53 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .page-hero h1 { font-family:var(--f-display);font-size:1.80rem;font-weight:400;line-height:1.1;margin-bottom:6px; }
 .page-hero h1 em { font-style:italic;color:var(--text-2); }
 .page-meta { font-family:var(--f-ui);font-size:0.70rem;color:var(--text-2); }
+.tier-badge { display:inline-block;font-family:var(--f-ui);font-size:0.58rem;font-weight:500;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-muted);background:var(--gray-bg);border:1px solid var(--gray-border);padding:3px 8px;border-radius:5px;margin-left:10px;vertical-align:middle; }
 
-.stub-card { background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:24px;margin-top:24px; }
-.stub-title { font-family:var(--f-ui);font-size:0.65rem;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:0.10em;margin-bottom:12px; }
-.stub-body { font-family:var(--f-ui);font-size:0.72rem;color:var(--text-muted);line-height:1.6; }
+.card { background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:18px 22px;margin-bottom:14px; }
+.card-title { font-family:var(--f-ui);font-size:0.62rem;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:0.10em;margin-bottom:14px; }
+
+/* Status card */
+.status-row { display:flex;flex-wrap:wrap;gap:24px;align-items:baseline; }
+.status-cell { display:flex;flex-direction:column;gap:4px; }
+.status-key { font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em; }
+.status-val { font-family:var(--f-mono);font-size:1.10rem;color:var(--text);font-weight:500; }
+.status-val.muted { color:var(--text-muted); }
+.status-val.warn { color:var(--orange); }
+.status-val.ok { color:var(--green); }
+
+.state-pill { display:inline-block;padding:4px 12px;border-radius:5px;font-family:var(--f-ui);font-size:0.65rem;font-weight:500;text-transform:uppercase;letter-spacing:0.10em; }
+.state-pill.s-waiting   { color:var(--blue);   background:var(--blue-bg);   border:1px solid var(--blue-border); }
+.state-pill.s-stable    { color:var(--green);  background:var(--green-bg);  border:1px solid var(--green-border); }
+.state-pill.s-timeout   { color:var(--orange); background:var(--orange-bg); border:1px solid var(--orange-border); }
+.state-pill.s-skipped   { color:var(--text-muted); background:var(--gray-bg); border:1px solid var(--gray-border); }
+.state-pill.s-unavailable { color:var(--text-muted); background:var(--gray-bg); border:1px solid var(--gray-border);font-style:italic; }
+
+/* Signal comparison */
+.sig-grid { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
+.sig-card { background:var(--surface-hi);border:1px solid var(--border-2);border-radius:8px;padding:14px 16px; }
+.sig-hd { display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px; }
+.sig-name { font-family:var(--f-ui);font-size:0.68rem;font-weight:500;color:var(--text); }
+.sig-time { font-family:var(--f-mono);font-size:0.58rem;color:var(--text-muted); }
+.sig-vix { font-family:var(--f-mono);font-size:1.40rem;font-weight:500;color:var(--text);margin-bottom:6px; }
+.sig-rec { font-family:var(--f-ui);font-size:0.68rem;color:var(--text-2); }
+.sig-rec b { color:var(--text);font-weight:500; }
+.sig-empty { font-family:var(--f-ui);font-size:0.65rem;color:var(--text-muted);font-style:italic;text-align:center;padding:20px 0; }
+
+/* Trigger logic */
+.trigger-list { display:flex;flex-direction:column;gap:10px; }
+.trigger-row { display:flex;gap:14px;font-family:var(--f-ui);font-size:0.72rem;color:var(--text-2);line-height:1.5; }
+.trigger-key { flex:0 0 110px;color:var(--text-muted);font-family:var(--f-mono);font-size:0.65rem;text-transform:uppercase;letter-spacing:0.05em;padding-top:2px; }
+.trigger-val { flex:1; }
+.trigger-val code { font-family:var(--f-mono);font-size:0.68rem;background:var(--surface-hi);padding:1px 5px;border-radius:3px;color:var(--text); }
+
+/* History table */
+.hist-table { width:100%;border-collapse:collapse; }
+.hist-table th { font-family:var(--f-ui);font-size:0.56rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--border-2); }
+.hist-table td { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2);padding:8px 10px;border-bottom:1px solid var(--border); }
+.hist-table td.date-col { color:var(--text); }
+.hist-table td.changed { color:var(--orange);font-weight:500; }
+.hist-table tr:hover td { background:var(--surface-hi); }
+.hist-empty { font-family:var(--f-ui);font-size:0.68rem;color:var(--text-muted);font-style:italic;padding:24px;text-align:center; }
 </style>
 </head>
 <body>
@@ -65,19 +108,58 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 <div class="page">
 
   <div class="page-hero">
-    <h1>Settled <em>VIX</em></h1>
-    <div class="page-meta">VIX 顶部回落择时信号 · Observation only · 信号源自 SPX 主策略的 Signal 2 模块</div>
+    <h1>Settled <em>VIX</em><span class="tier-badge">Observation</span></h1>
+    <div class="page-meta">VIX 顶部回落择时信号 · 开盘 vs 稳定后两次取值 · 信号源自 SPX 主策略 Signal 2 模块</div>
   </div>
 
-  <div class="stub-card">
-    <div class="stub-title">Page Under Construction</div>
-    <div class="stub-body">
-      Settled VIX 独立页面正在建设中。Phase 4 完成后这里会展示：
-      <ul style="margin-top:10px;padding-left:18px;line-height:1.8">
-        <li>当前信号状态卡（实时 VIX vs VIX3M，触发条件评估）</li>
-        <li>触发逻辑说明（Signal 1 / Signal 2 / delta_vix 阈值）</li>
-        <li>历史信号事件表（最近 30 条）</li>
-      </ul>
+  <!-- Current state -->
+  <div class="card" id="status-card">
+    <div class="card-title">Today · Current State</div>
+    <div id="status-body">
+      <div class="hist-empty">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Signal 1 vs Signal 2 -->
+  <div class="card">
+    <div class="card-title">Signal Comparison</div>
+    <div class="sig-grid" id="sig-grid">
+      <div class="sig-empty" style="grid-column:1/-1">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Trigger logic -->
+  <div class="card">
+    <div class="card-title">Trigger Logic</div>
+    <div class="trigger-list">
+      <div class="trigger-row">
+        <div class="trigger-key">Signal 1</div>
+        <div class="trigger-val">开盘时（09:30 ET）VIX 读数对应的策略推荐 — <code>_build_signal1()</code></div>
+      </div>
+      <div class="trigger-row">
+        <div class="trigger-key">Signal 2</div>
+        <div class="trigger-val">VIX 稳定后（或 12:30 ET 超时）的策略推荐 — <code>_build_signal2(vix)</code></div>
+      </div>
+      <div class="trigger-row">
+        <div class="trigger-key">Settle test</div>
+        <div class="trigger-val">每小时检查一次 <code>|ΔVIX| &lt; 0.5</code>，连续达成视为稳定</div>
+      </div>
+      <div class="trigger-row">
+        <div class="trigger-key">Timeout</div>
+        <div class="trigger-val">3 小时（12:30 ET）后无论是否稳定，按当时 VIX 取值并标记 <code>timeout</code></div>
+      </div>
+      <div class="trigger-row">
+        <div class="trigger-key">Action</div>
+        <div class="trigger-val">仅观察记录，不改 SPX 主策略持仓；若 Signal 1 ≠ Signal 2 则通过 Telegram 通知</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- History -->
+  <div class="card">
+    <div class="card-title">Signal History · Recent 30</div>
+    <div id="hist-body">
+      <div class="hist-empty">Loading…</div>
     </div>
   </div>
 
@@ -86,6 +168,123 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 <script>
 const now = new Date();
 document.getElementById('nav-date').textContent = now.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+
+function fmt(n, dec) { return typeof n === 'number' ? n.toFixed(dec ?? 1) : '—'; }
+function fmtTime(iso) { if (!iso) return '—'; try { const d = new Date(iso); return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}); } catch(_) { return iso; } }
+
+async function loadStatus() {
+  const body = document.getElementById('status-body');
+  const sigGrid = document.getElementById('sig-grid');
+  try {
+    const d = await fetch('/api/recommendation/settling').then(r => r.json());
+    const status = d.status || 'unavailable';
+    const pillCls = `s-${status}`;
+    const noteText = d.note ? `<span style="font-family:var(--f-ui);font-size:0.62rem;color:var(--text-muted);margin-left:10px;font-style:italic">${d.note}</span>` : '';
+
+    body.innerHTML = `
+      <div style="margin-bottom:14px"><span class="state-pill ${pillCls}">${status}</span>${noteText}</div>
+      <div class="status-row">
+        <div class="status-cell">
+          <div class="status-key">Date</div>
+          <div class="status-val">${d.date || '—'}</div>
+        </div>
+        <div class="status-cell">
+          <div class="status-key">Current VIX</div>
+          <div class="status-val">${fmt(d.current_vix, 2)}</div>
+        </div>
+        <div class="status-cell">
+          <div class="status-key">Prev VIX</div>
+          <div class="status-val muted">${fmt(d.prev_vix, 2)}</div>
+        </div>
+        <div class="status-cell">
+          <div class="status-key">ΔVIX</div>
+          <div class="status-val ${d.delta_vix != null && Math.abs(d.delta_vix) >= (d.threshold || 0.5) ? 'warn' : 'ok'}">${fmt(d.delta_vix, 2)}</div>
+        </div>
+        <div class="status-cell">
+          <div class="status-key">Elapsed</div>
+          <div class="status-val muted">${d.elapsed_min ?? 0}/${d.timeout_min ?? 180} min</div>
+        </div>
+        <div class="status-cell">
+          <div class="status-key">Last Check</div>
+          <div class="status-val muted">${fmtTime(d.checked_at)}</div>
+        </div>
+      </div>
+    `;
+
+    // Signal comparison
+    if (d.signal1 || d.signal2) {
+      sigGrid.innerHTML = ['signal1', 'signal2'].map(k => {
+        const s = d[k];
+        const isOpen = k === 'signal1';
+        const tag = isOpen ? 'Signal 1 · Open' : 'Signal 2 · Settled';
+        if (!s) {
+          return `<div class="sig-card"><div class="sig-hd"><span class="sig-name">${tag}</span></div><div class="sig-empty">No data yet</div></div>`;
+        }
+        return `<div class="sig-card">
+          <div class="sig-hd">
+            <span class="sig-name">${tag}</span>
+            <span class="sig-time">VIX</span>
+          </div>
+          <div class="sig-vix">${fmt(s.vix, 2)}</div>
+          <div class="sig-rec">
+            <div>Strategy: <b>${s.strategy || s.strategy_key || '—'}</b></div>
+            <div>Action: <b>${s.position_action || '—'}</b></div>
+          </div>
+        </div>`;
+      }).join('');
+    } else {
+      sigGrid.innerHTML = '<div class="sig-empty" style="grid-column:1/-1">无信号数据 — 今日未运行 settling 流程</div>';
+    }
+  } catch (e) {
+    body.innerHTML = `<div class="hist-empty">API error: ${e.message}</div>`;
+    sigGrid.innerHTML = '';
+  }
+}
+
+async function loadHistory() {
+  const body = document.getElementById('hist-body');
+  try {
+    const d = await fetch('/api/svix/history?limit=30').then(r => r.json());
+    if (d.error) throw new Error(d.error);
+    const rows = d.history || [];
+    if (rows.length === 0) {
+      const msg = d.note === 'no_log_file' ? '尚无信号日志 — settling 流程首次运行后此处会出现历史记录' : '无历史记录';
+      body.innerHTML = `<div class="hist-empty">${msg}</div>`;
+      return;
+    }
+    body.innerHTML = `
+      <table class="hist-table">
+        <thead><tr>
+          <th>Date</th>
+          <th>VIX (S1 → S2)</th>
+          <th>Rec (S1 → S2)</th>
+          <th>Status</th>
+          <th>Elapsed</th>
+          <th>Changed</th>
+        </tr></thead>
+        <tbody>
+        ${rows.map(r => `
+          <tr>
+            <td class="date-col">${r.date || '—'}</td>
+            <td>${fmt(r.vix_signal1, 2)} → ${fmt(r.vix_signal2, 2)}</td>
+            <td>${r.rec_signal1 || '—'} → ${r.rec_signal2 || '—'}</td>
+            <td>${r.settling_status || '—'}</td>
+            <td>${r.elapsed_min ?? 0}m</td>
+            <td class="${r.changed ? 'changed' : ''}">${r.changed ? '✓' : '—'}</td>
+          </tr>
+        `).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (e) {
+    body.innerHTML = `<div class="hist-empty">History API error: ${e.message}</div>`;
+  }
+}
+
+loadStatus();
+loadHistory();
+// Refresh every 60s while page is open
+setInterval(() => { loadStatus(); }, 60000);
 </script>
 </body>
 </html>
