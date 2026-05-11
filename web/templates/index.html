@@ -2010,11 +2010,12 @@ function renderQ042(d) {
     </div>
     <div class="portfolio-body">
       <div class="portfolio-section">
-        <div class="portfolio-label">Sleeve A — dd4 (1.3/yr)</div>
+        <div class="portfolio-label">Sleeve A — dd4 (1.81/yr)</div>
         <div class="sleeve-row" style="padding:8px 0">
           <div>${badge(sa_status.label, sa_status.color)}</div>
           <div>
-            <div class="sleeve-name">ddATH ≤ −4% · no MA filter · T+1 open</div>
+            <div class="sleeve-name">ddATH ≤ −4% · ATM/+2.5% call spread · 30 DTE (SPEC-094.1, effective 2026-06-11)</div>
+            <div class="sleeve-note" style="color:var(--text-muted);font-size:.62rem">In-flight position opened 2026-03-12 grandfathered at original 90-DTE terms → expiry 2026-06-10</div>
             ${fmtPos(sa.active_position)}
           </div>
           <div class="portfolio-val" style="font-size:.68rem">${fmtStats(sa.stats)}</div>

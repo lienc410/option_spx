@@ -7,9 +7,9 @@ Design:
   (find_triggers_ddath + apply_no_overlap), so AC21 reproduces research counts.
   P&L calculation uses walk-forward pricing.
 
-  Sleeve A: ddATH ≤ -4%, no MA filter, T+1 open, DTE 90, hold to expiry.
-  Sleeve B: ddATH ≤ -15% outer crossing → MA10 reclaim within 30 trading days.
-  Both:     ATM/+5% SPX call spread, 10% account sizing, hold to expiry.
+  Sleeve A: ddATH ≤ -4%, no MA filter, T+1 open, DTE 30, ATM/+2.5% (SPEC-094.1).
+  Sleeve B: ddATH ≤ -15% outer crossing → MA10 reclaim, DTE 90, ATM/+5% (unchanged).
+  Both:     10% account sizing, hold to expiry.
 
 Acceptance criteria:
   AC21: Reproduces Tier 3 research metrics within ±2%:
@@ -43,8 +43,10 @@ SPX_PKL = REPO_ROOT / "data" / "market_cache" / "yahoo__GSPC__max__1d.pkl"
 VIX_PKL = REPO_ROOT / "data" / "market_cache" / "yahoo__VIX__max__1d.pkl"
 TRADES_CSV = REPO_ROOT / "data" / "q042_backtest_trades.csv"
 
-_DTE        = 90
-_OTM        = 0.05
+_DTE_A      = 30    # Sleeve A: SPEC-094.1
+_DTE_B      = 90    # Sleeve B: unchanged
+_OTM_A      = 0.025 # Sleeve A: ATM/+2.5% (SPEC-094.1)
+_OTM_B      = 0.05  # Sleeve B: ATM/+5%  (unchanged)
 _SIZING_PCT = 0.10
 _NLV_SEED   = 100_000.0
 _MA10_WIN   = 10
@@ -229,11 +231,11 @@ def run_backtest(start: str = "2007-01-01", end: str = "2026-05-10") -> Backtest
 
     # ── Step 1: compute trigger sets using research methodology ───────────────
     raw_a  = _find_triggers_ddath(ddath, 0.04, -0.02)
-    sig_a  = _apply_no_overlap(raw_a, _DTE)
+    sig_a  = _apply_no_overlap(raw_a, _DTE_A)
 
     raw_b_cross = _find_triggers_ddath(ddath, 0.15, -0.02)
     raw_b_entry = _find_sleeve_b_entries(raw_b_cross, df["close"], ma10, idx, _WATCH_DAYS)
-    sig_b  = _apply_no_overlap(raw_b_entry, _DTE)
+    sig_b  = _apply_no_overlap(raw_b_entry, _DTE_B)
 
     sig_a_set = set(d for d in sig_a)
     sig_b_set = set(d for d in sig_b)
@@ -246,8 +248,8 @@ def run_backtest(start: str = "2007-01-01", end: str = "2026-05-10") -> Backtest
     daily_rows: list[DailyRow] = []
     account = _NLV_SEED
 
-    def _exp_date(sig_str: str) -> str:
-        return (datetime.strptime(sig_str, "%Y-%m-%d") + timedelta(days=_DTE)).strftime("%Y-%m-%d")
+    def _exp_date(sig_str: str, dte: int) -> str:
+        return (datetime.strptime(sig_str, "%Y-%m-%d") + timedelta(days=dte)).strftime("%Y-%m-%d")
 
     def _maybe_expire(pos: Optional[_ActivePos], trades: list, today: str, close: float) -> Optional[_ActivePos]:
         if pos is None or today < pos.expiry_date:
@@ -277,9 +279,11 @@ def run_backtest(start: str = "2007-01-01", end: str = "2026-05-10") -> Backtest
         vix_val   = float(df.iloc[i]["vix"]) if not pd.isna(df.iloc[i]["vix"]) else 20.0
         ath_val   = float(ath.iloc[i])
         dd_val    = float(ddath.iloc[i])
+        dte = _DTE_A if sleeve_id == "A" else _DTE_B
+        otm = _OTM_A if sleeve_id == "A" else _OTM_B
         K_long    = round(sig_close / 5) * 5
-        K_short   = round(sig_close * (1 + _OTM) / 5) * 5
-        debit_ps  = _price_spread(S_entry, float(K_long), float(K_short), vix_val, _DTE)
+        K_short   = round(sig_close * (1 + otm) / 5) * 5
+        debit_ps  = _price_spread(S_entry, float(K_long), float(K_short), vix_val, dte)
         if debit_ps <= 0: return None
         # Use fractional contracts (1.0) — research does not filter by affordability.
         # P&L is computed as % of debit (research methodology), so integer contracts
@@ -291,7 +295,7 @@ def run_backtest(start: str = "2007-01-01", end: str = "2026-05-10") -> Backtest
             ath_at_signal=ath_val, ddath_at_signal=dd_val,
             long_strike=float(K_long), short_strike=float(K_short),
             debit_per_share=debit_ps, contracts=1.0,
-            expiry_date=_exp_date(signal_dt.strftime("%Y-%m-%d")),
+            expiry_date=_exp_date(signal_dt.strftime("%Y-%m-%d"), dte),
             account_at_entry=_NLV_SEED,
         )
 

@@ -118,7 +118,7 @@ def _format_alert(spec: PendingOrderSpec) -> str:
         f"\U0001f7e2 Q042 [Sleeve {spec.sleeve_id}] | SPX\n"
         f"Entry: T+1 open (manual) — {spec.entry_target_date}\n"
         f"Strikes: long K={spec.long_strike} / short K={spec.short_strike}\n"
-        f"DTE: 90\n"
+        f"DTE: {30 if spec.sleeve_id == 'A' else 90}\n"
         f"Est debit: ${spec.est_debit_per_contract:,.0f} per contract\n"
         f"Contracts: {spec.contracts}\n"
         f"NLV at signal: ${spec.nlv_at_signal:,.0f}\n"
@@ -167,7 +167,7 @@ def _write_pending_record(spec: PendingOrderSpec) -> None:
         "ddath_at_signal":  round(spec.ddath_at_signal, 4),
         "long_strike":      spec.long_strike,
         "short_strike":     spec.short_strike,
-        "dte":              90,
+        "dte":              30 if spec.sleeve_id == "A" else 90,  # SPEC-094.1
         "est_debit":        round(spec.est_debit_per_contract, 2),
         "fill_debit":       None,           # back-filled by PM
         "contracts":        spec.contracts,
@@ -221,8 +221,9 @@ def run_eod_evaluation(
         log_gate(gate)
         log.info(f"gate: main_bp={main_bp:.1f}% cap={gate.q042_combined_cap:.1f}%")
 
-        entry_date = (datetime.strptime(today_str, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
-        expiry     = (datetime.strptime(today_str, "%Y-%m-%d") + timedelta(days=90)).strftime("%Y-%m-%d")
+        entry_date  = (datetime.strptime(today_str, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+        expiry_a    = (datetime.strptime(today_str, "%Y-%m-%d") + timedelta(days=30)).strftime("%Y-%m-%d")  # SPEC-094.1
+        expiry_b    = (datetime.strptime(today_str, "%Y-%m-%d") + timedelta(days=90)).strftime("%Y-%m-%d")  # Sleeve B unchanged
 
         act_a = update_sleeve_a(state["sleeve_a"], ddath, today_str)
         if act_a["action"] == "fire_A" and gate.sleeve_a_allowance > 0:
@@ -240,7 +241,7 @@ def run_eod_evaluation(
                     _write_pending_record(spec)
                 fired.append(spec)
                 state["sleeve_a"]["active_position_id"] = f"A-{today_str}"
-                state["sleeve_a"]["active_position_expiry"] = expiry
+                state["sleeve_a"]["active_position_expiry"] = expiry_a
 
         act_b = update_sleeve_b(state["sleeve_b"], ddath, spx_close, ma10, today_str, cal)
         if act_b["action"] == "fire_B" and gate.sleeve_b_allowance > 0:
@@ -258,7 +259,7 @@ def run_eod_evaluation(
                     _write_pending_record(spec)
                 fired.append(spec)
                 state["sleeve_b"]["active_position_id"] = f"B-{today_str}"
-                state["sleeve_b"]["active_position_expiry"] = expiry
+                state["sleeve_b"]["active_position_expiry"] = expiry_b
 
         save_state(state)
 

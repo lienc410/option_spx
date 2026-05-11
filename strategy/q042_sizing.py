@@ -23,7 +23,10 @@ from strategy.q042_pricing import estimate_debit
 _NLV_MINIMUM    = 200_000.0   # activation threshold
 _SIZING_PCT     = 0.10        # 10% account per entry
 _STRIKE_ROUND   = 5.0         # $5 increments
-_OTM_PCT        = 0.05        # +5% for short leg
+_OTM_PCT_A      = 0.025       # Sleeve A: ATM/+2.5% (SPEC-094.1)
+_OTM_PCT_B      = 0.05        # Sleeve B: ATM/+5%  (unchanged)
+_DTE_A          = 30          # Sleeve A: 30 DTE   (SPEC-094.1)
+_DTE_B          = 90          # Sleeve B: 90 DTE   (unchanged)
 _SPX_MULTIPLIER = 100         # SPX contract multiplier
 
 
@@ -52,21 +55,24 @@ def compute_sizing(
         est_debit_per_contract is in USD (per-share debit × 100).
         Returns (None, None, 0, None) if NLV below activation threshold.
 
-    AC6 example: NLV $500k, SPX 7400, VIX 25
-        → (7400, 7770, 4, ~$11k) [10% × $500k = $50k; 4 × $11k = $44k]
+    AC6 example: NLV $500k, SPX 7400, VIX 25, sleeve_id="A"
+        → (7400, 7585, n, ~est) [Sleeve A: ATM/+2.5%, DTE 30]
     AC7: NLV $150k → (None, None, 0, None)
     """
     if nlv < _NLV_MINIMUM:
         return None, None, 0, None
 
+    oTM = _OTM_PCT_A if sleeve_id == "A" else _OTM_PCT_B
+    dte = _DTE_A     if sleeve_id == "A" else _DTE_B
+
     long_k  = _round_strike(spx_close)
-    short_k = _round_strike(spx_close * (1.0 + _OTM_PCT))
+    short_k = _round_strike(spx_close * (1.0 + oTM))
 
     debit_per_share = estimate_debit(
         S=spx_close,
         K_long=float(long_k),
         K_short=float(short_k),
-        dte=90,
+        dte=dte,
         vix=vix,
     )
     debit_per_contract = debit_per_share * _SPX_MULTIPLIER
