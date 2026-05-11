@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Q041 T1 · Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+:root {
+  --bg:#080A13; --surface:#0D1020; --surface-hi:#131728;
+  --border:#191E33; --border-2:#232A42;
+  --text:#C4CEEC; --text-2:#606880; --text-muted:#363C52;
+  --gold:#C9A840; --gold-bg:rgba(201,168,64,0.07); --gold-border:rgba(201,168,64,0.22);
+  --green:#42CC7C; --red:#E04862; --blue:#4888E8; --orange:#E08040;
+  --gray-bg:rgba(96,104,128,0.08); --gray-border:rgba(96,104,128,0.2);
+  --f-display:'Newsreader',Georgia,serif; --f-mono:'JetBrains Mono','Courier New',monospace; --f-ui:'DM Sans',system-ui,sans-serif;
+}
+html { font-size:14px; }
+body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-height:100vh; line-height:1.55; }
+
+.nav { position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:50px;background:rgba(8,10,19,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border); }
+.nav-brand { font-family:var(--f-display);font-size:1.05rem;color:var(--gold); }
+.nav-brand em { font-style:italic; }
+.nav-links { display:flex;gap:18px;align-items:center; }
+.nav-link { font-family:var(--f-ui);font-size:0.72rem;color:var(--text-2);text-decoration:none;padding:6px 10px;border-radius:5px;transition:0.12s; }
+.nav-link:hover { color:var(--text);background:var(--surface-hi); }
+.nav-link.active { color:var(--gold);background:var(--gold-bg); }
+.nav-right { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-muted); }
+
+.page { max-width:880px;margin:0 auto;padding:32px 24px 64px; }
+.page-hero { margin-bottom:24px; }
+.page-hero h1 { font-family:var(--f-display);font-size:1.80rem;font-weight:400;line-height:1.1;margin-bottom:6px;font-style:italic;color:var(--text-2); }
+.page-meta { font-family:var(--f-ui);font-size:0.70rem;color:var(--text-muted); }
+.retired-badge { display:inline-block;font-family:var(--f-ui);font-size:0.58rem;font-weight:500;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-muted);background:var(--gray-bg);border:1px solid var(--gray-border);padding:3px 8px;border-radius:5px;font-style:italic;margin-left:8px;vertical-align:middle; }
+
+.stub-card { background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:24px;margin-top:24px; }
+.stub-title { font-family:var(--f-ui);font-size:0.65rem;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:0.10em;margin-bottom:12px; }
+.stub-body { font-family:var(--f-ui);font-size:0.72rem;color:var(--text-muted);line-height:1.6; }
+
+.back-link { display:inline-block;font-family:var(--f-ui);font-size:0.68rem;color:var(--text-2);text-decoration:none;margin-bottom:18px;padding:4px 0; }
+.back-link:hover { color:var(--text); }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav-brand">SPX <em>Strategy</em></span>
+  <div class="nav-links">
+    <a href="/"                   class="nav-link">Portfolio</a>
+    <a href="/spx"                class="nav-link">SPX</a>
+    <a href="/es"                 class="nav-link">/ES</a>
+    <a href="/q042"               class="nav-link">Drawdown Overlay</a>
+    <a href="/svix"               class="nav-link">Settled VIX</a>
+    <a href="/q041"               class="nav-link active">Q041</a>
+    <a href="/portfolio-backtest" class="nav-link">Port BT</a>
+    <a href="/performance"        class="nav-link">Performance</a>
+    <a href="/margin"             class="nav-link">Margin</a>
+  </div>
+  <div class="nav-right" id="nav-date">—</div>
+</nav>
+
+<div class="page">
+
+  <a href="/q041" class="back-link">← Q041 Strategy Matrix</a>
+
+  <div class="page-hero">
+    <h1>Q041 Tier 1<span class="retired-badge">Retired</span></h1>
+    <div class="page-meta">SPX Cash-Secured Put · Δ20 · DTE 30 · 已归档</div>
+  </div>
+
+  <div class="stub-card">
+    <div class="stub-title">归档说明</div>
+    <div class="stub-body">
+      Q041 Tier 1 是早期 SPX 短期 Cash-Secured Put 研究方向，在与 /ES short put 策略的并行竞争评估中胜出方为 /ES。
+      Q041 T1 已退出主流监控，仅保留作为研究历史参考。
+      <br><br>
+      Phase 5 完成后这里会展示：
+      <ul style="margin-top:10px;padding-left:18px;line-height:1.8">
+        <li>T1 完整回测摘要（N 笔交易、胜率、平均收益、最大回撤）</li>
+        <li>退出原因详细分析（vs ES 的对比数据）</li>
+        <li>归档日期、关键决策链接</li>
+        <li>T1 spec 配置完整记录</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="stub-card">
+    <div class="stub-title">Active Q041 Iterations</div>
+    <div class="stub-body">
+      Q041 体系仍有 Tier 2 / Tier 3 的独立研究方向在持续迭代。
+      <a href="/q041" style="color:var(--blue);text-decoration:none">→ 查看 Q041 Strategy Matrix（T2/T3）</a>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const now = new Date();
+document.getElementById('nav-date').textContent = now.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+</script>
+</body>
+</html>
