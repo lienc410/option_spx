@@ -278,10 +278,11 @@ def _append_integrity_record(record: dict[str, Any]) -> None:
         fh.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
-def _load_integrity_alerted_days() -> dict[str, set[str]]:
+def _load_integrity_alerted_days() -> set[str]:
+    """Return the set of ALL missing-day strings that have ever been alerted, across all runs."""
     if not INTEGRITY_ALERT_STATE_PATH.exists():
-        return {}
-    out: dict[str, set[str]] = {}
+        return set()
+    out: set[str] = set()
     with INTEGRITY_ALERT_STATE_PATH.open("r", encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
@@ -291,10 +292,7 @@ def _load_integrity_alerted_days() -> dict[str, set[str]]:
                 payload = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            when = str(payload.get("date") or "")
-            missing_days = {str(v) for v in (payload.get("missing_days") or []) if str(v)}
-            if when:
-                out.setdefault(when, set()).update(missing_days)
+            out.update(str(v) for v in (payload.get("missing_days") or []) if str(v))
     return out
 
 
@@ -330,7 +328,7 @@ def _build_integrity_alert_text(record: dict[str, Any]) -> str | None:
     missing = [str(v) for v in (record.get("missing_days") or []) if str(v)]
     if not missing:
         return None
-    prior = _load_integrity_alerted_days().get(str(record.get("date") or ""), set())
+    prior = _load_integrity_alerted_days()   # global set — never re-alert same missing day
     fresh = [d for d in missing if d not in prior]
     if not fresh:
         return None
