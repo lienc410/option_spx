@@ -31,17 +31,47 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .nav-right { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-muted); }
 
 .page { max-width:880px;margin:0 auto;padding:32px 24px 64px; }
+.back-link { display:inline-block;font-family:var(--f-ui);font-size:0.68rem;color:var(--text-2);text-decoration:none;margin-bottom:18px;padding:4px 0; }
+.back-link:hover { color:var(--text); }
+
 .page-hero { margin-bottom:24px; }
 .page-hero h1 { font-family:var(--f-display);font-size:1.80rem;font-weight:400;line-height:1.1;margin-bottom:6px;font-style:italic;color:var(--text-2); }
 .page-meta { font-family:var(--f-ui);font-size:0.70rem;color:var(--text-muted); }
+.page-meta a { color:var(--blue);text-decoration:none; }
 .retired-badge { display:inline-block;font-family:var(--f-ui);font-size:0.58rem;font-weight:500;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-muted);background:var(--gray-bg);border:1px solid var(--gray-border);padding:3px 8px;border-radius:5px;font-style:italic;margin-left:8px;vertical-align:middle; }
 
-.stub-card { background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:24px;margin-top:24px; }
-.stub-title { font-family:var(--f-ui);font-size:0.65rem;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:0.10em;margin-bottom:12px; }
-.stub-body { font-family:var(--f-ui);font-size:0.72rem;color:var(--text-muted);line-height:1.6; }
+.card { background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:18px 22px;margin-bottom:14px; }
+.card-title { font-family:var(--f-ui);font-size:0.62rem;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:0.10em;margin-bottom:14px; }
+.card-body { font-family:var(--f-ui);font-size:0.72rem;color:var(--text-2);line-height:1.7; }
+.card-body strong { color:var(--text);font-weight:500; }
+.card-body code { font-family:var(--f-mono);font-size:0.68rem;background:var(--surface-hi);padding:1px 5px;border-radius:3px;color:var(--text); }
+.card-body a { color:var(--blue);text-decoration:none; }
 
-.back-link { display:inline-block;font-family:var(--f-ui);font-size:0.68rem;color:var(--text-2);text-decoration:none;margin-bottom:18px;padding:4px 0; }
-.back-link:hover { color:var(--text); }
+.spec-row { display:flex;gap:18px;padding:8px 0;border-bottom:1px solid var(--border); }
+.spec-row:last-of-type { border-bottom:none;padding-bottom:4px; }
+.spec-key { flex:0 0 100px;font-family:var(--f-ui);font-size:0.60rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;padding-top:2px; }
+.spec-val { flex:1;font-family:var(--f-ui);font-size:0.72rem;color:var(--text-2);line-height:1.5; }
+.spec-val strong { color:var(--text);font-weight:500; }
+.spec-val code { font-family:var(--f-mono);font-size:0.68rem;background:var(--surface-hi);padding:1px 5px;border-radius:3px;color:var(--text); }
+
+.compare-grid { display:grid;grid-template-columns:1fr 1fr;gap:14px; }
+.compare-card { background:var(--surface-hi);border:1px solid var(--border-2);border-radius:7px;padding:14px 16px; }
+.compare-hd { display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border-2); }
+.compare-name { font-family:var(--f-mono);font-size:0.80rem;color:var(--text);font-weight:500; }
+.compare-state { font-family:var(--f-ui);font-size:0.55rem;text-transform:uppercase;letter-spacing:0.10em; }
+.compare-state.winner { color:var(--green); }
+.compare-state.retired { color:var(--text-muted);font-style:italic; }
+.compare-rows { display:flex;flex-direction:column;gap:6px; }
+.compare-row { display:flex;justify-content:space-between;font-family:var(--f-ui);font-size:0.65rem;color:var(--text-2); }
+.compare-row b { color:var(--text);font-family:var(--f-mono);font-size:0.68rem;font-weight:500; }
+
+.ref-list { display:flex;flex-direction:column;gap:8px; }
+.ref-row { display:flex;gap:12px;font-family:var(--f-ui);font-size:0.66rem;color:var(--text-2);align-items:baseline; }
+.ref-row code { font-family:var(--f-mono);font-size:0.65rem;background:var(--surface-hi);padding:1px 5px;border-radius:3px;color:var(--text); }
+.ref-row .ref-tag { flex:0 0 90px;font-size:0.55rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted); }
+.ref-row a { color:var(--blue);text-decoration:none; }
+
+@media (max-width:700px) { .compare-grid { grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
@@ -53,7 +83,8 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
     <a href="/spx"                class="nav-link">SPX</a>
     <a href="/es"                 class="nav-link">/ES</a>
     <a href="/q042"               class="nav-link">Drawdown Overlay</a>
-    <a href="/aftermath"          class="nav-link">Aftermath</a>    <a href="/q041"               class="nav-link active">Q041</a>
+    <a href="/aftermath"          class="nav-link">Aftermath</a>
+    <a href="/q041"               class="nav-link active">Q041</a>
     <a href="/portfolio-backtest" class="nav-link">Port BT</a>
     <a href="/performance"        class="nav-link">Performance</a>
     <a href="/margin"             class="nav-link">Margin</a>
@@ -67,30 +98,140 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 
   <div class="page-hero">
     <h1>Q041 Tier 1<span class="retired-badge">Retired</span></h1>
-    <div class="page-meta">SPX Cash-Secured Put · Δ20 · DTE 30 · 已归档</div>
+    <div class="page-meta">SPX Cash-Secured Put · Δ20 · DTE 30 · 已归档 2026-05 · 替代方案: <a href="/es">/ES short put</a></div>
   </div>
 
-  <div class="stub-card">
-    <div class="stub-title">归档说明</div>
-    <div class="stub-body">
-      Q041 Tier 1 是早期 SPX 短期 Cash-Secured Put 研究方向，在与 /ES short put 策略的并行竞争评估中胜出方为 /ES。
-      Q041 T1 已退出主流监控，仅保留作为研究历史参考。
+  <!-- Retirement summary -->
+  <div class="card">
+    <div class="card-title">归档说明</div>
+    <div class="card-body">
+      Q041 Tier 1 是早期 SPX 短期 Cash-Secured Put 研究方向。在 <strong>Q055 Naked Put Competition</strong>（2026-05 评估周期）中，
+      与 <strong>/ES short put</strong> 策略做并行对比。结论是 /ES 在 capital efficiency（PM SPAN vs full notional CSP）
+      和 risk-adjusted return 两个维度都明显占优，Q041 T1 已从主流监控移除。
       <br><br>
-      Phase 5 完成后这里会展示：
+      T1 不是失败 — 它是早期单 contract / 全 notional 思路下的合理设计；被淘汰的原因是出现了 capital efficiency 显著更优的替代结构。
+      保留本页是为了：
       <ul style="margin-top:10px;padding-left:18px;line-height:1.8">
-        <li>T1 完整回测摘要（N 笔交易、胜率、平均收益、最大回撤）</li>
-        <li>退出原因详细分析（vs ES 的对比数据）</li>
-        <li>归档日期、关键决策链接</li>
-        <li>T1 spec 配置完整记录</li>
+        <li>记录早期决策上下文，便于以后回溯</li>
+        <li>如果 /ES futures option 出现 access / SPAN regime 问题，T1 是已知 fallback</li>
+        <li>Q041 T2/T3 的研究框架沿用 T1 的设计原则（接受 assignment、月度 cycle、严格 BP cap）</li>
       </ul>
     </div>
   </div>
 
-  <div class="stub-card">
-    <div class="stub-title">Active Q041 Iterations</div>
-    <div class="stub-body">
-      Q041 体系仍有 Tier 2 / Tier 3 的独立研究方向在持续迭代。
-      <a href="/q041" style="color:var(--blue);text-decoration:none">→ 查看 Q041 Strategy Matrix（T2/T3）</a>
+  <!-- Spec snapshot -->
+  <div class="card">
+    <div class="card-title">T1 Spec · 退役时状态</div>
+    <div class="spec-row">
+      <div class="spec-key">Underlying</div>
+      <div class="spec-val"><strong>SPX</strong>（index option，欧式现金结算）</div>
+    </div>
+    <div class="spec-row">
+      <div class="spec-key">Structure</div>
+      <div class="spec-val"><strong>Naked short put</strong>（cash-secured）</div>
+    </div>
+    <div class="spec-row">
+      <div class="spec-key">Delta</div>
+      <div class="spec-val"><code>Δ0.20</code>（Black-Scholes 计算）</div>
+    </div>
+    <div class="spec-row">
+      <div class="spec-key">DTE</div>
+      <div class="spec-val"><code>30d ±10</code>（目标 25–40d）</div>
+    </div>
+    <div class="spec-row">
+      <div class="spec-key">Entry</div>
+      <div class="spec-val">每月第三个 Friday 收盘前 · close &gt; <code>$0.10</code> · 无 VIX 门槛</div>
+    </div>
+    <div class="spec-row">
+      <div class="spec-key">Exit</div>
+      <div class="spec-val">持有至到期（欧式现金结算）· 无 profit target · 接受 assignment</div>
+    </div>
+    <div class="spec-row">
+      <div class="spec-key">Sizing</div>
+      <div class="spec-val">≤ <code>20%</code> 账户 BP · 禁止叠仓（一次一笔）</div>
+    </div>
+    <div class="spec-row">
+      <div class="spec-key">Guard</div>
+      <div class="spec-val">VIX 单周 <code>+40%</code> → 下个 cycle 缩敞口；连续 <code>2</code> 亏 → PM review</div>
+    </div>
+    <div class="spec-row">
+      <div class="spec-key">Frequency</div>
+      <div class="spec-val">每月 1 次（配套 LEAPS cycle）</div>
+    </div>
+  </div>
+
+  <!-- T1 vs ES comparison -->
+  <div class="card">
+    <div class="card-title">为何 ES 胜出 · T1 vs /ES 对比</div>
+    <div class="compare-grid">
+      <div class="compare-card">
+        <div class="compare-hd">
+          <span class="compare-name">Q041 T1</span>
+          <span class="compare-state retired">Retired</span>
+        </div>
+        <div class="compare-rows">
+          <div class="compare-row"><span>Underlying</span><b>SPX index</b></div>
+          <div class="compare-row"><span>BP basis</span><b>Full notional CSP</b></div>
+          <div class="compare-row"><span>DTE</span><b>30d</b></div>
+          <div class="compare-row"><span>Delta</span><b>0.20</b></div>
+          <div class="compare-row"><span>Hold to expiry</span><b>是</b></div>
+          <div class="compare-row"><span>Assignment risk</span><b>有（cash settle）</b></div>
+        </div>
+      </div>
+      <div class="compare-card">
+        <div class="compare-hd">
+          <span class="compare-name">/ES short put</span>
+          <span class="compare-state winner">Winner</span>
+        </div>
+        <div class="compare-rows">
+          <div class="compare-row"><span>Underlying</span><b>/ES futures</b></div>
+          <div class="compare-row"><span>BP basis</span><b>PM SPAN margin</b></div>
+          <div class="compare-row"><span>DTE</span><b>45d</b></div>
+          <div class="compare-row"><span>Delta</span><b>0.20</b></div>
+          <div class="compare-row"><span>Profit target</span><b>10% mark</b></div>
+          <div class="compare-row"><span>Stop</span><b>3× mark (= 2× credit loss)</b></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border-2)">
+      <strong>核心差异</strong>：T1 用全 notional 作 BP basis（一笔 SPX put 锁住数十万），/ES 用 PM SPAN margin
+      （同样 risk profile 下占用的 BP 通常少 <strong>3-5×</strong>）。等同 risk 下 /ES 可以做 <strong>更多笔 + 更长 DTE + 主动管理 exit</strong>，
+      在每单位 BP 的 Sharpe / annualized ROE 都显著高于 T1。
+    </div>
+  </div>
+
+  <!-- Active Q041 -->
+  <div class="card">
+    <div class="card-title">Active Q041 Iterations</div>
+    <div class="card-body">
+      Q041 体系仍在迭代 — <strong>Tier 2</strong>（GOOGL / AMZN single-name CSP）和 <strong>Tier 3</strong>（COST / JPM earnings IC）
+      继续以 paper-trading 模式累积样本，研究方向独立于 T1 / ES 之外。
+      <br><br>
+      <a href="/q041">→ Q041 Strategy Matrix（T2/T3）</a> ·
+      <a href="/q041/backtest">→ Q041 Backtest</a>
+    </div>
+  </div>
+
+  <!-- References -->
+  <div class="card">
+    <div class="card-title">References</div>
+    <div class="ref-list">
+      <div class="ref-row">
+        <span class="ref-tag">Decision</span>
+        <span><code>task/q041_t1_es_governance_review_archive_2026-05-09.md</code> — T1 vs ES governance review</span>
+      </div>
+      <div class="ref-row">
+        <span class="ref-tag">Competition</span>
+        <span><code>task/q055_naked_put_competition_protocol_2026-05-10.md</code> — Q055 evaluation protocol</span>
+      </div>
+      <div class="ref-row">
+        <span class="ref-tag">Spec source</span>
+        <span><code>web/templates/q041.html</code> · <code>SLEEVE_SPEC.q041_tier1_spx_csp_d20_dte30</code></span>
+      </div>
+      <div class="ref-row">
+        <span class="ref-tag">Live strategy</span>
+        <span><a href="/es">/ES short put</a> · <code>strategy/es_params.py</code></span>
+      </div>
     </div>
   </div>
 

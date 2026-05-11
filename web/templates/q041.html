@@ -154,6 +154,15 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
   </div>
 
   <div class="section-label">Tier 状态 · Live</div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px 18px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+    <div style="font-family:var(--f-ui);font-size:0.70rem;color:var(--text-2);line-height:1.5">
+      <span style="font-family:var(--f-ui);font-size:0.55rem;font-weight:500;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-muted);background:var(--gray-bg);border:1px solid var(--gray-border);padding:2px 7px;border-radius:5px;font-style:italic;margin-right:10px;vertical-align:middle">Retired</span>
+      <strong>Tier 1 SPX CSP</strong> 已被 <a href="/es" style="color:var(--blue);text-decoration:none">/ES short put</a> 替代，从主流监控中移除。
+    </div>
+    <a href="/q041/archive" style="font-family:var(--f-ui);font-size:0.65rem;color:var(--blue);text-decoration:none;white-space:nowrap">→ 查看归档</a>
+  </div>
+
   <div class="tier-grid" id="tier-active-grid">
     <div style="grid-column:1/-1;padding:28px;text-align:center">
       <span style="font-family:var(--f-ui);font-size:0.72rem;color:var(--text-muted);font-style:italic">Loading…</span>
@@ -390,29 +399,20 @@ async function loadStatus() {
     const tier2Count = d.paper_progress?.by_tier?.tier2?.count || 0;
     const tier2Goal = d.paper_progress?.tier2_goal || 20;
 
-    const tier1 = {
-      sleeve_id: "q041_tier1_spx_csp_d20_dte30",
-      tier: "tier1",
-      underlying: "SPX",
-      strategy_type: "csp",
-      candidate_status: "eliminated",
-      bp_target_pct: 20.0,
-      caveat: d.tier_status?.tier1?.reason || "",
-    };
-    const activeCards = [tier1, ...sleeves.filter(sl => sl.underlying !== 'SPX')];
+    // T1 SPX CSP retired — banner above; not rendered as a card here.
+    const activeCards = sleeves.filter(sl => sl.underlying !== 'SPX');
     document.getElementById('tier-active-grid').innerHTML = activeCards.map(sl => {
       const color = COLORS[sl.underlying] || '#C4CEEC';
-      const isTier1 = sl.underlying === 'SPX';
       const tail = sl.tier==='tier2'
         ? `<div class="caveat-banner"><b>⚠ Tail caveat</b> — COVID / single-name mega-cap tail remains unresolved. This sleeve stays paper-tracking only until that tail is better evidenced.</div>` : '';
       const progress = sl.tier === 'tier2' && sl.underlying === 'GOOGL'
         ? progressBlock('Tier 2 paper progress', tier2Count, tier2Goal)
         : '';
-      return `<div class="tier-card" style="border-top:3px solid ${color};${isTier1?'opacity:0.72;':''}">
+      return `<div class="tier-card" style="border-top:3px solid ${color}">
         <div class="tier-card-top">
           <div class="tier-card-row1">
             <span class="tier-sym" style="color:${color}">${sl.underlying}</span>
-            ${isTier1 ? `<span class="tier-badge badge-t3">ELIMINATED</span>` : tierBadge(sl.tier)}
+            ${tierBadge(sl.tier)}
           </div>
           <div class="tier-strat">${STRAT_LABEL[sl.strategy_type]||sl.strategy_type} · BP ≤${sl.bp_target_pct}%</div>
         </div>
@@ -420,7 +420,7 @@ async function loadStatus() {
         ${specBlock(sl.sleeve_id)}
         <div class="tier-card-status">
           ${statusPill(sl.candidate_status)}
-          <span class="tier-paper-ct">${isTier1 ? 'Naked put slot removed by Q055' : `Paper trades: <b>${d.paper_progress?.by_symbol?.[sl.underlying]?.count || 0}</b>`}</span>
+          <span class="tier-paper-ct">Paper trades: <b>${d.paper_progress?.by_symbol?.[sl.underlying]?.count || 0}</b></span>
         </div>
         ${progress}
       </div>`;
