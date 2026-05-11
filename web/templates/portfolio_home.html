@@ -932,6 +932,8 @@ async function loadSpx() {
       chips += sigChip('VIX', fmtNum(vix.vix, 1), vixCls(vix.regime), vix.regime || '');
     if (iv.iv_rank != null)
       chips += sigChip('IV Rank', fmtNum(iv.iv_rank, 0) + '%', ivCls(iv.iv_signal), iv.iv_signal || '');
+    if (iv.iv_percentile != null)
+      chips += sigChip('IVP', fmtNum(iv.iv_percentile, 0) + '%', ivCls(iv.iv_signal), 'trade gate');
     if (trend.signal)
       chips += sigChip('Trend', trend.signal, trendCls(trend.signal));
     if (trend.spx != null)
@@ -1136,8 +1138,10 @@ async function loadQ041() {
 
     applyBadge('badge-q041', q041Badge(data));
 
-    const candidates  = data.sleeve_candidates || [];
-    const reviewOnly  = data.review_only || [];
+    // T1 retired — filter out tier1 sleeves (still returned by backend for compat)
+    const _isRetired = s => /tier1/i.test(s.sleeve_id || '') || (s.tier === 'tier1');
+    const candidates  = (data.sleeve_candidates || []).filter(s => !_isRetired(s));
+    const reviewOnly  = (data.review_only || []).filter(s => !_isRetired(s));
 
     if (candidates.length === 0 && reviewOnly.length === 0) {
       listEl.innerHTML = '<div class="pos-none">No active sleeves</div>';
@@ -1181,6 +1185,7 @@ async function loadQ042() {
   try {
     const data = await fetch('/api/q042/state').then(r => r.json());
     if (data.error) throw new Error(data.error);
+    _q042Cache = data;
 
     // Badge
     const hasOpenA = data.sleeve_a?.active_position;
@@ -1256,6 +1261,7 @@ async function loadAftermath() {
   try {
     const d = await fetch('/api/aftermath/state').then(r => r.json());
     if (d.error) throw new Error(d.error);
+    _aftermathCache = d;
 
     // Badge: ACTIVE (green) if in window, else WAIT
     const badge = d.active
@@ -1289,6 +1295,8 @@ async function loadAftermath() {
 
 // ── Portfolio Snapshot ────────────────────────────────────────────────────────
 let _snapshotCache = null;
+let _q042Cache = null;
+let _aftermathCache = null;
 let _accountView = 'all';
 
 function setAccountView(v) {
@@ -1387,10 +1395,14 @@ function _renderMarginAllocation(data) {
       <div class="bp-legend-item"><div class="bp-legend-dot dot-equity"></div>Equity ${eqWs.toFixed(1)}%</div>
       <div class="bp-legend-item"><div class="bp-legend-dot dot-q041"></div>Q041 ${q041W.toFixed(1)}%</div>
       <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>`;
+    const doBp_s = _q042Cache?.combined_bp_pct ?? 0;
+    const amActive_s = !!_aftermathCache?.active;
+    const amNote_s = `condition · ${amActive_s ? 'ACTIVE' : 'WAIT'}`;
     bucketRows =
       barHtml('SPX Live', spxWs, 'bar-spx', 'PM max-loss') +
       barHtml('Equity Margin', eqWs, 'bar-equity', eqNote) +
-      barHtml('Q041 Tier 1', buckets.q041_tier1_bp_pct, 'bar-q041', 'paper') +
+      barHtml('Drawdown Overlay', doBp_s, 'bar-q041', 'paper · Q042') +
+      barHtml('Aftermath', 0, 'bar-q041', amNote_s) +
       barHtml('Q041 Tier 2', buckets.q041_tier2_bp_pct, 'bar-q041', 'paper') +
       barHtml('Q041 Tier 3', buckets.q041_tier3_bp_pct, 'bar-q041', 'paper');
     railCards = `
@@ -1400,7 +1412,7 @@ function _renderMarginAllocation(data) {
         <div class="account-rail-line"><span>Maint</span><span>${fmtDollars(accounts.schwab_maintenance_margin)}</span></div>
       </div>`;
     if (etradeNlv > 0) {
-      noteHtml = '<div class="snapshot-note">SPX/Equity % 基于 Schwab NLV；Q041 % 基于 combined NLV（paper 追踪）。</div>';
+      noteHtml = '<div class="snapshot-note">SPX/Equity % 基于 Schwab NLV；Drawdown Overlay 是 paper · Aftermath 是 condition modifier（不持仓）。</div>';
     }
 
   } else if (view === 'etrade') {
@@ -1435,6 +1447,9 @@ function _renderMarginAllocation(data) {
       <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>`;
     // Sub-row only for E-Trade options when present (equity is already merged into the combined row)
     const etOptsRow = etOptW > 0 ? barHtml('  E-Trade Options', etOptW, 'bar-etrade', 'PM max-loss') : '';
+    const doBp_a = _q042Cache?.combined_bp_pct ?? 0;
+    const amActive_a = !!_aftermathCache?.active;
+    const amNote_a = `condition · ${amActive_a ? 'ACTIVE' : 'WAIT'}`;
     bucketRows =
       barHtml('Options Margin', optionsW, 'bar-spx', 'SPX spread' + (etOptW > 0 ? ' + E-Trade options' : '')) +
       etOptsRow +
@@ -1442,7 +1457,8 @@ function _renderMarginAllocation(data) {
         ? splitBarHtml('Equity Margin', equityW, eqW, etEqW,
             'rgba(66,204,124,0.85)', 'rgba(66,204,124,0.38)', allEqNote)
         : barHtml('Equity Margin', equityW, 'bar-equity', allEqNote)) +
-      barHtml('Q041 Tier 1', buckets.q041_tier1_bp_pct, 'bar-q041', 'paper') +
+      barHtml('Drawdown Overlay', doBp_a, 'bar-q041', 'paper · Q042') +
+      barHtml('Aftermath', 0, 'bar-q041', amNote_a) +
       barHtml('Q041 Tier 2', buckets.q041_tier2_bp_pct, 'bar-q041', 'paper') +
       barHtml('Q041 Tier 3', buckets.q041_tier3_bp_pct, 'bar-q041', 'paper');
     railCards = `
@@ -1464,7 +1480,7 @@ function _renderMarginAllocation(data) {
         <div class="account-rail-line"><span>Maint</span><span>${fmtDollars(accounts.combined_maintenance_margin)}</span></div>
         <div class="account-rail-note">Read-only aggregate PM maintenance across both rails.</div>
       </div>`;
-    noteHtml = '<div class="snapshot-note">Options = SPX spread + E-Trade options；Equity = Schwab + E-Trade equity；Q041 paper-only。</div>';
+    noteHtml = '<div class="snapshot-note">Options = SPX spread + E-Trade options · Equity = Schwab + E-Trade equity · Drawdown Overlay 是 paper · Aftermath 是 condition modifier（不持仓）。</div>';
   }
 
   el.innerHTML = `
