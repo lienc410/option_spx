@@ -126,6 +126,7 @@ _intraday_state: dict = {
     "stop_level":       StopLevel.NONE,
     "es_stop_level":    EsStopLevel.NONE,
     "profit_alerted":   False,   # True once profit target alert has been sent this session
+    "mismatch_alerted": False,   # True once broker-state mismatch warning has been sent this session
 }
 _morning_snapshot: dict | None = None
 
@@ -357,22 +358,26 @@ def _format_es_stop_alert(result: EsStopResult) -> str:
     )
 
 
-def _check_spx_profit_target() -> tuple[bool, float | None]:
+def _check_spx_profit_target() -> tuple[bool, float | None, bool]:
     """
-    Return (target_reached, captured_pct) for the open SPX credit spread.
-    target_reached is True when captured >= 60% AND min_hold_days >= 10.
-    captured_pct is None when data is unavailable.
-    Uses cached get_account_positions() — no extra Schwab call if ES stop already ran.
+    Return (target_reached, captured_pct, via_fallback).
+    Primary path: state.json open SPX position (min_hold_days gate enforced).
+    Fallback path: Schwab-direct averagePrice calculation (min_hold gate skipped).
+    via_fallback=True when fallback path was used.
     """
     state = read_state()
-    if not state or state.get("underlying") != "SPX":
-        return False, None
+    if state and state.get("underlying") == "SPX":
+        entry_premium = _num(state.get("actual_premium")) or _num(state.get("model_premium"))
+        if entry_premium and entry_premium > 0:
+            return _profit_check_from_state(state, entry_premium)
 
-    entry_premium = _num(state.get("actual_premium")) or _num(state.get("model_premium"))
-    contracts     = _num(state.get("contracts")) or 1
-    opened_at     = state.get("opened_at")
-    if not entry_premium or entry_premium <= 0:
-        return False, None
+    return _profit_check_from_schwab()
+
+
+def _profit_check_from_state(state: dict, entry_premium: float) -> tuple[bool, float | None, bool]:
+    """Primary path: compute capture% from state.json + Schwab market_value."""
+    contracts = _num(state.get("contracts")) or 1
+    opened_at = state.get("opened_at")
 
     days_held = 0
     if opened_at:
@@ -382,14 +387,15 @@ def _check_spx_profit_target() -> tuple[bool, float | None]:
             pass
 
     try:
+        from schwab.client import get_account_positions
         positions_payload = get_account_positions()
     except Exception:
-        return False, None
+        return False, None, False
 
     if (not positions_payload.get("configured")
             or not positions_payload.get("authenticated")
             or positions_payload.get("stale")):
-        return False, None
+        return False, None, False
 
     spx_pos = next(
         (p for p in positions_payload.get("positions", [])
@@ -397,11 +403,11 @@ def _check_spx_profit_target() -> tuple[bool, float | None]:
         None,
     )
     if spx_pos is None:
-        return False, None
+        return False, None, False
 
     net_mv = _num(spx_pos.get("market_value"))
     if net_mv is None:
-        return False, None
+        return False, None, False
 
     # market_value is negative for a short spread (cost to close = abs(mv))
     close_cost_pts = abs(net_mv) / contracts / 100
@@ -410,7 +416,91 @@ def _check_spx_profit_target() -> tuple[bool, float | None]:
     PROFIT_TARGET_PCT = 60.0
     MIN_HOLD_DAYS     = 10
     reached = captured_pct >= PROFIT_TARGET_PCT and days_held >= MIN_HOLD_DAYS
-    return reached, round(captured_pct, 1)
+    return reached, round(captured_pct, 1), False
+
+
+def _identify_spx_spread_legs(positions: list[dict]) -> tuple[dict, dict] | None:
+    """Pair short and long SPX option legs into a vertical spread, or None."""
+    spx_opts = [
+        p for p in positions
+        if p.get("asset_type") == "OPTION" and "SPX" in (p.get("symbol") or "")
+    ]
+    if len(spx_opts) != 2:
+        return None
+    short = next((p for p in spx_opts if (p.get("quantity") or 0) < 0), None)
+    long_ = next((p for p in spx_opts if (p.get("quantity") or 0) > 0), None)
+    if short is None or long_ is None:
+        return None
+    return short, long_
+
+
+def _profit_check_from_schwab() -> tuple[bool, float | None, bool]:
+    """
+    Fallback path: compute capture% directly from Schwab averagePrice + marketValue.
+    Skips min_hold_days gate (no opened_at ground truth when state.json is missing).
+    """
+    try:
+        from schwab.client import get_account_positions
+        positions_payload = get_account_positions()
+    except Exception:
+        return False, None, True
+
+    if (not positions_payload.get("configured")
+            or not positions_payload.get("authenticated")
+            or positions_payload.get("stale")):
+        return False, None, True
+
+    legs = _identify_spx_spread_legs(positions_payload.get("positions", []))
+    if legs is None:
+        return False, None, True
+
+    short_leg, long_leg = legs
+    entry_credit_ps = abs(short_leg.get("average_price") or 0) - abs(long_leg.get("average_price") or 0)
+    if entry_credit_ps <= 0:
+        return False, None, True
+
+    contracts = abs(short_leg.get("quantity") or 0)
+    if contracts == 0:
+        return False, None, True
+
+    net_mv = (short_leg.get("market_value") or 0) + (long_leg.get("market_value") or 0)
+    close_cost_ps = abs(net_mv) / contracts / 100
+    captured_pct  = (entry_credit_ps - close_cost_ps) / entry_credit_ps * 100
+
+    PROFIT_TARGET_PCT = 60.0
+    reached = captured_pct >= PROFIT_TARGET_PCT
+    return reached, round(captured_pct, 1), True
+
+
+def _check_broker_state_mismatch() -> str | None:
+    """
+    Return a warning message if Schwab shows open SPX option positions but local
+    state.json has no matching open record. Returns None when consistent or broker unavailable.
+    """
+    state = read_state()
+    try:
+        from schwab.client import get_account_positions
+        positions_payload = get_account_positions()
+    except Exception:
+        return None
+
+    if (not positions_payload.get("configured")
+            or not positions_payload.get("authenticated")
+            or positions_payload.get("stale")):
+        return None
+
+    spx_options = [
+        p for p in positions_payload.get("positions", [])
+        if p.get("asset_type") == "OPTION" and "SPX" in (p.get("symbol") or "")
+    ]
+    if state is None and spx_options:
+        return (
+            "⚠️ <b>Broker-State Mismatch</b>\n"
+            f"Schwab shows {len(spx_options)} open SPX option leg(s) but "
+            f"local state has no open position recorded.\n"
+            f"<i>Run /opened to register, or /sync to auto-import (after SPEC-100).</i>"
+        )
+    return None
 
 
 def _alert_timing_label(timestamp: str, realtime: bool | None) -> str:
@@ -514,10 +604,11 @@ def _format_eod_snapshot(
 def _reset_intraday_state() -> None:
     """Reset per-session state at market open each day."""
     global _morning_snapshot
-    _intraday_state["spike_level"]    = SpikeLevel.NONE
-    _intraday_state["stop_level"]     = StopLevel.NONE
-    _intraday_state["es_stop_level"]  = EsStopLevel.NONE
-    _intraday_state["profit_alerted"] = False
+    _intraday_state["spike_level"]      = SpikeLevel.NONE
+    _intraday_state["stop_level"]       = StopLevel.NONE
+    _intraday_state["es_stop_level"]    = EsStopLevel.NONE
+    _intraday_state["profit_alerted"]   = False
+    _intraday_state["mismatch_alerted"] = False
     _morning_snapshot = None
     log.info("Intraday state reset for new session.")
 
@@ -623,17 +714,30 @@ async def intraday_monitor(bot: Bot, chat_id: str) -> None:
         ):
             msgs.append(_format_es_stop_alert(es_stop))
 
-    # SPX profit target check — fires once per session when ≥60% captured & ≥10 days held
+    # Broker-state mismatch check — fires once per session (SPEC-099 Layer B)
+    if not _intraday_state["mismatch_alerted"]:
+        try:
+            mismatch_msg = _check_broker_state_mismatch()
+            if mismatch_msg:
+                msgs.append(mismatch_msg)
+                _intraday_state["mismatch_alerted"] = True
+        except Exception:
+            log.exception("intraday_monitor: broker state mismatch check failed")
+
+    # SPX profit target check — fires once per session when ≥60% captured (SPEC-099 Layer C adds fallback)
     if not _intraday_state["profit_alerted"]:
         try:
-            reached, captured_pct = _check_spx_profit_target()
+            reached, captured_pct, via_fallback = _check_spx_profit_target()
             if reached and captured_pct is not None:
                 state = read_state()
                 strategy = (state or {}).get("strategy", "SPX Credit Spread")
+                fallback_line = "⚠️ via Schwab fallback · min hold gate skipped\n" if via_fallback else ""
+                hold_note = "" if via_fallback else " · min hold: 10d ✓"
                 msgs.append(
                     f"🟢 <b>Profit Target Reached — {_h(strategy)}</b>\n"
+                    f"{fallback_line}"
                     f"Captured: <code>{captured_pct:.1f}%</code> of credit "
-                    f"(target: 60% · min hold: 10d ✓)\n"
+                    f"(target: 60%{hold_note})\n"
                     f"<i>Consider closing. Send /closed after exiting.</i>"
                 )
                 _intraday_state["profit_alerted"] = True

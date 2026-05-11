@@ -154,6 +154,7 @@ def get_account_positions() -> dict:
                 "asset_type": instr.get("assetType"),
                 "quantity": pos.get("longQuantity", 0) - pos.get("shortQuantity", 0),
                 "market_value": pos.get("marketValue"),
+                "average_price": pos.get("averagePrice"),
                 "unrealized_pnl": pos.get("marketValue", 0) - pos.get("averagePrice", 0) * abs(pos.get("longQuantity", 0) - pos.get("shortQuantity", 0)),
             }
             parsed.update(_extract_quote_greeks(pos))
