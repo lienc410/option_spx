@@ -294,6 +294,57 @@ def api_recommendation_settling():
         }), 200
 
 
+@app.route("/api/aftermath/state")
+def api_aftermath_state():
+    """Aftermath addon state — surfaces is_aftermath() trigger from SPX selector.
+
+    Aftermath = VIX peak回落 window. Currently active if:
+      trailing 10d VIX peak >= 28 AND current VIX <= peak * (1 - 10%) AND vix < 40.
+    """
+    try:
+        from signals.vix_regime import get_vix_snapshot
+        from strategy.selector import (
+            is_aftermath,
+            AFTERMATH_PEAK_VIX_10D_MIN,
+            AFTERMATH_OFF_PEAK_PCT,
+        )
+        vix = get_vix_snapshot()
+        peak = vix.vix_peak_10d
+        active = is_aftermath(vix)
+        off_peak_pct = ((peak - vix.vix) / peak * 100.0) if peak and peak > 0 else None
+        reason = None
+        if not active:
+            if peak is None:
+                reason = "no_peak_data"
+            elif peak < AFTERMATH_PEAK_VIX_10D_MIN:
+                reason = f"peak_below_threshold ({peak:.1f} < {AFTERMATH_PEAK_VIX_10D_MIN})"
+            elif vix.vix >= 40.0:
+                reason = f"vix_above_extreme ({vix.vix:.1f} >= 40)"
+            elif off_peak_pct is not None and off_peak_pct < AFTERMATH_OFF_PEAK_PCT * 100:
+                reason = f"insufficient_off_peak ({off_peak_pct:.1f}% < {AFTERMATH_OFF_PEAK_PCT*100:.0f}%)"
+            else:
+                reason = "not_active"
+        return jsonify({
+            "active": active,
+            "vix": round(vix.vix, 2),
+            "vix_peak_10d": round(peak, 2) if peak else None,
+            "off_peak_pct": round(off_peak_pct, 2) if off_peak_pct is not None else None,
+            "threshold_off_peak_pct": AFTERMATH_OFF_PEAK_PCT * 100,
+            "threshold_peak_min": AFTERMATH_PEAK_VIX_10D_MIN,
+            "threshold_vix_max": 40.0,
+            "regime": vix.regime.value if vix.regime else None,
+            "trend": vix.trend.value if vix.trend else None,
+            "reason": reason,
+            "date": datetime.now(_ET).date().isoformat(),
+        })
+    except Exception as exc:
+        return jsonify({
+            "active": False,
+            "error": str(exc),
+            "date": datetime.now(_ET).date().isoformat(),
+        }), 200
+
+
 @app.route("/api/svix/history")
 def api_svix_history():
     """Settled VIX signal history — reads data/q019_settling_log.jsonl."""

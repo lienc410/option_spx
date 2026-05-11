@@ -763,6 +763,22 @@ body {
     </div>
   </div>
 
+  <!-- ── Aftermath Card (Addon, VIX peak回落 window) ── -->
+  <div class="strategy-card tier-tertiary" id="card-aftermath" style="margin-bottom:20px">
+    <div class="card-header">
+      <div class="card-name-wrap">
+        <a href="/aftermath" style="text-decoration:none">
+          <span class="card-name card-name-tertiary">Aftermath</span>
+        </a>
+        <span class="badge-obs">Observation</span>
+      </div>
+      <span class="state-badge badge-wait" id="badge-aftermath">WAIT</span>
+    </div>
+    <div id="aftermath-signals" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-family:var(--f-mono);font-size:0.68rem;padding:4px 0">
+      <span class="pos-none">Loading…</span>
+    </div>
+  </div>
+
   <!-- Portfolio Snapshot zone -->
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
     <div class="section-label" style="margin-bottom:0">Portfolio Snapshot</div>
@@ -1230,6 +1246,43 @@ async function loadQ042() {
     sigEl.innerHTML = `<span class="pos-none">${e.message}</span>`;
     listEl.innerHTML = '';
     applyBadge('badge-q042', { cls: 'badge-unavail', label: 'N/A' });
+  }
+}
+
+// ── Aftermath Card ────────────────────────────────────────────────────────────
+async function loadAftermath() {
+  const sigEl = document.getElementById('aftermath-signals');
+  try {
+    const d = await fetch('/api/aftermath/state').then(r => r.json());
+    if (d.error) throw new Error(d.error);
+
+    // Badge: ACTIVE (green) if in window, else WAIT
+    const badge = d.active
+      ? { cls: 'badge-open', label: 'ACTIVE' }
+      : { cls: 'badge-wait', label: 'WAIT' };
+    applyBadge('badge-aftermath', badge);
+
+    const offPeakColor = d.off_peak_pct != null && d.off_peak_pct >= 10 ? 'var(--green)' : 'var(--text-2)';
+    const peakStr = d.vix_peak_10d != null ? d.vix_peak_10d.toFixed(1) : '—';
+    const vixStr = d.vix != null ? d.vix.toFixed(1) : '—';
+    const offStr = d.off_peak_pct != null ? d.off_peak_pct.toFixed(1) + '%' : '—';
+    const reasonTag = !d.active && d.reason
+      ? `<span style="color:var(--text-muted);margin-left:auto;font-size:0.62rem;font-style:italic">${d.reason}</span>`
+      : '';
+
+    sigEl.innerHTML =
+      `<span style="color:var(--text-muted)">VIX</span>` +
+      `<span style="color:var(--text)">${vixStr}</span>` +
+      `<span style="color:var(--text-muted)">10d Peak</span>` +
+      `<span>${peakStr}</span>` +
+      `<span style="color:var(--text-muted)">Off-peak</span>` +
+      `<span style="color:${offPeakColor};font-weight:500">${offStr}</span>` +
+      `<span style="color:var(--text-muted)">Min</span>` +
+      `<span style="color:var(--text-muted)">${d.threshold_off_peak_pct?.toFixed(0)}%</span>` +
+      reasonTag;
+  } catch (e) {
+    sigEl.innerHTML = `<span class="pos-none">${e.message}</span>`;
+    applyBadge('badge-aftermath', { cls: 'badge-unavail', label: 'N/A' });
   }
 }
 
@@ -1801,7 +1854,7 @@ async function syncPortfolio() {
   const ts  = document.getElementById('sync-ts');
   if (btn) { btn.textContent = '↻ Syncing…'; btn.disabled = true; }
   if (ts)  ts.textContent = '';
-  await Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadQ041(), loadQ042(), loadSnapshot(), loadPositionComposition()]);
+  await Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadQ041(), loadQ042(), loadAftermath(), loadSnapshot(), loadPositionComposition()]);
   if (btn) { btn.textContent = '↻ Sync'; btn.disabled = false; }
   if (ts)  ts.textContent = 'synced ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
@@ -1829,12 +1882,12 @@ function _initDefaultView() {
 // ── Boot ──────────────────────────────────────────────────────────────────────
 (async () => {
   _initDefaultView();
-  await Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadQ041(), loadQ042(), loadSnapshot(), loadPositionComposition()]);
+  await Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadQ041(), loadQ042(), loadAftermath(), loadSnapshot(), loadPositionComposition()]);
   const ts = document.getElementById('sync-ts');
   if (ts) ts.textContent = 'loaded ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
   // Auto-refresh: strategy cards (recommendation+position) every 60s — picks up close→re-entry transitions
-  setInterval(() => Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadQ041(), loadQ042()]), 60 * 1000);
+  setInterval(() => Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadQ041(), loadQ042(), loadAftermath()]), 60 * 1000);
   // Snapshot + Schwab positions every 5min — heavier, less frequent
   setInterval(() => Promise.allSettled([loadSnapshot(), loadPositionComposition()]), 5 * 60 * 1000);
 })();
