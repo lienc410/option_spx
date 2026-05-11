@@ -302,13 +302,13 @@ def api_aftermath_state():
       trailing 10d VIX peak >= 28 AND current VIX <= peak * (1 - 10%) AND vix < 40.
     """
     try:
-        from signals.vix_regime import get_vix_snapshot
+        from signals.vix_regime import get_current_snapshot
         from strategy.selector import (
             is_aftermath,
             AFTERMATH_PEAK_VIX_10D_MIN,
             AFTERMATH_OFF_PEAK_PCT,
         )
-        vix = get_vix_snapshot()
+        vix = get_current_snapshot()
         peak = vix.vix_peak_10d
         active = is_aftermath(vix)
         off_peak_pct = ((peak - vix.vix) / peak * 100.0) if peak and peak > 0 else None
