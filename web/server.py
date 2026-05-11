@@ -253,6 +253,11 @@ def svix_page():
     return render_template("svix.html")
 
 
+@app.route("/svix/backtest")
+def svix_backtest_page():
+    return render_template("svix_backtest.html")
+
+
 @app.route("/q041/archive")
 def q041_archive_page():
     return render_template("q041_archive.html")
