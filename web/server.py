@@ -583,6 +583,44 @@ def api_q042_state():
 _Q042_SPX_CACHE: dict = {}   # {"ts": float, "data": dict}
 _Q042_BT_CACHE_MEM: dict = {}
 
+_Q042_SPX_DISK_CACHE = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "data", "q042_spx_history_cache.json")
+)
+
+
+def _q042_spx_load_disk_cache(cache_key: str) -> dict | None:
+    try:
+        with open(_Q042_SPX_DISK_CACHE, "r") as f:
+            blob = json.load(f)
+        entry = blob.get(cache_key)
+        if not entry:
+            return None
+        # Disk cache valid for 24h (much longer than memory cache); SPX history
+        # only adds one new bar per trading day.
+        if (time.time() - entry.get("ts", 0)) > 86400:
+            return None
+        return entry.get("payload")
+    except Exception:
+        return None
+
+
+def _q042_spx_save_disk_cache(cache_key: str, payload: dict) -> None:
+    try:
+        blob: dict = {}
+        try:
+            with open(_Q042_SPX_DISK_CACHE, "r") as f:
+                blob = json.load(f)
+        except Exception:
+            blob = {}
+        blob[cache_key] = {"ts": time.time(), "payload": payload}
+        tmp = _Q042_SPX_DISK_CACHE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(blob, f)
+        os.replace(tmp, _Q042_SPX_DISK_CACHE)
+    except Exception:
+        pass
+
+
 @app.route("/api/q042/spx-history")
 def api_q042_spx_history():
     import time as _time
@@ -591,6 +629,12 @@ def api_q042_spx_history():
     cached = _Q042_SPX_CACHE.get(cache_key)
     if cached and (_time.time() - _Q042_SPX_CACHE.get(f"{cache_key}_ts", 0)) < 3600:
         return jsonify(cached)
+    # Disk cache fallback — survives server restarts
+    disk = _q042_spx_load_disk_cache(cache_key)
+    if disk is not None:
+        _Q042_SPX_CACHE[cache_key] = disk
+        _Q042_SPX_CACHE[f"{cache_key}_ts"] = _time.time()
+        return jsonify(disk)
     try:
         import yfinance as yf, pandas as pd
         df = yf.Ticker("^GSPC").history(start="2007-01-01", interval="1d")
@@ -620,6 +664,7 @@ def api_q042_spx_history():
         }
         _Q042_SPX_CACHE[cache_key] = payload
         _Q042_SPX_CACHE[f"{cache_key}_ts"] = _time.time()
+        _q042_spx_save_disk_cache(cache_key, payload)
         return jsonify(payload)
     except Exception as e:
         return jsonify({"error": str(e)}), 500

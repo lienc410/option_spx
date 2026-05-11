@@ -259,16 +259,21 @@ function render(bt, spxHist, paper) {
       </div>
     </div>
 
-    <div class="section-label">C6 · SPX Price + ATH + 入场/出场 Overlay</div>
+    <div class="section-label">C6 · SPX Price — Trade Entry / Exit</div>
     <div class="chart-wrap">
       <div class="chart-hd">
-        <span class="chart-title">SPX 历史 + ATH 线 + 所有触发标记</span>
+        <span class="chart-title">SPX 历史 · ATH · 入场 ▲ / 出场 ▽ · 可叠加副轴 Cum. P&L</span>
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
           <div class="chart-legend">
             <div class="chart-legend-item"><div class="chart-legend-line" style="background:#4888E8"></div>SPX</div>
             <div class="chart-legend-item"><div class="chart-legend-line" style="background:rgba(201,168,64,0.6)"></div>ATH</div>
-            <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#4888E8"></div>A</div>
-            <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#E08040"></div>B</div>
+            <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#4888E8"></div>A entry/exit</div>
+            <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#E08040"></div>B entry/exit</div>
+          </div>
+          <div class="range-btns">
+            <span style="font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);margin-right:4px">Overlay:</span>
+            <button class="range-btn active" id="c6-ov-none" onclick="setC6Overlay('none')">None</button>
+            <button class="range-btn" id="c6-ov-pnl" onclick="setC6Overlay('pnl')">Cum. P&L</button>
           </div>
           <div class="range-btns">
             <button class="range-btn" onclick="setC6Range('1yr')">1yr</button>
@@ -407,15 +412,29 @@ function render(bt, spxHist, paper) {
     entryA, exitA, entryB, exitB,
   ];
 
+  // Cumulative P&L points mapped to history indices for secondary y-axis line
+  const _idxByDate = {};
+  history.forEach((h,i) => { _idxByDate[h.date] = i; });
+  let cumPnLA = 0, cumPnLB = 0;
+  const pnlALine = [], pnlBLine = [];
+  [...closed].sort((a,b)=>a.exit_date<b.exit_date?-1:1).forEach(t => {
+    const idx = _idxByDate[t.exit_date];
+    if (t.sleeve_id === 'A') { cumPnLA += t.exit_pnl; if (idx != null) pnlALine.push({x: idx, y: Math.round(cumPnLA)}); }
+    else                     { cumPnLB += t.exit_pnl; if (idx != null) pnlBLine.push({x: idx, y: Math.round(cumPnLB)}); }
+  });
+
   charts.c6 = new Chart(document.getElementById('c6-chart'), {
     type: 'line',
     data: { datasets: [
       { type:'line',    label:'SPX',     data:history.map((h,i)=>({x:i,y:h.close})), borderColor:'#4888E8', backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0.1, yAxisID:'yP', order:5 },
       { type:'line',    label:'ATH',     data:history.map((h,i)=>({x:i,y:h.ath})),   borderColor:'rgba(201,168,64,0.50)', backgroundColor:'transparent', borderWidth:1, borderDash:[4,3], pointRadius:0, tension:0, yAxisID:'yP', order:4 },
-      { type:'scatter', label:'A entry', data:entryA, backgroundColor:'rgba(72,136,232,0.90)', borderColor:'rgba(72,136,232,0.40)', pointStyle:'triangle', rotation:0,   pointRadius:7, yAxisID:'yP', order:1 },
-      { type:'scatter', label:'A exit',  data:exitA,  backgroundColor:'rgba(72,136,232,0.50)', borderColor:'rgba(72,136,232,0.25)', pointStyle:'triangle', rotation:180, pointRadius:6, yAxisID:'yP', order:2 },
-      { type:'scatter', label:'B entry', data:entryB, backgroundColor:'rgba(224,128,64,0.90)', borderColor:'rgba(224,128,64,0.40)', pointStyle:'triangle', rotation:0,   pointRadius:8, yAxisID:'yP', order:1 },
-      { type:'scatter', label:'B exit',  data:exitB,  backgroundColor:'rgba(224,128,64,0.50)', borderColor:'rgba(224,128,64,0.25)', pointStyle:'triangle', rotation:180, pointRadius:7, yAxisID:'yP', order:2 },
+      { type:'scatter', label:'A entry', data:entryA, backgroundColor:'rgba(72,136,232,0.95)', borderColor:'#1d4ed8', borderWidth:1.5, pointStyle:'triangle', rotation:0,   pointRadius:8, pointHoverRadius:11, yAxisID:'yP', order:1 },
+      { type:'scatter', label:'A exit',  data:exitA,  backgroundColor:'rgba(72,136,232,0.55)', borderColor:'#1d4ed8', borderWidth:1.5, pointStyle:'triangle', rotation:180, pointRadius:7, pointHoverRadius:10, yAxisID:'yP', order:2 },
+      { type:'scatter', label:'B entry', data:entryB, backgroundColor:'rgba(224,128,64,0.95)', borderColor:'#9a3412', borderWidth:1.5, pointStyle:'triangle', rotation:0,   pointRadius:9, pointHoverRadius:12, yAxisID:'yP', order:1 },
+      { type:'scatter', label:'B exit',  data:exitB,  backgroundColor:'rgba(224,128,64,0.55)', borderColor:'#9a3412', borderWidth:1.5, pointStyle:'triangle', rotation:180, pointRadius:8, pointHoverRadius:11, yAxisID:'yP', order:2 },
+      // PnL overlays (hidden by default, toggled by setC6Overlay)
+      { type:'line', label:'Cum. P&L · A', data:pnlALine, borderColor:'rgba(72,136,232,0.95)', backgroundColor:'transparent', borderWidth:2, pointRadius:0, stepped:'before', tension:0, yAxisID:'yPnL', hidden:true, order:3 },
+      { type:'line', label:'Cum. P&L · B', data:pnlBLine, borderColor:'rgba(224,128,64,0.95)', backgroundColor:'transparent', borderWidth:2, pointRadius:0, stepped:'before', tension:0, yAxisID:'yPnL', hidden:true, order:3 },
     ]},
     options: {
       responsive:true, animation:false,
@@ -423,13 +442,15 @@ function render(bt, spxHist, paper) {
         label: ctx => {
           const t = ctx.raw?.trade;
           if (t) return [`${ctx.dataset.label}  ${fmtDate(t.entry_date)}→${fmtDate(t.exit_date)}`, ` ddATH ${t.ddath_at_signal.toFixed(2)}%`, ` P&L ${fmtD(t.exit_pnl)}`];
+          if (ctx.dataset.label?.startsWith('Cum')) return ` ${ctx.dataset.label}: ${fmtD(ctx.parsed.y)}`;
           return ` ${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(1)}`;
         }
       }}},
       scales: {
         x: { type:'linear', ticks:{color:'#606880',font:{family:'JetBrains Mono',size:9},maxTicksLimit:14,
                callback:(v)=>{ const d=history[Math.round(v)]?.date; return d?d.slice(0,7):''; }}, grid:{color:'#191E33'} },
-        yP: { position:'left', ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},callback:v=>v.toLocaleString()}, grid:{color:'#191E33'} },
+        yP: { position:'left', ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},callback:v=>v.toLocaleString()}, grid:{color:'#191E33'}, title:{display:true,text:'SPX',color:'#363C52',font:{family:'DM Sans',size:9}} },
+        yPnL: { position:'right', display:false, ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},callback:v=>(v>=0?'+':'')+'$'+Math.round(v/1000)+'k'}, grid:{drawOnChartArea:false}, title:{display:true,text:'Cum. P&L',color:'#363C52',font:{family:'DM Sans',size:9}} },
       },
     },
   });
@@ -506,6 +527,23 @@ function render(bt, spxHist, paper) {
       scales:{x:{type:'category',ticks:{color:'#606880',font:{family:'JetBrains Mono',size:9},maxTicksLimit:10,maxRotation:0},grid:{color:'#191E33'}},
         y:{ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},callback:v=>(v>0?'+':'')+v.toFixed(1)+'%'},grid:{color:'#191E33'}}}},
   });
+}
+
+// ── Overlay toggle (PnL on secondary y-axis) ────────────────────────────────
+function setC6Overlay(mode) {
+  const c = charts.c6;
+  if (!c) return;
+  const showPnL = (mode === 'pnl');
+  // Datasets 6 and 7 (last two) are the Cum. P&L lines
+  const dsets = c.data.datasets;
+  if (dsets.length >= 8) {
+    dsets[dsets.length-2].hidden = !showPnL;
+    dsets[dsets.length-1].hidden = !showPnL;
+  }
+  c.options.scales.yPnL.display = showPnL;
+  c.update('none');
+  document.getElementById('c6-ov-none').classList.toggle('active', !showPnL);
+  document.getElementById('c6-ov-pnl' ).classList.toggle('active',  showPnL);
 }
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
