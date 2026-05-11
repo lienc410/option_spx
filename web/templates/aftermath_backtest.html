@@ -75,6 +75,18 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .todo-text { flex:1; }
 
 .empty-msg { font-family:var(--f-ui);font-size:0.68rem;color:var(--text-muted);font-style:italic;padding:24px;text-align:center; }
+
+/* Trading Discipline (per DESIGN.md Backtest Page Template §3) */
+.discipline-section { margin-top:32px;margin-bottom:14px; }
+.discipline-title { font-family:var(--f-ui);font-size:0.62rem;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:0.10em;margin-bottom:14px; }
+.discipline-card { background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:18px 22px; }
+.discipline-row { display:flex;gap:18px;padding:10px 0;border-bottom:1px solid var(--border); }
+.discipline-row:last-of-type { border-bottom:none;padding-bottom:4px; }
+.discipline-key { flex:0 0 100px;font-family:var(--f-ui);font-size:0.60rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;padding-top:2px; }
+.discipline-val { flex:1;font-family:var(--f-ui);font-size:0.72rem;color:var(--text-2);line-height:1.6; }
+.discipline-val strong { color:var(--text);font-weight:500; }
+.discipline-val code { font-family:var(--f-mono);font-size:0.68rem;background:var(--surface-hi);padding:1px 5px;border-radius:3px;color:var(--text); }
+.discipline-footnote { margin-top:14px;padding-top:12px;border-top:1px solid var(--border-2);font-family:var(--f-ui);font-size:0.62rem;color:var(--text-muted);line-height:1.5; }
 </style>
 </head>
 <body>
@@ -159,6 +171,49 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
       <div class="todo-row">
         <div class="todo-bullet">▸</div>
         <div class="todo-text">独立 engine：把 aftermath 抽出 SPX selector，做成可独立持仓的策略验证</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Trading Discipline -->
+  <div class="discipline-section">
+    <div class="discipline-title">Trading Discipline</div>
+    <div class="discipline-card">
+      <div class="discipline-row">
+        <div class="discipline-key">Entry</div>
+        <div class="discipline-val">
+          Condition modifier — 不是独立持仓策略。当三个条件同时满足时，SPX 主策略切换到 <strong>broken-wing V3-A</strong> 结构：
+          <code>vix_peak_10d ≥ 28</code> · <code>off_peak ≥ 10%</code> · <code>vix &lt; 40</code>。
+          仅在 SPX 同时为 <strong>HIGH_VOL</strong> 区间 + IV HIGH + Bearish/Neutral trend 时实际触发持仓。
+        </div>
+      </div>
+      <div class="discipline-row">
+        <div class="discipline-key">Exit</div>
+        <div class="discipline-val">
+          继承 SPX 主策略规则 — 60% credit profit target · min hold 10 days · stop loss at 2× credit · roll at <code>DTE ≤ 21</code>。
+        </div>
+      </div>
+      <div class="discipline-row">
+        <div class="discipline-key">Sizing</div>
+        <div class="discipline-val">
+          继承 SPX HIGH_VOL 参数 — BP target <code>14%</code> 账户；half-size (×0.50) 当 VIX trend rising 或 signals 混合。
+        </div>
+      </div>
+      <div class="discipline-row">
+        <div class="discipline-key">Risk</div>
+        <div class="discipline-val">
+          BP ceiling 继承 HIGH_VOL <code>50%</code>。Broken-wing 结构本身用上下不对称翼宽限制左尾损失，不需要额外停损。
+          窗口由 <code>vix ≥ 40</code> 或回峰自动 deactivate。
+        </div>
+      </div>
+      <div class="discipline-row">
+        <div class="discipline-key">Frequency</div>
+        <div class="discipline-val">
+          窗口持续期间自动 active，每日 selector tick 评估 — 无独立 entry cadence；进入 SPX 主策略 daily decision 流程。
+        </div>
+      </div>
+      <div class="discipline-footnote">
+        Source: <code>strategy/selector.py</code> · <code>is_aftermath(vix)</code> (line 295) · constants <code>AFTERMATH_PEAK_VIX_10D_MIN = 28.0</code> / <code>AFTERMATH_OFF_PEAK_PCT = 0.10</code> (line 178).
       </div>
     </div>
   </div>

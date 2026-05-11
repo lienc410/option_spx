@@ -809,6 +809,18 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
   border-top: 1px solid var(--border); margin-top: 20px; padding: 13px 24px;
   text-align: center; font-size: 0.67rem; color: var(--text-muted); font-style: italic;
 }
+
+/* Trading Discipline (per DESIGN.md Backtest Page Template §3) */
+.discipline-section { margin-top:32px;margin-bottom:14px; }
+.discipline-title { font-family:var(--f-ui);font-size:0.62rem;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:0.10em;margin-bottom:14px; }
+.discipline-card { background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:18px 22px; }
+.discipline-row { display:flex;gap:18px;padding:10px 0;border-bottom:1px solid var(--border); }
+.discipline-row:last-of-type { border-bottom:none;padding-bottom:4px; }
+.discipline-key { flex:0 0 100px;font-family:var(--f-ui);font-size:0.60rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;padding-top:2px; }
+.discipline-val { flex:1;font-family:var(--f-ui);font-size:0.72rem;color:var(--text-2);line-height:1.6; }
+.discipline-val strong { color:var(--text);font-weight:500; }
+.discipline-val code { font-family:var(--f-mono);font-size:0.68rem;background:var(--surface-hi);padding:1px 5px;border-radius:3px;color:var(--text); }
+.discipline-footnote { margin-top:14px;padding-top:12px;border-top:1px solid var(--border-2);font-family:var(--f-ui);font-size:0.62rem;color:var(--text-muted);line-height:1.5; }
 </style>
 </head>
 <body>
@@ -1225,6 +1237,57 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
     <div class="precision-note">
       <div class="legend-note">Aftermath broken-wing IC follows <a href="/task/SPEC-071.md" target="_blank" rel="noopener noreferrer">SPEC-071 addendum</a> (LC δ0.04 / LP δ0.08).</div>
       Precision B — Black-Scholes simulation, no bid/ask spread or slippage. Actual results may differ.
+    </div>
+
+    <!-- Trading Discipline -->
+    <div class="discipline-section">
+      <div class="discipline-title">Trading Discipline</div>
+      <div class="discipline-card">
+        <div class="discipline-row">
+          <div class="discipline-key">Entry</div>
+          <div class="discipline-val">
+            <strong>Regime-driven</strong> via daily selector tick:
+            <strong>NORMAL</strong> (VIX &lt; 22) → Bull Put Spread Δ<code>0.30</code> · DTE <code>30</code> · 或 Iron Condor if trend NEUTRAL;
+            <strong>HIGH_VOL</strong> (22 ≤ VIX &lt; 35) → BPS Δ<code>0.20</code> · DTE <code>35</code> · 半仓;
+            <strong>EXTREME_VOL</strong> (VIX ≥ <code>35</code>) → REDUCE_WAIT, 不开新仓;
+            <strong>Aftermath</strong> 条件 + HIGH_VOL + IV HIGH + Bearish/Neutral → <strong>broken-wing V3-A</strong> 结构 (SPEC-071)。
+          </div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Exit</div>
+          <div class="discipline-val">
+            <strong>Profit target</strong>: close at <code>60%</code> of max credit (SPEC-077)。
+            <strong>Min hold</strong>: <code>10</code> days before profit target can trigger。
+            <strong>Stop loss</strong>: stop at <code>2×</code> credit received。
+            <strong>Roll</strong>: HIGH_VOL trades roll at <code>DTE ≤ 21</code>; others close at <code>DTE ≤ 7</code>。
+          </div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Sizing</div>
+          <div class="discipline-val">
+            <strong>BP target per trade</strong>: LOW <code>15%</code> · NORMAL <code>15%</code> · HIGH_VOL <code>14%</code> (Q045 J3 joint optimum, SPEC-084)。
+            <strong>Full vs Half</strong>: Full when IV favors selling (HIGH/NEUTRAL) AND VIX trend flat/falling; Half when trend rising or signals mixed。
+          </div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Risk</div>
+          <div class="discipline-val">
+            <strong>BP ceiling</strong> (all concurrent positions): LOW <code>25%</code> · NORMAL <code>35%</code> · HIGH_VOL <code>50%</code>。
+            <strong>Greek limit</strong>: max <code>3</code> concurrent short-gamma positions。
+            <strong>Vol persistence throttle</strong>: max <code>2</code> trades per <code>30-day</code> HIGH_VOL spell。
+            <strong>Hard stop</strong>: VIX ≥ <code>35</code> → REDUCE_WAIT (no new entries).
+          </div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Frequency</div>
+          <div class="discipline-val">
+            Daily selector tick at market open + Signal 2 (settled VIX) check ~10:30 ET。一次只有一笔主仓（除非走 multi-position 架构允许的叠加场景）。
+          </div>
+        </div>
+        <div class="discipline-footnote">
+          Source: <code>strategy/selector.py</code> · <code>StrategyParams</code> (line 50). SPEC-077 profit target · SPEC-084 BP joint optimum · SPEC-071 broken-wing aftermath.
+        </div>
+      </div>
     </div>
 
   </div><!-- /results -->

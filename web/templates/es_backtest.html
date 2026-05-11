@@ -205,6 +205,18 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   background: var(--surface); border: 1px dashed var(--border-2); border-radius: 9px; padding: 18px; color: var(--text-2);
   font-family: var(--f-ui); font-size: 0.72rem;
 }
+
+/* Trading Discipline (per DESIGN.md Backtest Page Template §3) */
+.discipline-section { margin-top:32px;margin-bottom:14px; }
+.discipline-title { font-family:var(--f-ui);font-size:0.62rem;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:0.10em;margin-bottom:14px; }
+.discipline-card { background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:18px 22px; }
+.discipline-row { display:flex;gap:18px;padding:10px 0;border-bottom:1px solid var(--border); }
+.discipline-row:last-of-type { border-bottom:none;padding-bottom:4px; }
+.discipline-key { flex:0 0 100px;font-family:var(--f-ui);font-size:0.60rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;padding-top:2px; }
+.discipline-val { flex:1;font-family:var(--f-ui);font-size:0.72rem;color:var(--text-2);line-height:1.6; }
+.discipline-val strong { color:var(--text);font-weight:500; }
+.discipline-val code { font-family:var(--f-mono);font-size:0.68rem;background:var(--surface-hi);padding:1px 5px;border-radius:3px;color:var(--text); }
+.discipline-footnote { margin-top:14px;padding-top:12px;border-top:1px solid var(--border-2);font-family:var(--f-ui);font-size:0.62rem;color:var(--text-muted);line-height:1.5; }
 </style>
 </head>
 <body>
@@ -880,6 +892,50 @@ async function _renderBacktestResult(data, start) {
     </div>
     <div id="es-tab-v2f" class="tab-panel">
       ${v2fContent}
+    </div>
+
+    <div class="discipline-section">
+      <div class="discipline-title">Trading Discipline</div>
+      <div class="discipline-card">
+        <div class="discipline-row">
+          <div class="discipline-key">Entry</div>
+          <div class="discipline-val">
+            <strong>/ES short put</strong> — futures option · DTE <code>45</code> at open · short put delta <code>0.20</code>（absolute value）·
+            single-leg naked。Entry triggered by SPX selector signal (HIGH_VOL or NORMAL regime, IV signal favors short premium)。
+          </div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Exit</div>
+          <div class="discipline-val">
+            <strong>Profit target</strong>: close when mark ≤ <code>10%</code> of entry premium (= 90% profit captured)。
+            <strong>Stop loss</strong>: close when mark ≥ <code>3×</code> entry premium (= 2× credit loss) — Telegram bot trigger SPEC-086。
+            <strong>Force close</strong>: gamma exposure too high at <code>DTE ≤ 5</code>。
+          </div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Sizing</div>
+          <div class="discipline-val">
+            <strong>Fixed 1 contract</strong> single-slot rule (SPEC-061) — no scaling, no pyramiding。
+            一次只有一笔 /ES put position 在场。
+          </div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Risk</div>
+          <div class="discipline-val">
+            BP limit <code>20%</code> of NLV — combined /ES SPAN margin 上限。Stressed SPAN ratio 持续 &gt; <code>0.7</code> 时触发观察告警。
+            Naked put 下行损失理论无限（但 /ES futures 有 limit-down 保护）。
+          </div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Frequency</div>
+          <div class="discipline-val">
+            Daily selector tick decides entry — 上一笔 close 后立即可入下一笔。同 strategy 同时间最多 1 position（single-slot）。
+          </div>
+        </div>
+        <div class="discipline-footnote">
+          Source: <code>strategy/es_params.py</code> · <code>EsShortPutParams</code> (line 15). SPEC-061 single-slot rule · SPEC-086 Telegram bot stop trigger.
+        </div>
+      </div>
     </div>`;
 
   area.innerHTML = html;

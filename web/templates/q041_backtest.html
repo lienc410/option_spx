@@ -77,6 +77,19 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .metric-value.down { color:var(--red); }
 .metric-value.warn { color:var(--orange); }
 .metric-sub { font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2);margin-top:3px;line-height:1.4; }
+
+/* Trading Discipline (per DESIGN.md Backtest Page Template §3) */
+.discipline-section { margin-top:32px;margin-bottom:14px; }
+.discipline-title { font-family:var(--f-ui);font-size:0.62rem;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:0.10em;margin-bottom:14px; }
+.discipline-card { background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:18px 22px;margin-bottom:14px; }
+.discipline-card-sym { font-family:var(--f-mono);font-size:0.80rem;color:var(--text);font-weight:500;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border-2); }
+.discipline-row { display:flex;gap:18px;padding:8px 0;border-bottom:1px solid var(--border); }
+.discipline-row:last-of-type { border-bottom:none;padding-bottom:4px; }
+.discipline-key { flex:0 0 100px;font-family:var(--f-ui);font-size:0.60rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;padding-top:2px; }
+.discipline-val { flex:1;font-family:var(--f-ui);font-size:0.72rem;color:var(--text-2);line-height:1.6; }
+.discipline-val strong { color:var(--text);font-weight:500; }
+.discipline-val code { font-family:var(--f-mono);font-size:0.68rem;background:var(--surface-hi);padding:1px 5px;border-radius:3px;color:var(--text); }
+.discipline-footnote { font-family:var(--f-ui);font-size:0.62rem;color:var(--text-muted);line-height:1.5;padding:8px 22px 0;margin-top:-6px; }
 .overlay-toggles { display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px; }
 .range-btns { display:flex;gap:4px;align-items:center; }
 .range-btn { font-family:var(--f-mono);font-size:0.60rem;padding:2px 9px;border-radius:4px;border:1px solid var(--border-2);background:none;color:var(--text-2);cursor:pointer;transition:0.12s; }
@@ -939,6 +952,89 @@ function render(data) {
         </div>`;
       }).join('') + `</div>`;
   }
+
+  // ── Trading Discipline (per-sleeve, since Q041 sleeves are independent) ──
+  html += `
+    <div class="discipline-section">
+      <div class="discipline-title">Trading Discipline · 各 sleeve 独立规则</div>
+
+      <div class="discipline-card">
+        <div class="discipline-card-sym">Tier 1 · SPX Cash-Secured Put <span style="font-size:0.55rem;color:var(--text-muted);font-style:italic;margin-left:8px">RETIRED — 已被 /ES short put 替代</span></div>
+        <div class="discipline-row">
+          <div class="discipline-key">Entry</div>
+          <div class="discipline-val">Δ<code>0.20</code> · DTE <code>30 ±10</code>（目标 25–40）· 每月第三个 Friday 收盘前 · close &gt; <code>$0.10</code> · 无 VIX 门槛</div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Exit</div>
+          <div class="discipline-val">持有至到期（欧式现金结算）— 无 profit target，接受 assignment</div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Sizing</div>
+          <div class="discipline-val">≤ <code>20%</code> 账户 BP · 禁止叠仓（单 sleeve 同时只持一笔）</div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Risk</div>
+          <div class="discipline-val">VIX 单周 <code>+40%</code> → 下个 cycle 缩敞口；连续 2 亏 → PM review</div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Frequency</div>
+          <div class="discipline-val">每月一次 (LEAPS-cycle 配套)</div>
+        </div>
+      </div>
+
+      <div class="discipline-card">
+        <div class="discipline-card-sym">Tier 2 · GOOGL / AMZN CSP</div>
+        <div class="discipline-row">
+          <div class="discipline-key">Entry</div>
+          <div class="discipline-val">GOOGL Δ<code>0.20</code> · AMZN Δ<code>0.25</code> · DTE <code>21 ±7</code> · 每月第三个 Friday 收盘前 · close &gt; <code>$0.10</code> · 无 VIX 门槛</div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Exit</div>
+          <div class="discipline-val">持有至到期 — 接受 assignment（Q041 设计上允许）</div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Sizing</div>
+          <div class="discipline-val">单名 ≤ <code>10%</code> 账户 BP · Tier 2 合计 ≤ <code>15%</code></div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Risk</div>
+          <div class="discipline-val">个股 <code>8–10%</code> 单月移动可深度穿越 strike — 接受 assignment 时需准备覆盖现金</div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Frequency</div>
+          <div class="discipline-val">每月一次 · 单 sleeve 同时只持一笔</div>
+        </div>
+      </div>
+
+      <div class="discipline-card">
+        <div class="discipline-card-sym">Tier 3 · COST / JPM Earnings Iron Condor</div>
+        <div class="discipline-row">
+          <div class="discipline-key">Entry</div>
+          <div class="discipline-val">财报前 · VIX ≥ <code>15</code> · DTE <code>1–14d</code>（覆盖财报日）· IMR ≥ <code>33%</code>（可选）</div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Exit</div>
+          <div class="discipline-val">持有至到期</div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Sizing</div>
+          <div class="discipline-val">Tier 3 合计 ≤ <code>5%</code> 账户 BP</div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Risk</div>
+          <div class="discipline-val">仅观察 — 收集 ≥4 个财报周期后再评估是否升级到生产</div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Frequency</div>
+          <div class="discipline-val">每个标的每季度 1 次（财报触发）</div>
+        </div>
+      </div>
+
+      <div class="discipline-footnote">
+        ⚠ FAIL 标记不等于必须平仓 — Q041 设计上接受 assignment，以个股长期吸收。stop 表为可见性工具，非 actionable rule。
+        Source: <code>web/templates/q041.html</code> · <code>SLEEVE_SPEC</code> (line 290).
+      </div>
+    </div>`;
 
   document.getElementById('body-area').innerHTML = html;
 

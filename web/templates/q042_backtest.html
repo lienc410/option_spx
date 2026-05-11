@@ -64,6 +64,18 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .metric-value.warn { color:var(--orange); }
 .metric-sub { font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2);margin-top:3px;line-height:1.4; }
 
+/* Trading Discipline (per DESIGN.md Backtest Page Template §3) */
+.discipline-section { margin-top:32px;margin-bottom:14px; }
+.discipline-title { font-family:var(--f-ui);font-size:0.62rem;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:0.10em;margin-bottom:14px; }
+.discipline-card { background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:18px 22px; }
+.discipline-row { display:flex;gap:18px;padding:10px 0;border-bottom:1px solid var(--border); }
+.discipline-row:last-of-type { border-bottom:none;padding-bottom:4px; }
+.discipline-key { flex:0 0 100px;font-family:var(--f-ui);font-size:0.60rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;padding-top:2px; }
+.discipline-val { flex:1;font-family:var(--f-ui);font-size:0.72rem;color:var(--text-2);line-height:1.6; }
+.discipline-val strong { color:var(--text);font-weight:500; }
+.discipline-val code { font-family:var(--f-mono);font-size:0.68rem;background:var(--surface-hi);padding:1px 5px;border-radius:3px;color:var(--text); }
+.discipline-footnote { margin-top:14px;padding-top:12px;border-top:1px solid var(--border-2);font-family:var(--f-ui);font-size:0.62rem;color:var(--text-muted);line-height:1.5; }
+
 /* C9 comparison table */
 .cmp-table { width:100%;border-collapse:collapse; }
 .cmp-table th { font-family:var(--f-ui);font-size:0.58rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);padding:6px 12px;text-align:left;border-bottom:1px solid var(--border-2); }
@@ -334,6 +346,53 @@ function render(bt, spxHist, paper) {
     <div class="chart-wrap">
       <div class="chart-title" style="margin-bottom:12px">每笔 trade 入场时 account_pct（account_pct = exit_pnl / account_size_approx）</div>
       <canvas id="c11-chart" height="140" style="width:100%"></canvas>
+    </div>`;
+
+  // ── Trading Discipline ─────────────────────────────────────────────────────
+  html += `
+    <div class="discipline-section">
+      <div class="discipline-title">Trading Discipline</div>
+      <div class="discipline-card">
+        <div class="discipline-row">
+          <div class="discipline-key">Entry</div>
+          <div class="discipline-val">
+            <strong>Long call vertical spread</strong>（ATM long / ATM×1.05 short），DTE <code>90</code> 天。
+            <strong>Sleeve A</strong>: ddATH ≤ <code>-4%</code> 立即 T+1 入场；
+            <strong>Sleeve B</strong>: ddATH ≤ <code>-15%</code> → watching → close &gt; MA10 在 <code>30</code> trading days 内 reclaim → T+1 入场。
+          </div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Exit</div>
+          <div class="discipline-val">
+            <strong>持有至到期</strong>（欧式现金结算 — SPX index options 到期日 cash settle，不存在 early exercise 风险）。
+            没有 profit target 或 stop-loss；全程持有。Sleeve B 若 30 trading days 内未 reclaim MA10 则 watching 状态自动 expire。
+          </div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Sizing</div>
+          <div class="discipline-val">
+            每次入场 <code>10%</code> 账户；A+B 合并上限 <code>20%</code>。
+            Joint BP gate: <code>min(20%, max(0%, 60% − main_bp%))</code> — main SPX 策略 BP 占用越高，可分给 Drawdown Overlay 越少。
+          </div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Risk</div>
+          <div class="discipline-val">
+            最大损失 = 入场 debit（spread width × contracts × 100）。
+            <strong>Re-arm condition</strong>: ddATH ≥ <code>-2%</code>（回到接近 ATH 才能再次触发）。
+            当前 <strong>paper-trading only</strong> — 实盘执行需要 PM 评估后开关。
+          </div>
+        </div>
+        <div class="discipline-row">
+          <div class="discipline-key">Frequency</div>
+          <div class="discipline-val">
+            事件触发 — 没有固定 cadence，回撤事件发生才入场。同 sleeve 在 active position 持有期间不重复入场。
+          </div>
+        </div>
+        <div class="discipline-footnote">
+          Source: <code>backtest/q042_engine.py</code> · sizing pct <code>_SIZING_PCT = 0.10</code> · q042 spec card in <code>web/templates/q042.html</code>.
+        </div>
+      </div>
     </div>`;
 
   document.getElementById('body-area').innerHTML = html;

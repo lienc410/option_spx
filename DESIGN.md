@@ -171,6 +171,26 @@ Chart title pattern: `SPX Price — <Strategy Name> Trade Entry / Exit` for trad
 
 Below these two required elements, each backtest page may add strategy-specific analysis (waterfalls, regime breakdowns, sensitivity tables, etc.) freely.
 
+**3. Trading Discipline section** (bottom of page, mandatory)
+
+Every backtest page must end with a "Trading Discipline" section. Purpose: the page is a strategy advertisement — anyone (including future-you) reading the numbers needs to immediately see the rules that produced them. No rules ⇒ no actionable trust.
+
+Required five categories, in order:
+
+| Category | What to capture |
+|---|---|
+| Entry | Signal conditions, strike / delta / DTE selection, structure |
+| Exit | Profit target, time-based close, stop-loss trigger |
+| Sizing | Contract count, BP allocation, account-fraction cap |
+| Risk | Max drawdown limits, BP gates, regime / volatility guards |
+| Frequency | Cadence, max concurrent positions, blackout periods |
+
+Plus an optional `Source` footnote with file path / line refs.
+
+Render as a card with horizontal rows: category label (left, mono uppercase, fixed 100px column) + rule prose (right, free width). Inline `<code>` for specific values (deltas, DTEs, BP caps). Bold key thresholds within prose. Strategy-specific exceptions appear inline within the relevant row.
+
+CSS class names: `.discipline-section` / `.discipline-card` / `.discipline-row` / `.discipline-key` / `.discipline-val` / `.discipline-footnote`. Copy the canonical CSS block when adding to a new backtest page; do not invent variants.
+
 ## Spacing
 
 - **Base unit:** 4px
