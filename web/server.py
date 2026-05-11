@@ -248,6 +248,16 @@ def q042_backtest_page():
     return render_template("q042_backtest.html")
 
 
+@app.route("/aftermath")
+def aftermath_page():
+    return render_template("aftermath.html")
+
+
+@app.route("/aftermath/backtest")
+def aftermath_backtest_page():
+    return render_template("aftermath_backtest.html")
+
+
 @app.route("/q041/archive")
 def q041_archive_page():
     return render_template("q041_archive.html")
