@@ -1,7 +1,53 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-10 (R-20260510-15: Q062 闭环 — SPEC-094.1 Sleeve A 5%/90D → 2.5%/30D。Q062 三 Tier + Pareto + decay。Bootstrap p=0.09 PM 接受。Developer 实施完成；AC-1.4 初次回测 ann=9.03% 偏离 -0.91pp，Quant 诊断 `_exp_date` 应用 entry_dt 而非 signal_dt；3-file fast-path fix 后 AC-1.4 命中 9.94%（exact）。Sleeve B 不变；Grandfather 仓位 expiry 由 2026-06-10 调整为 2026-06-11)
+Last Updated: 2026-05-11 (R-20260511-01: Q063 IVP<55 gate review — PM 假设「low-VIX false alarm」被数据精确反向 reject。Phase 1-4 (VIX-stratified / candidate gates / OOS robustness / decay-weighted) 一致显示 gate 在 recent 2024-2026 正确挡住 5 笔 net-loss entries (-$13.7k counterfactual)。Decay 越重 A 越输 (3y HL → -$19k)。Recent windows 全输 (-$7.7k 到 -$13.7k)。No SPEC change. Gate value reaffirmed; PM intuition tested and reversed)
 Owner: Planner or PM
+
+---
+
+### R-20260511-01 — Q063 IVP<55 Gate Robustness Review — PM Hypothesis Reversed
+
+- Topic: PM 提出 hypothesis（2026-05-11）「主策略 IVP<55 gate 在低 VIX 绝对值偏低环境下产生 false alarm」。当日 live recommendation reduce_wait (VIX=17.19, IVP=64) 是触发该 review 的实例
+- Method: 四 Tier 分析
+  - **Phase 1** — VIX-stratified analysis of blocked-by-IVP entries (disable gate, post-classify by entry-day VIX/IVP)
+  - **Phase 2** — 5 candidate gates head-to-head backtest: baseline / A (IVP<70 if VIX<18 else IVP<55) / B (IVP<55 or VIX<18) / C (VIX×IVP composite) / D (pure VIX≥22) / E (IVP≥70)
+  - **Phase 3** — Tier 3 robustness on Candidate A: OOS split (07-17 train / 18-26 test) + VIX threshold sensitivity (VIX < {16..21}) + disaster window per-year + bootstrap CI on diff
+  - **Phase 4** — Decay-weighted (3y/5y/10y HL) + recent-window cuts (last 5y/3y/2y/1y) + per-year P&L attribution
+- Findings:
+  - **Phase 1 surface signal**: 低 VIX (15-18) BLOCKED entries 实际 +EV (avg +$389, sum +$7.4k over 19y) → 初看 PM 假设有支持。但 ALLOWED entries 同期 avg +$2,323 (6x 优)，gate 仍有边际价值
+  - **Phase 2 候选筛选**: A (low-VIX IVP relax 至 70) Pareto 优于其他候选，unweighted +$6,069 vs baseline (no DD penalty)。但 C/D/E 都引入 DD blowup (-18% vs -10.9% baseline)
+  - **Phase 3 OOS 杀手**: A 在 train 期 +$1,240/yr ✓，**test 期 -$907/yr ✗**。Bootstrap CI of per-trade diff [-$1,919, +$1,087]，**P(A>BL per-trade)=28.7%**，CI 包含 0 cannot reject
+  - **Phase 4 决定性反转**: decay 越重 A 越输——3y HL → BL wins +$19,237；5y HL → +$11,230；10y HL → +$3,109。Recent-window 全输：last 1y -$7.7k；last 2-5y -$13.7k
+  - **Per-year forensic**: A 全部 alpha 来自 2013-2020 (+$19.8k)；**2024-2026 added trades 累计 -$13.7k** (2024 -$4.8k / 2025 -$3.7k / 2026 -$5.2k)
+- Verdict:
+  - **REJECT relaxation; no SPEC change**
+  - PM hypothesis 与数据**精确反向**——recent regime gate 不是 false alarm，是高价值真信号
+  - 5 笔被 gate 挡住的 recent trades 平均亏 $2,746/笔——material loss protection
+- Mechanism explanation:
+  - VIX=15-17 + IVP=60-65 表示「vol 已 compress 到 1y 高分位即使绝对低」——typical「complacency before mean reversion」setup
+  - BPS 在此 setup 下 max-loss event probability 被 underprice → IVP gate 正确 detect 并 reduce_wait
+  - PM perception bias: 看到「block 后市场没崩」→ 没看到「if 入场 will lose to chop / sharp 1-2 周 pullback + theta decay」
+- Caveats:
+  - 数据窗口 2007-2026，2026 仅 5 个月；最新数据点可能仍在演化
+  - Sample size for blocked-entries 不大 (n=19 in VIX<18 bucket)；bootstrap CI 反映不确定性
+  - Counterfactual 计算假设「block 解除后 trade 入场」的 path 与 baseline 一致 (BP 占用、time of day 等)——简化但合理
+- Q063 thread CLOSED. PM intuition tested and reversed. Gate IVP < 55 保留不变
+- Recommendation for live (2026-05-11)：
+  - Main SPX strategy 维持 reduce_wait (IVP=64, gate working as designed)
+  - 不 manual override
+  - 等 IVP 自然下移过 55 (1y rolling 让旧 high-IV bars 滚出窗口) 或 regime 变化
+- Watchlist (low priority):
+  - Q063.1: explore strengthening gate (IVP > 50 in low-VIX)
+  - Q063.2: IVP × IVR × VIX3M 联合 gate
+  - Q063.3: ML-based prob-of-tail gate replacement
+- Artifacts:
+  - `research/q063/q063_phase1_vix_stratified_blocked_trades.py`
+  - `research/q063/q063_phase2_candidate_gates.py`
+  - `research/q063/q063_phase3_robustness.py`
+  - `research/q063/q063_phase4_decay_weighted.py`
+  - `research/q063/q063_phase1_blocked_trades.csv`
+  - `research/q063/q063_phase2_gate_comparison.csv`
+  - `task/q063_phase4_closure_memo_2026-05-11.md`
 
 ---
 
