@@ -494,18 +494,18 @@ function render(bt, spxHist, paper) {
   });
 
   // C10 — P&L by year
-  const years={};
+  const yrPnL={};
   trades.forEach(t=>{
     const yr=t.exit_date.slice(0,4);
-    if(!years[yr]) years[yr]={A:0,B:0};
-    years[yr][t.sleeve_id]+=t.exit_pnl;
+    if(!yrPnL[yr]) yrPnL[yr]={A:0,B:0};
+    yrPnL[yr][t.sleeve_id]+=t.exit_pnl;
   });
-  const yrLabels=Object.keys(years).sort();
+  const yrLabels=Object.keys(yrPnL).sort();
   charts.c10 = new Chart(document.getElementById('c10-chart'),{
     type:'bar',
     data:{labels:yrLabels,datasets:[
-      {label:'A',data:yrLabels.map(y=>Math.round(years[y].A||0)),backgroundColor:'rgba(72,136,232,0.70)',borderRadius:3},
-      {label:'B',data:yrLabels.map(y=>Math.round(years[y].B||0)),backgroundColor:'rgba(224,128,64,0.70)',borderRadius:3}]},
+      {label:'A',data:yrLabels.map(y=>Math.round(yrPnL[y].A||0)),backgroundColor:'rgba(72,136,232,0.70)',borderRadius:3},
+      {label:'B',data:yrLabels.map(y=>Math.round(yrPnL[y].B||0)),backgroundColor:'rgba(224,128,64,0.70)',borderRadius:3}]},
     options:{responsive:true,animation:false,
       plugins:{legend:{display:true,labels:{color:'#606880',font:{family:'DM Sans',size:11},boxWidth:10,boxHeight:10}},
         tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${fmtD(ctx.parsed.y)}`}}},
