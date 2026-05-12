@@ -1193,7 +1193,13 @@ async function loadQ042() {
   try {
     const data = await fetch('/api/q042/state').then(r => r.json());
     if (data.error) throw new Error(data.error);
+    const wasNull = !_q042Cache;
     _q042Cache = data;
+    // If snapshot already rendered (with null _q042Cache), trigger re-render
+    // of the bucket bars so the Drawdown Overlay row picks up the BP %.
+    if (wasNull && _snapshotCache) {
+      try { _renderMarginAllocation(_snapshotCache); } catch (_) {}
+    }
 
     // Badge
     const hasOpenA = data.sleeve_a?.active_position;
@@ -1286,7 +1292,11 @@ async function loadAftermath() {
   try {
     const d = await fetch('/api/aftermath/state').then(r => r.json());
     if (d.error) throw new Error(d.error);
+    const wasNull = !_aftermathCache;
     _aftermathCache = d;
+    if (wasNull && _snapshotCache) {
+      try { _renderMarginAllocation(_snapshotCache); } catch (_) {}
+    }
 
     // Badge: ACTIVE (green) if in window, else WAIT
     const badge = d.active
@@ -1547,6 +1557,11 @@ async function loadSnapshot() {
   try {
     const res = await fetch('/api/portfolio/summary');
     if (!res.ok) throw new Error('HTTP ' + res.status);
+    const ct = res.headers.get('content-type') || '';
+    if (!ct.includes('json')) {
+      // Most common cause: Cloudflare Access redirect captured as 200 HTML
+      throw new Error('Response is not JSON (auth session may have expired — try reloading the page)');
+    }
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     _snapshotCache = data;
@@ -1576,9 +1591,16 @@ async function loadSnapshot() {
       </div>
       <div id="margin-alloc"></div>`;
 
-    _renderMarginAllocation(data);
-  } catch (_) {
-    body.innerHTML = '<div class="snapshot-unavail">Portfolio data unavailable</div>';
+    try {
+      _renderMarginAllocation(data);
+    } catch (renderErr) {
+      console.error('loadSnapshot render error:', renderErr);
+      const el = document.getElementById('margin-alloc');
+      if (el) el.innerHTML = `<div class="snapshot-unavail">Render error: ${renderErr.message}</div>`;
+    }
+  } catch (e) {
+    console.error('loadSnapshot fetch error:', e);
+    body.innerHTML = `<div class="snapshot-unavail">Portfolio data unavailable — ${e.message}</div>`;
   }
 }
 
