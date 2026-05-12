@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-11 (SPEC-099 DONE — bot profit-target alert resilience Layer B+C（broker reconciliation + Schwab-direct fallback），commit d6c4b4b+566789c；Q063 CLOSED — IVP<55 gate robustness confirmed，PM hypothesis reversed，no SPEC change，commit d9020e5)
+Last Updated: 2026-05-12 (Q065 CLOSED — Aftermath EXTREME_VIX=40 阈值敏感性研究。三个放宽变体全 fail（trap rate 41-79%），阈值维持不变；P3 永久 closed；selector.py 不动)
 Owner: Planner or PM
 
 ## Current Phase
@@ -69,6 +69,8 @@ Owner: Planner or PM
 
 ## Open Questions Summary
 
+- `Q065` — **CLOSED 2026-05-12**. Aftermath `EXTREME_VIX=40` 阈值敏感性研究。触发：Q064 P1 中 2025-04-09 出现 1-day aftermath window，PM 质疑阈值是否过严。P2 sweep 三个放宽变体（loosen_42 / loosen_45 / peak×0.85）trap rate 全部超标（41% / 47% / 79%），2009 GFC 局部 72%，2020 COVID 40%，属真实尾部结构。结论：**`EXTREME_VIX=40` 维持，selector.py 不动，P3 永久 closed** — `See: research/q065/q065_memo_2026-05-12.md`, `RESEARCH_LOG.md R-20260512-01`
+- `Q064` — **IN PROGRESS 2026-05-12**. Aftermath routing review（V3-A IC HV → BPS HV revert）。P1–P4 完成，2nd Quant APPROVE WITH ADJUSTMENT。Pre-SPEC 两项待完成：①selector 路由树确认（移除 V3-A 后走 BPS HV 非 Reduce/Wait）；② P5 VIX re-cross stop 测试（28/30/entry+10% 三个阈值 × 15 笔 aftermath trades）— `See: task/q064_aftermath_2nd_quant_review_packet_2026-05-12_Review.md`
 - `Q063` — **CLOSED 2026-05-11**. SPX 主策略 IVP<55 gate robustness review。PM hypothesis「gate 在低 VIX 环境产生 false alarm」被四层检验精确反向 reject：Phase 1 低 VIX blocked entries WR 63%（vs allowed 83%）；Phase 2 候选 A 19y +$6k 但 OOS test 期 -$907/yr；Phase 4 decay-weighted 3y HL A 输 -$19k，last 5y A 输 -$13.7k（2024-2026 gate 挡住 5 笔 counterfactual -$13.7k loss）。结论：**Keep IVP<55 gate unchanged，no SPEC change** — `See: task/q063_phase4_closure_memo_2026-05-11.md`, `RESEARCH_LOG.md R-20260511-01`
 - `Q002` — Shock active mode still needs Phase B validation — `open`
 - `Q012` — **closed.** `/ES` shared-BP governance clarification is complete for the current live scale. Quant `Phase A+B+C` showed that at the current production posture (`1` contract on a `$500k` account), allocator / gating / priority logic is overdesigned relative to the sleeve’s size and moves account-level ROE by only about `±0.01pp`. The correct implementation outcome was narrowed to stressed-SPAN visibility / monitoring, which has now shipped via `SPEC-088 DONE`. No further shared-BP governance work is active at the current scale; if `/ES` later expands materially, reopen under `Q050` rather than under `Q012`.

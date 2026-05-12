@@ -1531,6 +1531,38 @@
 - **Artifacts**：`research/q042/q062_memo_2026-05-10.md`，`q062_p1/p2/p3_*.csv`
 
 
+### Q065 — Aftermath EXTREME_VIX=40 阈值敏感性研究
+- **状态**：**CLOSED 2026-05-12**（R-20260512-01）
+- **来源**：Q064 P1 中 2025-04-09 出现 1-day aftermath window，PM 质疑 `EXTREME_VIX=40` 是否过严，是否应放宽至 42/45
+- **研究路径**：P1 blocked days 扫描 → P2 threshold sweep（baseline_40 / loosen_42 / loosen_45 / peak×0.85）→ P3 不启动（三变体全 fail）
+- **关键结论**：
+
+| 变体 | Trap Rate | 判定 |
+|---|---|---|
+| baseline_40（生产）| — | ✅ 保留 |
+| loosen_42 | 41.2%（7/17 新增日 5TD 内 VIX 反弹 ≥45）| ❌ |
+| loosen_45 | 47.2%（17/36）；2009 局部 72.2% | ❌ |
+| peak×0.85 | 78.9%（56/71）| ❌ |
+
+- **机制**：VIX 40-45 区间且 off-peak ≥10% 的"看似回落"日，历史上有 41-72% 概率 5TD 内反弹至 ≥45，是 GFC/COVID 真实尾部波动结构，不是噪音
+- **2025-04-09**：19yr 第 6 个边界 case，本身无 trap，但 41% 同类 setup 会 trap——不能为救单点打开普遍漏洞
+- **结论**：**`EXTREME_VIX=40` 维持，`selector.py` 不动，P3 永久 closed**
+- **后续 action**：Q064 P1 加 merged-windows 辅助视图（≤2TD gap 合并）——独立工单，不属于 Q065 范围
+- **Artifacts**：`research/q065/q065_memo_2026-05-12.md`，`q065_p1/p2_*.py`，`RESEARCH_LOG.md R-20260512-01`
+
+---
+
+### Q064 — Aftermath 路由优化：V3-A IC HV → BPS HV revert
+- **状态**：**IN PROGRESS 2026-05-12**（P1–P4 完成，2nd Quant APPROVE WITH ADJUSTMENT）
+- **来源**：主策略 `is_aftermath()` 路由到 V3-A IC HV broken-wing，P1–P4 回测显示 V3-A $/BP-day 比 BPS HV 低 62-63%，equal-BP P&L 仅 42.5%
+- **Pre-SPEC 两项待完成**：
+  1. Selector 路由树确认：移除 V3-A override 后走 BPS HV 非 Reduce/Wait（读代码，5 分钟）
+  2. P5 VIX re-cross stop 测试：同 15 笔 aftermath，对比无 stop / VIX>28 / VIX>30 / entry_vix+10%
+- **2nd Quant verdict**：APPROVE WITH ADJUSTMENT — BPS HV revert supported；Q5 VIX stop 需先量化再进 SPEC
+- **Artifacts**：`research/q064/`，`task/q064_aftermath_2nd_quant_review_packet_2026-05-12_Review.md`
+
+---
+
 ### Q063 — SPX 主策略 IVP<55 Gate Robustness Review
 - **状态**：**CLOSED 2026-05-11**（R-20260511-01，commit d9020e5）
 - **来源**：PM hypothesis「IVP<55 gate 在低 VIX 环境下产生 false alarm，应放宽」
