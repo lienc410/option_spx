@@ -140,8 +140,14 @@ function fmtD(n) {
 }
 function fmtDate(s) { return s?s.slice(0,10):'—'; }
 
+// P&L color constants
+const C_PROFIT_FILL   = 'rgba(66,204,124,0.90)';
+const C_PROFIT_BORDER = '#1a8c52';
+const C_LOSS_FILL     = 'rgba(224,128,64,0.90)';
+const C_LOSS_BORDER   = '#9a3412';
+
 // ── Build all charts after data loaded ───────────────────────────────────────
-function render(bt, spxHist, paper) {
+function render(bt, spxHist, paper, vixHist) {
   const trades  = bt.trades || [];
   const summary = bt.summary || {};
   const history = spxHist.history || [];
@@ -151,15 +157,18 @@ function render(bt, spxHist, paper) {
   const tradesA = trades.filter(t => t.sleeve_id === 'A');
   const tradesB = trades.filter(t => t.sleeve_id === 'B');
 
-  // ── C6: SPX + ATH + entry/exit overlay ─────────────────────────────────────
-  // Use numeric index for scatter x so category axis alignment works
-  const entryA = [], exitA = [], entryB = [], exitB = [];
+  // ── C6: Entry/exit markers — green=profit, orange=loss; A=solid, B=hollow ──
+  const entryAData=[], exitAData=[], entryBData=[], exitBData=[];
   trades.forEach(t => {
     const ei = idxByDate[t.entry_date], xi = idxByDate[t.exit_date];
     const ep = priceByDate[t.entry_date], xp = priceByDate[t.exit_date];
-    const bucket = t.sleeve_id === 'A' ? {e:entryA, x:exitA} : {e:entryB, x:exitB};
-    if (ei != null && ep != null) bucket.e.push({ x:ei, y:ep, trade:t });
-    if (xi != null && xp != null) bucket.x.push({ x:xi, y:xp, trade:t });
+    if (t.sleeve_id === 'A') {
+      if (ei != null && ep != null) entryAData.push({x:ei, y:ep, trade:t});
+      if (xi != null && xp != null) exitAData.push({x:xi, y:xp, trade:t});
+    } else {
+      if (ei != null && ep != null) entryBData.push({x:ei, y:ep, trade:t});
+      if (xi != null && xp != null) exitBData.push({x:xi, y:xp, trade:t});
+    }
   });
 
   // ── M0: Key metric cards (per DESIGN.md Backtest Page Template) ────────────
@@ -262,25 +271,22 @@ function render(bt, spxHist, paper) {
     <div class="section-label">C6 · SPX Price — Trade Entry / Exit</div>
     <div class="chart-wrap">
       <div class="chart-hd">
-        <span class="chart-title">SPX 历史 · ATH · 入场 ▲ / 出场 ▽ · 可叠加副轴 Cum. P&L</span>
-        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-          <div class="chart-legend">
-            <div class="chart-legend-item"><div class="chart-legend-line" style="background:#4888E8"></div>SPX</div>
-            <div class="chart-legend-item"><div class="chart-legend-line" style="background:rgba(201,168,64,0.6)"></div>ATH</div>
-            <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#4888E8"></div>A entry/exit</div>
-            <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#E08040"></div>B entry/exit</div>
-          </div>
+        <span class="chart-title">▲ 入场 / ▽ 出场 · <span style="color:#42CC7C">●绿=盈</span> · <span style="color:#E08040">●橙=亏</span> · 实心=Sleeve A · 空心=Sleeve B</span>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <div class="range-btns">
             <span style="font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);margin-right:4px">Overlay:</span>
-            <button class="range-btn active" id="c6-ov-none" onclick="setC6Overlay('none')">None</button>
-            <button class="range-btn" id="c6-ov-pnl" onclick="setC6Overlay('pnl')">Cum. P&L</button>
+            <button class="range-btn active" data-ov="none"  onclick="setC6Overlay('none')">None</button>
+            <button class="range-btn" data-ov="pnl"   onclick="setC6Overlay('pnl')">Cum. P&L</button>
+            <button class="range-btn" data-ov="dd"    onclick="setC6Overlay('dd')">Drawdown</button>
+            <button class="range-btn" data-ov="vix"   onclick="setC6Overlay('vix')">VIX</button>
+            <button class="range-btn" data-ov="trend" onclick="setC6Overlay('trend')">SPX MA10</button>
           </div>
           <div class="range-btns">
-            <button class="range-btn" onclick="setC6Range('1yr')">1yr</button>
-            <button class="range-btn" onclick="setC6Range('3yr')">3yr</button>
-            <button class="range-btn" onclick="setC6Range('5yr')">5yr</button>
-            <button class="range-btn" onclick="setC6Range('10yr')">10yr</button>
-            <button class="range-btn active" onclick="setC6Range('all')">All</button>
+            <button class="range-btn" data-range="1yr"  onclick="setC6Range('1yr')">1yr</button>
+            <button class="range-btn" data-range="3yr"  onclick="setC6Range('3yr')">3yr</button>
+            <button class="range-btn" data-range="5yr"  onclick="setC6Range('5yr')">5yr</button>
+            <button class="range-btn" data-range="10yr" onclick="setC6Range('10yr')">10yr</button>
+            <button class="range-btn active" data-range="all" onclick="setC6Range('all')">All</button>
           </div>
         </div>
       </div>
@@ -405,51 +411,104 @@ function render(bt, spxHist, paper) {
   // ── Build charts ────────────────────────────────────────────────────────────
   destroyCharts();
 
-  // C6
-  const _c6FullData = [
-    history.map((h,i)=>({x:i,y:h.close})),
-    history.map((h,i)=>({x:i,y:h.ath})),
-    entryA, exitA, entryB, exitB,
-  ];
+  // ── C6 overlay data computation ─────────────────────────────────────────────
+  const vixByDate = {};
+  (vixHist?.history || []).forEach(v => { vixByDate[v.date] = v.vix; });
 
-  // Cumulative P&L points mapped to history indices for secondary y-axis line
-  const _idxByDate = {};
-  history.forEach((h,i) => { _idxByDate[h.date] = i; });
-  let cumPnLA = 0, cumPnLB = 0;
-  const pnlALine = [], pnlBLine = [];
-  [...closed].sort((a,b)=>a.exit_date<b.exit_date?-1:1).forEach(t => {
-    const idx = _idxByDate[t.exit_date];
-    if (t.sleeve_id === 'A') { cumPnLA += t.exit_pnl; if (idx != null) pnlALine.push({x: idx, y: Math.round(cumPnLA)}); }
-    else                     { cumPnLB += t.exit_pnl; if (idx != null) pnlBLine.push({x: idx, y: Math.round(cumPnLB)}); }
+  const spxLine  = history.map((h,i) => ({x:i, y:h.close}));
+  const athLine  = history.map((h,i) => ({x:i, y:h.ath}));
+  const vixLine  = history.map((h,i) => ({x:i, y: vixByDate[h.date] ?? null}));
+  const ddLine   = history.map((h,i) => ({x:i, y: h.ddath_pct ?? null}));
+  const ma10Line = history.map((h,i) => {
+    if (i < 9) return {x:i, y:null};
+    const avg = history.slice(i-9,i+1).reduce((s,h)=>s+h.close,0)/10;
+    return {x:i, y:Math.round(avg*100)/100};
   });
 
+  let cumPnLA=0, cumPnLB=0;
+  const pnlALine=[], pnlBLine=[];
+  [...closed].sort((a,b)=>a.exit_date<b.exit_date?-1:1).forEach(t => {
+    const idx = idxByDate[t.exit_date];
+    if (t.sleeve_id==='A') { cumPnLA+=t.exit_pnl; if(idx!=null) pnlALine.push({x:idx,y:Math.round(cumPnLA)}); }
+    else                   { cumPnLB+=t.exit_pnl; if(idx!=null) pnlBLine.push({x:idx,y:Math.round(cumPnLB)}); }
+  });
+
+  // Dataset order: [0:SPX, 1:ATH, 2:Aentry, 3:Aexit, 4:Bentry, 5:Bexit, 6:VIX, 7:DD, 8:MA10, 9:PnLA, 10:PnLB]
+  const _c6FullData = [spxLine, athLine, entryAData, exitAData, entryBData, exitBData, vixLine, ddLine, ma10Line, pnlALine, pnlBLine];
+
+  // ── Trade connector plugin (on hover: dashed line entry↔exit) ───────────────
+  const tradeConnector = {
+    id: 'tradeConnector',
+    afterDraw(chart) {
+      const active = chart.getActiveElements();
+      if (!active.length) return;
+      const {datasetIndex:dsIdx, index:ptIdx} = active[0];
+      if (![2,3,4,5].includes(dsIdx)) return;
+      const pt = chart.data.datasets[dsIdx].data[ptIdx];
+      if (!pt?.trade) return;
+      const {entry_date, sleeve_id} = pt.trade;
+      const sibDsIdx = dsIdx===2?3 : dsIdx===3?2 : dsIdx===4?5 : 4;
+      const sibData  = chart.data.datasets[sibDsIdx]?.data || [];
+      const sibIdx   = sibData.findIndex(p => p?.trade?.entry_date===entry_date && p?.trade?.sleeve_id===sleeve_id);
+      if (sibIdx < 0) return;
+      const m1=chart.getDatasetMeta(dsIdx), m2=chart.getDatasetMeta(sibDsIdx);
+      const p1=m1.data[ptIdx], p2=m2.data[sibIdx];
+      if (!p1||!p2) return;
+      const c=chart.ctx;
+      c.save();
+      c.beginPath(); c.moveTo(p1.x,p1.y); c.lineTo(p2.x,p2.y);
+      c.strokeStyle='rgba(255,255,255,0.28)'; c.lineWidth=1; c.setLineDash([3,4]); c.stroke();
+      c.setLineDash([]);
+      c.beginPath(); c.arc(p2.x,p2.y,10,0,Math.PI*2);
+      c.strokeStyle='rgba(255,255,255,0.55)'; c.lineWidth=1.5; c.stroke();
+      c.restore();
+    },
+  };
+
   charts.c6 = new Chart(document.getElementById('c6-chart'), {
+    plugins: [tradeConnector],
     type: 'line',
     data: { datasets: [
-      { type:'line',    label:'SPX',     data:history.map((h,i)=>({x:i,y:h.close})), borderColor:'#4888E8', backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0.1, yAxisID:'yP', order:5 },
-      { type:'line',    label:'ATH',     data:history.map((h,i)=>({x:i,y:h.ath})),   borderColor:'rgba(201,168,64,0.50)', backgroundColor:'transparent', borderWidth:1, borderDash:[4,3], pointRadius:0, tension:0, yAxisID:'yP', order:4 },
-      { type:'scatter', label:'A entry', data:entryA, backgroundColor:'rgba(72,136,232,0.95)', borderColor:'#1d4ed8', borderWidth:1.5, pointStyle:'triangle', rotation:0,   pointRadius:8, pointHoverRadius:11, yAxisID:'yP', order:1 },
-      { type:'scatter', label:'A exit',  data:exitA,  backgroundColor:'rgba(72,136,232,0.55)', borderColor:'#1d4ed8', borderWidth:1.5, pointStyle:'triangle', rotation:180, pointRadius:7, pointHoverRadius:10, yAxisID:'yP', order:2 },
-      { type:'scatter', label:'B entry', data:entryB, backgroundColor:'rgba(224,128,64,0.95)', borderColor:'#9a3412', borderWidth:1.5, pointStyle:'triangle', rotation:0,   pointRadius:9, pointHoverRadius:12, yAxisID:'yP', order:1 },
-      { type:'scatter', label:'B exit',  data:exitB,  backgroundColor:'rgba(224,128,64,0.55)', borderColor:'#9a3412', borderWidth:1.5, pointStyle:'triangle', rotation:180, pointRadius:8, pointHoverRadius:11, yAxisID:'yP', order:2 },
-      // PnL overlays (hidden by default, toggled by setC6Overlay)
-      { type:'line', label:'Cum. P&L · A', data:pnlALine, borderColor:'rgba(72,136,232,0.95)', backgroundColor:'transparent', borderWidth:2, pointRadius:0, stepped:'before', tension:0, yAxisID:'yPnL', hidden:true, order:3 },
-      { type:'line', label:'Cum. P&L · B', data:pnlBLine, borderColor:'rgba(224,128,64,0.95)', backgroundColor:'transparent', borderWidth:2, pointRadius:0, stepped:'before', tension:0, yAxisID:'yPnL', hidden:true, order:3 },
+      { type:'line',    label:'SPX',  data:spxLine, borderColor:'#4888E8', backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0.1, yAxisID:'yP', order:8 },
+      { type:'line',    label:'ATH',  data:athLine, borderColor:'rgba(201,168,64,0.50)', backgroundColor:'transparent', borderWidth:1, borderDash:[4,3], pointRadius:0, tension:0, yAxisID:'yP', order:7 },
+      { type:'scatter', label:'A ▲', data:entryAData,
+        backgroundColor: ctx => (ctx.dataset.data[ctx.dataIndex]?.trade?.exit_pnl>0?C_PROFIT_FILL:C_LOSS_FILL),
+        borderColor:     ctx => (ctx.dataset.data[ctx.dataIndex]?.trade?.exit_pnl>0?C_PROFIT_BORDER:C_LOSS_BORDER),
+        borderWidth:1.5, pointStyle:'triangle', rotation:0,   pointRadius:8, pointHoverRadius:11, yAxisID:'yP', order:2 },
+      { type:'scatter', label:'A ▽', data:exitAData,
+        backgroundColor: ctx => (ctx.dataset.data[ctx.dataIndex]?.trade?.exit_pnl>0?C_PROFIT_FILL:C_LOSS_FILL),
+        borderColor:     ctx => (ctx.dataset.data[ctx.dataIndex]?.trade?.exit_pnl>0?C_PROFIT_BORDER:C_LOSS_BORDER),
+        borderWidth:1.5, pointStyle:'triangle', rotation:180, pointRadius:7, pointHoverRadius:10, yAxisID:'yP', order:2 },
+      { type:'scatter', label:'B ▲', data:entryBData,
+        backgroundColor:'rgba(0,0,0,0)',
+        borderColor: ctx => (ctx.dataset.data[ctx.dataIndex]?.trade?.exit_pnl>0?C_PROFIT_BORDER:C_LOSS_BORDER),
+        borderWidth:2.5, pointStyle:'triangle', rotation:0,   pointRadius:9, pointHoverRadius:12, yAxisID:'yP', order:2 },
+      { type:'scatter', label:'B ▽', data:exitBData,
+        backgroundColor:'rgba(0,0,0,0)',
+        borderColor: ctx => (ctx.dataset.data[ctx.dataIndex]?.trade?.exit_pnl>0?C_PROFIT_BORDER:C_LOSS_BORDER),
+        borderWidth:2.5, pointStyle:'triangle', rotation:180, pointRadius:8, pointHoverRadius:11, yAxisID:'yP', order:2 },
+      { type:'line', label:'VIX',        data:vixLine,  borderColor:'rgba(201,168,64,0.80)', backgroundColor:'transparent', borderWidth:1.2, pointRadius:0, tension:0, yAxisID:'yOv', hidden:true, order:6 },
+      { type:'line', label:'Drawdown %', data:ddLine,   borderColor:'rgba(224,72,98,0.80)',  backgroundColor:'rgba(224,72,98,0.06)', fill:true, borderWidth:1.2, pointRadius:0, tension:0, yAxisID:'yOv', hidden:true, order:6 },
+      { type:'line', label:'MA10',       data:ma10Line, borderColor:'rgba(140,100,220,0.70)', backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0, yAxisID:'yP', hidden:true, order:7, spanGaps:true },
+      { type:'line', label:'Cum. P&L · A', data:pnlALine, borderColor:'rgba(66,204,124,0.90)', backgroundColor:'transparent', borderWidth:1.8, pointRadius:0, stepped:'before', tension:0, yAxisID:'yPnL', hidden:true, order:3 },
+      { type:'line', label:'Cum. P&L · B', data:pnlBLine, borderColor:'rgba(224,128,64,0.90)', backgroundColor:'transparent', borderWidth:1.8, pointRadius:0, stepped:'before', tension:0, yAxisID:'yPnL', hidden:true, order:3 },
     ]},
     options: {
       responsive:true, animation:false,
+      interaction:{mode:'nearest',intersect:true},
       plugins: { legend:{display:false}, tooltip:{ callbacks:{
         label: ctx => {
           const t = ctx.raw?.trade;
-          if (t) return [`${ctx.dataset.label}  ${fmtDate(t.entry_date)}→${fmtDate(t.exit_date)}`, ` ddATH ${t.ddath_at_signal.toFixed(2)}%`, ` P&L ${fmtD(t.exit_pnl)}`];
+          if (t) return [`Sleeve ${t.sleeve_id} · ${ctx.dataset.label}  ${fmtDate(t.entry_date)} → ${fmtDate(t.exit_date)}`, ` ddATH ${(t.ddath_at_signal||0).toFixed(2)}%  ·  P&L ${fmtD(t.exit_pnl)}`];
           if (ctx.dataset.label?.startsWith('Cum')) return ` ${ctx.dataset.label}: ${fmtD(ctx.parsed.y)}`;
-          return ` ${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(1)}`;
+          return ` ${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(ctx.dataset.label==='VIX'?1:2)}`;
         }
       }}},
       scales: {
         x: { type:'linear', ticks:{color:'#606880',font:{family:'JetBrains Mono',size:9},maxTicksLimit:14,
                callback:(v)=>{ const d=history[Math.round(v)]?.date; return d?d.slice(0,7):''; }}, grid:{color:'#191E33'} },
-        yP: { position:'left', ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},callback:v=>v.toLocaleString()}, grid:{color:'#191E33'}, title:{display:true,text:'SPX',color:'#363C52',font:{family:'DM Sans',size:9}} },
+        yP:   { position:'left',  ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},callback:v=>v.toLocaleString()}, grid:{color:'#191E33'} },
+        yOv:  { position:'right', display:false, ticks:{color:'#606880',font:{family:'JetBrains Mono',size:9}}, grid:{drawOnChartArea:false}, title:{display:true,text:'Overlay',color:'#363C52',font:{family:'DM Sans',size:9}} },
         yPnL: { position:'right', display:false, ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},callback:v=>(v>=0?'+':'')+'$'+Math.round(v/1000)+'k'}, grid:{drawOnChartArea:false}, title:{display:true,text:'Cum. P&L',color:'#363C52',font:{family:'DM Sans',size:9}} },
       },
     },
@@ -529,65 +588,59 @@ function render(bt, spxHist, paper) {
   });
 }
 
-// ── Overlay toggle (PnL on secondary y-axis) ────────────────────────────────
+// ── Overlay toggle ───────────────────────────────────────────────────────────
+// Dataset layout: [0:SPX,1:ATH,2:Aentry,3:Aexit,4:Bentry,5:Bexit,6:VIX,7:DD,8:MA10,9:PnLA,10:PnLB]
+const OV_IDX = { vix:[6], dd:[7], trend:[8], pnl:[9,10] };
+
 function setC6Overlay(mode) {
   const c = charts.c6;
   if (!c) return;
-  const showPnL = (mode === 'pnl');
-  // Datasets 6 and 7 (last two) are the Cum. P&L lines
   const dsets = c.data.datasets;
-  if (dsets.length >= 8) {
-    dsets[dsets.length-2].hidden = !showPnL;
-    dsets[dsets.length-1].hidden = !showPnL;
-  }
-  c.options.scales.yPnL.display = showPnL;
+  [6,7,8,9,10].forEach(i => { if (dsets[i]) dsets[i].hidden = true; });
+  (OV_IDX[mode] || []).forEach(i => { if (dsets[i]) dsets[i].hidden = false; });
+  const sc = c.options.scales;
+  sc.yOv.display  = (mode==='vix' || mode==='dd');
+  sc.yPnL.display = (mode==='pnl');
+  if (mode==='vix') { sc.yOv.min=0; sc.yOv.max=undefined; sc.yOv.title.text='VIX'; sc.yOv.ticks.callback=v=>v.toFixed(0); }
+  if (mode==='dd')  { sc.yOv.min=undefined; sc.yOv.max=5;   sc.yOv.title.text='Drawdown %'; sc.yOv.ticks.callback=v=>v.toFixed(0)+'%'; }
   c.update('none');
-  document.getElementById('c6-ov-none').classList.toggle('active', !showPnL);
-  document.getElementById('c6-ov-pnl' ).classList.toggle('active',  showPnL);
+  document.querySelectorAll('[data-ov]').forEach(btn => btn.classList.toggle('active', btn.dataset.ov===mode));
 }
 
-// ── Boot ─────────────────────────────────────────────────────────────────────
 function setC6Range(range) {
   const c = charts.c6;
   if (!c || !c._fullData || !c._historyRef) return;
   const hist = c._historyRef;
   const now = new Date();
   let cutoffDate = null;
-  if (range === '1yr')  cutoffDate = new Date(now.getFullYear()-1,  now.getMonth(), now.getDate()).toISOString().slice(0,10);
-  else if (range === '3yr')  cutoffDate = new Date(now.getFullYear()-3,  now.getMonth(), now.getDate()).toISOString().slice(0,10);
-  else if (range === '5yr')  cutoffDate = new Date(now.getFullYear()-5,  now.getMonth(), now.getDate()).toISOString().slice(0,10);
-  else if (range === '10yr') cutoffDate = new Date(now.getFullYear()-10, now.getMonth(), now.getDate()).toISOString().slice(0,10);
-
-  // Find start index in history
-  const startIdx = cutoffDate ? Math.max(hist.findIndex(h => h.date >= cutoffDate), 0) : 0;
-
-  // Filter each dataset by index >= startIdx
-  c.data.datasets.forEach((ds, i) => {
-    const full = c._fullData[i];
-    if (!full) return;
-    ds.data = startIdx > 0 ? full.filter(p => p.x >= startIdx) : full;
+  if (range==='1yr')  cutoffDate=new Date(now.getFullYear()-1, now.getMonth(),now.getDate()).toISOString().slice(0,10);
+  if (range==='3yr')  cutoffDate=new Date(now.getFullYear()-3, now.getMonth(),now.getDate()).toISOString().slice(0,10);
+  if (range==='5yr')  cutoffDate=new Date(now.getFullYear()-5, now.getMonth(),now.getDate()).toISOString().slice(0,10);
+  if (range==='10yr') cutoffDate=new Date(now.getFullYear()-10,now.getMonth(),now.getDate()).toISOString().slice(0,10);
+  const startIdx = cutoffDate ? Math.max(hist.findIndex(h=>h.date>=cutoffDate),0) : 0;
+  c.data.datasets.forEach((ds,i) => {
+    const full=c._fullData[i]; if(!full) return;
+    ds.data = startIdx>0 ? full.filter(p=>p.x!=null && p.x>=startIdx) : full;
   });
-  c.options.scales.x.min = startIdx;
-  c.options.scales.x.max = hist.length - 1;
-  c.update();
-
-  document.querySelectorAll('.range-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.textContent.toLowerCase().replace(' ','') === range);
-  });
+  c.options.scales.x.min=startIdx; c.options.scales.x.max=hist.length-1;
+  c.update('none');
+  document.querySelectorAll('[data-range]').forEach(btn=>btn.classList.toggle('active',btn.dataset.range===range));
 }
 
 async function loadAll() {
   try {
-    const [btRes, histRes, paperRes] = await Promise.allSettled([
+    const [btRes, histRes, paperRes, vixRes] = await Promise.allSettled([
       fetch('/api/q042/backtest'),
       fetch('/api/q042/spx-history?full=1'),
       fetch('/api/q042/paper'),
+      fetch('/api/market/vix-history'),
     ]);
-    const bt   = btRes.status   === 'fulfilled' && btRes.value.ok   ? await btRes.value.json()   : {trades:[],summary:{}};
-    const hist = histRes.status === 'fulfilled' && histRes.value.ok ? await histRes.value.json() : {history:[]};
-    const paper= paperRes.status=== 'fulfilled' && paperRes.value.ok? await paperRes.value.json(): [];
+    const bt   = btRes.status  ==='fulfilled'&&btRes.value.ok   ? await btRes.value.json()   : {trades:[],summary:{}};
+    const hist = histRes.status==='fulfilled'&&histRes.value.ok  ? await histRes.value.json() : {history:[]};
+    const paper= paperRes.status==='fulfilled'&&paperRes.value.ok? await paperRes.value.json(): [];
+    const vix  = vixRes.status ==='fulfilled'&&vixRes.value.ok   ? await vixRes.value.json()  : {history:[]};
     if (bt.error) throw new Error(bt.error);
-    render(bt, hist, paper);
+    render(bt, hist, paper, vix);
   } catch(e) {
     document.getElementById('body-area').innerHTML = `<div class="error-msg">Error: ${e.message}</div>`;
   }

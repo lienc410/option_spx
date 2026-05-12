@@ -135,20 +135,28 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
   <div class="card">
     <div class="chart-hd">
       <div class="card-title" style="margin-bottom:0">SPX Price — Aftermath Window Events</div>
-      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div class="chart-legend">
           <div class="chart-legend-item"><div class="chart-legend-line" style="background:#4888E8"></div>SPX</div>
-          <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#E08040"></div>Window start (▲)</div>
+          <div class="chart-legend-item" style="font-size:0.60rem"><span style="color:#42CC7C">▲</span> Start (SPX↑) &nbsp;<span style="color:#E08040">▲</span> Start (SPX↓)</div>
+          <div class="chart-legend-item" style="font-size:0.60rem"><span style="color:#42CC7C">▽</span> End (SPX↑) &nbsp;<span style="color:#E08040">▽</span> End (SPX↓)</div>
         </div>
         <div class="range-btns">
-          <button class="range-btn" onclick="setSpxRange('1yr')">1yr</button>
-          <button class="range-btn" onclick="setSpxRange('3yr')">3yr</button>
-          <button class="range-btn" onclick="setSpxRange('5yr')">5yr</button>
-          <button class="range-btn active" onclick="setSpxRange('all')">All</button>
+          <span style="font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);margin-right:4px">Overlay:</span>
+          <button class="range-btn active" data-ov="none"  onclick="setSpxOverlay('none')">None</button>
+          <button class="range-btn" data-ov="dd"    onclick="setSpxOverlay('dd')">Drawdown</button>
+          <button class="range-btn" data-ov="vix"   onclick="setSpxOverlay('vix')">VIX</button>
+          <button class="range-btn" data-ov="trend" onclick="setSpxOverlay('trend')">SPX MA10</button>
+        </div>
+        <div class="range-btns">
+          <button class="range-btn" data-range="1yr"  onclick="setSpxRange('1yr')">1yr</button>
+          <button class="range-btn" data-range="3yr"  onclick="setSpxRange('3yr')">3yr</button>
+          <button class="range-btn" data-range="5yr"  onclick="setSpxRange('5yr')">5yr</button>
+          <button class="range-btn active" data-range="all" onclick="setSpxRange('all')">All</button>
         </div>
       </div>
     </div>
-    <canvas id="aftermath-spx-chart" height="240" style="width:100%"></canvas>
+    <canvas id="aftermath-spx-chart" height="260" style="width:100%"></canvas>
     <div id="aftermath-spx-empty" class="empty-msg" style="display:none">SPX history unavailable</div>
   </div>
 
@@ -229,234 +237,257 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 </div>
 
 <script>
-const now = new Date();
-document.getElementById('nav-date').textContent = now.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+document.getElementById('nav-date').textContent =
+  new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
 
 let spxChart = null;
-let _spxFullData = null;
+let _spxFullHistory = null;   // full history array for range filtering
+let _spxFullDatasets = null;  // parallel full dataset arrays
 
 function fmt(n, dec) { return typeof n === 'number' ? n.toFixed(dec ?? 1) : '—'; }
 
+const AM_PROFIT_FILL   = 'rgba(66,204,124,0.85)';
+const AM_PROFIT_BORDER = '#1a8c52';
+const AM_LOSS_FILL     = 'rgba(224,128,64,0.85)';
+const AM_LOSS_BORDER   = '#9a3412';
+
+// Window connector plugin: on hover draws dashed line from start to end marker
+const windowConnector = {
+  id: 'windowConnector',
+  afterDraw(chart) {
+    const active = chart.getActiveElements();
+    if (!active.length) return;
+    const {datasetIndex:dsIdx, index:ptIdx} = active[0];
+    if (![1,2].includes(dsIdx)) return; // only start/end datasets
+    const pt = chart.data.datasets[dsIdx].data[ptIdx];
+    if (!pt?.win) return;
+    const {start} = pt.win;
+    const sibDsIdx = dsIdx===1?2:1;
+    const sibData  = chart.data.datasets[sibDsIdx]?.data||[];
+    const sibIdx   = sibData.findIndex(p=>p?.win?.start===start);
+    if (sibIdx<0) return;
+    const m1=chart.getDatasetMeta(dsIdx), m2=chart.getDatasetMeta(sibDsIdx);
+    const p1=m1.data[ptIdx], p2=m2.data[sibIdx];
+    if (!p1||!p2) return;
+    const c=chart.ctx;
+    c.save();
+    c.beginPath(); c.moveTo(p1.x,p1.y); c.lineTo(p2.x,p2.y);
+    c.strokeStyle='rgba(255,255,255,0.22)'; c.lineWidth=1; c.setLineDash([3,4]); c.stroke();
+    c.setLineDash([]);
+    c.beginPath(); c.arc(p2.x,p2.y,9,0,Math.PI*2);
+    c.strokeStyle='rgba(255,255,255,0.50)'; c.lineWidth=1.5; c.stroke();
+    c.restore();
+  },
+};
+
 async function loadAll() {
-  const [spxRes, stateRes, histRes] = await Promise.allSettled([
+  const [spxRes, stateRes, histRes, vixRes] = await Promise.allSettled([
     fetch('/api/q042/spx-history?full=1').then(r => r.json()),
     fetch('/api/aftermath/state').then(r => r.json()),
     fetch('/api/aftermath/history').then(r => r.json()),
+    fetch('/api/market/vix-history').then(r => r.json()),
   ]);
 
-  const state = stateRes.status === 'fulfilled' ? stateRes.value : {};
-  const hist  = histRes.status === 'fulfilled' ? histRes.value : { windows: [] };
+  const state   = stateRes.status==='fulfilled' ? stateRes.value : {};
+  const hist    = histRes.status ==='fulfilled' ? histRes.value  : { windows: [] };
+  const vixData = vixRes.status  ==='fulfilled' ? vixRes.value   : { history: [] };
 
-  // ── Summary metric cards (historical scan) ─────────────────────────────────
+  // ── Summary metric cards ───────────────────────────────────────────────────
   const grid = document.getElementById('metric-grid');
-  if (histRes.status === 'fulfilled' && !hist.error) {
+  if (histRes.status==='fulfilled' && !hist.error) {
     const scanRange = hist.scan_start && hist.scan_end ? `${hist.scan_start.slice(0,4)} → ${hist.scan_end.slice(0,4)}` : '—';
     grid.innerHTML = `
-      <div class="metric-cell">
-        <div class="metric-key">Currently Active</div>
-        <div class="metric-val ${state.active ? 'ok' : 'muted'}">${state.active ? 'YES' : 'NO'}</div>
-      </div>
-      <div class="metric-cell">
-        <div class="metric-key">Historical Windows</div>
-        <div class="metric-val warn">${hist.total_windows ?? '—'}</div>
-      </div>
-      <div class="metric-cell">
-        <div class="metric-key">Total Active Days</div>
-        <div class="metric-val">${hist.total_active_days ?? '—'}</div>
-      </div>
-      <div class="metric-cell">
-        <div class="metric-key">Active % of Days</div>
-        <div class="metric-val ${(hist.active_days_pct ?? 0) >= 5 ? 'warn' : 'muted'}">${fmt(hist.active_days_pct, 2)}%</div>
-      </div>
-      <div class="metric-cell">
-        <div class="metric-key">Avg Window</div>
-        <div class="metric-val">${fmt(hist.avg_window_days, 1)} <span style="font-size:0.55rem;color:var(--text-muted)">days</span></div>
-      </div>
-      <div class="metric-cell">
-        <div class="metric-key">Max Window</div>
-        <div class="metric-val">${hist.max_window_days ?? '—'} <span style="font-size:0.55rem;color:var(--text-muted)">days</span></div>
-      </div>
-      <div class="metric-cell">
-        <div class="metric-key">Last Window</div>
-        <div class="metric-val muted" style="font-size:0.78rem">${hist.last_window?.start || '—'}</div>
-      </div>
-      <div class="metric-cell">
-        <div class="metric-key">Scan Range</div>
-        <div class="metric-val muted" style="font-size:0.78rem">${scanRange}</div>
-      </div>
+      <div class="metric-cell"><div class="metric-key">Currently Active</div><div class="metric-val ${state.active?'ok':'muted'}">${state.active?'YES':'NO'}</div></div>
+      <div class="metric-cell"><div class="metric-key">Historical Windows</div><div class="metric-val warn">${hist.total_windows??'—'}</div></div>
+      <div class="metric-cell"><div class="metric-key">Total Active Days</div><div class="metric-val">${hist.total_active_days??'—'}</div></div>
+      <div class="metric-cell"><div class="metric-key">Active % of Days</div><div class="metric-val ${(hist.active_days_pct??0)>=5?'warn':'muted'}">${fmt(hist.active_days_pct,2)}%</div></div>
+      <div class="metric-cell"><div class="metric-key">Avg Window</div><div class="metric-val">${fmt(hist.avg_window_days,1)} <span style="font-size:0.55rem;color:var(--text-muted)">days</span></div></div>
+      <div class="metric-cell"><div class="metric-key">Max Window</div><div class="metric-val">${hist.max_window_days??'—'} <span style="font-size:0.55rem;color:var(--text-muted)">days</span></div></div>
+      <div class="metric-cell"><div class="metric-key">Last Window</div><div class="metric-val muted" style="font-size:0.78rem">${hist.last_window?.start||'—'}</div></div>
+      <div class="metric-cell"><div class="metric-key">Scan Range</div><div class="metric-val muted" style="font-size:0.78rem">${scanRange}</div></div>
     `;
-  } else if (stateRes.status === 'fulfilled') {
-    // fallback: live-state only
+  } else if (stateRes.status==='fulfilled') {
     grid.innerHTML = `
-      <div class="metric-cell">
-        <div class="metric-key">Currently Active</div>
-        <div class="metric-val ${state.active ? 'ok' : 'muted'}">${state.active ? 'YES' : 'NO'}</div>
-      </div>
-      <div class="metric-cell">
-        <div class="metric-key">Current VIX</div>
-        <div class="metric-val">${fmt(state.vix, 2)}</div>
-      </div>
+      <div class="metric-cell"><div class="metric-key">Currently Active</div><div class="metric-val ${state.active?'ok':'muted'}">${state.active?'YES':'NO'}</div></div>
+      <div class="metric-cell"><div class="metric-key">Current VIX</div><div class="metric-val">${fmt(state.vix,2)}</div></div>
       <div class="empty-msg" style="grid-column:span 6">Historical scan unavailable</div>
     `;
   } else {
     grid.innerHTML = '<div class="empty-msg" style="grid-column:1/-1">State unavailable</div>';
   }
 
-  // ── Windows table (after the chart, before discipline) ─────────────────────
   renderWindowsTable(hist.windows || []);
 
-  // ── SPX overlay with historical window markers ─────────────────────────────
-  if (spxRes.status === 'fulfilled' && Array.isArray((spxRes.value || {}).history)) {
-    const spxHist = spxRes.value.history;
-    buildSpxChart(spxHist, state, hist.windows || []);
+  if (spxRes.status==='fulfilled' && Array.isArray((spxRes.value||{}).history)) {
+    buildSpxChart(spxRes.value.history, hist.windows||[], vixData.history||[]);
   } else {
-    document.getElementById('aftermath-spx-chart').style.display = 'none';
-    document.getElementById('aftermath-spx-empty').style.display = 'block';
+    document.getElementById('aftermath-spx-chart').style.display='none';
+    document.getElementById('aftermath-spx-empty').style.display='block';
   }
 }
 
 function renderWindowsTable(windows) {
   const sec = document.getElementById('windows-table-section');
   if (!sec) return;
-  if (!windows.length) {
-    sec.innerHTML = '<div class="empty-msg">No historical windows scanned</div>';
-    return;
-  }
-  // Newest first, limit to 30 to avoid huge tables
-  const recent = [...windows].reverse().slice(0, 30);
+  if (!windows.length) { sec.innerHTML='<div class="empty-msg">No historical windows scanned</div>'; return; }
+  const recent = [...windows].reverse().slice(0,30);
+  const th = s => `<th style="font-family:var(--f-ui);font-size:0.56rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--border-2)">${s}</th>`;
   sec.innerHTML = `
     <table style="width:100%;border-collapse:collapse">
-      <thead><tr>
-        <th style="font-family:var(--f-ui);font-size:0.56rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--border-2)">Start</th>
-        <th style="font-family:var(--f-ui);font-size:0.56rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--border-2)">End</th>
-        <th style="font-family:var(--f-ui);font-size:0.56rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--border-2)">Days</th>
-        <th style="font-family:var(--f-ui);font-size:0.56rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--border-2)">Peak VIX</th>
-        <th style="font-family:var(--f-ui);font-size:0.56rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--border-2)">Max off-peak</th>
-      </tr></thead>
+      <thead><tr>${th('Start')}${th('End')}${th('Days')}${th('Peak VIX')}${th('Max off-peak')}${th('SPX return')}</tr></thead>
       <tbody>
-      ${recent.map(w => `
+      ${recent.map(w=>`
         <tr>
           <td style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text);padding:8px 10px;border-bottom:1px solid var(--border)">${w.start}</td>
-          <td style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2);padding:8px 10px;border-bottom:1px solid var(--border)">${w.end}${w.ongoing ? ' <span style="color:var(--green);font-size:0.55rem">ongoing</span>' : ''}</td>
+          <td style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2);padding:8px 10px;border-bottom:1px solid var(--border)">${w.end}${w.ongoing?' <span style="color:var(--green);font-size:0.55rem">ongoing</span>':''}</td>
           <td style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2);padding:8px 10px;border-bottom:1px solid var(--border)">${w.days}</td>
-          <td style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2);padding:8px 10px;border-bottom:1px solid var(--border)">${fmt(w.peak_at_start, 1)}</td>
-          <td style="font-family:var(--f-mono);font-size:0.65rem;color:var(--orange);padding:8px 10px;border-bottom:1px solid var(--border)">${fmt(w.max_off_peak_pct, 1)}%</td>
+          <td style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2);padding:8px 10px;border-bottom:1px solid var(--border)">${fmt(w.peak_at_start,1)}</td>
+          <td style="font-family:var(--f-mono);font-size:0.65rem;color:var(--orange);padding:8px 10px;border-bottom:1px solid var(--border)">${fmt(w.max_off_peak_pct,1)}%</td>
+          <td style="font-family:var(--f-mono);font-size:0.65rem;padding:8px 10px;border-bottom:1px solid var(--border);color:${w.spx_ret>0?'var(--green)':w.spx_ret<0?'var(--orange)':'var(--text-muted)'}">${w.spx_ret!=null?(w.spx_ret>=0?'+':'')+fmt(w.spx_ret,1)+'%':'—'}</td>
         </tr>
       `).join('')}
       </tbody>
     </table>
-    ${windows.length > 30 ? `<div style="font-family:var(--f-ui);font-size:0.62rem;color:var(--text-muted);padding:10px 10px 0;font-style:italic">Showing 30 most recent of ${windows.length} total windows.</div>` : ''}
+    ${windows.length>30?`<div style="font-family:var(--f-ui);font-size:0.62rem;color:var(--text-muted);padding:10px 10px 0;font-style:italic">Showing 30 most recent of ${windows.length} total windows.</div>`:''}
   `;
 }
 
-function buildSpxChart(history, state, allWindows) {
-  const prices = history.map(h => h.close);
-  const labels = history.map(h => h.date);
-
-  // Map history dates to indices for window marker placement
+function buildSpxChart(history, allWindows, vixHistory) {
   const idxByDate = {};
-  history.forEach((h, i) => { idxByDate[h.date] = i; });
+  const priceByDate = {};
+  history.forEach((h,i) => { idxByDate[h.date]=i; priceByDate[h.date]=h.close; });
 
-  // Aftermath window start markers (only those whose start date falls within
-  // the SPX history range, which starts 2007-01-01)
-  const startMarkers = (allWindows || []).map(w => {
-    const i = idxByDate[w.start];
-    if (i == null) return null;
-    return { x: i, y: prices[i], date: w.start, days: w.days, peak: w.peak_at_start, ongoing: !!w.ongoing };
-  }).filter(p => p != null);
+  // VIX lookup
+  const vixByDate = {};
+  vixHistory.forEach(v => { vixByDate[v.date]=v.vix; });
 
-  _spxFullData = { labels, prices };
+  // Enrich windows with SPX return during window
+  allWindows.forEach(w => {
+    const ps = priceByDate[w.start], pe = priceByDate[w.end];
+    w.spx_ret = (ps && pe) ? Math.round((pe/ps-1)*1000)/10 : null;
+  });
 
-  const ctx = document.getElementById('aftermath-spx-chart').getContext('2d');
+  // Start markers (upward triangle), End markers (downward triangle)
+  // Color = SPX return during window: positive=green, negative/null=orange
+  const startMarkers = [], endMarkers = [];
+  allWindows.forEach(w => {
+    const si=idxByDate[w.start], ei=idxByDate[w.end];
+    const sp=priceByDate[w.start], ep=priceByDate[w.end];
+    const profit = w.spx_ret != null && w.spx_ret > 0;
+    const fillC  = profit ? AM_PROFIT_FILL   : AM_LOSS_FILL;
+    const bdrC   = profit ? AM_PROFIT_BORDER : AM_LOSS_BORDER;
+    if (si!=null&&sp!=null) startMarkers.push({x:si,y:sp,win:w,fillColor:fillC,borderColor:bdrC});
+    if (!w.ongoing && ei!=null&&ep!=null) endMarkers.push({x:ei,y:ep,win:w,fillColor:fillC,borderColor:bdrC});
+  });
+
+  const spxLine  = history.map((h,i)=>({x:i,y:h.close}));
+  const vixLine  = history.map((h,i)=>({x:i,y:vixByDate[h.date]??null}));
+  const ddLine   = history.map((h,i)=>({x:i,y:h.ddath_pct??null}));
+  const ma10Line = history.map((h,i)=>{
+    if(i<9) return {x:i,y:null};
+    const avg=history.slice(i-9,i+1).reduce((s,h)=>s+h.close,0)/10;
+    return {x:i,y:Math.round(avg*100)/100};
+  });
+
+  _spxFullHistory  = history;
+  // Dataset order: [0:SPX, 1:WinStart, 2:WinEnd, 3:VIX, 4:DD, 5:MA10]
+  _spxFullDatasets = [spxLine, startMarkers, endMarkers, vixLine, ddLine, ma10Line];
+
   if (spxChart) spxChart.destroy();
 
-  spxChart = new Chart(ctx, {
+  spxChart = new Chart(document.getElementById('aftermath-spx-chart'), {
+    plugins: [windowConnector],
     type: 'line',
-    data: {
-      datasets: [
-        {
-          label: 'SPX',
-          data: prices.map((p, i) => ({ x: i, y: p })),
-          borderColor: '#4888E8',
-          backgroundColor: 'rgba(72,136,232,0.06)',
-          fill: true,
-          pointRadius: 0,
-          tension: 0,
-          borderWidth: 1.2,
-          order: 2,
-        },
-        {
-          label: 'Aftermath window start',
-          type: 'scatter',
-          data: startMarkers,
-          backgroundColor: 'rgba(224,128,64,0.85)',
-          borderColor: '#9a3412',
-          borderWidth: 1.2,
-          pointStyle: 'triangle',
-          pointRadius: 5,
-          pointHoverRadius: 8,
-          showLine: false,
-          order: 1,
-        },
-      ],
-    },
+    data: { datasets: [
+      { type:'line', label:'SPX', data:spxLine,
+        borderColor:'#4888E8', backgroundColor:'rgba(72,136,232,0.05)', fill:true,
+        pointRadius:0, tension:0, borderWidth:1.2, yAxisID:'yP', order:5 },
+      { type:'scatter', label:'Window start',
+        data: startMarkers,
+        backgroundColor: ctx => ctx.dataset.data[ctx.dataIndex]?.fillColor || AM_LOSS_FILL,
+        borderColor:     ctx => ctx.dataset.data[ctx.dataIndex]?.borderColor || AM_LOSS_BORDER,
+        borderWidth:1.5, pointStyle:'triangle', rotation:0, pointRadius:7, pointHoverRadius:10,
+        yAxisID:'yP', order:1 },
+      { type:'scatter', label:'Window end',
+        data: endMarkers,
+        backgroundColor: ctx => ctx.dataset.data[ctx.dataIndex]?.fillColor || AM_LOSS_FILL,
+        borderColor:     ctx => ctx.dataset.data[ctx.dataIndex]?.borderColor || AM_LOSS_BORDER,
+        borderWidth:1.5, pointStyle:'triangle', rotation:180, pointRadius:6, pointHoverRadius:9,
+        yAxisID:'yP', order:1 },
+      { type:'line', label:'VIX', data:vixLine,
+        borderColor:'rgba(201,168,64,0.80)', backgroundColor:'transparent',
+        borderWidth:1.2, pointRadius:0, tension:0, yAxisID:'yOv', hidden:true, order:6 },
+      { type:'line', label:'Drawdown %', data:ddLine,
+        borderColor:'rgba(224,72,98,0.80)', backgroundColor:'rgba(224,72,98,0.06)', fill:true,
+        borderWidth:1.2, pointRadius:0, tension:0, yAxisID:'yOv', hidden:true, order:6 },
+      { type:'line', label:'MA10', data:ma10Line,
+        borderColor:'rgba(140,100,220,0.70)', backgroundColor:'transparent',
+        borderWidth:1.5, pointRadius:0, tension:0, yAxisID:'yP', hidden:true, order:4, spanGaps:true },
+    ]},
     options: {
-      responsive: true,
-      animation: false,
-      interaction: { mode: 'nearest', intersect: false },
-      scales: {
-        x: {
-          type: 'linear',
-          ticks: {
-            color: '#606880',
-            font: { family: 'JetBrains Mono', size: 9 },
-            callback: (v) => labels[Math.round(v)] || '',
-            maxRotation: 0,
-            autoSkip: true,
-            maxTicksLimit: 8,
-          },
-          grid: { color: 'rgba(25,30,51,0.5)' },
-        },
-        y: {
-          ticks: { color: '#606880', font: { family: 'JetBrains Mono', size: 9 } },
-          grid: { color: 'rgba(25,30,51,0.5)' },
-          title: { display: true, text: 'SPX', color: '#363C52', font: { family: 'DM Sans', size: 9 } },
-        },
-      },
+      responsive:true, animation:false,
+      interaction:{mode:'nearest',intersect:true},
       plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            title: (items) => {
-              const idx = Math.round(items[0].parsed.x);
-              return labels[idx] || '';
-            },
-            label: (ctx) => {
-              if (ctx.dataset.label?.startsWith('Aftermath')) {
-                const r = ctx.raw;
-                const days = r.days ?? '?';
-                const peak = r.peak ?? '?';
-                return [`Window start · ${r.date || ''}`, `Peak VIX: ${peak} · Duration: ${days}d${r.ongoing ? ' (ongoing)' : ''}`, `SPX: ${r.y.toFixed(2)}`];
-              }
-              return `SPX: ${ctx.parsed.y.toFixed(2)}`;
-            },
+        legend:{display:false},
+        tooltip:{callbacks:{
+          title: items => { const idx=Math.round(items[0].parsed.x); return _spxFullHistory?.[idx]?.date||''; },
+          label: ctx => {
+            const w = ctx.raw?.win;
+            if (w) {
+              const tag = ctx.dataset.label==='Window start'?'Start':'End';
+              const ret = w.spx_ret!=null?(w.spx_ret>=0?'+':'')+w.spx_ret.toFixed(1)+'%':'—';
+              return [`${tag} · ${ctx.raw.win.start}→${ctx.raw.win.end}`,
+                      ` ${w.days}d · Peak VIX ${w.peak_at_start?.toFixed(1)} · SPX ${ret}`];
+            }
+            if (ctx.dataset.label==='VIX') return ` VIX: ${ctx.parsed.y?.toFixed(1)}`;
+            if (ctx.dataset.label==='Drawdown %') return ` Drawdown: ${ctx.parsed.y?.toFixed(1)}%`;
+            if (ctx.dataset.label==='MA10') return ` MA10: ${ctx.parsed.y?.toFixed(2)}`;
+            return ` SPX: ${ctx.parsed.y?.toFixed(2)}`;
           },
-        },
+        }},
+      },
+      scales: {
+        x: { type:'linear', min:0, max:history.length-1,
+          ticks:{color:'#606880',font:{family:'JetBrains Mono',size:9},maxTicksLimit:8,
+                 callback:v=>{ const d=_spxFullHistory?.[Math.round(v)]?.date; return d?d.slice(0,7):''; }},
+          grid:{color:'rgba(25,30,51,0.5)'} },
+        yP:  { position:'left',  ticks:{color:'#606880',font:{family:'JetBrains Mono',size:9}}, grid:{color:'rgba(25,30,51,0.5)'} },
+        yOv: { position:'right', display:false, ticks:{color:'#606880',font:{family:'JetBrains Mono',size:9}}, grid:{drawOnChartArea:false}, title:{display:true,text:'Overlay',color:'#363C52',font:{family:'DM Sans',size:9}} },
       },
     },
   });
 }
 
-function setSpxRange(range) {
-  document.querySelectorAll('.range-btn').forEach(b => b.classList.toggle('active', b.textContent.includes(range) || (range === 'all' && b.textContent === 'All')));
-  if (!spxChart || !_spxFullData) return;
-  const N = _spxFullData.prices.length;
-  if (N === 0) return;
-  const ranges = { '1yr': 252, '3yr': 756, '5yr': 1260 };
-  const cutoff = ranges[range] ? Math.max(0, N - ranges[range]) : 0;
-  spxChart.options.scales.x.min = cutoff;
-  spxChart.options.scales.x.max = N - 1;
+// ── Overlay toggle ───────────────────────────────────────────────────────────
+// Dataset layout: [0:SPX, 1:WinStart, 2:WinEnd, 3:VIX, 4:DD, 5:MA10]
+const AM_OV_IDX = { vix:[3], dd:[4], trend:[5] };
+
+function setSpxOverlay(mode) {
+  if (!spxChart) return;
+  const dsets = spxChart.data.datasets;
+  [3,4,5].forEach(i => { if(dsets[i]) dsets[i].hidden=true; });
+  (AM_OV_IDX[mode]||[]).forEach(i => { if(dsets[i]) dsets[i].hidden=false; });
+  const sc = spxChart.options.scales;
+  sc.yOv.display = (mode==='vix'||mode==='dd');
+  if (mode==='vix') { sc.yOv.min=0; sc.yOv.max=undefined; sc.yOv.title.text='VIX'; sc.yOv.ticks.callback=v=>v.toFixed(0); }
+  if (mode==='dd')  { sc.yOv.min=undefined; sc.yOv.max=5; sc.yOv.title.text='Drawdown %'; sc.yOv.ticks.callback=v=>v.toFixed(0)+'%'; }
   spxChart.update('none');
+  document.querySelectorAll('[data-ov]').forEach(btn=>btn.classList.toggle('active',btn.dataset.ov===mode));
+}
+
+function setSpxRange(range) {
+  if (!spxChart || !_spxFullHistory || !_spxFullDatasets) return;
+  const N = _spxFullHistory.length;
+  const ranges = {'1yr':252,'3yr':756,'5yr':1260};
+  const cutoff = ranges[range] ? Math.max(0, N-ranges[range]) : 0;
+  spxChart.data.datasets.forEach((ds,i) => {
+    const full = _spxFullDatasets[i]; if(!full) return;
+    ds.data = cutoff>0 ? full.filter(p=>p.x!=null&&p.x>=cutoff) : full;
+  });
+  spxChart.options.scales.x.min=cutoff;
+  spxChart.options.scales.x.max=N-1;
+  spxChart.update('none');
+  document.querySelectorAll('[data-range]').forEach(btn=>btn.classList.toggle('active',btn.dataset.range===range));
 }
 
 loadAll();

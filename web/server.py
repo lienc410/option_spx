@@ -307,6 +307,14 @@ def api_recommendation_settling():
 _AFTERMATH_HISTORY_CACHE: dict = {}
 
 
+@app.route("/api/market/vix-history")
+def api_market_vix_history():
+    """VIX daily closes from 2007-01-01 for chart overlays."""
+    vix = _get_vix_by_date()
+    history = [{"date": d, "vix": v} for d, v in sorted(vix.items()) if d >= "2007-01-01"]
+    return jsonify({"history": history})
+
+
 @app.route("/api/aftermath/history")
 def api_aftermath_history():
     """Historical scan of all aftermath windows.
