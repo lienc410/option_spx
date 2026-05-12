@@ -1,0 +1,12 @@
+,aftermath=True,aftermath=False
+n,15.0,13.0
+win_rate_%,86.7,84.6
+avg_exit_pnl_$,2139.82,1608.8
+med_exit_pnl_$,2767.44,2690.31
+avg_bp_pct_acct_%,14.0,14.0
+$/BP-day,44.3216,44.1759
+worst_trade_$,-3162.67,-5392.19
+total_pnl_$,32097.27,20914.34
+vix_entry_med,27.62,22.51
+vix_entry_p25,23.73,22.22
+vix_entry_p75,30.32,23.19

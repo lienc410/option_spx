@@ -1,0 +1,4 @@
+structure,n,win_rate_%,avg_pnl_$,median_pnl_$,total_pnl_$,worst_trade_$,avg_bp_$,median_$/bp_day,max_consec_losses
+Actual (historical BPS_HV),15,86.7,2140.0,2767.0,32097.0,-3163.0,21000.0,44.32,1
+BPS_HV (BS counterfactual),15,93.3,2426.0,3056.0,36386.0,-2330.0,23258.0,87.0387,1
+V3-A IC_HV broken-wing,15,100.0,1984.0,2078.0,29755.0,10.0,44700.0,33.4169,0
