@@ -1,9 +1,52 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-11 (R-20260511-01: Q063 IVP<55 gate review — PM 假设「low-VIX false alarm」被数据精确反向 reject。Phase 1-4 (VIX-stratified / candidate gates / OOS robustness / decay-weighted) 一致显示 gate 在 recent 2024-2026 正确挡住 5 笔 net-loss entries (-$13.7k counterfactual)。Decay 越重 A 越输 (3y HL → -$19k)。Recent windows 全输 (-$7.7k 到 -$13.7k)。No SPEC change. Gate value reaffirmed; PM intuition tested and reversed)
+Last Updated: 2026-05-11 (R-20260511-02: Q063 Phase 5 — 2nd Quant proposed 3-factor gate (IVR>55 AND VIX_RISING AND (SPX_NOT_BULLISH OR DD_EXPANDING)) 实证测试。Full 19y -$6,573 vs baseline；OOS test -$1,138/yr；recent 5y/3y/2y all FAIL；2022 -$10,408 worst-year fail；关键 2026-02-25 trade ALLOWED → -$4,791 loss as predicted。Root cause: SPX_NOT_BULLISH 与 DD_EXPANDING 都是 lagging indicators，melt-up phase 永远 FALSE；IVR > 55 反而是 leading risk signal，simple > complex。Final verdict: 维持 IVR>55 不变；2nd Quant framework 适合 secondary monitoring 但不应作 entry gate)
 Owner: Planner or PM
 
 ---
+
+### R-20260511-02 — Q063 Phase 5: 2nd Quant 3-factor Multi-Factor Gate Empirical Test — REJECTED
+
+- Topic: 2nd Quant (2026-05-11) 提议把当前 single-factor gate `IVR > 55` 替换为 multi-factor 复合 gate：`IVR > 55 AND VIX_RISING AND (SPX_NOT_BULLISH OR SPX_DRAWDOWN_EXPANDING)`。框架在概念上比 single-factor 更精细，包含 VIX/SPX 动态信号。Quant 需实证测试是否 outperform
+- Method (Phase 5):
+  - 实施 2nd Quant 的 production-recommended gate（VIX_5d_MA + VIX_10d_MA + SPX_MA50 + SPX_MA20 + SPX_60d_drawdown + 数个 hyperparameters）
+  - Full 19y backtest + OOS split (07-17 train / 18-26 test) + recent windows (last 5y/3y/2y/1y) + per-year + 2026-02-25 case study
+- Findings:
+  - **Full sample 19y**: 2Q +19 trades, WR -4.4pp (76.3→71.9), total -$6,573, all_ann -$236/yr, worst trade -$5,740 worse vs baseline
+  - **OOS Train (07-17)**: 2Q +$454/yr ✓ (marginal pass)
+  - **OOS Test (18-26)**: 2Q **-$1,138/yr ✗ FAIL** (similar magnitude to Candidate A failure)
+  - **Recent windows**: last 5y -$14,301 ✗, last 3y -$1,120 ✗, last 2y -$1,120 ✗, last 1y +$4,878 ✓ (only window where 2Q wins)
+  - **Per-year forensic**: 2022 bear year 2Q lost **-$10,408 more** than baseline (worst miss); 2024 -$4,825; 2021 -$2,772; wins only in 2019 +$5,380, 2025 +$3,716
+  - **Critical 2026-02-25 case**: 2Q gate **ALLOWED** the entry → realized -$4,791 loss exactly as predicted by mechanism analysis
+- Root cause of 2nd Quant framework failure:
+  - **SPX_NOT_BULLISH is a lagging indicator**: requires SPX below MA50 or weakening 20d return; in melt-up phase SPX is at ATH, condition is FALSE → never blocks
+  - **DRAWDOWN_EXPANDING is also lagging**: 60d drawdown at ATH = 0%, condition FALSE → never blocks
+  - **VIX_RISING in low-VIX regime is rare**: 5d/10d MA cross is noisy at low absolute level; ≥1.5 point absolute rise requirement makes triggers extremely sparse
+  - **Three-factor AND chain**: any lagging factor FALSE → trade allowed → melt-up entries pass through
+  - **Structural paradox**: framework intends to protect against "complacency before mean reversion", but all protective factors require reversion already underway
+- Comparison vs Q063 Phase 1-4 Candidate A:
+  - Both A and 2Q fail OOS test (2Q -$1,138/yr vs A -$907/yr)
+  - Both fail to block 2026-02-25 trade (same -$4,791 loss)
+  - 2Q has more hyperparameters → higher overfit risk
+  - 2Q's 2022 -$10,408 loss is worse than A's
+- Verdict:
+  - **REJECT 2nd Quant 3-factor gate**
+  - **Maintain SPEC**: simple `IVR > 55` single-factor gate retained
+  - **Counter-intuitive but robust finding**: simple > complex because IVR > 55 is a leading risk indicator (fires before mean reversion happens), while 3-factor framework relies on lagging indicators (SPX trend, drawdown) that only fire AFTER damage is underway
+- Recommendation for 2nd Quant:
+  - Their framework is conceptually correct on VIX/IVR coordinate system distinction
+  - Their framework has value as **secondary monitoring** for sizing/exit decisions (where lagging confirmation is acceptable)
+  - But NOT as primary entry gate — leading IVR signal must remain
+- Caveats:
+  - 2Q's last-1y +$4,878 might suggest very-recent regime favors multi-factor; but n is tiny (5 trades) and consistent with noise
+  - Test 5 only checks one case; not exhaustive validation of "doesn't block recent losers"
+  - If 2nd Quant wants to revise: would need leading-indicator alternative for SPX/dd (e.g., VIX3M backwardation, IVR_63 acceleration); but adds yet more parameters
+- Q063 thread definitively CLOSED across both PM original hypothesis (Phase 1-4) and 2nd Quant follow-up (Phase 5). Gate IVR > 55 robustness established
+- Artifacts: `research/q063/q063_phase5_2nd_quant_gate.py`
+
+---
+
+### R-20260511-01 — Q063 IVP<55 Gate Robustness Review — PM Hypothesis Reversed
 
 ### R-20260511-01 — Q063 IVP<55 Gate Robustness Review — PM Hypothesis Reversed
 
