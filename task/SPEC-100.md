@@ -2,7 +2,7 @@
 
 **Type**：research-driven (parameter tweak)
 **Date**：2026-05-13
-**Status**：DRAFT
+**Status**：APPROVED 2026-05-13 (PM)
 **Owner**：Developer
 **Source**：Q064 P8 (`task/q064_p8_spell_gate_review.md`) + 2nd Quant APPROVE α (RESEARCH_LOG R-20260513-04)
 

@@ -28,7 +28,7 @@ Owner: Planner or PM
 
 ## Active APPROVED Specs
 
-（无——当前无待实施 SPEC）
+- `SPEC-100` — HV Spell `max_trades_per_spell` 2→3. **APPROVED 2026-05-13**, Developer pickup pending. research-driven (Q064 P8 + 2nd Quant APPROVE α 2026-05-13). Single-line param tweak `strategy/selector.py:93` 加 inline 注释。Expected (19y backtest)：V3-A trade n 33→37 (+4), WR 90.9→91.9%, total $39,715→$45,139 (+$5,424), **worst trade UNCHANGED -$2,016**。Out of scope: P9 `spell_age_cap=90` (evidence too thin)、hysteresis variants、no-high-reset。Standing obligations：12-month review 2027-05-13、三套 backtest cache 必须刷新 (Q041/ES/SPX)、revert 单行可回退。AC-100-1 ~ AC-100-6 — `See: task/SPEC-100.md`, `RESEARCH_LOG.md R-20260513-04`
 
 ## Recently Closed Specs
 
