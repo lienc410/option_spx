@@ -1,0 +1,5 @@
+variant,aftermath_days,delta_vs_baseline_days,n_windows,n_1day_windows,new_days_vs_baseline,new_days_traps_5TD_45,trap_rate_%
+baseline_40,518,0,90,25,0,0,0.0
+loosen_42,535,17,91,23,17,7,41.2
+loosen_45,554,36,91,20,36,17,47.2
+peak_x_0.85,456,-62,94,23,71,56,78.9
