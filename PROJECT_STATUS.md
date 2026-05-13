@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-13 (Q064 Phase 9 CLOSED APPROVE α — spell reset sensitivity 12 variants engine replay。仅采纳 P8（max_trades_per_spell 2→3）；P9 延后；hysteresis/no-high-reset/combo 全拒。SPEC-100 P8 待起草，commit 277ba9b)
+Last Updated: 2026-05-13 (SPEC-100 DEPLOYED — max_trades_per_spell 2→3, backtest cache refreshed, 12-month monitor set 2027-05-13)
 Owner: Planner or PM
 
 ## Current Phase
@@ -28,7 +28,7 @@ Owner: Planner or PM
 
 ## Active APPROVED Specs
 
-- `SPEC-100` — HV Spell `max_trades_per_spell` 2→3. **APPROVED 2026-05-13**, Developer pickup pending. research-driven (Q064 P8 + 2nd Quant APPROVE α 2026-05-13). Single-line param tweak `strategy/selector.py:93` 加 inline 注释。Expected (19y backtest)：V3-A trade n 33→37 (+4), WR 90.9→91.9%, total $39,715→$45,139 (+$5,424), **worst trade UNCHANGED -$2,016**。Out of scope: P9 `spell_age_cap=90` (evidence too thin)、hysteresis variants、no-high-reset。Standing obligations：12-month review 2027-05-13、三套 backtest cache 必须刷新 (Q041/ES/SPX)、revert 单行可回退。AC-100-1 ~ AC-100-6 — `See: task/SPEC-100.md`, `RESEARCH_LOG.md R-20260513-04`
+- `SPEC-100` — HV Spell `max_trades_per_spell` 2→3. **DEPLOYED 2026-05-13**. Backtest confirmed n=37 (+4), WR=91.9%, total=$45,139 (+$5,424), worst=-$2,016 (unchanged). Three backtest caches refreshed. 12-month monitor obligation: **2027-05-13** rerun P8 with live data; if incremental WR < 70% or net P&L < $0, revert. — `See: task/SPEC-100.md`, `RESEARCH_LOG.md R-20260513-04`
 
 ## Recently Closed Specs
 

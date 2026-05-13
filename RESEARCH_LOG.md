@@ -1,7 +1,89 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-13 (R-20260513-04: Q064 Phase 9 — Spell reset mechanism sensitivity。12 variants × engine replay。2nd Quant APPROVE α — 仅采纳 P8 (`max_trades_per_spell: 2→3`)，P9 spell_age_cap=90 记为 future optional。三个反直觉发现：hysteresis 实际收紧 gate (-20.7k)；high reset 非冗余 (-16.3k)；age_cap=30 近优 (+1 trade only)。所有 variants worst trade 不变 -$5,041。Spell reset 机制大体正确，禁止 hysteresis/no-high-reset/combo)
+Last Updated: 2026-05-13 (R-20260513-06: Q068 CLOSED per 2nd Quant Review PASS / KEEP V0。三轮研究 (Round 1 + Phase 6 + Phase 7) 一致：no MA override / no regime stop / no formal paper trade。**Final**: Keep `BPS_NNB_IVP_UPPER = 55` unchanged。可选 shadow tag for future regime-conditional 数据累积，不实施。Q063 + Q067 + Q068 三大 phase 一致 verdict：hard IVP > 55 gate 是 tested space empirical local optimum)
 Owner: Planner or PM
+
+---
+
+### R-20260513-06 — Q068 CLOSED: 2nd Quant Review PASS / KEEP V0
+
+- Topic: 2nd Quant 完成 Q068 Phase 6 + Phase 7 综合 review。回应 8 个 specific review questions (Q7.1-Q7.8)，给出 final verdict
+- Verdict: **PASS / KEEP V0**
+  - 维持 `BPS_NNB_IVP_UPPER = 55` 不变
+  - 不加 MA5 / MA10 / MA5/10 override
+  - 不加 VIX+20% / SPX<MA10 regime stop
+  - 不启动 formal P6C paper trade
+  - 不启动 Q069 regime-conditional research
+  - 可选 shadow tag (`blocked_by_IVP55_but_MA_dip_override_candidate = True`) for future monitoring，不实施
+- Review key arguments (per 2nd Quant):
+  - **Q7.1**: 19yr backtest 仍是 primary gate 判据；Q068 未定义出"稳定、可回测、可治理的 regime 条件"；用 recent 2y 强行覆盖 full-sample fail 容易变成 sample chasing
+  - **Q7.2**: P6B/C 19yr fail NOT acceptable —— short premium 策略的 entry gate 第一职责是避免放行 bad trades 而非最大化每个小 dip 的参与
+  - **Q7.3**: Worst trade 溯源不是 decision blocker，可作 archival appendix
+  - **Q7.4**: 6 个月 paper trade 样本太小（几笔到十几笔），且 P6C 已 full-sample fail 给已失败规则过多治理权重；shadow tag 是更好替代
+  - **Q7.5**: Q063 + Q067 + Q068 三轮一致 → hard 55 gate 是 tested space 内 empirical local optimum；未来重开应是真正不同的 hypothesis（非 hard gate 周边小修小补）
+  - **Q7.6**: 推荐 A（接受 Q068 verdict 维持 V0）
+  - **Q7.7**: P6A × S1 是"recent-regime defensive variant 不是 production candidate"——$1.1k/yr insurance cost 不划算且不能 capture PM 关心的 MA5 examples
+  - **Q7.8**: S2 (SPX<MA10) 改良不建议——继续调 stop threshold 容易变成 overfit；MA timing + stops 方向没有 clean edge
+- Phase 7 独立解读: **Stops are not free**。VIX+20% stop 比 SPX<MA10 stop 选择性更好但仍非正期望保险；P6A × S1 救 worst trade 同时牺牲大量 full-sample alpha
+- Action:
+  - Production code: 完全不动（`BPS_NNB_IVP_UPPER = 55`, `LOOKBACK_DAYS = 252`）
+  - Engine research-mode flags 保留 ([strategy/selector.py:130-135](strategy/selector.py:130), [backtest/engine.py:789-792, 968-984](backtest/engine.py:789))，default disabled，作为可复用 research infrastructure
+  - Q063 closure memo 待加 §11 supplement 标注三轮一致 verdict
+  - 全部 Q068 文档归档；Q068 CLOSED
+- Related:
+  - [task/q068_ma_timing_2nd_quant_review_packet_2026-05-13.md](task/q068_ma_timing_2nd_quant_review_packet_2026-05-13.md) — review request
+  - [task/q068_ma_timing_2nd_quant_review_packet_2026-05-13_Review.md](task/q068_ma_timing_2nd_quant_review_packet_2026-05-13_Review.md) — review verdict
+  - [research/q068/q068_memo_2026-05-13.md](research/q068/q068_memo_2026-05-13.md) — 完整 memo（含 Phase 7 supplement）
+  - R-20260513-03 (Q068 Phase 6), R-20260513-05 (Q068 Phase 7), R-20260513-02 (Q067 Phase 2), R-20260513-01 (Q067)
+  - [task/q063_phase4_closure_memo_2026-05-11.md](task/q063_phase4_closure_memo_2026-05-11.md)
+- Output: 无新产物；以上为 closure 文档
+
+---
+
+### R-20260513-05 — Q068 Phase 7: Regime Stops on MA-Timing Variants
+
+- Topic: PM 追问 Q068 Phase 6 (narrow override) 是否加止损？测 VIX 继续上涨 / SPX < MA10 两类 regime-change stops 对每个 entry variant 的影响。设计目的：worst trade 救 P6 系列（-$15k）回到 baseline (-$9k)；同时不能 cut 太多 winners
+- Method:
+  - Engine.py 添加 research-mode 4 flags（默认 disabled，不影响生产）：`regime_stop_vix_rise`, `regime_stop_below_ma10`, `regime_stop_min_hold_days`, `regime_stop_bps_only`
+  - exit loop 加 2 行检查在 P&L stops 之后、roll_21dte 之前
+  - 4 entry variants (V0, P6A, P6B, P6C) × 4 stop configs (S0/S1/S2/S3) = 16 cells full 19yr backtest
+- Findings:
+  - **Stops 加在 V0 baseline 上 strictly harm alpha**: V0+S1 -$23k, V0+S2 -$40k, V0+S3 -$40k full sample
+  - **S2 (SPX<MA10) 触发太频繁**: 28-41 次（vs 36 自然 roll_21dte）→ cut 73% trade 在自然成熟前 → 损害 winners
+  - **S1 (VIX+20%) 更选择性**: 触发 11-16 次（vs 36 自然 roll_21dte）→ 真正针对 distress
+  - **P6A × S1 是唯一"有意义"组合**:
+    - Full sample $52,739 (Δ -$20,588 vs V0×S0)
+    - **Worst trade -$8,944 ≈ baseline -$9,379 (Δ +$435)** ✅ 恢复 baseline
+    - Recent 2y $32,215 (Δ +$8,567)
+    - Recent 2y worst -$5,739 (Δ +$3,640)
+    - Full sample insurance cost -$1,084/yr (~ -0.7% Ann ROE)
+  - P6B × S1 / P6C × S1 类似但更差：-$29.5k / -$23.9k full sample
+  - **没有 strictly dominant 组合**（所有 15 个非 baseline 全 negative full sample）
+- Verdict:
+  - **PM 直觉部分验证**：VIX-rise stop 确实救了 P6 worst trade（-$15k → -$9k ≈ baseline）
+  - **但 stops 不是免费 insurance**：V0 baseline 上每救 $1 worst trade 损失 $8-9 winner alpha；P6 entry 上损失 $3-4 alpha
+  - **A. 维持 V0 baseline 仍是最稳健**（Phase 6 + Phase 7 一致结论）
+  - **B. P6A × S1 是 Phase 6 P6A 的改进**（worst trade preserve），但 full sample insurance cost 比 Phase 6 单独 P6A 高一个数量级
+- Confidence:
+  - High on direction（直接 backtest 数字）
+  - High on S1 vs S2 区分（fire 次数差异显著）
+  - Medium on P6A × S1 是否 "worth $1k/yr insurance"：PM risk preference decision
+- Caveats:
+  - 没溯源 worst trade 具体哪一笔（Phase 6 review 也指出）
+  - Stops 只测了 2 个阈值（VIX+20% 和 SPX<MA10 当日 cross）；其他可能 design (cross 持续 N 天、VIX+15%、VIX+25%) 未测
+  - S2 太激进暗示阈值设计本身可能有问题（如改 MA10 × 0.99 cushion、N 日 confirmation）
+- Engine.py modifications:
+  - [strategy/selector.py:130-135](strategy/selector.py:130) 4 个 regime_stop_* fields（default disabled）
+  - [backtest/engine.py:789-792](backtest/engine.py:789) precompute SPX MA10 if enabled
+  - [backtest/engine.py:968-984](backtest/engine.py:968) exit loop 加 regime stop 检查
+  - 不影响生产（DEFAULT_PARAMS regime_stop_vix_rise=0.0, regime_stop_below_ma10=False）
+- 2nd Quant Review Packet 已 supplemented (Q7.7 P6A×S1 paper trade 是否值得 / Q7.8 S2 设计本身是否有问题 两个新问题)
+- Next Tests: 无即时项；若 PM 推进 paper trade P6A × S1，先溯源 worst trade
+- Related: R-20260513-03 (Q068 Phase 6), Q068 review packet 2026-05-13, [task/q068_ma_timing_2nd_quant_review_packet_2026-05-13.md] §11 supplement
+- Output:
+  - `research/q068/q068_phase7_regime_stops.py`
+  - `research/q068/q068_phase7_regime_stops_results.csv`
+  - Engine modifications (research-mode flags, default disabled)
 
 ---
 
@@ -37,6 +119,7 @@ Owner: Planner or PM
   - Now: SPEC drafting for P8 only (`max_trades_per_spell: 2 → 3`)
   - Future trigger: 若 live 出现 long HV spell block ≥ 2 个 selector recommendations 被 age_cap 阻拦，重开 Q064 with P9 9c
 - Q064 thread status: research phase complete; SPEC for P8 pending
+- **DEPLOYED 2026-05-13**: SPEC-100 implemented (strategy/selector.py:93 max_trades_per_spell=3). Backtest confirmed n=37, WR=91.9%, total=$45,139, worst=-$2,016 (exact). Three backtest caches refreshed. 12-month monitor obligation set: 2027-05-13.
 - Caveats:
   - n=4 increment (P8) + n=1 increment (P9 9c) 均是小样本；P8 已有 12mo monitoring 承诺，P9 9c 永久 defer 到 live trigger
   - 9c 实证证明 P8 packet "2022 5/6 windows blocked by age_cap" 假设过强；真实是 1/6

@@ -90,7 +90,14 @@ class StrategyParams:
 
     # Vol persistence throttle — limits new HIGH_VOL entries in sticky spells
     spell_age_cap: int = 30
-    max_trades_per_spell: int = 2
+    # SPEC-100 (2026-05-13): Raised from 2 to 3 per Q064 P8 evidence:
+    # +4 incremental trades over 19y, all winners, avg $1,356; total +$5,424;
+    # worst trade unchanged at -$2,016. Spell-internal trade #1 vs #2 (baseline
+    # data) showed no quality degradation, supporting that #3 should also hold.
+    # P9 (2026-05-13) confirmed other spell reset params (hysteresis, high_reset,
+    # age_cap) are deliberate design — do NOT change them without similar
+    # Quant-grade evidence.
+    max_trades_per_spell: int = 3
 
     # Shock engine budgets (SPEC-025)
     shock_mode: str = "shadow"
@@ -129,6 +136,13 @@ class StrategyParams:
     bcd_stop_tightening_mode: str = "shadow"   # "disabled" | "shadow" | "active"
     # Overlay-F account-level IC_HV size-up (SPEC-075/076)
     overlay_f_mode: str = "shadow"  # "disabled" | "shadow" | "active"
+
+    # Q068 Phase 7 regime stops (research mode — defaults disabled)
+    # NEVER enable in production without separate SPEC approval.
+    regime_stop_vix_rise:        float = 0.0    # e.g., 0.20 = exit if vix > entry_vix × 1.20
+    regime_stop_below_ma10:      bool  = False  # exit if SPX_close < SPX_10dMA
+    regime_stop_min_hold_days:   int   = 1      # min days before regime stops can trigger
+    regime_stop_bps_only:        bool  = True   # only apply to BPS strategies (not BCD/IC)
 
     def bp_ceiling_for_regime(self, regime: "Regime") -> float:
         """Return the total-portfolio BP ceiling for the given regime."""
