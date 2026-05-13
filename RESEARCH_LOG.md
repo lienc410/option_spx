@@ -1,7 +1,132 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-11 (R-20260511-02: Q063 Phase 5 — 2nd Quant proposed 3-factor gate (IVR>55 AND VIX_RISING AND (SPX_NOT_BULLISH OR DD_EXPANDING)) 实证测试。Full 19y -$6,573 vs baseline；OOS test -$1,138/yr；recent 5y/3y/2y all FAIL；2022 -$10,408 worst-year fail；关键 2026-02-25 trade ALLOWED → -$4,791 loss as predicted。Root cause: SPX_NOT_BULLISH 与 DD_EXPANDING 都是 lagging indicators，melt-up phase 永远 FALSE；IVR > 55 反而是 leading risk signal，simple > complex。Final verdict: 维持 IVR>55 不变；2nd Quant framework 适合 secondary monitoring 但不应作 entry gate)
+Last Updated: 2026-05-12 (R-20260512-03: Q064 CLOSED APPROVE α — retain SPEC-064 V3-A aftermath routing as-is. 经 Task 1 (selector code) + P5 (VIX stop test) + P6 (V3-A vs IC_HV normal counterfactual) + mechanical fallback distribution 联合证据：P3-P5 之前在 wrong trade set (15 BPS_HV with VIX-condition flag) 上分析；实际 V3-A fires = 33 IC_HV trades。P6 显示 IC normal +93% equal-BP alpha 但 mechanical fallback (28/33 reduce_wait, 5/33 IC normal, 3/33 actual entry) 揭示 V3-A 真实 value 是 aftermath-subregime gate-bypass 而非结构 alpha。Removing V3-A 会丢失 ~$30k+ alpha to reduce_wait. SPEC-100 NOT drafted)
 Owner: Planner or PM
+
+---
+
+### R-20260512-03 — Q064 CLOSED: retain SPEC-064 V3-A as justified aftermath-subregime bypass
+
+- Topic: PM 提出 Pre-SPEC Task 1 (routing tree) + Task 2 P5 (VIX stop test) 验证 P4 建议 "aftermath → BPS_HV + VIX stop"。两 task + 2nd Quant β re-review + mechanical fallback distribution 联合改写 Q064 结论
+- Method (full sequence):
+  - **Task 1** (selector code read): is_aftermath() 只在 BEARISH/NEUTRAL+IV_HIGH+aftermath 触发；Quant 初步分析 fallback = IC_HV normal
+  - **P5 VIX stop test**: 4 stop variants on 15 P3 BPS_HV trades — all stops worsen alpha 44-75% + worsen worst trade 2-2.5×；mechanism: aftermath VIX 已 elevated，stops trigger 在 noise re-spike → 实现损失
+  - **Mechanical Phase A** (2nd Quant Q1 verification): forced is_aftermath=False，run engine, observe routing on 15 P3 dates → **100% BPS_HV, trend=BULLISH**。Quant Task 1 关于这 15 笔的应用层 misframed (logic 正确但 trade set 错)
+  - **Critical re-identification**: P3-P5 的 "15 aftermath trades" 实为 BULLISH BPS_HV trades with VIX-condition flag；实际 V3-A trades = **33 IC_HV trades** (BEARISH/NEUTRAL+IV_HIGH+aftermath)
+  - **P6 (revised β)**: V3-A vs IC_HV normal on 33 actual V3-A trades, equal-BP normalization — IC_HV normal beats V3-A: 30/33 wins, +93% total P&L, $/BP-day +93%, but worst trade -$2k → -$8k
+  - **Addendum B mechanical fallback distribution** (2nd Quant β requirement #8): forced is_aftermath=False on 33 V3-A dates → recommendation 84.8% reduce_wait + 15.2% IC_HV normal, actual entries only 9.1%
+- Findings:
+  - **P3/P4/P5 voided**: 15-trade analysis on wrong dataset; conclusions ("BPS_HV beats V3-A on alpha") technically valid but **irrelevant for SPEC-100** because the 15 trades are not V3-A fires
+  - **P6 finding** (V3-A vs IC_HV normal structural): IC_HV normal +93% equal-BP alpha on identical 33 dates — but this assumes both structures enter; structural superiority is misleading without fallback distribution
+  - **Decisive finding** (Addendum B): natural fallback flow only enters 3/33 trades, 28/33 hit reduce_wait via VIX_RISING/ivp63≥70/backwardation guards. V3-A's value is **deployment frequency** (33 entries vs 3), not **per-entry capital efficiency**
+  - **Forfeited alpha estimate**: removing V3-A → ~28-30 entries × $1,203 avg = ~$33-36k alpha lost over 16y (~$1,900/yr on $150k account)
+- Verdict:
+  - **APPROVE α — retain SPEC-064 V3-A aftermath routing as-is**
+  - **NOT draft SPEC-100**
+  - V3-A 价值不在结构 alpha (P6 显示 IC normal > V3-A structurally), 而在 **justified aftermath-subregime gate-bypass** (绕过 over-conservative VIX_RISING/ivp63 guards in post-vol-shock cells)
+- Correct framing for future re-review:
+  - V3-A is NOT the most capital-efficient structure in the aftermath cell
+  - V3-A's value is that it allows the aftermath sub-regime to deploy AT ALL — natural selector fallback would reduce_wait 85% of these dates
+  - V3-A is a **justified aftermath-subregime gate-bypass** providing a conservative defined-risk IC structure for entries that would otherwise be forfeited to over-conservative gates
+- Process learning (methodology lesson):
+  - Counterfactual scope must include "did the gate fire at all" not just "if it fired, what structure"
+  - Tagging by VIX condition alone ≠ "this cell triggered selector path X"; selector gates are conjunctive (VIX + trend + IV) + downstream BP/position gates
+  - **2nd Quant β requirement #8 (fallback distribution) was the decisive check** that revealed P6 framing flaw and V3-A's true value statement
+  - Future selector counterfactual research should pull fallback distribution mechanically BEFORE any structural comparison
+- 2nd Quant review trail:
+  - 2026-05-11 Review #1: APPROVE WITH ADJUSTMENT for P1-P4
+  - 2026-05-12 Review #2 (post-P5+Task1): APPROVE β
+  - 2026-05-12 Review #3 (post-Addendum A P6): provided β decision tree, requested mechanical fallback distribution as decisive missing piece
+  - 2026-05-12 Review #4 (final): APPROVE α with explicit framing guidance ("V3-A is bypass, not structure")
+- Q064 CLOSED. SPEC-064 V3-A aftermath retained. No code change. No SPEC-100.
+- Caveats:
+  - n=33 still small sample; bootstrap CI would be wide. Empirical 90.9% WR is directional
+  - Trade-off remains: V3-A's 30/33 head-to-head loss vs IC_HV normal on identical dates is real, but moot because IC_HV normal can't enter on 28/33 of those dates
+  - If future regime shifts make VIX_RISING/ivp63 guards more accurate (i.e., they start correctly identifying tail risk in aftermath cells), V3-A's bypass value erodes. Should re-check in 12-24 months
+- Artifacts:
+  - `task/q064_p5_routing_2nd_quant_review_packet_2026-05-12.md` (full Quant↔2nd Quant trail + Addenda A,B)
+  - `research/q064/q064_phaseA_routing_verify.py` (mechanical verification)
+  - `research/q064/q064_p5_vix_stop.py` + outputs (P5 - now contextually framed)
+  - `research/q064/q064_p6_v3a_vs_ic_normal.py` + outputs (P6 V3-A vs IC normal counterfactual)
+  - `research/q064/q064_p1p2_memo_2026-05-11.md` (full P1-P5 prose with P5 + closure section)
+
+---
+
+### R-20260512-02 — Q066: Aftermath vs Q042 Co-firing Frequency
+
+- Topic: PM 询问 SPEC-064 Aftermath broken-wing IC 与 Q042 Drawdown Overlay 是否功能重复（"都是抄底入场"）。已有 [doc/addon_greek_orthogonality_2026-05-12.md] 论证两者 Greek 正交；Q066 量化 2007-2026 触发日 / 事件级 co-firing 频率，确认正交性是实证特征
+- Method:
+  - 完整复现两个 addon 生产触发逻辑（[strategy/selector.py](strategy/selector.py:295) `is_aftermath()` + [signals/q042_trigger.py](signals/q042_trigger.py) Sleeve A/B state machine，含 mock 30/90 TD hold + ddATH≥-2% re-arm）
+  - yfinance ^VIX + ^GSPC 2007-01-03 → 2026-05-12（4870 trading days）
+  - 三种重叠度量：日级 same-day、事件级 ±5 TD、aftermath window 视角
+- Findings:
+  - **Aftermath 518 fire days；Q042-A 35 triggers；Q042-B 5 triggers**（19yr 大样本）
+  - **Day-level overlap 0.9%**（5 / 553 conditional on either firing）——几乎零同步
+  - **Q042-A ±5 TD co-fire with Aftermath 26%**（9/35）—— **74% Q042-A 是 vol-quiet drawdown**，aftermath 永不触发。代表 2013-2016 / 2024-2025 低 VIX 期间 SPX -4% 回撤
+  - **Q042-B ±5 TD co-fire with Aftermath 80%**（4/5）—— B 是深崩盘信号天然伴随 VIX spike，但 N 仅 5 难下统计学 conclusion；其中 2020-03-25 这例 Q042-B 触发但 aftermath 被 VIX≥40 EXTREME 拦截（Q065 保护机制正确工作）
+  - **Aftermath windows 86-93% 不伴随 Q042 触发**（13/90 A 配对，6/90 B 配对）—— 多数 aftermath 是 vol-only event，SPX 没大跌
+  - 同时触发的典型事件（2007-12 / 2018-02 Volmageddon / 2020-Q3-Q4 post-COVID / 2025-04 tariff）—— VIX up→down 与 SPX down→up 同步，两 addon 在 portfolio 层 partial hedge 而非叠加风险（vega 反向 + delta 反向）
+- Verdict: **两个 addon empirically low-overlap and structurally non-redundant，不应合并 / 不应竞争**（措辞 per 2nd Quant Review）
+  - 信号源不同（VIX 结构 vs SPX ddATH）
+  - Greek **符号** 反向（short vol vs long convexity，详见 [addon_greek_orthogonality](doc/addon_greek_orthogonality_2026-05-12.md)）；但 Greek sign opposition 不等于 PnL hedge effectiveness（strike location / profile / notional 不同）
+  - 历史触发集 74-86% 异步
+  - BP 冲突已由 [q042_gate.py](strategy/q042_gate.py) joint cap 处理（Q042 combined ≤ 20% BP，不挤占 aftermath sleeve）
+- 2nd Quant Review (2026-05-12, [task/q066_cofiring_2nd_quant_review_packet_2026-05-12_Review.md](task/q066_cofiring_2nd_quant_review_packet_2026-05-12_Review.md)): **PASS WITH CAVEAT**
+  - Q7.1 ±5 TD window: PASS（合理 first-pass 定义；±10 TD 仅 secondary cluster metric）
+  - Q7.2 sample size: PASS for A (N=35), REVISE for B (N=5 unrobust，treat as "monitor as sample grows"，不构成强结论)
+  - Q7.3 同向亏损场景: **REVISE — co-loss failure mode 必须正式记录**（second-leg selloff: aftermath IC put-side stress + Q042 call spread decay simultaneously，Greek 反向不能消除此路径）
+  - Q7.4 Greek partial hedge: **REVISE wording** — "Greek sign opposition supports non-redundancy, but does not guarantee PnL hedge effectiveness"
+  - Q7.5 PnL correlation 未做: **NOT FATAL** — 触发频率 + signal space + payoff structure + Greek direction 已足支撑"不合并"；PnL correlation 仅在 Q042 进入实际 paper trading / scale cap / live co-fire loss 时启动 Q067
+  - Q7.6 最终建议: A（接受保持双 addon，不需 PM 进一步操作）
+- Confidence:
+  - High on day-level orthogonality（0.9% 几乎是确定性结论）
+  - Q042-B finding: **N=5 unrobust，不构成强结论**（per 2nd Quant Review Q7.2）
+  - 仅看触发频率，未量化触发日 PnL correlation —— **NOT FATAL** 但若 Q042 scale up 应启动 Q067
+- Caveats（含 review 修订后）:
+  - Q042 state machine mock 30/90 TD hold，与生产 `active_position_expiry` 跟踪略简化，但 trigger 计数应近似准确
+  - ±5 TD primary metric；±10 TD secondary cluster metric monitor only（per Q7.1）
+  - **Co-fire downside scenario（正式记录）**：T0 aftermath IC enters → T1 Q042 enters → T2 second-leg selloff（VIX re-expand + SPX 续跌）→ **两 sleeves 同向亏损**。historical candidates: 2008-09 雷曼、2020-02→03 COVID 加速段、2022-04→05 双重下跌段。Monitoring 触发条件：live 中观察到任一 co-fire 事件同向亏损 → 立即启动 Q067 PnL correlation
+- Next Tests: 无即时项；Q067 standing monitoring（启动条件：Q042 paper trading 进入 active deployment / Q042-B 样本扩充 / Q042 sleeve cap 上调 / live co-fire 同向亏损出现）
+- Related: [doc/addon_greek_orthogonality_2026-05-12.md] (已按 review 修订), [task/q066_cofiring_2nd_quant_review_packet_2026-05-12.md] + [task/.._Review.md], R-20260512-01 (Q065 EXTREME_VIX), SPEC-064, SPEC-094
+- Output:
+  - `research/q066/q066_memo_2026-05-12.md`
+  - `research/q066/q066_cofiring.py` + `q066_daily_flags.csv` + `q066_event_overlap.csv`
+
+---
+
+### R-20260512-01 — Q065: Aftermath EXTREME_VIX Threshold Sensitivity
+
+- Topic: Q064 P1 输出 2025-04-09 1-day aftermath 窗口（被 2025-04-10 VIX=40.72 反弹切断）触发质疑：`is_aftermath()` 的 `EXTREME_VIX=40` 阈值是否过严？是否放宽至 42 / 45 / `peak×0.85` 减少类似单日切割？
+- Method:
+  - P1 全历史扫描（2007-2026, 4870 trading days）：分类每日为 raw_aftermath / blocked_by_extreme / none；计算 blocked 日与最近 raw_aftermath 日的 TD 距离
+  - P2 4 变体 sweep（baseline_40 / loosen_42 / loosen_45 / peak_x_0.85）；trap = 新增入场日后 5 TD 内 VIX 反弹 ≥ 45；启动 P3 backtest 的预设门槛 trap rate < 20%
+- Findings:
+  - **P1: 94 blocked days 中 22 接近 raw window（≤3 TD）**，分布 2008(3) / 2009(8) / 2010(1) / 2011(4) / 2020(5) / 2025(1)。2025-04-10 是 19 年间第 6 个边界 case，不是孤立异常但也不常见
+  - **P2: 三个放宽变体 trap rate 全部 fail < 20% 门槛**：
+    - loosen_42: +17 days, **41.2% trap rate** (7/17)
+    - loosen_45: +36 days, **47.2% trap rate** (17/36)；2009 局部 **72.2%** (13/18)
+    - peak_x_0.85: 新增 71 days 但净减 62 days, **78.9% trap rate** (56/71)；本质是 different rule 不是 strict 放宽
+  - **40 阈值由数据校准**：VIX 40-45 区间且 off-peak ≥10% 历史上 41-72% 概率 5 TD 内反弹至 ≥45。这不是噪音，是 GFC/COVID 真实波动结构
+  - **1-day windows 收益 vs trap cost 不划算**：baseline 25 个 1-day windows，放宽到 42/45 只减到 20-23 个（消除 2-5 个），代价 7-17 个 trap entries
+  - **2025-04-10 本身不是 trap**（VIX 后续没反弹至 45+）—— 单点看是冤枉，但统计上 41% 类似 setup 会 trap
+- Verdict: **不改 SPEC-064 `EXTREME_VIX=40`**。P3 backtest 不启动
+- Recommendation:
+  - selector.py 生产逻辑不变
+  - 2025-04-09 单日窗口在 Q064 报告层处理：建议 Q064 P1 增加 `q064_p1_windows_merged.csv` 辅助视图（≤2 TD gap 的相邻 raw windows 合并展示），保留原 raw CSV 作为 selector parity 真实记录。独立工单不属于 Q065 范围
+- Confidence: high
+  - Trap rate 数据是直接测量，不依赖任何模型假设
+  - 2009 局部 72.2% trap rate 是强信号——loose threshold 在该年完全失效
+  - 19 年大样本，跨越 GFC / Flash Crash / 2011 debt / COVID / 2025 tariff 多类型尾部事件
+- Caveats:
+  - Trap 定义用 VIX ≥ 45 within 5 TD；若放宽 trap 定义至 VIX ≥ 50 内 trap rate 会下降。但仍需 P3 真实 P&L 验证是否值得
+  - 未量化 trap 日入场的实际损失（仅用 VIX 反弹作 proxy）；P3 需真实期权数据
+  - 不排除条件式放宽（例如 VIX 刚过 40 + peak < 35 才放宽）是更精细方案，但这是新规则不是参数调整
+- Next Tests: 无（除非未来出现强需求重启此研究）
+- Related: SPEC-064 broken-wing IC V3-A（aftermath strategy）；Q064 P1 raw aftermath windows scan
+- Output:
+  - `research/q065/q065_memo_2026-05-12.md`
+  - `research/q065/q065_p1_blocked_days.py` + `q065_p1_blocked_days.csv` + `q065_p1_classified_daily.csv`
+  - `research/q065/q065_p2_threshold_sweep.py` + `q065_p2_threshold_sweep.csv` + 3 个 per-variant CSV
 
 ---
 

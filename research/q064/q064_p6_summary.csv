@@ -1,0 +1,4 @@
+version,n_trades,win_rate_pct,avg_pnl,median_pnl,total_pnl,worst_trade,best_trade,avg_bp,dollar_per_bp_day
+V3-A actual (production),33,90.9,1203.47,1396.22,39714.54,-2016.39,1903.03,21000.0,2569.52
+IC_HV normal (raw 1:1),33,90.9,1588.22,2052.03,52411.22,-5289.16,2511.33,14313.58,4974.29
+IC_HV normal (equal-BP),33,90.9,2321.21,2993.67,76599.87,-7955.68,3660.97,21000.0,4956.0
