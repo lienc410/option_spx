@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
 :root {
@@ -170,6 +171,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
           <button class="range-btn" data-range="3yr"  onclick="setSpxRange('3yr')">3yr</button>
           <button class="range-btn" data-range="5yr"  onclick="setSpxRange('5yr')">5yr</button>
           <button class="range-btn active" data-range="all" onclick="setSpxRange('all')">All</button>
+          <button class="range-btn" style="color:var(--text-muted);margin-left:4px" onclick="resetSpxZoom()" title="Reset drag-zoom">↩ 全局</button>
         </div>
       </div>
     </div>
@@ -537,6 +539,7 @@ function buildSpxChart(history, allWindows, vixHistory) {
       responsive:true, animation:false,
       interaction:{mode:'nearest',intersect:true},
       plugins: {
+        zoom:{zoom:{drag:{enabled:true,backgroundColor:'rgba(72,136,232,0.09)',borderColor:'rgba(72,136,232,0.45)',borderWidth:1},mode:'x'}},
         legend:{display:false},
         tooltip:{callbacks:{
           title: items => { const idx=Math.round(items[0].parsed.x); return _spxFullHistory?.[idx]?.date||''; },
@@ -583,6 +586,8 @@ function setSpxOverlay(mode) {
   spxChart.update('none');
   document.querySelectorAll('[data-ov]').forEach(btn=>btn.classList.toggle('active',btn.dataset.ov===mode));
 }
+
+function resetSpxZoom() { if (spxChart) spxChart.resetZoom(); }
 
 function setSpxRange(range) {
   if (!spxChart || !_spxFullHistory || !_spxFullDatasets) return;

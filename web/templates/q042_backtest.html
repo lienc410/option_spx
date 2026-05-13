@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
 :root {
@@ -287,6 +288,7 @@ function render(bt, spxHist, paper, vixHist) {
             <button class="range-btn" data-range="5yr"  onclick="setC6Range('5yr')">5yr</button>
             <button class="range-btn" data-range="10yr" onclick="setC6Range('10yr')">10yr</button>
             <button class="range-btn active" data-range="all" onclick="setC6Range('all')">All</button>
+            <button class="range-btn" style="color:var(--text-muted);margin-left:4px" onclick="resetC6Zoom()" title="Reset drag-zoom">↩ 全局</button>
           </div>
         </div>
       </div>
@@ -306,9 +308,12 @@ function render(bt, spxHist, paper, vixHist) {
     <div class="chart-wrap">
       <div class="chart-hd">
         <span class="chart-title">Cumulative realized P&L · A 蓝 / B 橙${paper.length ? ' · 虚线=paper' : ''}</span>
-        <div class="chart-legend">
-          <div class="chart-legend-item"><div class="chart-legend-line" style="background:#4888E8"></div>Sleeve A</div>
-          <div class="chart-legend-item"><div class="chart-legend-line" style="background:#E08040"></div>Sleeve B</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="chart-legend">
+            <div class="chart-legend-item"><div class="chart-legend-line" style="background:#4888E8"></div>Sleeve A</div>
+            <div class="chart-legend-item"><div class="chart-legend-line" style="background:#E08040"></div>Sleeve B</div>
+          </div>
+          <button class="range-btn" style="color:var(--text-muted)" onclick="if(charts.c7)charts.c7.resetZoom()" title="Reset drag-zoom">↩ 全局</button>
         </div>
       </div>
       <canvas id="c7-chart" height="180" style="width:100%"></canvas>
@@ -496,7 +501,7 @@ function render(bt, spxHist, paper, vixHist) {
     options: {
       responsive:true, animation:false,
       interaction:{mode:'nearest',intersect:true},
-      plugins: { legend:{display:false}, tooltip:{ callbacks:{
+      plugins: { zoom:{zoom:{drag:{enabled:true,backgroundColor:'rgba(72,136,232,0.09)',borderColor:'rgba(72,136,232,0.45)',borderWidth:1},mode:'x'}},legend:{display:false}, tooltip:{ callbacks:{
         label: ctx => {
           const t = ctx.raw?.trade;
           if (t) return [`Sleeve ${t.sleeve_id} · ${ctx.dataset.label}  ${fmtDate(t.entry_date)} → ${fmtDate(t.exit_date)}`, ` ddATH ${(t.ddath_at_signal||0).toFixed(2)}%  ·  P&L ${fmtD(t.exit_pnl)}`];
@@ -525,7 +530,7 @@ function render(bt, spxHist, paper, vixHist) {
       { label:'Sleeve B', data:pnlB, borderColor:'#E08040', backgroundColor:'transparent', borderWidth:1.8, pointRadius:3, tension:0.1 },
     ]},
     options:{ responsive:true, animation:false,
-      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmtD(ctx.parsed.y)}`}} },
+      plugins:{ zoom:{zoom:{drag:{enabled:true,backgroundColor:'rgba(72,136,232,0.09)',borderColor:'rgba(72,136,232,0.45)',borderWidth:1},mode:'x'}},legend:{display:false}, tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmtD(ctx.parsed.y)}`}} },
       scales:{ x:{type:'category',ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},maxTicksLimit:10,maxRotation:0},grid:{color:'#191E33'}},
         y:{ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},callback:v=>(v>=0?'+':'')+' $'+Math.round(v).toLocaleString()},grid:{color:'#191E33'}} } },
   });
@@ -626,6 +631,8 @@ function setC6Range(range) {
   c.update('none');
   document.querySelectorAll('[data-range]').forEach(btn=>btn.classList.toggle('active',btn.dataset.range===range));
 }
+
+function resetC6Zoom() { if (charts.c6) charts.c6.resetZoom(); }
 
 async function loadAll() {
   try {
