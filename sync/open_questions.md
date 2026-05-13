@@ -1556,9 +1556,12 @@
 
 四维度全反向——共持仓时是 partial hedge 非 duplicate risk
 
-- **结论**：**两个 addon 不应合并、不应竞争**；信号源正交（VIX 结构 vs SPX ddATH）；BP 冲突已由 `q042_gate.py` joint cap 解决
-- **未完成**：co-fire 日 portfolio 层 PnL 相关性未量化（需真实期权数据，超 Q066 scope，待 PM 触发）
-- **Artifacts**：`doc/addon_greek_orthogonality_2026-05-12.md`，`research/q066/q066_memo_2026-05-12.md`，`q066_cofiring.py + CSV`
+- **结论**：**两个 addon low-overlap / non-redundant，不应合并、不应竞争**；BP 冲突已由 `q042_gate.py` joint cap 解决
+- **2nd Quant review**：PASS WITH CAVEAT（4 项修订落地）。语言从"orthogonal"→"non-redundant"（Greek hedge 在 PnL 层未量化）；Q042-B "monitor as sample grows"；Greek wording caveat 加入；co-fire downside scenario 子节新增
+- **Co-loss failure mode**：正式列入 portfolio failure modes。live 中若观察到一次 co-fire 同向亏损 → 立即触发 Q067
+- **Q067 standing monitoring**（不主动启动）。触发条件：Q042 paper→live / B 样本扩充（n≥10）/ cap 上调 / live co-fire co-loss 出现
+- **PM 无需立即行动**：维持双 addon 现状
+- **Artifacts**：`task/q066_cofiring_2nd_quant_review_packet_2026-05-12_Review.md`，`doc/addon_greek_orthogonality_2026-05-12.md`，`research/q066/q066_memo_2026-05-12.md`
 
 ---
 
