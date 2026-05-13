@@ -180,6 +180,10 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
             <span style="display:inline-block;width:14px;height:10px;background:rgba(224,128,64,0.30);border-left:1px solid rgba(255,255,255,0.18);vertical-align:middle"></span>
             Aftermath window (SPX↓)
           </div>
+          <div class="chart-legend-item" style="font-size:0.60rem">
+            <span style="color:#42CC7C">▲▽</span> V3-A 盈 &nbsp;
+            <span style="color:#E08040">▲▽</span> V3-A 亏
+          </div>
         </div>
         <div class="range-btns">
           <span style="font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);margin-right:4px">Overlay:</span>
@@ -333,13 +337,49 @@ const aftermathBackgroundBands = {
   },
 };
 
+// Trade entry/exit P&L colors (shared with Q042 convention)
+const C_TRADE_PROFIT_FILL   = 'rgba(66,204,124,0.90)';
+const C_TRADE_PROFIT_BORDER = '#1a8c52';
+const C_TRADE_LOSS_FILL     = 'rgba(224,128,64,0.90)';
+const C_TRADE_LOSS_BORDER   = '#9a3412';
+
+// Plugin: hover over entry or exit marker → dashed connector + highlight ring on sibling
+const aftermathTradeConnector = {
+  id: 'aftermathTradeConnector',
+  afterDraw(chart) {
+    const active = chart.getActiveElements();
+    if (!active.length) return;
+    const {datasetIndex:dsIdx, index:ptIdx} = active[0];
+    if (![4,5].includes(dsIdx)) return;
+    const pt = chart.data.datasets[dsIdx].data[ptIdx];
+    if (!pt?.trade) return;
+    const sibDsIdx = dsIdx===4 ? 5 : 4;
+    const sibData  = chart.data.datasets[sibDsIdx]?.data||[];
+    const sibIdx   = sibData.findIndex(p=>p?.trade?.entry_date===pt.trade.entry_date);
+    if (sibIdx<0) return;
+    const m1=chart.getDatasetMeta(dsIdx), m2=chart.getDatasetMeta(sibDsIdx);
+    const p1=m1.data[ptIdx], p2=m2.data[sibIdx];
+    if (!p1||!p2) return;
+    const c=chart.ctx;
+    c.save();
+    c.beginPath(); c.moveTo(p1.x,p1.y); c.lineTo(p2.x,p2.y);
+    c.strokeStyle='rgba(255,255,255,0.28)'; c.lineWidth=1; c.setLineDash([3,4]); c.stroke();
+    c.setLineDash([]);
+    c.beginPath(); c.arc(p2.x,p2.y,10,0,Math.PI*2);
+    c.strokeStyle='rgba(255,255,255,0.55)'; c.lineWidth=1.5; c.stroke();
+    c.restore();
+  },
+};
+
 async function loadAll() {
-  const [spxRes, stateRes, histRes, vixRes] = await Promise.allSettled([
+  const [spxRes, stateRes, histRes, vixRes, tradesRes] = await Promise.allSettled([
     fetch('/api/q042/spx-history?full=1').then(r => r.json()),
     fetch('/api/aftermath/state').then(r => r.json()),
     fetch('/api/aftermath/history').then(r => r.json()),
     fetch('/api/market/vix-history').then(r => r.json()),
+    fetch('/api/aftermath/v3a_trades').then(r => r.json()),
   ]);
+  const tradesData = tradesRes.status==='fulfilled' ? tradesRes.value : { trades: [] };
 
   const state   = stateRes.status==='fulfilled' ? stateRes.value : {};
   const hist    = histRes.status ==='fulfilled' ? histRes.value  : { windows: [] };
@@ -385,7 +425,7 @@ async function loadAll() {
   renderWindowsTable(hist.windows || []);
 
   if (spxHistArr.length) {
-    buildSpxChart(spxHistArr, hist.windows||[], vixData.history||[]);
+    buildSpxChart(spxHistArr, hist.windows||[], vixData.history||[], tradesData.trades||[]);
   } else {
     document.getElementById('aftermath-spx-chart').style.display='none';
     document.getElementById('aftermath-spx-empty').style.display='block';
@@ -564,7 +604,7 @@ function renderWindowsTable(windows) {
   `;
 }
 
-function buildSpxChart(history, allWindows, vixHistory) {
+function buildSpxChart(history, allWindows, vixHistory, trades) {
   const idxByDate = {};
   const priceByDate = {};
   history.forEach((h,i) => { idxByDate[h.date]=i; priceByDate[h.date]=h.close; });
@@ -586,14 +626,24 @@ function buildSpxChart(history, allWindows, vixHistory) {
     return {x:i,y:Math.round(avg*100)/100};
   });
 
+  // V3-A trade entry/exit markers
+  const entryMarkers = [], exitMarkers = [];
+  (trades || []).forEach(t => {
+    const ei=idxByDate[t.entry_date], xi=idxByDate[t.exit_date];
+    const ep=priceByDate[t.entry_date], xp=priceByDate[t.exit_date];
+    const profit=(t.pnl||0)>0;
+    if (ei!=null&&ep!=null) entryMarkers.push({x:ei,y:ep,trade:t,profit});
+    if (xi!=null&&xp!=null) exitMarkers.push({x:xi,y:xp,trade:t,profit});
+  });
+
   _spxFullHistory  = history;
-  // Dataset order: [0:SPX, 1:VIX, 2:DD, 3:MA10] (was [SPX, WinStart, WinEnd, VIX, DD, MA10])
-  _spxFullDatasets = [spxLine, vixLine, ddLine, ma10Line];
+  // Dataset order: [0:SPX, 1:VIX, 2:DD, 3:MA10, 4:TradeEntry, 5:TradeExit]
+  _spxFullDatasets = [spxLine, vixLine, ddLine, ma10Line, entryMarkers, exitMarkers];
 
   if (spxChart) spxChart.destroy();
 
   spxChart = new Chart(document.getElementById('aftermath-spx-chart'), {
-    plugins: [aftermathBackgroundBands],
+    plugins: [aftermathBackgroundBands, aftermathTradeConnector],
     type: 'line',
     data: { datasets: [
       { type:'line', label:'SPX', data:spxLine,
@@ -608,6 +658,16 @@ function buildSpxChart(history, allWindows, vixHistory) {
       { type:'line', label:'MA10', data:ma10Line,
         borderColor:'rgba(140,100,220,0.70)', backgroundColor:'transparent',
         borderWidth:1.5, pointRadius:0, tension:0, yAxisID:'yP', hidden:true, order:4, spanGaps:true },
+      { type:'scatter', label:'V3-A Entry', data:entryMarkers,
+        backgroundColor: ctx => ctx.dataset.data[ctx.dataIndex]?.profit ? C_TRADE_PROFIT_FILL : C_TRADE_LOSS_FILL,
+        borderColor:     ctx => ctx.dataset.data[ctx.dataIndex]?.profit ? C_TRADE_PROFIT_BORDER : C_TRADE_LOSS_BORDER,
+        borderWidth:1.5, pointStyle:'triangle', rotation:0,   pointRadius:8, pointHoverRadius:11,
+        yAxisID:'yP', order:1 },
+      { type:'scatter', label:'V3-A Exit', data:exitMarkers,
+        backgroundColor: ctx => ctx.dataset.data[ctx.dataIndex]?.profit ? C_TRADE_PROFIT_FILL : C_TRADE_LOSS_FILL,
+        borderColor:     ctx => ctx.dataset.data[ctx.dataIndex]?.profit ? C_TRADE_PROFIT_BORDER : C_TRADE_LOSS_BORDER,
+        borderWidth:1.5, pointStyle:'triangle', rotation:180, pointRadius:7, pointHoverRadius:10,
+        yAxisID:'yP', order:1 },
     ]},
     options: {
       responsive:true, animation:false,
@@ -632,6 +692,14 @@ function buildSpxChart(history, allWindows, vixHistory) {
             if (ctx.dataset.label==='VIX') return ` VIX: ${ctx.parsed.y?.toFixed(1)}`;
             if (ctx.dataset.label==='Drawdown %') return ` Drawdown: ${ctx.parsed.y?.toFixed(1)}%`;
             if (ctx.dataset.label==='MA10') return ` MA10: ${ctx.parsed.y?.toFixed(2)}`;
+            if (ctx.dataset.label?.startsWith('V3-A')) {
+              const t = ctx.raw?.trade;
+              if (t) {
+                const dir = ctx.dataset.label.includes('Entry') ? '▲' : '▽';
+                const pnl = (t.pnl||0)>=0 ? `+$${Math.round(t.pnl).toLocaleString()}` : `-$${Math.abs(Math.round(t.pnl)).toLocaleString()}`;
+                return `${dir} ${t.entry_date}→${t.exit_date}  P&L ${pnl}  VIX@entry ${t.vix_at_entry?.toFixed(1)||'—'}`;
+              }
+            }
             return ` SPX: ${ctx.parsed.y?.toFixed(2)}`;
           },
         }},
