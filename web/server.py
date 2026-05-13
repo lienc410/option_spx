@@ -1624,7 +1624,7 @@ def _warmup_backtest_caches() -> None:
     except Exception:
         pass
 
-    # ── SPX backtest warmup — pre-populate memory cache from disk ─────────────
+    # ── SPX backtest results warmup — pre-populate memory cache from disk ────────
     try:
         disk_cache = _load_results_disk()
         today = date.today().isoformat()
@@ -1637,6 +1637,65 @@ def _warmup_backtest_caches() -> None:
                     "params_hash": entry.get("params_hash", ""),
                 }
                 _backtest_cache[ck] = (time.time(), payload)
+    except Exception:
+        pass
+
+    # ── SPX backtest stats warmup — /api/backtest/stats (Matrix win-rate cells) ──
+    # Cold computation: 3y≈4s, 10y≈13s, all≈35s.  Runs here so the first page
+    # request hits memory cache instead of timing out through Cloudflare (~30s limit).
+    try:
+        from backtest.engine import run_backtest as _rb
+        from strategy.catalog import strategy_key as _cat_key
+        today        = date.today().isoformat()
+        phash        = _params_hash()
+        disk_stats   = _load_stats_disk()
+        disk_dirty   = False
+        periods      = [
+            ("3y",  (date.today() - timedelta(days=365 * 3)).isoformat()),
+            ("10y", (date.today() - timedelta(days=365 * 10)).isoformat()),
+            ("all", "2000-01-01"),
+        ]
+        for _period, _start in periods:
+            _ck = f"stats_{_start}"
+            # Skip if memory cache already warm
+            if _backtest_cache.get(_ck):
+                continue
+            # Try disk first
+            _entry = disk_stats.get(_ck, {})
+            if (
+                _entry.get("date") == today
+                and _entry.get("params_hash") == phash
+                and _entry.get("schema") == _STATS_SCHEMA_VERSION
+                and _stats_payload_has_avg(_entry.get("payload", {}))
+            ):
+                _backtest_cache[_ck] = (time.time(), _entry["payload"])
+                continue
+            # Must compute
+            _bt = _rb(start_date=_start, verbose=False)
+            _sig_by_date = {s["date"]: s for s in _bt.signals}
+            _by_strat: dict = {}
+            _by_cell:  dict = {}
+            for _t in _bt.trades:
+                _key = _cat_key(_t.strategy.value)
+                _win = _t.exit_pnl > 0
+                _r = _by_strat.setdefault(_key, {"n": 0, "wins": 0, "total_pnl": 0.0})
+                _r["n"] += 1
+                if _win: _r["wins"] += 1
+                _r["total_pnl"] += _t.exit_pnl
+                _sig = _sig_by_date.get(_t.entry_date, {})
+                _ckey = f"{_sig.get('regime','')}|{_iv_level(float(_sig.get('ivp', 50)))}|{_sig.get('trend', '')}"
+                _cr = _by_cell.setdefault(_ckey, {"n": 0, "wins": 0, "total_pnl": 0.0})
+                _cr["n"] += 1
+                if _win: _cr["wins"] += 1
+                _cr["total_pnl"] += _t.exit_pnl
+            _ss = {s: {"n": v["n"], "win_rate": round(v["wins"]/v["n"]*100), "avg_pnl": round(v["total_pnl"]/v["n"])} for s, v in _by_strat.items()}
+            _cs = {k: {"n": v["n"], "win_rate": round(v["wins"]/v["n"]*100), "avg_pnl": round(v["total_pnl"]/v["n"])} for k, v in _by_cell.items()}
+            _payload = {**_ss, "_cell": _cs}
+            _backtest_cache[_ck] = (time.time(), _payload)
+            disk_stats[_ck] = {"date": today, "params_hash": phash, "schema": _STATS_SCHEMA_VERSION, "payload": _payload}
+            disk_dirty = True
+        if disk_dirty:
+            _save_stats_disk(disk_stats)
     except Exception:
         pass
 
