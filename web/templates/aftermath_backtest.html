@@ -372,14 +372,16 @@ const aftermathTradeConnector = {
 };
 
 async function loadAll() {
-  const [spxRes, stateRes, histRes, vixRes, tradesRes] = await Promise.allSettled([
+  const [spxRes, stateRes, histRes, vixRes, tradesRes, gatesRes] = await Promise.allSettled([
     fetch('/api/q042/spx-history?full=1').then(r => r.json()),
     fetch('/api/aftermath/state').then(r => r.json()),
     fetch('/api/aftermath/history').then(r => r.json()),
     fetch('/api/market/vix-history').then(r => r.json()),
     fetch('/api/aftermath/v3a_trades').then(r => r.json()),
+    fetch('/api/aftermath/window-gates').then(r => r.json()),
   ]);
   const tradesData = tradesRes.status==='fulfilled' ? tradesRes.value : { trades: [] };
+  const gatesData  = gatesRes.status==='fulfilled'  ? gatesRes.value  : { gates: {} };
 
   const state   = stateRes.status==='fulfilled' ? stateRes.value : {};
   const hist    = histRes.status ==='fulfilled' ? histRes.value  : { windows: [] };
@@ -422,7 +424,7 @@ async function loadAll() {
   }
 
   renderPerfStats(hist.windows || []);
-  renderWindowsTable(hist.windows || [], tradesData.trades || []);
+  renderWindowsTable(hist.windows || [], tradesData.trades || [], gatesData.gates || {});
 
   if (spxHistArr.length) {
     buildSpxChart(spxHistArr, hist.windows||[], vixData.history||[], tradesData.trades||[]);
@@ -578,7 +580,7 @@ function renderPerfStats(windows) {
   `;
 }
 
-function renderWindowsTable(windows, trades) {
+function renderWindowsTable(windows, trades, gates) {
   const sec = document.getElementById('windows-table-section');
   if (!sec) return;
   if (!windows.length) { sec.innerHTML='<div class="empty-msg">No historical windows scanned</div>'; return; }
@@ -595,11 +597,18 @@ function renderWindowsTable(windows, trades) {
         const wTrades = (trades||[]).filter(t => t.entry_date >= w.start && t.entry_date <= w.end);
         const totalPnl = wTrades.reduce((s,t) => s+(t.pnl||0), 0);
         const wins = wTrades.filter(t=>(t.pnl||0)>0).length;
-        let tradeCell = '<span style="color:var(--text-muted)">—</span>';
+        let tradeCell;
         if (wTrades.length) {
           const pnlColor = totalPnl >= 0 ? 'var(--green)' : 'var(--orange)';
           tradeCell = `<span style="color:${pnlColor}">${fmtPnl(totalPnl)}</span>`
             + ` <span style="color:var(--text-muted);font-size:0.58rem">${wTrades.length}笔 ${wins}W/${wTrades.length-wins}L</span>`;
+        } else {
+          const gateReason = (gates||{})[w.start];
+          if (gateReason) {
+            tradeCell = `<span style="color:var(--text-muted);font-size:0.60rem;font-style:italic">${gateReason}</span>`;
+          } else {
+            tradeCell = '<span style="color:var(--text-muted)">—</span>';
+          }
         }
         return `
         <tr>
