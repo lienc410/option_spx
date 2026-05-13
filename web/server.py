@@ -2203,10 +2203,17 @@ def api_position_open_draft():
     from backtest.pricer import call_price, put_price, find_strike_for_delta
     from schwab.auth import is_configured as schwab_is_configured
     from schwab.scanner import build_strike_scan
-    from strategy.selector import get_recommendation
+    from strategy.selector import get_recommendation, StrategyParams
 
     try:
-        rec = get_recommendation(use_intraday=_is_market_hours())
+        force_key = flask_req.args.get("force_strategy", "").strip() or None
+        if force_key:
+            # User overrides wait: use forced strategy legs with current market snapshot
+            forced_params = StrategyParams(force_strategy=force_key)
+            rec = get_recommendation(use_intraday=_is_market_hours(), params=forced_params)
+        else:
+            rec = get_recommendation(use_intraday=_is_market_hours())
+
         if rec.strategy_key == "reduce_wait" or not rec.legs:
             return jsonify({"error": "No tradeable recommendation to prefill"}), 400
 

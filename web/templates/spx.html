@@ -1247,11 +1247,15 @@ function updateOpenDerivedFields() {
   if (expiryInput && !expiryInput.dataset.locked) expiryInput.value = plusDays(dteDefault(meta));
   if (CURRENT_OPEN_DRAFT && CURRENT_OPEN_DRAFT.strategy_key === strategyKey) {
     renderStrikeScan(CURRENT_OPEN_DRAFT);
+    updatePremiumDiff();
+    updateOpenBpPreview();
   } else {
+    // Strategy changed — re-fetch draft with the new strategy's delta strikes
     renderStrikeScan(null);
+    updatePremiumDiff();
+    updateOpenBpPreview();
+    loadOpenDraft(strategyKey);
   }
-  updatePremiumDiff();
-  updateOpenBpPreview();
 }
 
 function scanRowsFor(slot) {
@@ -1375,14 +1379,22 @@ function applyOpenDraft(draft) {
   updateOpenBpPreview();
 }
 
-async function loadOpenDraft() {
+async function loadOpenDraft(strategyKey) {
+  const hint = document.getElementById('open-legs-hint');
+  if (hint) hint.textContent = 'Computing delta strikes…';
   try {
-    const res = await fetch('/api/position/open-draft');
+    const key = strategyKey || document.getElementById('open-strategy-key')?.value || '';
+    // Use force_strategy whenever the selected key differs from the live rec
+    // (including when rec is reduce_wait — server will compute legs for the chosen strategy)
+    const recKey = CURRENT_REC?.strategy_key || '';
+    const url = (key && key !== recKey)
+      ? `/api/position/open-draft?force_strategy=${encodeURIComponent(key)}`
+      : '/api/position/open-draft';
+    const res = await fetch(url);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     applyOpenDraft(data);
   } catch (e) {
-    const hint = document.getElementById('open-legs-hint');
     if (hint) hint.textContent = e.message || 'Could not prefill from recommendation.';
   }
 }
@@ -1553,7 +1565,7 @@ function openTradeModal(kind) {
         <button class="action-btn primary" onclick="submitOpenPosition()">Open</button>
       </div>`);
     updateOpenDerivedFields();
-    loadOpenDraft();
+    loadOpenDraft(document.getElementById('open-strategy-key')?.value || '');
   } else if (kind === 'close') {
     title.textContent = 'Close Position';
     const _openAccounts = (CURRENT_POS?.positions || []).map(pos => pos.account || 'schwab');
