@@ -595,6 +595,7 @@ function resetSpxZoom() { if (spxChart) spxChart.resetZoom(); }
 
 function setSpxRange(range) {
   if (!spxChart || !_spxFullHistory || !_spxFullDatasets) return;
+  try { spxChart.resetZoom(); } catch(_) {}
   const N = _spxFullHistory.length;
   const ranges = {'1yr':252,'3yr':756,'5yr':1260};
   const cutoff = ranges[range] ? Math.max(0, N-ranges[range]) : 0;

@@ -615,6 +615,9 @@ function setC6Overlay(mode) {
 function setC6Range(range) {
   const c = charts.c6;
   if (!c || !c._fullData || !c._historyRef) return;
+  // Reset zoom plugin state first — otherwise the plugin overrides x.min/max
+  // we set below, making range buttons appear stuck after a drag-zoom.
+  try { c.resetZoom(); } catch(_) {}
   const hist = c._historyRef;
   const now = new Date();
   let cutoffDate = null;
