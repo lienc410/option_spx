@@ -185,26 +185,30 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
     </div>
   </div>
 
-  <!-- Roadmap -->
+  <!-- Research Verdict -->
   <div class="card">
-    <div class="card-title">Backtest Roadmap</div>
+    <div class="card-title">Research Verdict — Q064（2026-05-12）</div>
     <div class="todo-list">
       <div class="todo-row">
         <div class="todo-bullet" style="color:var(--green)">✓</div>
-        <div class="todo-text" style="color:var(--text-2)">扫描 19yr 历史 VIX 数据，提取所有 aftermath window（peak ≥ 28 + off-peak ≥ 10% + vix &lt; 40）— <em>已完成，见上方 metric cards + windows 表</em></div>
+        <div class="todo-text" style="color:var(--text-2)">19yr aftermath window 提取（90 个，10.6% 交易日）</div>
       </div>
       <div class="todo-row">
-        <div class="todo-bullet">▸</div>
-        <div class="todo-text">统计每个 aftermath window 内 SPX broken-wing V3-A 实际触发次数和 P&L 归因</div>
+        <div class="todo-bullet" style="color:var(--green)">✓</div>
+        <div class="todo-text" style="color:var(--text-2)">V3-A P&amp;L 归因 + aftermath vs 非 aftermath HIGH_VOL 对照（Q064 P2/P3）</div>
       </div>
       <div class="todo-row">
-        <div class="todo-bullet">▸</div>
-        <div class="todo-text">和"不在 aftermath 内的 HIGH_VOL 区间"做对照（aftermath alpha）</div>
+        <div class="todo-bullet" style="color:var(--green)">✓</div>
+        <div class="todo-text" style="color:var(--text-2)">equal-BP counterfactual + VIX stop 测试（Q064 P4/P5）</div>
       </div>
       <div class="todo-row">
-        <div class="todo-bullet">▸</div>
-        <div class="todo-text">独立 engine：把 aftermath 抽出 SPX selector，做成可独立持仓的策略验证</div>
+        <div class="todo-bullet" style="color:var(--green)">✓</div>
+        <div class="todo-text" style="color:var(--text-2)">Selector fallback distribution（Q064 P6）— 决定性发现</div>
       </div>
+    </div>
+    <div style="margin-top:12px;padding:10px 12px;background:var(--surface-2);border-radius:6px;font-size:0.85rem;line-height:1.6;">
+      <strong>结论：SPEC-064 V3-A 保留生产，不改代码。</strong><br>
+      V3-A 的价值不在结构 alpha，在于 <em>gate-bypass</em>——aftermath 期间 natural fallback 有 55–78% 概率被 VIX_RISING / ivp63 / backwardation guards 拦截走 reduce_wait。V3-A 绕过这些 guards，捕捉约 $30k+ alpha。独立 engine 方向已 DROP。
     </div>
   </div>
 
