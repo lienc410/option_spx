@@ -69,6 +69,15 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .range-btn:hover { color:var(--text);border-color:var(--border-2); }
 .range-btn.active { background:var(--surface-hi);color:var(--text);border-color:var(--border-2); }
 
+/* Performance metric cards (Q042-style) */
+.metric-card { background:var(--surface-hi);border:1px solid var(--border-2);border-radius:8px;padding:12px 14px; }
+.metric-label { font-family:var(--f-ui);font-size:0.56rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px; }
+.metric-value { font-family:var(--f-mono);font-size:1.18rem;font-weight:500;color:var(--text);line-height:1.1; }
+.metric-value.up   { color:var(--green); }
+.metric-value.down { color:var(--red); }
+.metric-value.warn { color:var(--orange); }
+.metric-sub { font-family:var(--f-ui);font-size:0.60rem;color:var(--text-muted);margin-top:4px; }
+
 .todo-list { display:flex;flex-direction:column;gap:10px; }
 .todo-row { display:flex;gap:14px;font-family:var(--f-ui);font-size:0.70rem;color:var(--text-2);line-height:1.5; }
 .todo-bullet { flex:0 0 18px;color:var(--text-muted);font-family:var(--f-mono); }
@@ -127,6 +136,14 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
   <div class="card">
     <div class="card-title">Summary · 历史 aftermath 窗口</div>
     <div class="metric-grid" id="metric-grid">
+      <div class="empty-msg" style="grid-column:1/-1">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Performance analytics: SPX return during aftermath windows -->
+  <div class="card" id="perf-card">
+    <div class="card-title">SPX Performance During Aftermath Windows</div>
+    <div id="perf-grid" class="metric-grid" style="margin-bottom:0">
       <div class="empty-msg" style="grid-column:1/-1">Loading…</div>
     </div>
   </div>
@@ -316,14 +333,108 @@ async function loadAll() {
     grid.innerHTML = '<div class="empty-msg" style="grid-column:1/-1">State unavailable</div>';
   }
 
+  // ── Enrich windows with SPX return BEFORE table/chart rendering ───────────
+  const spxHistArr = (spxRes.status==='fulfilled' && Array.isArray((spxRes.value||{}).history))
+    ? spxRes.value.history : [];
+  if (spxHistArr.length) {
+    const priceByDate = {};
+    spxHistArr.forEach(h => { priceByDate[h.date] = h.close; });
+    (hist.windows || []).forEach(w => {
+      const ps = priceByDate[w.start], pe = priceByDate[w.end];
+      w.spx_ret = (ps && pe) ? Math.round((pe/ps - 1) * 1000) / 10 : null;
+    });
+  }
+
+  renderPerfStats(hist.windows || []);
   renderWindowsTable(hist.windows || []);
 
-  if (spxRes.status==='fulfilled' && Array.isArray((spxRes.value||{}).history)) {
-    buildSpxChart(spxRes.value.history, hist.windows||[], vixData.history||[]);
+  if (spxHistArr.length) {
+    buildSpxChart(spxHistArr, hist.windows||[], vixData.history||[]);
   } else {
     document.getElementById('aftermath-spx-chart').style.display='none';
     document.getElementById('aftermath-spx-empty').style.display='block';
   }
+}
+
+function renderPerfStats(windows) {
+  const el = document.getElementById('perf-grid');
+  if (!el) return;
+
+  // Only closed windows with valid SPX return
+  const closed = windows.filter(w => !w.ongoing && w.spx_ret != null);
+  const n = closed.length;
+  if (n === 0) {
+    el.innerHTML = '<div class="empty-msg" style="grid-column:1/-1">SPX history unavailable for performance calculation</div>';
+    return;
+  }
+
+  const wins    = closed.filter(w => w.spx_ret > 0);
+  const losses  = closed.filter(w => w.spx_ret <= 0);
+  const wr      = wins.length / n * 100;
+  const avgRet  = closed.reduce((s,w) => s + w.spx_ret, 0) / n;
+
+  const best    = closed.reduce((a,b) => b.spx_ret > a.spx_ret ? b : a);
+  const worst   = closed.reduce((a,b) => b.spx_ret < a.spx_ret ? b : a);
+
+  // Geometric cumulative SPX return chaining all windows
+  const cumRet  = (closed.reduce((p,w) => p * (1 + w.spx_ret/100), 1) - 1) * 100;
+
+  // Annualised: total calendar days spanned across windows
+  const totalCalDays = closed.reduce((s,w) => s + w.days, 0);
+  const annFactor = totalCalDays > 0 ? 252 / totalCalDays : null;  // trading-day basis
+  const annRet = annFactor != null ? ((Math.pow(1 + cumRet/100, annFactor) - 1) * 100) : null;
+
+  // Avg return when win vs loss
+  const avgWinRet  = wins.length  ? wins.reduce((s,w) => s+w.spx_ret, 0)/wins.length   : null;
+  const avgLossRet = losses.length ? losses.reduce((s,w) => s+w.spx_ret, 0)/losses.length : null;
+  const profitFactor = (avgLossRet && avgLossRet < 0 && avgWinRet)
+    ? Math.abs(avgWinRet / avgLossRet) : null;
+
+  const fp = (v, d=1) => v==null ? '—' : (v>=0?'+':'')+v.toFixed(d)+'%';
+  const fn = (v, d=1) => v==null ? '—' : v.toFixed(d);
+
+  el.innerHTML = `
+    <div class="metric-card">
+      <div class="metric-label">Win Rate</div>
+      <div class="metric-value ${wr>=60?'up':wr>=40?'warn':'down'}">${wr.toFixed(1)}%</div>
+      <div class="metric-sub">${wins.length}W / ${losses.length}L of ${n} closed windows</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Avg SPX Return</div>
+      <div class="metric-value ${avgRet>=0?'up':'down'}">${fp(avgRet)}</div>
+      <div class="metric-sub">per aftermath window</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Profit Factor</div>
+      <div class="metric-value ${profitFactor!=null&&profitFactor>=1.5?'up':profitFactor>=1?'warn':'down'}">${profitFactor!=null?profitFactor.toFixed(2):'—'}</div>
+      <div class="metric-sub">avg win / avg loss magnitude</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Cum. SPX Return</div>
+      <div class="metric-value ${cumRet>=0?'up':'down'}">${fp(cumRet)}</div>
+      <div class="metric-sub">geo-chain · ${totalCalDays} total days</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Ann. SPX Return</div>
+      <div class="metric-value ${annRet!=null&&annRet>=10?'up':annRet!=null&&annRet>=0?'warn':'down'}">${fp(annRet)}</div>
+      <div class="metric-sub">within-aftermath days only</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Best Window</div>
+      <div class="metric-value up">${fp(best.spx_ret)}</div>
+      <div class="metric-sub">${best.start} · ${best.days}d</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Worst Window</div>
+      <div class="metric-value down">${fp(worst.spx_ret)}</div>
+      <div class="metric-sub">${worst.start} · ${worst.days}d</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Avg Win / Avg Loss</div>
+      <div class="metric-value">${fp(avgWinRet)} <span style="font-size:0.65rem;color:var(--text-muted)">/</span> <span style="${avgLossRet!=null?'color:var(--red)':''}">${fp(avgLossRet)}</span></div>
+      <div class="metric-sub">SPX return per outcome</div>
+    </div>
+  `;
 }
 
 function renderWindowsTable(windows) {
@@ -360,12 +471,6 @@ function buildSpxChart(history, allWindows, vixHistory) {
   // VIX lookup
   const vixByDate = {};
   vixHistory.forEach(v => { vixByDate[v.date]=v.vix; });
-
-  // Enrich windows with SPX return during window
-  allWindows.forEach(w => {
-    const ps = priceByDate[w.start], pe = priceByDate[w.end];
-    w.spx_ret = (ps && pe) ? Math.round((pe/ps-1)*1000)/10 : null;
-  });
 
   // Start markers (upward triangle), End markers (downward triangle)
   // Color = SPX return during window: positive=green, negative/null=orange
