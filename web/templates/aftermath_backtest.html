@@ -422,7 +422,7 @@ async function loadAll() {
   }
 
   renderPerfStats(hist.windows || []);
-  renderWindowsTable(hist.windows || []);
+  renderWindowsTable(hist.windows || [], tradesData.trades || []);
 
   if (spxHistArr.length) {
     buildSpxChart(spxHistArr, hist.windows||[], vixData.history||[], tradesData.trades||[]);
@@ -578,17 +578,30 @@ function renderPerfStats(windows) {
   `;
 }
 
-function renderWindowsTable(windows) {
+function renderWindowsTable(windows, trades) {
   const sec = document.getElementById('windows-table-section');
   if (!sec) return;
   if (!windows.length) { sec.innerHTML='<div class="empty-msg">No historical windows scanned</div>'; return; }
   const recent = [...windows].reverse().slice(0,30);
   const th = s => `<th style="font-family:var(--f-ui);font-size:0.56rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--border-2)">${s}</th>`;
+  const fmtPnl = v => v >= 0 ? `+$${Math.round(v).toLocaleString()}` : `-$${Math.abs(Math.round(v)).toLocaleString()}`;
+
   sec.innerHTML = `
     <table style="width:100%;border-collapse:collapse">
-      <thead><tr>${th('Start')}${th('End')}${th('Days')}${th('Peak VIX')}${th('Max off-peak')}${th('SPX return')}</tr></thead>
+      <thead><tr>${th('Start')}${th('End')}${th('Days')}${th('Peak VIX')}${th('Max off-peak')}${th('SPX return')}${th('V3-A trades')}</tr></thead>
       <tbody>
-      ${recent.map(w=>`
+      ${recent.map(w=>{
+        // Trades whose entry_date falls within this window
+        const wTrades = (trades||[]).filter(t => t.entry_date >= w.start && t.entry_date <= w.end);
+        const totalPnl = wTrades.reduce((s,t) => s+(t.pnl||0), 0);
+        const wins = wTrades.filter(t=>(t.pnl||0)>0).length;
+        let tradeCell = '<span style="color:var(--text-muted)">—</span>';
+        if (wTrades.length) {
+          const pnlColor = totalPnl >= 0 ? 'var(--green)' : 'var(--orange)';
+          tradeCell = `<span style="color:${pnlColor}">${fmtPnl(totalPnl)}</span>`
+            + ` <span style="color:var(--text-muted);font-size:0.58rem">${wTrades.length}笔 ${wins}W/${wTrades.length-wins}L</span>`;
+        }
+        return `
         <tr>
           <td style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text);padding:8px 10px;border-bottom:1px solid var(--border)">${w.start}</td>
           <td style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2);padding:8px 10px;border-bottom:1px solid var(--border)">${w.end}${w.ongoing?' <span style="color:var(--green);font-size:0.55rem">ongoing</span>':''}</td>
@@ -596,8 +609,9 @@ function renderWindowsTable(windows) {
           <td style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2);padding:8px 10px;border-bottom:1px solid var(--border)">${fmt(w.peak_at_start,1)}</td>
           <td style="font-family:var(--f-mono);font-size:0.65rem;color:var(--orange);padding:8px 10px;border-bottom:1px solid var(--border)">${fmt(w.max_off_peak_pct,1)}%</td>
           <td style="font-family:var(--f-mono);font-size:0.65rem;padding:8px 10px;border-bottom:1px solid var(--border);color:${w.spx_ret>0?'var(--green)':w.spx_ret<0?'var(--orange)':'var(--text-muted)'}">${w.spx_ret!=null?(w.spx_ret>=0?'+':'')+fmt(w.spx_ret,1)+'%':'—'}</td>
-        </tr>
-      `).join('')}
+          <td style="font-family:var(--f-mono);font-size:0.65rem;padding:8px 10px;border-bottom:1px solid var(--border)">${tradeCell}</td>
+        </tr>`;
+      }).join('')}
       </tbody>
     </table>
     ${windows.length>30?`<div style="font-family:var(--f-ui);font-size:0.62rem;color:var(--text-muted);padding:10px 10px 0;font-style:italic">Showing 30 most recent of ${windows.length} total windows.</div>`:''}
