@@ -1531,6 +1531,37 @@
 - **Artifacts**：`research/q042/q062_memo_2026-05-10.md`，`q062_p1/p2/p3_*.csv`
 
 
+### Q066 — Aftermath vs Q042 Co-firing 频率实证
+- **状态**：**CLOSED 2026-05-12**（R-20260512-02）
+- **来源**：两个 addon（主策略 aftermath routing 和 Q042 Drawdown Overlay）是否存在信号重叠、BP 竞争或 Greek 叠加风险
+- **研究内容**：19yr 日线级 co-firing 频率分析 + Greek 正交性论证文档
+- **核心结论**：
+
+| 度量 | 结果 | 解读 |
+|---|---|---|
+| Day-level overlap rate | 0.9%（5/553）| 几乎零同步触发 |
+| Q042-A ±5TD co-fire with Aftermath | 26%（9/35）| 74% Q042-A 是 vol-quiet drawdown，aftermath 永不触发 |
+| Q042-B ±5TD co-fire with Aftermath | 80%（4/5）| B 是深崩盘天然伴随 VIX spike；但 N=5 小样本 |
+| Aftermath windows ±5TD co-fire with Q042-A | 14%（13/90）| 86% aftermath 是 vol-only 事件 |
+| Aftermath windows ±5TD co-fire with Q042-B | 7%（6/90）| 93% aftermath 不伴随深崩盘 |
+
+- **Greek 正交性**（`doc/addon_greek_orthogonality_2026-05-12.md`）：
+
+| Greek | Aftermath | Q042 |
+|---|---|---|
+| Vega | − | + |
+| Gamma | − | + |
+| Delta | 微 − | + |
+| Theta | + | − |
+
+四维度全反向——共持仓时是 partial hedge 非 duplicate risk
+
+- **结论**：**两个 addon 不应合并、不应竞争**；信号源正交（VIX 结构 vs SPX ddATH）；BP 冲突已由 `q042_gate.py` joint cap 解决
+- **未完成**：co-fire 日 portfolio 层 PnL 相关性未量化（需真实期权数据，超 Q066 scope，待 PM 触发）
+- **Artifacts**：`doc/addon_greek_orthogonality_2026-05-12.md`，`research/q066/q066_memo_2026-05-12.md`，`q066_cofiring.py + CSV`
+
+---
+
 ### Q065 — Aftermath EXTREME_VIX=40 阈值敏感性研究
 - **状态**：**CLOSED 2026-05-12**（R-20260512-01）
 - **来源**：Q064 P1 中 2025-04-09 出现 1-day aftermath window，PM 质疑 `EXTREME_VIX=40` 是否过严，是否应放宽至 42/45

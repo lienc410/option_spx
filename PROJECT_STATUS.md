@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-12 (Q065 CLOSED — Aftermath EXTREME_VIX=40 阈值敏感性研究。三个放宽变体全 fail（trap rate 41-79%），阈值维持不变；P3 永久 closed；selector.py 不动)
+Last Updated: 2026-05-12 (Q066 CLOSED — Aftermath vs Q042 co-firing 实证。Day-level 重叠 0.9%，事件级 74-86% 异步；Greek 四维度全反向；两个 addon 正交，不合并不竞争。doc/addon_greek_orthogonality_2026-05-12.md 发布)
 Owner: Planner or PM
 
 ## Current Phase
@@ -69,6 +69,7 @@ Owner: Planner or PM
 
 ## Open Questions Summary
 
+- `Q066` — **CLOSED 2026-05-12**. Aftermath vs Q042 Drawdown Overlay co-firing 频率实证（19yr）。核心发现：day-level 重叠 0.9%（5/553），Q042-A 事件 74% 与 aftermath 异步（低 VIX 回撤期间 aftermath 永不触发），aftermath windows 86% 不伴随 Q042 触发。Greek 四维度（Vega/Gamma/Delta/Theta）符号全部相反，两 addon 是 partial hedge 非 duplicate risk。**结论：不合并、不竞争；BP 冲突由 q042_gate.py joint cap 解决** — `See: doc/addon_greek_orthogonality_2026-05-12.md`, `research/q066/q066_memo_2026-05-12.md`, `RESEARCH_LOG.md R-20260512-02`
 - `Q065` — **CLOSED 2026-05-12**. Aftermath `EXTREME_VIX=40` 阈值敏感性研究。触发：Q064 P1 中 2025-04-09 出现 1-day aftermath window，PM 质疑阈值是否过严。P2 sweep 三个放宽变体（loosen_42 / loosen_45 / peak×0.85）trap rate 全部超标（41% / 47% / 79%），2009 GFC 局部 72%，2020 COVID 40%，属真实尾部结构。结论：**`EXTREME_VIX=40` 维持，selector.py 不动，P3 永久 closed** — `See: research/q065/q065_memo_2026-05-12.md`, `RESEARCH_LOG.md R-20260512-01`
 - `Q064` — **IN PROGRESS 2026-05-12**. Aftermath routing review（V3-A IC HV → BPS HV revert）。P1–P4 完成，2nd Quant APPROVE WITH ADJUSTMENT。Pre-SPEC 两项待完成：①selector 路由树确认（移除 V3-A 后走 BPS HV 非 Reduce/Wait）；② P5 VIX re-cross stop 测试（28/30/entry+10% 三个阈值 × 15 笔 aftermath trades）— `See: task/q064_aftermath_2nd_quant_review_packet_2026-05-12_Review.md`
 - `Q063` — **CLOSED 2026-05-11**. SPX 主策略 IVP<55 gate robustness review。PM hypothesis「gate 在低 VIX 环境产生 false alarm」被四层检验精确反向 reject：Phase 1 低 VIX blocked entries WR 63%（vs allowed 83%）；Phase 2 候选 A 19y +$6k 但 OOS test 期 -$907/yr；Phase 4 decay-weighted 3y HL A 输 -$19k，last 5y A 输 -$13.7k（2024-2026 gate 挡住 5 笔 counterfactual -$13.7k loss）。结论：**Keep IVP<55 gate unchanged，no SPEC change** — `See: task/q063_phase4_closure_memo_2026-05-11.md`, `RESEARCH_LOG.md R-20260511-01`
