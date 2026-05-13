@@ -143,7 +143,11 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 
   <!-- Performance analytics: SPX return during aftermath windows -->
   <div class="card" id="perf-card">
-    <div class="card-title">SPX Performance During Aftermath Windows</div>
+    <div class="card-title">SPX Direction During Aftermath Windows
+      <span style="font-size:0.62rem;font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:normal;margin-left:8px">
+        — market-state distribution, NOT strategy P&amp;L (V3-A trade WR is 90.9% per Q064 R-20260512-03)
+      </span>
+    </div>
     <div id="perf-grid" class="metric-grid" style="margin-bottom:0">
       <div class="empty-msg" style="grid-column:1/-1">Loading…</div>
     </div>
@@ -401,9 +405,9 @@ function renderPerfStats(windows) {
 
   el.innerHTML = `
     <div class="metric-card">
-      <div class="metric-label">Win Rate</div>
+      <div class="metric-label">SPX Up Windows</div>
       <div class="metric-value ${wr>=60?'up':wr>=40?'warn':'down'}">${wr.toFixed(1)}%</div>
-      <div class="metric-sub">${wins.length}W / ${losses.length}L of ${n} closed windows</div>
+      <div class="metric-sub">${wins.length}↑ / ${losses.length}↓ of ${n} closed windows · NOT strategy WR</div>
     </div>
     <div class="metric-card">
       <div class="metric-label">Avg SPX Return</div>
@@ -411,14 +415,14 @@ function renderPerfStats(windows) {
       <div class="metric-sub">per aftermath window</div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">Profit Factor</div>
+      <div class="metric-label">Up/Down Magnitude Ratio</div>
       <div class="metric-value ${profitFactor!=null&&profitFactor>=1.5?'up':profitFactor>=1?'warn':'down'}">${profitFactor!=null?profitFactor.toFixed(2):'—'}</div>
-      <div class="metric-sub">avg win / avg loss magnitude</div>
+      <div class="metric-sub">avg up window / avg down window |SPX %|</div>
     </div>
     <div class="metric-card">
       <div class="metric-label">Cum. SPX Return</div>
       <div class="metric-value ${cumRet>=0?'up':'down'}">${fp(cumRet)}</div>
-      <div class="metric-sub">geo-chain · ${totalCalDays} total days</div>
+      <div class="metric-sub">geo-chain · ${totalCalDays} total days · market-only, no strategy P&amp;L</div>
     </div>
     <div class="metric-card">
       <div class="metric-label">Ann. SPX Return</div>
@@ -426,19 +430,19 @@ function renderPerfStats(windows) {
       <div class="metric-sub">within-aftermath days only</div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">Best Window</div>
+      <div class="metric-label">Best SPX Window</div>
       <div class="metric-value up">${fp(best.spx_ret)}</div>
       <div class="metric-sub">${best.start} · ${best.days}d</div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">Worst Window</div>
+      <div class="metric-label">Worst SPX Window</div>
       <div class="metric-value down">${fp(worst.spx_ret)}</div>
       <div class="metric-sub">${worst.start} · ${worst.days}d</div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">Avg Win / Avg Loss</div>
+      <div class="metric-label">Avg Up / Avg Down</div>
       <div class="metric-value">${fp(avgWinRet)} <span style="font-size:0.65rem;color:var(--text-muted)">/</span> <span style="${avgLossRet!=null?'color:var(--red)':''}">${fp(avgLossRet)}</span></div>
-      <div class="metric-sub">SPX return per outcome</div>
+      <div class="metric-sub">SPX return by window direction</div>
     </div>
   `;
 }
