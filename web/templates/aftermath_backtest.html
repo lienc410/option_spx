@@ -665,7 +665,17 @@ function setSpxOverlay(mode) {
   document.querySelectorAll('[data-ov]').forEach(btn=>btn.classList.toggle('active',btn.dataset.ov===mode));
 }
 
-function resetSpxZoom() { if (spxChart) spxChart.resetZoom(); }
+function resetSpxZoom() {
+  if (!spxChart) return;
+  try { spxChart.resetZoom(); } catch(_) {}
+  // Restore full range (chart has explicit x.min/max at creation)
+  if (_spxFullHistory) {
+    spxChart.options.scales.x.min = 0;
+    spxChart.options.scales.x.max = _spxFullHistory.length - 1;
+    spxChart.update('none');
+  }
+  document.querySelectorAll('[data-range]').forEach(btn=>btn.classList.toggle('active',btn.dataset.range==='all'));
+}
 
 function setSpxRange(range) {
   if (!spxChart || !_spxFullHistory || !_spxFullDatasets) return;
@@ -676,8 +686,13 @@ function setSpxRange(range) {
     const full = _spxFullDatasets[i]; if(!full) return;
     ds.data = cutoff>0 ? full.filter(p=>p.x!=null&&p.x>=cutoff) : full;
   });
-  // Do NOT set x.min/max — let resetZoom auto-fit to filtered data.
-  try { spxChart.resetZoom(); } catch(_) { spxChart.update('none'); }
+  // This chart is created with explicit x.min:0, x.max:N-1.
+  // resetZoom() restores those original values → must re-apply the
+  // desired range AFTER resetZoom clears the drag-zoom state.
+  try { spxChart.resetZoom(); } catch(_) {}
+  spxChart.options.scales.x.min = cutoff;
+  spxChart.options.scales.x.max = N - 1;
+  spxChart.update('none');
   document.querySelectorAll('[data-range]').forEach(btn=>btn.classList.toggle('active',btn.dataset.range===range));
 }
 
