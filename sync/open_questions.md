@@ -1586,14 +1586,18 @@
 
 ---
 
-### Q064 — Aftermath 路由优化：V3-A IC HV → BPS HV revert
-- **状态**：**IN PROGRESS 2026-05-12**（P1–P4 完成，2nd Quant APPROVE WITH ADJUSTMENT）
-- **来源**：主策略 `is_aftermath()` 路由到 V3-A IC HV broken-wing，P1–P4 回测显示 V3-A $/BP-day 比 BPS HV 低 62-63%，equal-BP P&L 仅 42.5%
-- **Pre-SPEC 两项待完成**：
-  1. Selector 路由树确认：移除 V3-A override 后走 BPS HV 非 Reduce/Wait（读代码，5 分钟）
-  2. P5 VIX re-cross stop 测试：同 15 笔 aftermath，对比无 stop / VIX>28 / VIX>30 / entry_vix+10%
-- **2nd Quant verdict**：APPROVE WITH ADJUSTMENT — BPS HV revert supported；Q5 VIX stop 需先量化再进 SPEC
-- **Artifacts**：`research/q064/`，`task/q064_aftermath_2nd_quant_review_packet_2026-05-12_Review.md`
+### Q064 — Aftermath 路由回测：V3-A IC HV gate-bypass 价值验证
+- **状态**：**CLOSED 2026-05-12（APPROVE α — SPEC-064 V3-A retained，SPEC-100 不起草）**
+- **来源**：主策略 `is_aftermath()` 路由到 V3-A IC HV，P1–P4 初步显示 $/BP-day 低 62%，疑似可 revert
+- **研究路径**：P1 window 统计 → P2 timing 归因 → P3 structure counterfactual → P4 equal-BP → P5 VIX stop → P6 fallback distribution → 2 轮 2nd Quant review（Addendum A + B）
+- **结论反转过程**：
+  - P3/P4：V3-A equal-BP P&L 仅 42.5%，初步建议 revert
+  - P5：VIX stop 仅保护 1/2 失败场景，不足以替代 V3-A
+  - **P6（决定性）**：natural BPS HV fallback 在 aftermath 期 55-78% 概率走 reduce_wait（VIX_RISING / ivp63≥70 / backwardation gates）。BPS HV "counterfactual" 根本不会被 selector 执行——P3/P4 比的是不存在的 counterfactual
+  - V3-A 真实价值 = **gate-bypass**：~$30k+ alpha 来自绕过 post-vol-shock cells 中过度保守的 guards
+- **正式 framing**（不得表述为"V3-A 结构 alpha"）：V3-A 的价值在于 aftermath-subregime 的 justified gate-bypass，捕捉 natural fallback 会错过的 alpha
+- **方法论 learning**（已固化）：selector counterfactual 研究必须先跑 fallback distribution（β req #8），再做结构对比；VIX 条件 tag ≠ selector path triggered
+- **Artifacts**：`research/q064/`，`task/q064_aftermath_2nd_quant_review_packet_2026-05-12_Review.md`，`RESEARCH_LOG.md R-20260512-03`
 
 ---
 
