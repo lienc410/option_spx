@@ -1,0 +1,71 @@
+window_start,vix,is_aftermath,regime,trend,iv_signal,strategy,rationale
+2007-08-20,,,,,,,(date not reached in backtest)
+2007-11-13,,,,,,,(date not reached in backtest)
+2007-11-16,,,,,,,(date not reached in backtest)
+2007-11-28,,,,,,,(date not reached in backtest)
+2008-01-24,,,,,,,(date not reached in backtest)
+2008-01-28,,,,,,,(date not reached in backtest)
+2008-02-13,,,,,,,(date not reached in backtest)
+2008-03-11,,,,,,,(date not reached in backtest)
+2008-03-18,,,,,,,(date not reached in backtest)
+2008-03-20,,,,,,,(date not reached in backtest)
+2008-07-16,,,,,,,(date not reached in backtest)
+2008-09-19,,,,,,,(date not reached in backtest)
+2008-09-30,,,,,,,(date not reached in backtest)
+2009-01-02,39.19,True,HIGH_VOL,BULLISH,HIGH,Reduce / Wait,EXTREME_VOL (VIX ≥ 35) — tail risk too elevated; hold cash
+2009-01-28,39.66,True,HIGH_VOL,NEUTRAL,NEUTRAL,Reduce / Wait,EXTREME_VOL (VIX ≥ 35) — tail risk too elevated; hold cash
+2009-04-03,39.7,True,HIGH_VOL,BULLISH,NEUTRAL,Reduce / Wait,EXTREME_VOL (VIX ≥ 35) — tail risk too elevated; hold cash
+2009-04-08,38.85,True,HIGH_VOL,BULLISH,NEUTRAL,Reduce / Wait,EXTREME_VOL (VIX ≥ 35) — tail risk too elevated; hold cash
+2009-05-05,33.36,True,HIGH_VOL,BULLISH,LOW,Bull Put Spread (High Vol),"HIGH_VOL (22≤VIX<35) — elevated premium offsets risk; tighter params (δ0.2, 35DTE, 50% size)"
+2009-05-14,31.37,True,HIGH_VOL,BULLISH,LOW,Bull Put Spread (High Vol),"HIGH_VOL (22≤VIX<35) — elevated premium offsets risk; tighter params (δ0.2, 35DTE, 50% size)"
+2009-05-18,30.24,True,HIGH_VOL,BULLISH,LOW,Bull Put Spread (High Vol),"HIGH_VOL (22≤VIX<35) — elevated premium offsets risk; tighter params (δ0.2, 35DTE, 50% size)"
+2009-05-29,28.92,True,HIGH_VOL,BULLISH,LOW,Bull Put Spread (High Vol),"HIGH_VOL (22≤VIX<35) — elevated premium offsets risk; tighter params (δ0.2, 35DTE, 50% size)"
+2009-06-09,28.27,True,HIGH_VOL,BULLISH,LOW,Bull Put Spread (High Vol),"HIGH_VOL (22≤VIX<35) — elevated premium offsets risk; tighter params (δ0.2, 35DTE, 50% size)"
+2009-06-19,27.99,True,HIGH_VOL,BULLISH,LOW,Reduce / Wait,HIGH_VOL + VIX RISING — near-term panic building; wait for VIX to stabilise
+2009-06-24,29.05,True,HIGH_VOL,NEUTRAL,LOW,Iron Condor (High Vol),HIGH_VOL + NEUTRAL + VIX stable — inflated premium on both sides; symmetric IC captures vol risk premium without directional bet
+2009-07-13,26.31,True,HIGH_VOL,BEARISH,LOW,Reduce / Wait,HIGH_VOL + BEARISH + VIX RISING — panic escalating; wait for VIX to stabilise before selling calls
+2009-09-04,25.26,True,HIGH_VOL,BULLISH,LOW,Reduce / Wait,HIGH_VOL + VIX RISING — near-term panic building; wait for VIX to stabilise
+2009-10-06,25.7,True,HIGH_VOL,BULLISH,LOW,Reduce / Wait,HIGH_VOL + VIX RISING — near-term panic building; wait for VIX to stabilise
+2009-11-05,25.43,True,HIGH_VOL,BULLISH,LOW,Reduce / Wait,HIGH_VOL + VIX RISING — near-term panic building; wait for VIX to stabilise
+2010-05-24,38.32,True,HIGH_VOL,BEARISH,HIGH,Reduce / Wait,EXTREME_VOL (VIX ≥ 35) — tail risk too elevated; hold cash
+2010-07-02,30.12,True,HIGH_VOL,BEARISH,HIGH,Iron Condor (High Vol),"HIGH_VOL + BEARISH + IV HIGH + aftermath (VIX peak=34.5 → now=30.1, -12.8% off peak) — bypass VIX_RISING / ivp63 gates per SPEC-064"
+2011-08-09,35.06,True,HIGH_VOL,BEARISH,HIGH,Reduce / Wait,EXTREME_VOL (VIX ≥ 35) — tail risk too elevated; hold cash
+2011-08-23,36.27,True,HIGH_VOL,BEARISH,HIGH,Reduce / Wait,EXTREME_VOL (VIX ≥ 35) — tail risk too elevated; hold cash
+2011-08-26,35.59,True,HIGH_VOL,BEARISH,HIGH,Reduce / Wait,EXTREME_VOL (VIX ≥ 35) — tail risk too elevated; hold cash
+2011-09-07,33.38,True,HIGH_VOL,BEARISH,HIGH,Iron Condor (High Vol),"HIGH_VOL + BEARISH + IV HIGH + aftermath (VIX peak=39.8 → now=33.4, -16.0% off peak) — bypass VIX_RISING / ivp63 gates per SPEC-064"
+2011-10-05,37.81,True,HIGH_VOL,BEARISH,HIGH,Reduce / Wait,EXTREME_VOL (VIX ≥ 35) — tail risk too elevated; hold cash
+2011-10-24,29.26,True,HIGH_VOL,BULLISH,HIGH,Bull Put Spread (High Vol),"HIGH_VOL (22≤VIX<35) — elevated premium offsets risk; tighter params (δ0.2, 35DTE, 50% size)"
+2011-10-26,29.86,True,HIGH_VOL,BULLISH,HIGH,Bull Put Spread (High Vol),"HIGH_VOL (22≤VIX<35) — elevated premium offsets risk; tighter params (δ0.2, 35DTE, 50% size)"
+2011-11-03,30.5,True,HIGH_VOL,BULLISH,HIGH,Bull Put Spread (High Vol),"HIGH_VOL (22≤VIX<35) — elevated premium offsets risk; tighter params (δ0.2, 35DTE, 50% size)"
+2011-11-11,30.04,True,HIGH_VOL,BULLISH,HIGH,Bull Put Spread (High Vol),"HIGH_VOL (22≤VIX<35) — elevated premium offsets risk; tighter params (δ0.2, 35DTE, 50% size)"
+2011-11-22,31.97,True,HIGH_VOL,BEARISH,HIGH,Iron Condor (High Vol),"HIGH_VOL + BEARISH + IV HIGH + aftermath (VIX peak=36.2 → now=32.0, -11.6% off peak) — bypass VIX_RISING / ivp63 gates per SPEC-064"
+2011-11-29,30.64,True,HIGH_VOL,NEUTRAL,HIGH,Iron Condor (High Vol),"HIGH_VOL + NEUTRAL + IV HIGH + aftermath (VIX peak=34.5 → now=30.6, -11.2% off peak) — bypass VIX_RISING / ivp63 gates per SPEC-064"
+2020-04-14,37.76,True,HIGH_VOL,NEUTRAL,HIGH,Reduce / Wait,EXTREME_VOL (VIX ≥ 35) — tail risk too elevated; hold cash
+2020-04-17,38.15,True,HIGH_VOL,NEUTRAL,HIGH,Reduce / Wait,EXTREME_VOL (VIX ≥ 35) — tail risk too elevated; hold cash
+2020-04-24,35.93,True,HIGH_VOL,NEUTRAL,HIGH,Reduce / Wait,EXTREME_VOL (VIX ≥ 35) — tail risk too elevated; hold cash
+2020-05-14,32.61,True,HIGH_VOL,BULLISH,HIGH,Bull Put Spread (High Vol),"HIGH_VOL (22≤VIX<35) — elevated premium offsets risk; tighter params (δ0.2, 35DTE, 50% size)"
+2020-06-02,26.84,True,HIGH_VOL,BULLISH,HIGH,Bull Put Spread (High Vol),"HIGH_VOL (22≤VIX<35) — elevated premium offsets risk; tighter params (δ0.2, 35DTE, 50% size)"
+2020-06-12,36.09,True,HIGH_VOL,BULLISH,HIGH,Reduce / Wait,EXTREME_VOL (VIX ≥ 35) — tail risk too elevated; hold cash
+2020-06-30,30.43,True,HIGH_VOL,BULLISH,HIGH,Bull Put Spread (High Vol),"HIGH_VOL (22≤VIX<35) — elevated premium offsets risk; tighter params (δ0.2, 35DTE, 50% size)"
+2020-07-15,27.76,True,HIGH_VOL,BULLISH,NEUTRAL,Iron Condor (High Vol),HIGH_VOL + BULLISH + IV NEUTRAL + VIX stable — IC_HV dominates BPS_HV in this cell; double-sided premium with no directional bet (SPEC-060)
+2020-07-29,24.1,True,HIGH_VOL,BULLISH,NEUTRAL,Iron Condor (High Vol),HIGH_VOL + BULLISH + IV NEUTRAL + VIX stable — IC_HV dominates BPS_HV in this cell; double-sided premium with no directional bet (SPEC-060)
+2020-09-09,28.81,True,HIGH_VOL,BULLISH,NEUTRAL,Reduce / Wait,HIGH_VOL + VIX RISING — near-term panic building; wait for VIX to stabilise
+2020-10-08,26.36,True,HIGH_VOL,BULLISH,NEUTRAL,Reduce / Wait,HIGH_VOL + VIX RISING — near-term panic building; wait for VIX to stabilise
+2020-11-03,35.55,True,HIGH_VOL,NEUTRAL,HIGH,Reduce / Wait,EXTREME_VOL (VIX ≥ 35) — tail risk too elevated; hold cash
+2021-03-01,23.35,True,HIGH_VOL,BULLISH,LOW,Reduce / Wait,HIGH_VOL + VIX RISING — near-term panic building; wait for VIX to stabilise
+2021-03-05,24.66,True,HIGH_VOL,NEUTRAL,LOW,Iron Condor (High Vol),HIGH_VOL + NEUTRAL + VIX stable — inflated premium on both sides; symmetric IC captures vol risk premium without directional bet
+2021-11-29,22.96,True,HIGH_VOL,BULLISH,HIGH,Reduce / Wait,HIGH_VOL + VIX RISING — near-term panic building; wait for VIX to stabilise
+2021-12-06,27.18,True,HIGH_VOL,BULLISH,HIGH,Reduce / Wait,HIGH_VOL + VIX RISING — near-term panic building; wait for VIX to stabilise
+2022-02-25,27.59,True,HIGH_VOL,BEARISH,HIGH,Iron Condor (High Vol),"HIGH_VOL + BEARISH + IV HIGH + aftermath (VIX peak=31.0 → now=27.6, -11.1% off peak) — bypass VIX_RISING / ivp63 gates per SPEC-064"
+2022-04-28,29.99,True,HIGH_VOL,BEARISH,HIGH,Iron Condor (High Vol),"HIGH_VOL + BEARISH + IV HIGH + aftermath (VIX peak=33.5 → now=30.0, -10.5% off peak) — bypass VIX_RISING / ivp63 gates per SPEC-064"
+2022-05-03,29.25,True,HIGH_VOL,BEARISH,HIGH,Iron Condor (High Vol),"HIGH_VOL + BEARISH + IV HIGH + aftermath (VIX peak=33.5 → now=29.2, -12.7% off peak) — bypass VIX_RISING / ivp63 gates per SPEC-064"
+2022-05-13,28.87,True,HIGH_VOL,BEARISH,HIGH,Iron Condor (High Vol),"HIGH_VOL + BEARISH + IV HIGH + aftermath (VIX peak=34.8 → now=28.9, -16.9% off peak) — bypass VIX_RISING / ivp63 gates per SPEC-064"
+2022-05-25,28.37,True,HIGH_VOL,BEARISH,HIGH,Iron Condor (High Vol),"HIGH_VOL + BEARISH + IV HIGH + aftermath (VIX peak=31.8 → now=28.4, -10.7% off peak) — bypass VIX_RISING / ivp63 gates per SPEC-064"
+2022-06-15,29.62,True,HIGH_VOL,BEARISH,HIGH,Iron Condor (High Vol),"HIGH_VOL + BEARISH + IV HIGH + aftermath (VIX peak=34.0 → now=29.6, -12.9% off peak) — bypass VIX_RISING / ivp63 gates per SPEC-064"
+2022-06-21,30.19,True,HIGH_VOL,BEARISH,HIGH,Iron Condor (High Vol),"HIGH_VOL + BEARISH + IV HIGH + aftermath (VIX peak=34.0 → now=30.2, -11.3% off peak) — bypass VIX_RISING / ivp63 gates per SPEC-064"
+2022-07-07,26.08,True,HIGH_VOL,BEARISH,NEUTRAL,Bear Call Spread (High Vol),HIGH_VOL + BEARISH + VIX stable — inflated call premium with directional tailwind; δ0.20 short call has high PoP
+2022-10-04,29.07,True,HIGH_VOL,BEARISH,HIGH,Iron Condor (High Vol),"HIGH_VOL + BEARISH + IV HIGH + aftermath (VIX peak=32.6 → now=29.1, -10.8% off peak) — bypass VIX_RISING / ivp63 gates per SPEC-064"
+2022-10-20,29.98,True,HIGH_VOL,BEARISH,HIGH,Iron Condor (High Vol),"HIGH_VOL + BEARISH + IV HIGH + aftermath (VIX peak=33.6 → now=30.0, -10.9% off peak) — bypass VIX_RISING / ivp63 gates per SPEC-064"
+2026-03-09,,,,,,,(date not reached in backtest)
+2026-03-16,,,,,,,(date not reached in backtest)
+2026-03-31,,,,,,,(date not reached in backtest)

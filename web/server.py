@@ -524,30 +524,20 @@ def api_aftermath_v3a_trades():
 
 @app.route("/api/aftermath/window-gates")
 def api_aftermath_window_gates():
-    """For each aftermath window WITHOUT V3-A trades, return the gate reason that blocked entry.
+    """Gate reason for each aftermath window with no V3-A trade.
 
-    Algorithm mirrors backtest/engine.py lines 1086-1116:
-      IC_HV_MAX_CONCURRENT = 2
-      spell_age_cap = 30 days
-      max_trades_per_spell = 2
-      extreme_vix = 35.0
-      V3-A sim start = 2010-05-10
+    Primary source: research/q064/q064_p7_skip_log.csv (exact select_strategy rationale
+    from backtest replay + engine-level concurrent/spell check for blocked aftermath signals).
     """
     try:
         import csv as _csv
-        from datetime import date as _date, timedelta as _td
+        from datetime import date as _date
 
-        base = os.path.join(os.path.dirname(__file__), "..", "research", "q064")
-        windows_path = os.path.normpath(os.path.join(base, "q064_p1_windows.csv"))
-        trades_path  = os.path.normpath(os.path.join(base, "q064_p6_results.csv"))
+        base        = os.path.join(os.path.dirname(__file__), "..", "research", "q064")
+        skip_path   = os.path.normpath(os.path.join(base, "q064_p7_skip_log.csv"))
+        trades_path = os.path.normpath(os.path.join(base, "q064_p6_results.csv"))
 
-        SIM_START   = _date(2010, 5, 10)
-        EXTREME_VIX = 35.0
-        MAX_CONC    = 2
-        SPELL_AGE   = 30
-        SPELL_MAX   = 2
-
-        # Load V3-A trades: entry_date, exit_date
+        # Load V3-A trades for concurrent-position check on "signal fired but blocked" windows
         trades = []
         with open(trades_path, newline="") as f:
             for row in _csv.DictReader(f):
@@ -559,81 +549,66 @@ def api_aftermath_window_gates():
                 except (KeyError, ValueError):
                     pass
 
-        # Build spell lookup from windows csv: window_start → spell_start
-        # A "spell" is a consecutive streak of HV regime windows; we need:
-        #   spell_age   = window.start - spell.start (days)
-        #   spell_trades = number of V3-A trades entered during this spell
-        # q064_p1_windows.csv columns: start_date, end_date, peak_vix, entry_vix, duration_days
-        # We derive spell boundaries by finding gaps between windows.
-        windows_raw = []
-        with open(windows_path, newline="") as f:
-            for row in _csv.DictReader(f):
+        IC_HV_MAX = 2
+
+        def _active_count(d: _date) -> int:
+            return sum(1 for t in trades if t["entry"] < d <= t["exit"])
+
+        def _short_label(row: dict) -> str:
+            """Map P7 skip log row to a concise UI label."""
+            rationale = row.get("rationale", "")
+            strategy  = row.get("strategy",  "")
+            window    = row.get("window_start", "")
+            vix_str   = row.get("vix", "")
+
+            if "(date not reached in backtest)" in rationale:
+                return "模拟起始前" if window < "2009" else "回测数据截止后"
+
+            if "EXTREME_VOL" in rationale:
+                vix_label = f"{float(vix_str):.1f}" if vix_str else "?"
+                return f"EXTREME_VOL (VIX {vix_label} ≥ 35)"
+
+            if "VIX RISING" in rationale:
+                return "VIX 上升期 — 等待企稳"
+
+            if "BACKWARDATION" in rationale.upper():
+                return "期限结构倒挂"
+
+            # Selector fired V3-A / IC_HV aftermath signal — engine blocked it
+            if "aftermath" in rationale and "bypass" in rationale:
                 try:
-                    windows_raw.append({
-                        "start":     _date.fromisoformat(row["start_date"]),
-                        "end":       _date.fromisoformat(row["end_date"]),
-                        "entry_vix": float(row.get("entry_vix") or row.get("peak_vix") or 0),
-                        "duration":  int(row.get("duration_days") or 1),
-                    })
-                except (KeyError, ValueError):
+                    d = _date.fromisoformat(window)
+                    n = _active_count(d)
+                    if n >= IC_HV_MAX:
+                        return f"V3-A信号触发 · 满仓 {n}/{IC_HV_MAX}"
+                    elif n == 1:
+                        return f"V3-A信号触发 · Spell 配额/并发阻断 ({n}/2 open)"
+                except ValueError:
                     pass
-        windows_raw.sort(key=lambda w: w["start"])
+                return "V3-A信号触发 · Spell/并发上限"
 
-        # Assign spell_start to each window: a new spell starts when there's a gap > 0 days
-        spell_start = None
-        spell_trade_counts = {}  # spell_start → count of V3-A trades during spell
-        for w in windows_raw:
-            if spell_start is None or (w["start"] > windows_raw[windows_raw.index(w) - 1]["end"] + _td(days=1)):
-                spell_start = w["start"]
-            w["spell_start"] = spell_start
+            # Selector recommended a different HIGH_VOL strategy (not IC_HV aftermath path)
+            if "Bull Put Spread" in strategy:
+                return "BULLISH + IV LOW → BPS_HV 路径 (非V3-A)"
+            if "Bear Call Spread" in strategy:
+                return "BEARISH + IV NEUTRAL → BCS_HV 路径 (非V3-A)"
+            if "Iron Condor" in strategy and "BULLISH" in rationale:
+                return "BULLISH → IC_HV 对称 (非Aftermath路径)"
+            if "Iron Condor" in strategy and "NEUTRAL" in rationale and "aftermath" not in rationale:
+                return "NEUTRAL + IV LOW → IC_HV 对称 (非Aftermath路径)"
 
-        # Count V3-A trades per spell
-        for w in windows_raw:
-            ss = w["spell_start"]
-            # find spell end = last window with same spell_start
-            spell_windows = [x for x in windows_raw if x["spell_start"] == ss]
-            spell_end = max(x["end"] for x in spell_windows)
-            if ss not in spell_trade_counts:
-                spell_trade_counts[ss] = sum(
-                    1 for t in trades if ss <= t["entry"] <= spell_end
-                )
-
-        # Set of windows that have at least one V3-A trade
-        trade_entry_dates = {t["entry"] for t in trades}
+            # Fallback: trim rationale to reasonable display length
+            return rationale[:60].rstrip() + ("…" if len(rationale) > 60 else "")
 
         gates = {}
-        for w in windows_raw:
-            wstart = w["start"]
-            # Skip windows that have trades — they show P&L
-            if any(wstart <= t["entry"] <= w["end"] for t in trades):
-                continue
-
-            # Gate checks in priority order
-            if wstart < SIM_START:
-                reason = "模拟起始前"
-            else:
-                # Count active V3-A positions on wstart
-                active = sum(1 for t in trades if t["entry"] < wstart <= t["exit"])
-
-                spell_age_days = (wstart - w["spell_start"]).days
-                spell_count = spell_trade_counts.get(w["spell_start"], 0)
-
-                if active >= MAX_CONC:
-                    reason = f"IC_HV 满仓 {active}/{MAX_CONC}"
-                elif w["duration"] == 1:
-                    reason = "窗口仅 1d"
-                elif w["entry_vix"] >= EXTREME_VIX:
-                    reason = f"EXTREME_VOL (VIX {w['entry_vix']:.1f} ≥ 35)"
-                elif active == 1:
-                    reason = "IC_HV 1/2 · Spell上限/VIX限制"
-                elif spell_age_days > SPELL_AGE:
-                    reason = f"HV Spell 超龄 ({spell_age_days}d > 30d)"
-                elif spell_count >= SPELL_MAX:
-                    reason = f"Spell 配额用尽 ({spell_count}/{SPELL_MAX}笔)"
-                else:
-                    reason = "Regime / VIX 条件不符"
-
-            gates[wstart.isoformat()] = reason
+        with open(skip_path, newline="") as f:
+            for row in _csv.DictReader(f):
+                wstart = row.get("window_start", "").strip()
+                if not wstart:
+                    continue
+                label  = _short_label(row)
+                detail = row.get("rationale", "").strip()
+                gates[wstart] = {"label": label, "detail": detail}
 
         return jsonify({"gates": gates})
     except Exception as exc:

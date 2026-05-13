@@ -603,9 +603,11 @@ function renderWindowsTable(windows, trades, gates) {
           tradeCell = `<span style="color:${pnlColor}">${fmtPnl(totalPnl)}</span>`
             + ` <span style="color:var(--text-muted);font-size:0.58rem">${wTrades.length}笔 ${wins}W/${wTrades.length-wins}L</span>`;
         } else {
-          const gateReason = (gates||{})[w.start];
-          if (gateReason) {
-            tradeCell = `<span style="color:var(--text-muted);font-size:0.60rem;font-style:italic">${gateReason}</span>`;
+          const gateEntry = (gates||{})[w.start];
+          if (gateEntry) {
+            const label  = typeof gateEntry === 'object' ? (gateEntry.label  || gateEntry) : gateEntry;
+            const detail = typeof gateEntry === 'object' ? (gateEntry.detail || '')        : '';
+            tradeCell = `<span style="color:var(--text-muted);font-size:0.60rem;font-style:italic" title="${detail.replace(/"/g,'&quot;')}">${label}</span>`;
           } else {
             tradeCell = '<span style="color:var(--text-muted)">—</span>';
           }
