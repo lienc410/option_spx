@@ -172,8 +172,14 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div class="chart-legend">
           <div class="chart-legend-item"><div class="chart-legend-line" style="background:#4888E8"></div>SPX</div>
-          <div class="chart-legend-item" style="font-size:0.60rem"><span style="color:#42CC7C">▲</span> Start (SPX↑) &nbsp;<span style="color:#E08040">▲</span> Start (SPX↓)</div>
-          <div class="chart-legend-item" style="font-size:0.60rem"><span style="color:#42CC7C">▽</span> End (SPX↑) &nbsp;<span style="color:#E08040">▽</span> End (SPX↓)</div>
+          <div class="chart-legend-item" style="font-size:0.60rem">
+            <span style="display:inline-block;width:14px;height:10px;background:rgba(66,204,124,0.30);border-left:1px solid rgba(255,255,255,0.18);vertical-align:middle"></span>
+            Aftermath window (SPX↑)
+          </div>
+          <div class="chart-legend-item" style="font-size:0.60rem">
+            <span style="display:inline-block;width:14px;height:10px;background:rgba(224,128,64,0.30);border-left:1px solid rgba(255,255,255,0.18);vertical-align:middle"></span>
+            Aftermath window (SPX↓)
+          </div>
         </div>
         <div class="range-btns">
           <span style="font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);margin-right:4px">Overlay:</span>
@@ -285,37 +291,45 @@ let _spxFullDatasets = null;  // parallel full dataset arrays
 
 function fmt(n, dec) { return typeof n === 'number' ? n.toFixed(dec ?? 1) : '—'; }
 
-const AM_PROFIT_FILL   = 'rgba(66,204,124,0.85)';
-const AM_PROFIT_BORDER = '#1a8c52';
-const AM_LOSS_FILL     = 'rgba(224,128,64,0.85)';
-const AM_LOSS_BORDER   = '#9a3412';
+// Aftermath window background band colors (subtle, regime-level not trade-level).
+// Triangles ▲▽ removed (2026-05-12) to avoid confusion with trade entry/exit
+// markers on other backtest pages — Q064 followup.
+const AM_BAND_UP   = 'rgba(66,204,124,0.10)';   // SPX↑ during window: soft green
+const AM_BAND_DOWN = 'rgba(224,128,64,0.10)';   // SPX↓ during window: soft orange
+const AM_BAND_EDGE = 'rgba(255,255,255,0.06)';  // subtle vertical edge lines for window boundaries
 
-// Window connector plugin: on hover draws dashed line from start to end marker
-const windowConnector = {
-  id: 'windowConnector',
-  afterDraw(chart) {
-    const active = chart.getActiveElements();
-    if (!active.length) return;
-    const {datasetIndex:dsIdx, index:ptIdx} = active[0];
-    if (![1,2].includes(dsIdx)) return; // only start/end datasets
-    const pt = chart.data.datasets[dsIdx].data[ptIdx];
-    if (!pt?.win) return;
-    const {start} = pt.win;
-    const sibDsIdx = dsIdx===1?2:1;
-    const sibData  = chart.data.datasets[sibDsIdx]?.data||[];
-    const sibIdx   = sibData.findIndex(p=>p?.win?.start===start);
-    if (sibIdx<0) return;
-    const m1=chart.getDatasetMeta(dsIdx), m2=chart.getDatasetMeta(sibDsIdx);
-    const p1=m1.data[ptIdx], p2=m2.data[sibIdx];
-    if (!p1||!p2) return;
-    const c=chart.ctx;
-    c.save();
-    c.beginPath(); c.moveTo(p1.x,p1.y); c.lineTo(p2.x,p2.y);
-    c.strokeStyle='rgba(255,255,255,0.22)'; c.lineWidth=1; c.setLineDash([3,4]); c.stroke();
-    c.setLineDash([]);
-    c.beginPath(); c.arc(p2.x,p2.y,9,0,Math.PI*2);
-    c.strokeStyle='rgba(255,255,255,0.50)'; c.lineWidth=1.5; c.stroke();
-    c.restore();
+// Plugin: paint each aftermath window as a translucent vertical band across the chart area.
+// Drawn beforeDatasetsDraw so SPX line + future trade markers sit on top.
+const aftermathBackgroundBands = {
+  id: 'aftermathBackgroundBands',
+  beforeDatasetsDraw(chart) {
+    const opts = chart.options.plugins?.aftermathBackgroundBands || {};
+    const windows = opts.windows || [];
+    const idxByDate = opts.idxByDate || {};
+    if (!windows.length) return;
+    const xScale = chart.scales.x;
+    const {top, bottom} = chart.chartArea;
+    const ctx = chart.ctx;
+    ctx.save();
+    windows.forEach(w => {
+      const si = idxByDate[w.start];
+      const ei = idxByDate[w.end];
+      if (si == null || ei == null) return;
+      const x1 = xScale.getPixelForValue(si);
+      const x2 = xScale.getPixelForValue(ei);
+      const width = Math.max(2, x2 - x1);  // minimum 2px for 1-day windows
+      const profit = w.spx_ret != null && w.spx_ret > 0;
+      ctx.fillStyle = profit ? AM_BAND_UP : AM_BAND_DOWN;
+      ctx.fillRect(x1, top, width, bottom - top);
+      // Subtle left edge marker for the window start (1px vertical line)
+      ctx.strokeStyle = AM_BAND_EDGE;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x1, top);
+      ctx.lineTo(x1, bottom);
+      ctx.stroke();
+    });
+    ctx.restore();
   },
 };
 
@@ -559,18 +573,9 @@ function buildSpxChart(history, allWindows, vixHistory) {
   const vixByDate = {};
   vixHistory.forEach(v => { vixByDate[v.date]=v.vix; });
 
-  // Start markers (upward triangle), End markers (downward triangle)
-  // Color = SPX return during window: positive=green, negative/null=orange
-  const startMarkers = [], endMarkers = [];
-  allWindows.forEach(w => {
-    const si=idxByDate[w.start], ei=idxByDate[w.end];
-    const sp=priceByDate[w.start], ep=priceByDate[w.end];
-    const profit = w.spx_ret != null && w.spx_ret > 0;
-    const fillC  = profit ? AM_PROFIT_FILL   : AM_LOSS_FILL;
-    const bdrC   = profit ? AM_PROFIT_BORDER : AM_LOSS_BORDER;
-    if (si!=null&&sp!=null) startMarkers.push({x:si,y:sp,win:w,fillColor:fillC,borderColor:bdrC});
-    if (!w.ongoing && ei!=null&&ep!=null) endMarkers.push({x:ei,y:ep,win:w,fillColor:fillC,borderColor:bdrC});
-  });
+  // Aftermath windows now rendered as background bands (not ▲▽ markers) via
+  // the aftermathBackgroundBands plugin (avoids confusion with trade entry/exit
+  // ▲▽ markers used on other backtest pages — Q064 followup 2026-05-12).
 
   const spxLine  = history.map((h,i)=>({x:i,y:h.close}));
   const vixLine  = history.map((h,i)=>({x:i,y:vixByDate[h.date]??null}));
@@ -582,30 +587,18 @@ function buildSpxChart(history, allWindows, vixHistory) {
   });
 
   _spxFullHistory  = history;
-  // Dataset order: [0:SPX, 1:WinStart, 2:WinEnd, 3:VIX, 4:DD, 5:MA10]
-  _spxFullDatasets = [spxLine, startMarkers, endMarkers, vixLine, ddLine, ma10Line];
+  // Dataset order: [0:SPX, 1:VIX, 2:DD, 3:MA10] (was [SPX, WinStart, WinEnd, VIX, DD, MA10])
+  _spxFullDatasets = [spxLine, vixLine, ddLine, ma10Line];
 
   if (spxChart) spxChart.destroy();
 
   spxChart = new Chart(document.getElementById('aftermath-spx-chart'), {
-    plugins: [windowConnector],
+    plugins: [aftermathBackgroundBands],
     type: 'line',
     data: { datasets: [
       { type:'line', label:'SPX', data:spxLine,
         borderColor:'#4888E8', backgroundColor:'rgba(72,136,232,0.05)', fill:true,
         pointRadius:0, tension:0, borderWidth:1.2, yAxisID:'yP', order:5 },
-      { type:'scatter', label:'Window start',
-        data: startMarkers,
-        backgroundColor: ctx => ctx.dataset.data[ctx.dataIndex]?.fillColor || AM_LOSS_FILL,
-        borderColor:     ctx => ctx.dataset.data[ctx.dataIndex]?.borderColor || AM_LOSS_BORDER,
-        borderWidth:1.5, pointStyle:'triangle', rotation:0, pointRadius:7, pointHoverRadius:10,
-        yAxisID:'yP', order:1 },
-      { type:'scatter', label:'Window end',
-        data: endMarkers,
-        backgroundColor: ctx => ctx.dataset.data[ctx.dataIndex]?.fillColor || AM_LOSS_FILL,
-        borderColor:     ctx => ctx.dataset.data[ctx.dataIndex]?.borderColor || AM_LOSS_BORDER,
-        borderWidth:1.5, pointStyle:'triangle', rotation:180, pointRadius:6, pointHoverRadius:9,
-        yAxisID:'yP', order:1 },
       { type:'line', label:'VIX', data:vixLine,
         borderColor:'rgba(201,168,64,0.80)', backgroundColor:'transparent',
         borderWidth:1.2, pointRadius:0, tension:0, yAxisID:'yOv', hidden:true, order:6 },
@@ -620,18 +613,22 @@ function buildSpxChart(history, allWindows, vixHistory) {
       responsive:true, animation:false,
       interaction:{mode:'nearest',intersect:true},
       plugins: {
+        aftermathBackgroundBands: { windows: allWindows, idxByDate: idxByDate },
         zoom:{zoom:{drag:{enabled:true,backgroundColor:'rgba(72,136,232,0.09)',borderColor:'rgba(72,136,232,0.45)',borderWidth:1},mode:'x'}},
         legend:{display:false},
         tooltip:{callbacks:{
-          title: items => { const idx=Math.round(items[0].parsed.x); return _spxFullHistory?.[idx]?.date||''; },
-          label: ctx => {
-            const w = ctx.raw?.win;
-            if (w) {
-              const tag = ctx.dataset.label==='Window start'?'Start':'End';
-              const ret = w.spx_ret!=null?(w.spx_ret>=0?'+':'')+w.spx_ret.toFixed(1)+'%':'—';
-              return [`${tag} · ${ctx.raw.win.start}→${ctx.raw.win.end}`,
-                      ` ${w.days}d · Peak VIX ${w.peak_at_start?.toFixed(1)} · SPX ${ret}`];
+          title: items => {
+            const idx = Math.round(items[0].parsed.x);
+            const date = _spxFullHistory?.[idx]?.date || '';
+            // If hovered date falls inside an aftermath window, append window context.
+            const win = allWindows.find(w => idxByDate[w.start] <= idx && idx <= idxByDate[w.end]);
+            if (win) {
+              const ret = win.spx_ret!=null ? (win.spx_ret>=0?'+':'')+win.spx_ret.toFixed(1)+'%' : '—';
+              return `${date}  ·  Aftermath ${win.start}→${win.end} (${win.days}d, SPX ${ret})`;
             }
+            return date;
+          },
+          label: ctx => {
             if (ctx.dataset.label==='VIX') return ` VIX: ${ctx.parsed.y?.toFixed(1)}`;
             if (ctx.dataset.label==='Drawdown %') return ` Drawdown: ${ctx.parsed.y?.toFixed(1)}%`;
             if (ctx.dataset.label==='MA10') return ` MA10: ${ctx.parsed.y?.toFixed(2)}`;
@@ -652,13 +649,13 @@ function buildSpxChart(history, allWindows, vixHistory) {
 }
 
 // ── Overlay toggle ───────────────────────────────────────────────────────────
-// Dataset layout: [0:SPX, 1:WinStart, 2:WinEnd, 3:VIX, 4:DD, 5:MA10]
-const AM_OV_IDX = { vix:[3], dd:[4], trend:[5] };
+// Dataset layout: [0:SPX, 1:VIX, 2:DD, 3:MA10] (windows now drawn as background bands via plugin)
+const AM_OV_IDX = { vix:[1], dd:[2], trend:[3] };
 
 function setSpxOverlay(mode) {
   if (!spxChart) return;
   const dsets = spxChart.data.datasets;
-  [3,4,5].forEach(i => { if(dsets[i]) dsets[i].hidden=true; });
+  [1,2,3].forEach(i => { if(dsets[i]) dsets[i].hidden=true; });
   (AM_OV_IDX[mode]||[]).forEach(i => { if(dsets[i]) dsets[i].hidden=false; });
   const sc = spxChart.options.scales;
   sc.yOv.display = (mode==='vix'||mode==='dd');
