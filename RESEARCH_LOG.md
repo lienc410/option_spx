@@ -1,7 +1,182 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-12 (R-20260512-03: Q064 CLOSED APPROVE α — retain SPEC-064 V3-A aftermath routing as-is. 经 Task 1 (selector code) + P5 (VIX stop test) + P6 (V3-A vs IC_HV normal counterfactual) + mechanical fallback distribution 联合证据：P3-P5 之前在 wrong trade set (15 BPS_HV with VIX-condition flag) 上分析；实际 V3-A fires = 33 IC_HV trades。P6 显示 IC normal +93% equal-BP alpha 但 mechanical fallback (28/33 reduce_wait, 5/33 IC normal, 3/33 actual entry) 揭示 V3-A 真实 value 是 aftermath-subregime gate-bypass 而非结构 alpha。Removing V3-A 会丢失 ~$30k+ alpha to reduce_wait. SPEC-100 NOT drafted)
+Last Updated: 2026-05-13 (R-20260513-04: Q064 Phase 9 — Spell reset mechanism sensitivity。12 variants × engine replay。2nd Quant APPROVE α — 仅采纳 P8 (`max_trades_per_spell: 2→3`)，P9 spell_age_cap=90 记为 future optional。三个反直觉发现：hysteresis 实际收紧 gate (-20.7k)；high reset 非冗余 (-16.3k)；age_cap=30 近优 (+1 trade only)。所有 variants worst trade 不变 -$5,041。Spell reset 机制大体正确，禁止 hysteresis/no-high-reset/combo)
 Owner: Planner or PM
+
+---
+
+### R-20260513-04 — Q064 Phase 9: Spell Reset Mechanism Sensitivity → APPROVE α (P8 only)
+
+- Topic: PM 提问 "VIX 跌穿 22 reset + VIX ≥35 reset + 最多 2 笔" 三条 spell 设计是否合理。P8 仅测了 max_trades_per_spell，本 P9 测剩余三条 reset 机制
+- Method: monkey-patch `backtest.engine._update_hv_spell_state` 与 `_block_hv_spell_entry`，跑 12 个 variant 的 engine replay (2009-2025 16.5y)：
+  - **9a** low_reset hysteresis: 1d (V0) / 3d / 5d / threshold-drop / no-op
+  - **9b** high_reset: enabled (V0) / disabled
+  - **9c** spell_age_cap: 30d (V0) / 15 / 60 / 90 / 180 / ∞
+  - **9d** 2 combos (hyst3+age60, hyst3+age90+no_high)
+- Findings (反直觉，全部三方向):
+  - **9a hysteresis ALL FAIL**: 3-day hyst -9 trades / -$20.7k; 5-day -12 trades / -$25.2k。Pre-test prediction "减少假 reset" 方向错——"假 reset" 实际是有 valuable opportunity，VIX 跌穿 22 又回 HV 是新 trading event，hysteresis 把它们合并进旧 spell → max_trades=2 配额更严苛 block
+  - **9b no high reset FAIL**: -9 trades / -$16.3k。Pre-test "VIX≥35 selector 已 reduce_wait 所以冗余" 错——VIX spike 后的 recovery window 是 high-quality entry 区间，high reset 给新 spell trade budget；没有它会被 spike 前的 count 占用 block
+  - **9c age_cap 30→90/180/∞**: 仅 +1 trade (+$1,330)，2022-10-04 这一笔。Pre-test "5-8 trades, $5-10k" 量级错了 5×。多数 2022 windows 不是被 age_cap blocked 而是被 max_trades_per_spell 或 IC_HV_MAX_CONCURRENT blocked
+  - **9d combos ALL FAIL**: 单调恶化 (-12k 到 -26k)
+  - **Worst trade 不变** ($-5,041) 跨所有 12 variants — spell gate 参数影响 entry frequency 不影响 trade exit/tail
+- Baseline counting note: P9 baseline n=40 vs P6/P8 V3-A subset n=33; 差 7 笔为 SPEC-060 normal IC_HV (BEARISH/NEUTRAL+IV_HIGH 非 aftermath)。spell gate 不区分 V3-A 与 normal IC_HV，所以 n=40 是正确的 denominator
+- 2nd Quant verdict (2026-05-13): APPROVE α
+  - **采纳**: P8 (`max_trades_per_spell: 2 → 3`) only
+  - **不采纳**: P9 spell_age_cap=90（仅 1 trade，证据太薄；不该和 P8 主改捆绑；保留为 future optional research note）
+  - **禁止**: hysteresis、no-high-reset、combos（spell reset 机制是 deliberate design，非可放宽 parameter）
+- Design principles confirmed (preserve going forward):
+  - `vix_low_reset` 单日触发是 deliberate，不要加 hysteresis
+  - `vix_high_reset` 在 VIX≥35 触发是 deliberate event-boundary reset，不是冗余
+  - `spell_age_cap=30d` 是 near-optimal，非主要 blocker
+  - 所有 spell gate 参数都影响 entry frequency 不影响 tail risk
+- Methodology lesson:
+  - Quant pre-test predictions 全 3 方向错（hysteresis 量级 5× 偏小 + 方向反；high reset 方向反；age_cap 量级 5× 偏大）
+  - Spell gate 行为不能从 code structure 直觉推断
+  - 未来 spell-gate-adjacent 研究必须 engine replay，不依赖 first-principles reasoning
+- Action sequence:
+  - Now: SPEC drafting for P8 only (`max_trades_per_spell: 2 → 3`)
+  - Future trigger: 若 live 出现 long HV spell block ≥ 2 个 selector recommendations 被 age_cap 阻拦，重开 Q064 with P9 9c
+- Q064 thread status: research phase complete; SPEC for P8 pending
+- Caveats:
+  - n=4 increment (P8) + n=1 increment (P9 9c) 均是小样本；P8 已有 12mo monitoring 承诺，P9 9c 永久 defer 到 live trigger
+  - 9c 实证证明 P8 packet "2022 5/6 windows blocked by age_cap" 假设过强；真实是 1/6
+- Artifacts:
+  - `research/q064/q064_p9_spell_reset_sensitivity.py`
+  - `research/q064/q064_p9_summary.csv` (12 variants)
+  - `research/q064/q064_p9_trade_detail.csv` (per-variant per-trade)
+  - `task/q064_p9_spell_reset_2nd_quant_review_packet_2026-05-13.md` (含 §9 2nd Quant Final Verdict)
+
+---
+
+### R-20260513-03 — Q068: MA-Based Entry Timing Override (Round 1 + Phase 6)
+
+### R-20260513-03 — Q068: MA-Based Entry Timing Override (Round 1 + Phase 6)
+
+- Topic: PM hypothesis (2026-05-13)：IVP > 55 gate 在低波区间漏掉 SPX 靠近 MA10 的短线 dip-entry → 等 VIX 回落后再入场变成"追高入场"，对 30DTE 持有 9 天的 BPS 造成 timing drag。测 5dMA / 10dMA 入场过滤能否改善
+- Method:
+  - Round 1 ([q068_ma_timing_variants.py](research/q068/q068_ma_timing_variants.py)): 6 变体 — V4 tighten (SPX 必须 ≤ MA) + V5 relax (bypass IVP if SPX ≤ MA)
+  - Round 2 ([q068_phase6_narrow_override.py](research/q068/q068_phase6_narrow_override.py)): 2nd quant 提议的 narrow override — VIX<20 AND SPX>MA50 AND SPX in [MA×0.99, MA×1.005] AND SPX_5d_ret > -2%。3 变体（MA10/MA5/MA5 OR MA10）
+  - Hard checks: 2026-02-25 (known Q063 bad trade) 必须仍被 block；PM 的 2025-05-07 / 2025-05-12 dips 应被允许
+- Findings:
+  - **Round 1**:
+    - V4 tighten 提升 avg/trade +$879-$2,572 但 trade count 减半 → 总 alpha -$1,989 ~ -$2,161/yr
+    - V5a/V5b relax 重新放行坏 trade，worst -$15,713 (vs baseline -$9,379)
+    - **V5c (exact MA10 bypass, no buffer) 唯一干净 +alpha**: +5 trades, +$11,411 total, worst 不变, +$552/yr
+  - **Round 2 Phase 6 (narrow override)**:
+    - 全部变体 worst trade 恶化 $5,740-$6,334（即使 4 重 guardrails 仍未完全防住）
+    - Full sample: P6A MA10 +$2,723 marginal, P6B MA5 -$16,567, P6C MA5/10 -$10,936
+    - OOS 2018-2026: P6A -$163 平, P6B -$3,118, P6C +$2,513 微正
+    - **Recent 2y (2024-2026) 真实改善 +$10k** for all P6 variants — 是 PM hypothesis 唯一可见正向支持
+  - **Hard check 2026-02-25**: ✅ narrow override 当日不触发（SPX > MA10×1.005）— 已知坏 trade 保留 block
+  - **Hard check 5/7-5/12**: ❌ **PM 例子实际不符合 low-vol bullish pullback**：5/7-5/8 VIX=22-24（关税余震 elevated VIX）；5/12-5/13 SPX 已反弹脱离 MA10。**PM 直觉里这两天是"低波 dip"但实际不是**
+  - Override-fire 年度分布 (P6A 440 days): 集中在 1992-1996 / 2013-2018 / 2024-2026 真低波年份；2008/2020/2022 极少（guardrails 正确排除 bear regime）。但 440 候选日只转化 +6 actual BPS trades（engine 其他 filter）
+- Verdict: **所有 9 变体未通过完整 Go 条件，生产 V0 baseline 保持不变**
+  - Recent 2y +$10k 改善真实但小（~$5k/yr）
+  - Worst trade $3-6k 恶化对冲掉 recent gain
+  - OOS 平或微负 → 不足以支持 production change
+  - PM hypothesis 直觉方向有合理基础（recent 改善真实存在），但 specific 5/7-5/12 evidence 与数据不符
+- Important cognitive correction (for PM): PM 的"低波小 dip 被 IVP 挡掉"假设需要更明确的历史例子。5/7-5/8 是 elevated VIX 阶段（22-24），不是低波；5/12-5/13 SPX 已脱离 MA10。PM 应该重新审视哪些 历史 trade 是 low-vol timing drag 的真实样本
+- Confidence:
+  - High on each variant's individual verdict（直接 backtest 数字）
+  - High on 2026-02-25 hard check pass
+  - High on PM's specific 5/7-5/12 不符合 low-vol 条件（数据直接 contradicts）
+  - Medium-low on PM hypothesis 整体：recent 2y improvement 信号弱（+$10k over 2 yr），可能 noise
+- Caveats:
+  - Worst trade 恶化的具体 trade 未单独溯源
+  - V5c (Round 1 clean +alpha) 在 Phase 6 没单独重测，但缺 guardrails 不应直接推 production
+  - PM 是否愿意为 recent timing 付 worst trade insurance cost 是 risk preference 问题，不是 quant 决策
+  - 19yr 样本；regime 变化可能改变结论
+- Recommendation:
+  - **A. 维持 V0 baseline 关闭 Q068**（推荐）
+  - B. PM 风险偏好下接受 P6A MA10：recent 2y +$5k/yr 换 worst trade $3k 恶化
+  - C. Phase 7 进一步缩窄 override (VIX<18, 5d_ret>-1%) — 边际收益递减
+- Next Tests: 无即时项；若 PM 提供更明确"low-vol timing drag"历史例子可重启
+- Related: R-20260513-01 (Q067 jitter), R-20260513-02 (Q067 Phase 2 hysteresis FAIL), [task/q063_phase4_closure_memo_2026-05-11.md] (2026-02-25 来源), 2nd Quant Q063 Phase 6 narrow override 设计 (2026-05-13)
+- Output:
+  - `research/q068/q068_memo_2026-05-13.md`
+  - `research/q068/q068_ma_timing_variants.py` + `q068_ma_timing_results.csv` (Round 1)
+  - `research/q068/q068_phase6_narrow_override.py` + `q068_phase6_results.csv` (Round 2)
+
+---
+
+### R-20260513-02 — Q067 Phase 2: Hysteresis / Multi-Horizon / Cross-Window Variants — ALL FAIL
+
+- Topic: Q067 Phase 1 量化 jitter (7.37% daily flip / 61% 5-TD 反转) 严重程度后，PM 提前启动 Phase 2 (不等 live trigger)，测试 5 个候选变体能否在不放宽 block 前提下减少 jitter
+- Method:
+  - 复用 Q063 Phase 5 框架 patch `select_strategy` 仅对 BPS NORMAL+NEUTRAL+BULLISH path 应用 gate
+  - 预计算 IVP_63/126/252/504 滚动百分位（4871 TD 分析窗口）
+  - 5 变体 + V0 baseline 双平行测量：(A) 完整 VIX series 上 daily flip rate (B) 19yr engine backtest PnL
+  - Strict dominance 标准: Δ Ann PnL ≥ -$750/yr AND flip < 3% AND worst trade 不恶化
+- Findings:
+  - **V1 hysteresis 单调换 alpha for stability**：N=3 (-$2,433/yr, flip 4.15%) → N=5 (-$3,920/yr, flip 3.41%) → N=10 (-$4,194/yr, flip 2.32%, **bps_n=0** 彻底阻挡所有 BPS NNB trade)。每个变体 block 总天数都比 baseline 多 (42.6% → 51-64%)，证明"更严格 unblock"内在导致"更多 block"；alpha 流失是 stability 提升的隐性 cost
+  - **V2 multi-horizon (ivp252≥55 AND ivp63≥50) 实质放宽 block**：block 天数从 42.6% 降到 32.2% (少 block 10pp)；PnL +$956/yr 但 worst trade 恶化 -$2,642，flip rate 反而 8.74% (两 horizon 抖动叠加)。这变体本质落入 Q063 Phase 5 已否决的"loosen block"领域
+  - **V3 cross-window any (any of 126/252/504 ≥55) flip rate 反而最差**：8.76%。三 percentile series 独立抖动 → OR 联立放大 flip 而非平均
+  - **5 变体全部 fail strict-dominance**：无任何变体同时满足 PnL 不损失 + flip < 3% + worst 不恶化
+- Verdict: **Q063 + Q067 双 phase 实证一致：`IVP_252 ≥ 55` simple hard gate 是 19yr 样本下的 empirical local optimum**
+  - Production 完全不动（`BPS_NNB_IVP_UPPER = 55`, `LOOKBACK_DAYS = 252`）
+  - Q063 + Q067 backlog 全部正式 CLOSED
+  - 注释更新交付 Developer 作为独立工单（不动 functional logic）
+- Phase 2 启示:
+  - **Jitter 是 percentile 度量内在性质**，threshold-based gate 无法在维持 alpha 同时消除
+  - 任何 stability + alpha + risk 三 KPI 同时改善 的变体在当前框架下不存在
+  - 若彻底解决 jitter，需 **非 threshold-based** signal（smoothed IVP / regime detection），属新方向（potential Q068）
+- Confidence:
+  - High on each variant's verdict（直接 backtest 数字 + daily flip 数字）
+  - Medium on strict-dominance 标准本身是否合适：PM 若改用 weighted utility 可能改判 V1a (N=3, $2.4k/yr alpha cost换 flip 减半)
+  - High on "no strict-dominance variant exists in tested space"
+- Caveats:
+  - $150k 账户 $2.4k/yr ≈ 1.6% Ann ROE；不同账户尺寸结论可微调
+  - 仅测 5 个 representative 变体，其他 N 值 / hybrid 未测
+  - Strict-dominance 标准 by author proposed；PM 可拒绝该标准
+- Next Tests: 无即时项；若 PM 要求 explore 非 threshold-based gate 启动 Q068 (smoothed IVP / regime detection)
+- Related: R-20260513-01 (Q067 Phase 1), Q063 Phase 5 (R-20260511-02), Q063 closure memo §10 supplement
+- Output:
+  - `research/q067/q067_phase2_memo_2026-05-13.md`
+  - `research/q067/q067_phase2_variants.py` + `q067_phase2_flip_rates.csv` + `q067_phase2_backtest_stats.csv`
+
+---
+
+### R-20260513-01 — Q067: IVP > 55 Gate Threshold Jitter + Window Length Sensitivity
+
+- Topic: 2nd Quant 提出 IVP 55 阈值附近 rank-jump artifact 担心（VIX 0.5 点变化可跨 10+ percentile）；PM 加入 IVP 计算窗口长度敏感性（1yr vs 6mo / 2yr）。Q063 Phase 5 已确认 keep simple gate；但 jitter 严重度 + 窗口影响未量化
+- Method:
+  - 计算 4871 TD (2007-2026) 三个窗口 IVP（126/252=prod/504）
+  - A. Jitter zone density [50, 65] 占比
+  - B. Production IVP_252 daily block↔allow flip rate + 5-TD flip-flop 检测
+  - C. 窗口两两 block 决策分歧 TD + 方向分解
+  - D. 窗口分歧位置 vs jitter zone
+  - E. 最近 1 年趋势
+- Findings:
+  - **Rank-jump artifact empirically 确认**：生产 IVP_252 各 band 的 VIX 中位数 — [50, 55) = 17.85, **[55, 60) = 17.27（更低）**, [60, 65) = 17.50, [65, 70) = 16.70, [70, 100) = 23.53。穿过 55 阈值时 actual VIX 可以下降，直到 IVP > 70 才出现 VIX 真正离开 17-18 密集区
+  - **Jitter density**：IVP_252 in [50, 65] = 12.8% TD (19yr); **19.2%** (recent 1yr) — VIX 长期压在 15-18 副作用
+  - **Flip rate**: daily block↔allow 359/4871 = **7.37%**; recent 1yr 11.5%；70.2% flips 有 ±2 TD 配对；**61% 是 5 TD 内反转 (flip-flop)** (219/359)
+  - **窗口敏感性**：IVP_126 vs IVP_252 = 15.15% TD disagree (738)；IVP_252 vs IVP_504 = 15.60% (760)；IVP_126 vs IVP_504 = 26.48% (1290)
+  - **方向**：6mo (126) 比生产更松 6.0% / 比生产更紧 9.2%（current value vs 较紧 cluster）；2yr (504) 比生产更松 9.3% / 更紧 6.3%（含 2020 COVID 等老高 VIX 稀释 current rank）
+  - **窗口分歧 vs jitter**：6mo-vs-prod 738 个分歧 TD 中 **69.8% 落在 IVP_252 [40, 70]** —— jitter 与窗口选择是同一底层现象的两个切面
+- Verdict:
+  - ✅ **Q063 verdict 仍成立**：keep `BPS_NNB_IVP_UPPER = 55` simple hard gate；不放宽
+  - ⚠ 修订理解：gate 是 empirical low-vol repricing filter，非经济悬崖
+  - ⚠ Standing monitoring 升级到 **条件研究任务**：live 中 candidate entry 首次落 IVP [50, 65] 区间触发 Phase 2
+  - ⚠ 窗口选择需 SPEC review 显式记录：当前 252d 是默认值不是 optimal；126d 多 block ~3pp / 504d 少 block ~3pp
+- Phase 2 (conditional) 推荐研究内容（已写入 Q063 closure memo §9 supplement）：
+  - 收紧式 hysteresis: block if IVP > 55; unblock only if IVP < 50 for N TD (N=3/5/10) —— **不放宽 block，更严格 unblock**
+  - Multi-horizon agreement: block if ivp252 > 55 AND ivp63 > 50
+  - 跨窗口稳定性: block if **任一**窗口 > 55 / **多数**窗口 > 55
+  - **禁止测试** 放宽 block 阈值（55 → 60/65）—— 已被 Q063 Phase 5 否决
+- Confidence:
+  - High on rank-jump artifact（VIX median 在 [55,60) 比 [50,55) 低是直接数据观察）
+  - High on flip rate 数字（直接 daily 计数）
+  - Medium on operational severity：7.37% daily flip rate 但 candidate entry 频率远低于每日 → 实际影响要待 Phase 2 量化
+  - High on window sensitivity（15-26% pairwise disagreement 在 ~5000 TD 样本是稳定结论）
+- Caveats:
+  - 仅 daily IVP 计算；real-time intraday IVP 可能在 EOD 阈值附近抖动更剧烈，未测
+  - 未量化 candidate entry 频率（不是每日都有 entry 决策需求）—— Phase 2 必做
+  - 6mo/1yr/2yr 是合理代表性窗口；未测 3mo / 5yr 等极端值
+- Next Tests: Phase 2 conditional research，触发条件如上
+- Related: Q063 Phase 4 closure memo（已加 §9 supplement）, [strategy/selector.py:175](strategy/selector.py:175) `BPS_NNB_IVP_UPPER`, [signals/iv_rank.py:34](signals/iv_rank.py:34) `LOOKBACK_DAYS=252`
+- Output:
+  - `research/q067/q067_memo_2026-05-13.md`
+  - `research/q067/q067_ivp_jitter_window_sensitivity.py` + `q067_daily_ivp_windows.csv`
 
 ---
 
