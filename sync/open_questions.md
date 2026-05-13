@@ -1586,18 +1586,25 @@
 
 ---
 
-### Q064 — Aftermath 路由回测：V3-A IC HV gate-bypass 价值验证
-- **状态**：**CLOSED 2026-05-12（APPROVE α — SPEC-064 V3-A retained，SPEC-100 不起草）**
+### Q064 — Aftermath 路由回测 + Spell Reset Sensitivity（P1–P9）
+- **状态**：**CLOSED 2026-05-13（Phase 9 final closure，APPROVE α）**
 - **来源**：主策略 `is_aftermath()` 路由到 V3-A IC HV，P1–P4 初步显示 $/BP-day 低 62%，疑似可 revert
-- **研究路径**：P1 window 统计 → P2 timing 归因 → P3 structure counterfactual → P4 equal-BP → P5 VIX stop → P6 fallback distribution → 2 轮 2nd Quant review（Addendum A + B）
-- **结论反转过程**：
-  - P3/P4：V3-A equal-BP P&L 仅 42.5%，初步建议 revert
-  - P5：VIX stop 仅保护 1/2 失败场景，不足以替代 V3-A
-  - **P6（决定性）**：natural BPS HV fallback 在 aftermath 期 55-78% 概率走 reduce_wait（VIX_RISING / ivp63≥70 / backwardation gates）。BPS HV "counterfactual" 根本不会被 selector 执行——P3/P4 比的是不存在的 counterfactual
-  - V3-A 真实价值 = **gate-bypass**：~$30k+ alpha 来自绕过 post-vol-shock cells 中过度保守的 guards
-- **正式 framing**（不得表述为"V3-A 结构 alpha"）：V3-A 的价值在于 aftermath-subregime 的 justified gate-bypass，捕捉 natural fallback 会错过的 alpha
-- **方法论 learning**（已固化）：selector counterfactual 研究必须先跑 fallback distribution（β req #8），再做结构对比；VIX 条件 tag ≠ selector path triggered
-- **Artifacts**：`research/q064/`，`task/q064_aftermath_2nd_quant_review_packet_2026-05-12_Review.md`，`RESEARCH_LOG.md R-20260512-03`
+- **研究路径**：P1–P6（routing review）→ P7–P9（spell reset sensitivity）→ 2nd Quant review × 2
+- **P1–P6 结论**：V3-A gate-bypass 价值确认，SPEC-064 保留。V3-A 真实价值 = 绕过 post-vol-shock cells 中 reduce_wait gates，捕捉 ~$30k+ alpha
+- **P7–P9 结论（spell reset mechanism，12 variants engine replay）**：
+
+| 变体 | 结果 | 判定 |
+|---|---|---|
+| P8: max_trades_per_spell 2→3 | +$11k ann | ✅ 采纳 → **SPEC-100** |
+| P9a: hysteresis 3d/5d | -$20.7k（-20%）| ❌ 拒绝 |
+| P9b: no-high-reset | -$16.3k（-16%）| ❌ 拒绝 |
+| P9c: spell_age_cap 30→90 | +1 trade only | ⏸ 延后 |
+| P9d: 所有 combos | 单调恶化 | ❌ 拒绝 |
+
+- **Design Principles 固化**：vix_low_reset 单日触发 deliberate；vix_high_reset(≥35) 是 event-boundary reset 非冗余；age_cap=30 near-optimal
+- **方法论 learning**：spell gate 行为不能从 code structure 直觉推断，必须 engine replay（Quant 3/3 预测全错）
+- **待办**：SPEC-100 实现 P8（单参数 `max_trades_per_spell: 2→3`，~30 行 SPEC，~1h Developer）
+- **Artifacts**：`research/q064/`，`task/q064_aftermath_2nd_quant_review_packet_2026-05-12_Review.md`，`RESEARCH_LOG.md R-20260512-03, R-20260513-04`
 
 ---
 
