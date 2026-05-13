@@ -615,9 +615,6 @@ function setC6Overlay(mode) {
 function setC6Range(range) {
   const c = charts.c6;
   if (!c || !c._fullData || !c._historyRef) return;
-  // Reset zoom plugin state first — otherwise the plugin overrides x.min/max
-  // we set below, making range buttons appear stuck after a drag-zoom.
-  try { c.resetZoom(); } catch(_) {}
   const hist = c._historyRef;
   const now = new Date();
   let cutoffDate = null;
@@ -626,12 +623,14 @@ function setC6Range(range) {
   if (range==='5yr')  cutoffDate=new Date(now.getFullYear()-5, now.getMonth(),now.getDate()).toISOString().slice(0,10);
   if (range==='10yr') cutoffDate=new Date(now.getFullYear()-10,now.getMonth(),now.getDate()).toISOString().slice(0,10);
   const startIdx = cutoffDate ? Math.max(hist.findIndex(h=>h.date>=cutoffDate),0) : 0;
+  // Filter data to the selected range
   c.data.datasets.forEach((ds,i) => {
     const full=c._fullData[i]; if(!full) return;
     ds.data = startIdx>0 ? full.filter(p=>p.x!=null && p.x>=startIdx) : full;
   });
-  c.options.scales.x.min=startIdx; c.options.scales.x.max=hist.length-1;
-  c.update('none');
+  // Do NOT set x.min/max manually — let resetZoom auto-fit the chart to the
+  // filtered data. Setting min/max conflicts with zoom plugin's scale state.
+  try { c.resetZoom(); } catch(_) { c.update('none'); }
   document.querySelectorAll('[data-range]').forEach(btn=>btn.classList.toggle('active',btn.dataset.range===range));
 }
 

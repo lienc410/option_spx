@@ -672,7 +672,6 @@ function resetSpxZoom() { if (spxChart) spxChart.resetZoom(); }
 
 function setSpxRange(range) {
   if (!spxChart || !_spxFullHistory || !_spxFullDatasets) return;
-  try { spxChart.resetZoom(); } catch(_) {}
   const N = _spxFullHistory.length;
   const ranges = {'1yr':252,'3yr':756,'5yr':1260};
   const cutoff = ranges[range] ? Math.max(0, N-ranges[range]) : 0;
@@ -680,9 +679,8 @@ function setSpxRange(range) {
     const full = _spxFullDatasets[i]; if(!full) return;
     ds.data = cutoff>0 ? full.filter(p=>p.x!=null&&p.x>=cutoff) : full;
   });
-  spxChart.options.scales.x.min=cutoff;
-  spxChart.options.scales.x.max=N-1;
-  spxChart.update('none');
+  // Do NOT set x.min/max — let resetZoom auto-fit to filtered data.
+  try { spxChart.resetZoom(); } catch(_) { spxChart.update('none'); }
   document.querySelectorAll('[data-range]').forEach(btn=>btn.classList.toggle('active',btn.dataset.range===range));
 }
 
