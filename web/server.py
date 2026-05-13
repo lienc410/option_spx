@@ -305,6 +305,7 @@ def api_recommendation_settling():
 
 
 _AFTERMATH_HISTORY_CACHE: dict = {}
+_AFTERMATH_V3A_CACHE: dict = {}
 
 
 @app.route("/api/market/vix-history")
@@ -451,6 +452,74 @@ def api_aftermath_state():
             "error": str(exc),
             "date": datetime.now(_ET).date().isoformat(),
         }), 200
+
+
+@app.route("/api/aftermath/v3a_trades")
+def api_aftermath_v3a_trades():
+    """V3-A IC_HV strategy P&L from Q064 research (R-20260512-03).
+
+    Data source: research/q064/q064_p6_results.csv (authoritative Q064 output).
+    Aggregates from research/q064/q064_p6_summary.csv (V3-A actual row).
+    Cache: 24h TTL.
+    """
+    import time as _time
+    cached = _AFTERMATH_V3A_CACHE.get("data")
+    if cached and (_time.time() - _AFTERMATH_V3A_CACHE.get("ts", 0)) < 86400:
+        return jsonify(cached)
+    try:
+        import csv as _csv
+        base = os.path.join(os.path.dirname(__file__), "..", "research", "q064")
+        trades_path  = os.path.normpath(os.path.join(base, "q064_p6_results.csv"))
+        summary_path = os.path.normpath(os.path.join(base, "q064_p6_summary.csv"))
+
+        # Summary row: "V3-A actual (production)"
+        summary = {}
+        with open(summary_path, newline="") as f:
+            for row in _csv.DictReader(f):
+                if "V3-A actual" in (row.get("version") or ""):
+                    summary = row
+                    break
+
+        # Per-trade list
+        trades = []
+        with open(trades_path, newline="") as f:
+            for row in _csv.DictReader(f):
+                trades.append({
+                    "entry_date":  row["entry_date"],
+                    "exit_date":   row["exit_date"],
+                    "exit_reason": row["exit_reason"],
+                    "hold_days":   int(row["hold_days"]),
+                    "vix_at_entry": round(float(row["vix_at_entry"]), 2),
+                    "pnl":         round(float(row["v3a_pnl_actual"]), 2),
+                    "bp":          round(float(row["v3a_bp_actual"]), 2),
+                })
+
+        def _f(key, digits=2):
+            try:
+                return round(float(summary[key]), digits)
+            except (KeyError, ValueError, TypeError):
+                return None
+
+        payload = {
+            "trade_count":        _f("n_trades", 0),
+            "win_count":          int(round((_f("win_rate_pct") or 0) / 100 * (_f("n_trades", 0) or 0))),
+            "win_rate_pct":       _f("win_rate_pct", 1),
+            "avg_pnl":            _f("avg_pnl", 2),
+            "median_pnl":         _f("median_pnl", 2),
+            "total_pnl":          _f("total_pnl", 2),
+            "worst_trade":        _f("worst_trade", 2),
+            "best_trade":         _f("best_trade", 2),
+            "avg_bp":             _f("avg_bp", 2),
+            "dollar_per_bp_day":  _f("dollar_per_bp_day", 2),
+            "scan_start": "2009-01-01",
+            "scan_end":   "2025-06-30",
+            "trades": trades,
+        }
+        _AFTERMATH_V3A_CACHE["data"] = payload
+        _AFTERMATH_V3A_CACHE["ts"]   = _time.time()
+        return jsonify(payload)
+    except Exception as exc:
+        return jsonify({"error": str(exc), "trade_count": 0, "trades": []}), 200
 
 
 @app.route("/api/q019/flip-days")

@@ -153,6 +153,18 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
     </div>
   </div>
 
+  <!-- V3-A Strategy Performance: actual strategy P&L (separate from SPX direction) -->
+  <div class="card" id="v3a-perf-card">
+    <div class="card-title">V3-A IC_HV Strategy Performance
+      <span style="font-size:0.62rem;font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:normal;margin-left:8px">
+        — actual P&amp;L from SPEC-064 aftermath fires (BEARISH/NEUTRAL + IV HIGH + aftermath) · Q064 R-20260512-03
+      </span>
+    </div>
+    <div id="v3a-perf-grid" class="metric-grid" style="margin-bottom:0">
+      <div class="empty-msg" style="grid-column:1/-1">Loading…</div>
+    </div>
+  </div>
+
   <!-- SPX overlay with aftermath window markers -->
   <div class="card">
     <div class="chart-hd">
@@ -364,6 +376,71 @@ async function loadAll() {
     document.getElementById('aftermath-spx-chart').style.display='none';
     document.getElementById('aftermath-spx-empty').style.display='block';
   }
+
+  // V3-A strategy performance (separate fetch — independent of window history)
+  try {
+    const v3aData = await fetch('/api/aftermath/v3a_trades').then(r => r.json());
+    renderV3aPerfStats(v3aData);
+  } catch(e) {
+    const el = document.getElementById('v3a-perf-grid');
+    if (el) el.innerHTML = '<div class="empty-msg" style="grid-column:1/-1">Strategy data unavailable</div>';
+  }
+}
+
+function renderV3aPerfStats(d) {
+  const el = document.getElementById('v3a-perf-grid');
+  if (!el) return;
+  if (d.error || !d.trade_count) {
+    el.innerHTML = '<div class="empty-msg" style="grid-column:1/-1">Strategy data unavailable</div>';
+    return;
+  }
+  const wr = d.win_rate_pct;
+  const wrCls = wr >= 85 ? 'up' : wr >= 70 ? 'warn' : 'down';
+  const pnlCls = v => v > 0 ? 'up' : 'down';
+  const dollar = v => v == null ? '—' : (v >= 0 ? '+' : '') + '$' + Math.abs(v).toLocaleString('en-US', {maximumFractionDigits:0});
+  const dollarRaw = v => v == null ? '—' : '$' + Math.abs(v).toLocaleString('en-US', {maximumFractionDigits:0});
+  el.innerHTML = `
+    <div class="metric-card">
+      <div class="metric-label">Trade WR</div>
+      <div class="metric-value ${wrCls}">${wr != null ? wr.toFixed(1) + '%' : '—'}</div>
+      <div class="metric-sub">${d.win_count} wins / ${d.trade_count} trades · 2009–2025</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">n Trades</div>
+      <div class="metric-value">${d.trade_count}</div>
+      <div class="metric-sub">IC_HV fires in aftermath window</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Avg P&amp;L</div>
+      <div class="metric-value ${pnlCls(d.avg_pnl)}">${dollar(d.avg_pnl)}</div>
+      <div class="metric-sub">per trade · median ${dollar(d.median_pnl)}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Total P&amp;L</div>
+      <div class="metric-value ${pnlCls(d.total_pnl)}">${dollar(d.total_pnl)}</div>
+      <div class="metric-sub">16yr cumulative</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Worst Trade</div>
+      <div class="metric-value down">${dollar(d.worst_trade)}</div>
+      <div class="metric-sub">max single-trade loss</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Best Trade</div>
+      <div class="metric-value up">${dollar(d.best_trade)}</div>
+      <div class="metric-sub">max single-trade gain</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Avg BP Used</div>
+      <div class="metric-value">${dollarRaw(d.avg_bp)}</div>
+      <div class="metric-sub">buying power per trade</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">$/BP-day</div>
+      <div class="metric-value up">${d.dollar_per_bp_day != null ? d.dollar_per_bp_day.toLocaleString('en-US', {maximumFractionDigits:0}) : '—'}</div>
+      <div class="metric-sub">annualised return per $100k BP</div>
+    </div>
+  `;
 }
 
 function renderPerfStats(windows) {
