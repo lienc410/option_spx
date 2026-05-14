@@ -998,13 +998,10 @@ async function loadSpx() {
             <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-muted)">${contracts}× @ ${prem}</span>
           </div>`;
         }).join('');
-        // Live risk block (Schwab Greeks + mark + PnL) — mirrors spx.html pos-live
-        const liveHtml = live.visible ? `
-          <div class="pos-item full" style="padding:4px 0;border-top:1px solid var(--border);margin-top:4px">
-            <div style="font-family:var(--f-ui);font-size:0.58rem;font-weight:500;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-2);margin-bottom:3px">
-              Live Risk (Schwab)${live.stale ? ' · stale' : ''}
-            </div>
-            <div style="font-family:var(--f-mono);font-size:0.68rem;color:var(--text);display:flex;flex-wrap:wrap;gap:8px 16px">
+        // Live risk block (Schwab Greeks + mark + PnL) — always rendered; shows placeholder outside market hours
+        const liveStatusNote = !live.visible
+          ? `<div style="font-family:var(--f-mono);font-size:0.67rem;color:var(--text-muted)">暂无报价（盘后 / 未找到合约）</div>`
+          : `<div style="font-family:var(--f-mono);font-size:0.68rem;color:var(--text);display:flex;flex-wrap:wrap;gap:8px 16px">
               <span><strong>Δ</strong> ${fmt(live.delta)}</span>
               <span><strong>Γ</strong> ${fmt(live.gamma, 3)}</span>
               <span><strong>Θ</strong> ${fmt(live.theta)}/d</span>
@@ -1016,8 +1013,14 @@ async function loadSpx() {
             <div style="font-family:var(--f-mono);font-size:0.68rem;color:var(--text);display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:3px">
               <span><strong>Unrealized</strong> <span class="${pnlCls}">${pnlStr}</span></span>
               ${live.trade_log_pnl != null ? `<span><strong>Trade-log P&L</strong> ${live.trade_log_pnl >= 0 ? '+' : ''}$${live.trade_log_pnl.toFixed(0)}</span>` : ''}
+            </div>`;
+        const liveHtml = `
+          <div class="pos-item full" style="padding:4px 0;border-top:1px solid var(--border);margin-top:4px">
+            <div style="font-family:var(--f-ui);font-size:0.58rem;font-weight:500;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-2);margin-bottom:3px">
+              Live Risk (Schwab)${live.visible && live.stale ? ' · stale' : ''}
             </div>
-          </div>` : '';
+            ${liveStatusNote}
+          </div>`;
         // Target profit / captured % based on combined premium × contracts
         const totalPrem = allPositions.reduce((sum, p) => sum + (Number(p.actual_premium || p.model_premium) || 0) * (Number(p.contracts) || 1), 0);
         const maxPnl    = totalPrem > 0 ? totalPrem * 100 : null;
