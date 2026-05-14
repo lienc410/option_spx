@@ -39,7 +39,7 @@ _backtest_cache: dict[str, tuple[float, dict]] = {}
 _signals_cache: dict[str, tuple[float, dict]] = {}
 _CACHE_TTL = 300  # 5 minutes
 _SIGNALS_CACHE_TTL = 3600  # 1 hour
-_STATS_SCHEMA_VERSION = "v2"
+_STATS_SCHEMA_VERSION = "v3"  # bump: account_size 150k → 500k
 _ES_BP_PER_CONTRACT = 20_529.0
 from strategy.es_params import DEFAULT_ES_PARAMS as _ES_PARAMS
 _ES_BP_LIMIT_FRACTION = _ES_PARAMS.bp_limit_fraction  # 0.20 — sourced from EsShortPutParams
@@ -91,10 +91,13 @@ def _load_q019_flip_days() -> list[dict[str, object]]:
         return []
 
 
+_BACKTEST_ACCOUNT_SIZE = 500_000   # canonical account size for all frontend backtests
+
 def _params_hash() -> str:
-    """Short hash of current default StrategyParams — changes when defaults change."""
+    """Short hash of StrategyParams + account size — changes when either changes."""
     from strategy.selector import StrategyParams
-    return _hash_payload(asdict(StrategyParams()))
+    payload = {**asdict(StrategyParams()), "_acct": _BACKTEST_ACCOUNT_SIZE}
+    return _hash_payload(payload)
 
 
 def _hash_payload(payload: dict) -> str:
@@ -1671,7 +1674,7 @@ def _warmup_backtest_caches() -> None:
                 _backtest_cache[_ck] = (time.time(), _entry["payload"])
                 continue
             # Must compute
-            _bt = _rb(start_date=_start, verbose=False)
+            _bt = _rb(start_date=_start, verbose=False, account_size=_BACKTEST_ACCOUNT_SIZE)
             _sig_by_date = {s["date"]: s for s in _bt.signals}
             _by_strat: dict = {}
             _by_cell:  dict = {}
@@ -2927,7 +2930,7 @@ def api_backtest():
         return jsonify(result)
 
     try:
-        trades, metrics, _signals = run_backtest(start_date=start, verbose=False, params=params)
+        trades, metrics, _signals = run_backtest(start_date=start, verbose=False, params=params, account_size=_BACKTEST_ACCOUNT_SIZE)
         trades_data = [
             {
                 "strategy":        t.strategy.value,
@@ -3085,7 +3088,7 @@ def api_backtest_stats():
 
         # 3. Run backtest and populate both caches
         try:
-            trades, _, signals = run_backtest(start_date=start, verbose=False)
+            trades, _, signals = run_backtest(start_date=start, verbose=False, account_size=_BACKTEST_ACCOUNT_SIZE)
             sig_by_date = {s["date"]: s for s in signals}
 
             by_strat: dict[str, dict] = {}
