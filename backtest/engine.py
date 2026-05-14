@@ -593,7 +593,7 @@ def _block_hv_spell_entry(
 
 # ─── Metrics ─────────────────────────────────────────────────────────────────
 
-_BACKTEST_BASELINE_EQUITY = 100000.0  # SPEC-078: must match web/templates/backtest.html:1165
+_BACKTEST_BASELINE_EQUITY = 500_000.0  # SPEC-078: must match web/templates/backtest.html BACKTEST_BASELINE_EQUITY
 
 
 def _annualized_roe_pct(total_pnl: float, trades: list[Trade]) -> tuple[float, float]:

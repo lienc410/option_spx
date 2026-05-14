@@ -1322,7 +1322,7 @@ let _spxOverlay    = 'none';
 let _spxChartData  = null;        // { events, ptRadius, ptColors, ptRotation, siblingIdx }
 let _spxStartIdx   = 0;
 let _spxFullSigData = [];         // full signal timeline for SPX chart + matrix
-const BACKTEST_BASELINE_EQUITY = 100000;
+const BACKTEST_BASELINE_EQUITY = 500000;
 let _spxWindowFetchTimer = null;
 let _allTrades = [];
 let _activeStratFilter = 'All';
@@ -2260,8 +2260,8 @@ function applyMetricCards(metrics, trades, mode = 'production') {
   setText(
     'm-sub-pnl',
     isResearch
-      ? `research subset · implied annualized ROE ${fmtPctSigned(impliedRoe)} on $100k baseline`
-      : `net realized · annualized ROE ${fmtPctSigned(impliedRoe)} on $100k baseline`
+      ? `research subset · implied annualized ROE ${fmtPctSigned(impliedRoe)} on $500k baseline`
+      : `net realized · annualized ROE ${fmtPctSigned(impliedRoe)} on $500k baseline`
   );
 
   document.getElementById('m-card-dd').classList.toggle('hidden', isResearch);
