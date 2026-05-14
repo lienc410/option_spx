@@ -74,8 +74,8 @@ def main() -> None:
     sel.select_strategy    = wrapped
     engine_mod.select_strategy = wrapped
     try:
-        print("\nRunning backtest 2009-01-01 → 2025-06-30 …")
-        run_backtest(start_date="2009-01-01", end_date="2025-06-30",
+        print("\nRunning backtest 2009-01-01 → 2026-05-13 …")
+        run_backtest(start_date="2009-01-01", end_date="2026-05-13",
                      account_size=150_000.0, verbose=False)
     finally:
         sel.select_strategy        = orig

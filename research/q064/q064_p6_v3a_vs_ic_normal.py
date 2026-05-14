@@ -83,7 +83,7 @@ def identify_v3a_fires():
     sel.select_strategy = wrapped
     engine_mod.select_strategy = wrapped
     try:
-        bt = run_backtest(start_date="2009-01-01", end_date="2025-06-30",
+        bt = run_backtest(start_date="2009-01-01", end_date="2026-05-13",
                           account_size=150_000.0, verbose=False)
     finally:
         sel.select_strategy = orig
@@ -146,7 +146,7 @@ def bp_ic(entry: dict, contracts: float) -> float:
 # ── Market data ───────────────────────────────────────────────────────────────
 
 def load_series(ticker: str, start: str = "2009-01-01") -> pd.Series:
-    raw = yf.download(ticker, start=start, end="2025-06-30", progress=False, auto_adjust=False)
+    raw = yf.download(ticker, start=start, end="2026-05-14", progress=False, auto_adjust=False)
     if isinstance(raw.columns, pd.MultiIndex):
         raw.columns = raw.columns.get_level_values(0)
     s = raw["Close"].squeeze()
