@@ -1209,7 +1209,13 @@ function renderPosition(p) {
       ${notesHtml}
       ${liveHtml}
     </div>`;
+  const existingAccts = new Set(positions.map(pos => pos.account || 'schwab'));
+  const addBtns = ['schwab', 'etrade']
+    .filter(a => !existingAccts.has(a))
+    .map(a => `<button class="action-btn primary" onclick="openTradeModal('open','${a}')">+ Add ${a === 'etrade' ? 'E-Trade' : 'Schwab'}</button>`)
+    .join('');
   actions.innerHTML = `
+    ${addBtns}
     <button class="action-btn" onclick="openTradeModal('close')">Close</button>
     <button class="action-btn" onclick="openTradeModal('roll')">Roll</button>
     <button class="action-btn" onclick="openTradeModal('note')">Add Note</button>
@@ -1474,7 +1480,7 @@ function modalShell(inner) {
   return `${inner}<div id="trade-modal-msg" class="modal-msg hidden"></div>`;
 }
 
-function openTradeModal(kind) {
+function openTradeModal(kind, presetAccount) {
   const wrap = document.getElementById('trade-modal-wrap');
   const body = document.getElementById('trade-modal-body');
   const title = document.getElementById('trade-modal-title');
@@ -1494,8 +1500,8 @@ function openTradeModal(kind) {
         <div class="modal-field">
           <label class="modal-label">Account</label>
           <select id="open-account" class="modal-select">
-            <option value="schwab">Schwab</option>
-            <option value="etrade">E-Trade</option>
+            <option value="schwab" ${!presetAccount || presetAccount === 'schwab' ? 'selected' : ''}>Schwab</option>
+            <option value="etrade" ${presetAccount === 'etrade' ? 'selected' : ''}>E-Trade</option>
             <option value="both">Both (same params)</option>
           </select>
         </div>
