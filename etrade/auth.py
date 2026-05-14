@@ -117,6 +117,17 @@ def clear_token_issue() -> None:
             log.warning("etrade.auth: failed to clear %s", ALERT_STATE_FILE, exc_info=True)
 
 
+def expire_token_on_401() -> None:
+    """Called when E-Trade API returns 401 — marks local token as expired so
+    is_token_valid() returns False and the re-auth flow is prompted."""
+    record_token_issue("token_expired_401")
+    token = load_token()
+    if token:
+        expired = (datetime.now(_ET) - timedelta(seconds=1)).isoformat(timespec="seconds")
+        save_token({**token, "expires_at": expired})
+        log.warning("etrade.auth: 401 received — local token marked expired, re-auth required")
+
+
 def _parse_dt(raw: str | None) -> datetime | None:
     if not raw:
         return None

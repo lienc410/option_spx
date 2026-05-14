@@ -11,6 +11,7 @@ from etrade.auth import (
     clear_token_issue,
     consumer_key,
     consumer_secret,
+    expire_token_on_401,
     is_configured,
     is_token_valid,
     load_token,
@@ -222,9 +223,13 @@ def get_account_balances(account_id: str | None = None) -> dict:
         clear_token_issue()
         _cache_put(f"balances:{acct}", payload)
         return payload
-    except Exception:
+    except Exception as exc:
         log.warning("etrade.client: get_account_balances failed", exc_info=True)
-        record_token_issue("balances_failed")
+        _resp = getattr(exc, "response", None)
+        if _resp is not None and getattr(_resp, "status_code", 0) == 401:
+            expire_token_on_401()
+        else:
+            record_token_issue("balances_failed")
         return _fail_soft_balances()
 
 
@@ -253,7 +258,11 @@ def get_account_positions(account_id: str | None = None) -> dict:
         clear_token_issue()
         _cache_put(f"positions:{acct}", payload)
         return payload
-    except Exception:
+    except Exception as exc:
         log.warning("etrade.client: get_account_positions failed", exc_info=True)
-        record_token_issue("positions_failed")
+        _resp = getattr(exc, "response", None)
+        if _resp is not None and getattr(_resp, "status_code", 0) == 401:
+            expire_token_on_401()
+        else:
+            record_token_issue("positions_failed")
         return _fail_soft_positions()
