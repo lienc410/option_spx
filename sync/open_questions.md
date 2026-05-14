@@ -1531,6 +1531,27 @@
 - **Artifacts**：`research/q042/q062_memo_2026-05-10.md`，`q062_p1/p2/p3_*.csv`
 
 
+### Q070 — Aftermath Peak VIX 阈值敏感性 Sweep
+- **状态**：**CLOSED 2026-05-13**（R-20260513-10，无 2nd Quant review——结论为 status quo 维持）
+- **来源**：PM 发现 2025-11-20 VIX 峰值 26.4 被 `AFTERMATH_PEAK_VIX_10D_MIN=28` 门槛排除，质疑门槛是否过高
+- **研究路径**：P1 threshold sweep {22,24,25,26,27,28} → P2 BPS HV trade 归因 → P3 2025-11-20 case study
+- **关键发现**：
+
+| Threshold | 新增 Window | LOW_VOL 污染率 | 新增 BPS HV trades (19yr) |
+|---|---|---|---|
+| 27 | +17 | 5.9% | 1 |
+| 26 | +31 | 9.7% | 1 |
+| **25** | **+47** | **27.7% ← 跳升** | 2 |
+| 24 | +72 | 51.4% | 2 |
+
+- **分水岭**：threshold=25 处 LOW_VOL 污染率急跳（9.7%→27.7%），且 19yr 仅新增 1-2 笔实际 trade，无统计意义
+- **P3 结论**：2025-11-20 瓶颈是同期 IC_HV 持仓占用 BP，而非门槛设计问题
+- **额外结论（Quant）**：aftermath 不建议独立出去做 sleeve——本质同向短 vega（Q066 Greek 表已确认），独立后只是把同一风险分两账本，且加重 co-loss tail risk
+- **结论**：**`AFTERMATH_PEAK_VIX_10D_MIN=28` 维持不变，置信度高**
+- **Artifacts**：`research/q070/`，`RESEARCH_LOG.md R-20260513-10`
+
+---
+
 ### Q066 — Aftermath vs Q042 Co-firing 频率实证
 - **状态**：**CLOSED 2026-05-12**（R-20260512-02）
 - **来源**：两个 addon（主策略 aftermath routing 和 Q042 Drawdown Overlay）是否存在信号重叠、BP 竞争或 Greek 叠加风险

@@ -1,7 +1,41 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-13 (R-20260513-09: Q063/Q067/Q068/Q069 closure APPROVED by 2nd Quant. Verdict: hard `IVP > 55` gate is current tested-space empirical local optimum；keep `BPS_NNB_IVP_UPPER = 55` unchanged。Code comment 已加 [strategy/selector.py:187-203](strategy/selector.py:187)；Q069 wording 收紧为 "within tested frameworks unlikely to solve"；future Q070+ Bayesian/cross-asset reopen 仅在 4 个 high-bar conditions 任一满足时启动)
+Last Updated: 2026-05-13 (R-20260513-10: Q070 Aftermath Peak VIX threshold sensitivity sweep — 维持 `AFTERMATH_PEAK_VIX_10D_MIN = 28` 不下调。19y sweep 显示 threshold=27 LOW_VOL 污染率 5.9% 但 19y 仅新增 1 笔 BPS HV trade（n=1 不显著）；threshold=25 LOW_VOL 污染率跳升至 27.7%；2025-11-20 case 是 IC_HV 持仓时机重叠而非 threshold 问题。selector.py 不动；2nd Quant review 略过——无生产变更提案)
 Owner: Planner or PM
+
+### R-20260513-10 — Q070: Aftermath Peak VIX Threshold Sensitivity Sweep
+
+- Topic: PM 观察 2025-11-20 VIX 峰值 26.42（low of 28）后回落，但 aftermath 未触发。问题：`AFTERMATH_PEAK_VIX_10D_MIN = 28` 是否过严？peak 25-27 的 VIX spike 是否值得捕捉？
+- Method:
+  - P1 19y window sweep（threshold ∈ {22, 24, 25, 26, 27, 28}）：基于 q064_p1_daily_flags + entry-day VIX 重算 `is_aftermath`；report 新增 window 数、entry VIX 中位、LOW_VOL（entry VIX < 22）污染率
+  - P2 BPS HV trade 归因：把 baseline_19y_trades 中 28 笔 BPS HV trades 按每个 threshold 重新打 aftermath 标签，对比新增 trades 的 n / WR / avg P&L / worst / $/BP-day
+  - P3 2025-11-20 case study：drill 该 spike 在不同 threshold 下首次触发日、window 长度、同期 baseline trades 持仓情况
+- Findings:
+  - **P1 LOW_VOL 污染率在 threshold=25 处显著跳升**：thr=27 5.9% (1/17) → thr=26 9.7% (3/31) → thr=25 **27.7%** (13/47) → thr=24 51.4% → thr=22 69.6%。25 以下超过 1/4 的新增 window entry 时 VIX < 22，主策略不激活 BPS HV，标签无效
+  - **P2 新增 BPS HV trades 数值上更优但样本不可信**：thr=27/26 新增 1 笔（2021-05-19 entry，$3,086，WR 100%），thr=25 增至 2 笔（+ 2020-11-23 $3,176）。vs 基准组 n=15 avg $2,140 WR 86.7%。**19y 仅 1-2 笔新增，n 不具显著性**
+  - **大多数新增 window 时策略选其他路径**：thr=27 新增 17 windows 但只 1 笔 BPS HV 入场，证明 aftermath 标签并非稀缺约束——主策略多数时间在用 IC 或 BPS Normal
+  - **P3 2025-11-20 case 是时机重叠不是 threshold 问题**：peak 26.42，11-21 off-peak 11.3%。threshold=26 下 11-21 触发 14 天 window，但同期已有 2025-11-17 IC_HV 持仓（exit 12-02）→ 主策略不叠加入场。baseline 2025-11~12 无 BPS HV 记录证实此分析
+- Verdict: **不改 `AFTERMATH_PEAK_VIX_10D_MIN = 28`**。selector.py 不动
+- Recommendation:
+  - 维持 threshold=28；2025-11-20 case 在 production 实盘也无法兑现（BP/持仓冲突）
+  - 若未来希望捕捉 peak 26-27 spike，正确方向不是降 threshold 而是：(a) 提高 off-peak 条件 ≥15%（过滤 entry VIX 仍偏高的低质量 window），或 (b) 结合 VIX 下行斜率作辅助确认——但需独立 SPEC，不属于 Q070
+  - 2nd Quant review 略过：无生产变更提案，方法论直接（threshold sweep + P&L 归因），不值得 review 时间
+- Confidence: high
+  - 19y 全样本 sweep，跨 GFC / COVID / 2025 tariff 多类型 spike
+  - LOW_VOL 污染率是直接测量，非模型推断
+  - 主要不确定性在 P2 n=1-2 样本——但反方向（"新增有效"）证据更弱，statu quo 决策稳健
+- Caveats:
+  - 仅测 entry VIX 一个污染维度；未量化"new window 内若主策略空仓则会产生几笔潜在 BPS HV"反事实——但 P3 case 显示 2025-11-20 类型 spike 多在 HIGH_VOL 持仓期间发生，反事实样本预计仍很少
+  - 未测 "降 threshold + 提 off-peak 同时收紧" 的复合方案，留作未来 Q071+ 可选方向
+- Next Tests: 无（除非未来观察到 ≥5 笔被持仓阻挡的"已确认正 P&L"反事实 spike windows）
+- Related: SPEC-064 broken-wing IC V3-A (aftermath strategy)；R-20260512-01 (Q065 EXTREME_VIX 上界)；Q064 P1 daily flags
+- Output:
+  - `research/q070/q070_memo_2026-05-13.md`
+  - `research/q070/q070_p1_threshold_sweep.py` + `q070_p1_results.csv` + `q070_p1_new_windows.csv`
+  - `research/q070/q070_p2_trade_attribution.py` + `q070_p2_results.csv` + `q070_p2_tagged_trades.csv`
+  - `research/q070/q070_p3_case_study.md`
+
+---
 
 ### R-20260513-09 — Q063/Q067/Q068/Q069 Closure APPROVED by 2nd Quant
 

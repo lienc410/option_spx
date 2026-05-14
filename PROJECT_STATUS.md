@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-13 (Q063/Q067/Q068/Q069 全线 CLOSED — IVP gate robustness validation 3天10 sub-phases 完成。BPS_NNB_IVP_UPPER=55 维持；selector.py:187-203 inline comment 固化；Q070+ reopen 高门槛 4 条件。SPEC-100 已 DEPLOYED — max_trades_per_spell 2→3)
+Last Updated: 2026-05-13 (Q070 CLOSED — Aftermath peak VIX 阈值 sweep，维持 28 不变；LOW_VOL 污染率在 threshold=25 跳升至 27.7%，19yr 新增仅 1 笔 BPS HV trade；aftermath 不建议独立 sleeve)
 Owner: Planner or PM
 
 ## Current Phase
@@ -69,6 +69,7 @@ Owner: Planner or PM
 
 ## Open Questions Summary
 
+- `Q070` — **CLOSED 2026-05-13**. Aftermath `AFTERMATH_PEAK_VIX_10D_MIN=28` 阈值敏感性 sweep。触发：PM 发现 2025-11-20 VIX 峰值 26.4 被门槛排除。P1 sweep（{22,24,25,26,27,28}）：threshold=25 处 LOW_VOL 污染率从 9.7% 跳升至 27.7%（分水岭）；threshold=27 新增 17 个 window 但 19yr 实际仅多 1 笔 BPS HV trade（n=1，无统计意义）。P3 Case Study：2025-11-20 瓶颈是同期 IC_HV 持仓占用，非 threshold 设计问题。额外结论：aftermath **不建议独立出去做 sleeve**（同向短 vega、尾部风险集中、持仓冲突未解）。**维持 28，置信度高** — `See: research/q070/q070_memo_2026-05-13.md`, `RESEARCH_LOG.md R-20260513-10`
 - `Q066` — **CLOSED 2026-05-12（2nd Quant review PASS WITH CAVEAT）**. Aftermath vs Q042 co-firing 频率实证（19yr）+ 2nd Quant review 4 项修订全部落地。Day-level 重叠 0.9%，事件级 74-86% 异步；Greek 四维度符号反向。**语言修订**：不再用"fully orthogonal"，改用"low-overlap / non-redundant"（Greek hedge 在 PnL 层未量化）。**Co-loss failure mode** 正式列入 portfolio failure modes：live 中若观察到一次 co-fire 同向亏损，立即触发 Q067。**Q067** 作为 standing monitoring 不主动启动（触发条件：Q042 paper→live / B 样本扩充 / cap 上调 / live co-fire co-loss 出现）。PM 无需立即行动——维持双 addon — `See: task/q066_cofiring_2nd_quant_review_packet_2026-05-12_Review.md`, `doc/addon_greek_orthogonality_2026-05-12.md`, `RESEARCH_LOG.md R-20260512-02`
 - `Q065` — **CLOSED 2026-05-12**. Aftermath `EXTREME_VIX=40` 阈值敏感性研究。触发：Q064 P1 中 2025-04-09 出现 1-day aftermath window，PM 质疑阈值是否过严。P2 sweep 三个放宽变体（loosen_42 / loosen_45 / peak×0.85）trap rate 全部超标（41% / 47% / 79%），2009 GFC 局部 72%，2020 COVID 40%，属真实尾部结构。结论：**`EXTREME_VIX=40` 维持，selector.py 不动，P3 永久 closed** — `See: research/q065/q065_memo_2026-05-12.md`, `RESEARCH_LOG.md R-20260512-01`
 - `Q064` — **CLOSED 2026-05-13（FULLY CLOSED — P1–P9 + SPEC-100 DEPLOYED）**. 全程 P1–P9 + 2nd Quant review × 2。P1–P6：V3-A gate-bypass 确认，SPEC-064 保留。P7–P9：spell reset 12 variants，仅 P8 采纳（`max_trades_per_spell: 2→3`）→ **SPEC-100 DEPLOYED commit b894e26**。三套 backtest cache 已刷新。**Standing obligation**：2027-05-13 12-month live review；spell #3 单笔亏损 ≥ -$3k 或连续 HV spell ≥ 60d → 临时 Quant review — `See: RESEARCH_LOG.md R-20260512-03, R-20260513-04`
