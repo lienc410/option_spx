@@ -86,17 +86,53 @@ ssh "$REMOTE" "cat > ${PLIST_DIR}/com.spxstrat.etrade_refresh.plist" << 'EOF'
 </plist>
 EOF
 
-# ── Load both plists ───────────────────────────────────────────────────────────
+# ── 3. Overnight backtest cache refresh at 02:00 ET ───────────────────────────
+ssh "$REMOTE" "cat > ${PLIST_DIR}/com.spxstrat.refresh_backtest.plist" << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.spxstrat.refresh_backtest</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/macbook/SPX_strat/venv/bin/python3</string>
+        <string>/Users/macbook/SPX_strat/scripts/refresh_backtest_caches.py</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>2</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/macbook/Library/Logs/spx-strat/refresh_backtest.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/macbook/Library/Logs/spx-strat/refresh_backtest.err.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>/Users/macbook</string>
+    </dict>
+</dict>
+</plist>
+EOF
+
+# ── Load all plists ────────────────────────────────────────────────────────────
 echo "==> Loading plists..."
 ssh "$REMOTE" "launchctl unload ${PLIST_DIR}/com.spxstrat.schwab_refresh.plist 2>/dev/null || true"
 ssh "$REMOTE" "launchctl load  ${PLIST_DIR}/com.spxstrat.schwab_refresh.plist"
 ssh "$REMOTE" "launchctl unload ${PLIST_DIR}/com.spxstrat.etrade_refresh.plist 2>/dev/null || true"
 ssh "$REMOTE" "launchctl load  ${PLIST_DIR}/com.spxstrat.etrade_refresh.plist"
+ssh "$REMOTE" "launchctl unload ${PLIST_DIR}/com.spxstrat.refresh_backtest.plist 2>/dev/null || true"
+ssh "$REMOTE" "launchctl load  ${PLIST_DIR}/com.spxstrat.refresh_backtest.plist"
 
 echo ""
 echo "==> Done. Cron jobs installed:"
-echo "    Schwab  — every 6 hours (keep-alive, logs: ~/Library/Logs/spx-strat/schwab_refresh.log)"
-echo "    E-Trade — daily at 06:00 ET (status check + Telegram notify if expired, logs: ~/Library/Logs/spx-strat/etrade_refresh.log)"
+echo "    Schwab   — every 6 hours (keep-alive, logs: ~/Library/Logs/spx-strat/schwab_refresh.log)"
+echo "    E-Trade  — daily at 06:00 ET (status check + Telegram notify if expired)"
+echo "    Backtest — daily at 02:00 ET (cache refresh, logs: ~/Library/Logs/spx-strat/refresh_backtest.log)"
 echo ""
 echo "==> Verify:"
-ssh "$REMOTE" "launchctl list | grep 'schwab_refresh\|etrade_refresh'"
+ssh "$REMOTE" "launchctl list | grep 'schwab_refresh\|etrade_refresh\|refresh_backtest'"
