@@ -1012,7 +1012,11 @@ async function loadSpx() {
             </div>
             <div style="font-family:var(--f-mono);font-size:0.68rem;color:var(--text);display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:3px">
               <span><strong>Unrealized</strong> <span class="${pnlCls}">${pnlStr}</span></span>
-              ${live.trade_log_pnl != null ? `<span><strong>Trade-log P&L</strong> ${live.trade_log_pnl >= 0 ? '+' : ''}$${live.trade_log_pnl.toFixed(0)}</span>` : ''}
+              ${live.combined_trade_log_pnl != null
+                ? `<span><strong>Trade-log P&L (all accts)</strong> ${live.combined_trade_log_pnl >= 0 ? '+' : ''}$${live.combined_trade_log_pnl.toFixed(0)}</span>`
+                : live.trade_log_pnl != null
+                  ? `<span><strong>Trade-log P&L (Schwab)</strong> ${live.trade_log_pnl >= 0 ? '+' : ''}$${live.trade_log_pnl.toFixed(0)}</span>`
+                  : ''}
             </div>`;
         const liveHtml = `
           <div class="pos-item full" style="padding:4px 0;border-top:1px solid var(--border);margin-top:4px">

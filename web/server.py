@@ -1947,11 +1947,24 @@ def api_position():
             pass
     all_pos = read_all_positions()
     positions = (all_pos or {}).get("positions", [])
+    live = live_position_snapshot(state)
+    # Combined trade-log P&L across all accounts using the same spread mark
+    spread_mark = live.get("mark") if live.get("visible") else None
+    if spread_mark is not None and positions:
+        try:
+            combined_pnl = sum(
+                (float(p.get("actual_premium") or p.get("model_premium") or 0) - spread_mark)
+                * float(p.get("contracts") or 0) * 100
+                for p in positions
+            )
+            live["combined_trade_log_pnl"] = round(combined_pnl, 2)
+        except Exception:
+            pass
     return jsonify({
         "open": True,
         **state,
         "positions": positions,
-        "schwab_live": live_position_snapshot(state),
+        "schwab_live": live,
     })
 
 
