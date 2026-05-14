@@ -1185,18 +1185,30 @@ function renderPosition(p) {
     const label = acct === 'etrade' ? 'E-Trade' : 'Schwab';
     return `<span style="font-family:var(--f-ui);font-size:0.60rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:${color};background:rgba(72,136,232,0.10);border:1px solid rgba(72,136,232,0.25);padding:1px 6px;border-radius:4px">${label}</span>`;
   };
+  const spreadMark = live.visible ? live.mark : null;
   const posRows = positions.length > 0
     ? positions.map(pos => {
-        const acct = pos.account || 'schwab';
-        const strikes = pos.short_strike ? `${pos.short_strike}/${pos.long_strike || '—'}` : '—';
-        const prem = pos.actual_premium != null ? `$${Number(pos.actual_premium).toFixed(2)}` : '—';
-        const contracts = pos.contracts || 1;
-        const openedAt = pos.opened_at || p.opened_at;
+        const acct      = pos.account || 'schwab';
+        const strikes   = pos.short_strike ? `${pos.short_strike}/${pos.long_strike || '—'}` : '—';
+        const entryPrem = Number(pos.actual_premium ?? pos.model_premium ?? 0);
+        const premStr   = entryPrem ? `$${entryPrem.toFixed(2)}` : '—';
+        const n         = Number(pos.contracts) || 1;
+        let pnlHtml = '', tgtHtml = '';
+        if (spreadMark != null && entryPrem) {
+          const acctPnl = (entryPrem - spreadMark) * n * 100;
+          const cls = acctPnl >= 0 ? 'var(--green)' : 'var(--red)';
+          pnlHtml = `<span style="font-family:var(--f-mono);font-size:0.68rem;color:${cls}">${acctPnl >= 0 ? '+' : ''}$${acctPnl.toFixed(0)}</span>`;
+        }
+        if (entryPrem) {
+          const tgt = entryPrem * n * 100 * 0.60;
+          tgtHtml = `<span style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-muted)">tgt +$${Math.round(tgt).toLocaleString()}</span>`;
+        }
         return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid var(--border)">
           ${acctBadge(acct)}
           <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-2)">${strikes}</span>
-          <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-muted)">${contracts}× @ ${prem}</span>
-          <span style="font-family:var(--f-ui);font-size:0.65rem;color:var(--text-muted);margin-left:auto">opened ${openedAt}</span>
+          <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-muted)">${n}× @ ${premStr}</span>
+          ${tgtHtml}
+          ${pnlHtml}
         </div>`;
       }).join('')
     : '';
