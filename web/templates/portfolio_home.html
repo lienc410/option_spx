@@ -1529,18 +1529,31 @@ function _renderMarginAllocation(data) {
 
   } else if (view === 'etrade') {
     // Recalculate E-Trade % against E-Trade NLV (not combined NLV)
-    const etWe  = _rpct(etDollars, etradeNlv);
-    const idleW = Math.max(100 - etWe, 0);
+    const etWe       = _rpct(etDollars, etradeNlv);
+    const etOptDollars = Math.max(etDollars - etEqDollars, 0);  // SPX spread max-loss estimate
+    const etOptWeLocal = _rpct(etOptDollars, etradeNlv);
+    const etEqWeLocal  = _rpct(etEqDollars,  etradeNlv);
+    const idleW      = Math.max(100 - etWe, 0);
     barSegments = `<div class="bp-seg bp-seg-es" style="width:${etWe.toFixed(1)}%"></div>`;
     legendItems = `
       <div class="bp-legend-item"><div class="bp-legend-dot dot-es"></div>E-Trade ${etWe.toFixed(1)}%</div>
       <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>`;
-    bucketRows = barHtml('E-Trade PM', etWe, 'bar-etrade', (etDollars > 0 ? _fmtK(etDollars) + ' ' : '') + 'maintenance');
+    const spxBpRow = etOptDollars > 0
+      ? barHtml('  SPX 主策略 (max-loss)', etOptWeLocal, 'rgba(201,168,64,0.55)',
+          `${_fmtK(etOptDollars)} · ${etOptWeLocal.toFixed(1)}% NLV`)
+      : '';
+    const eqBpRow = etEqDollars > 0
+      ? barHtml('  Equity / other', etEqWeLocal, 'bar-etrade',
+          `${_fmtK(etEqDollars)} residual`)
+      : '';
+    bucketRows = barHtml('E-Trade PM', etWe, 'bar-etrade',
+        (etDollars > 0 ? _fmtK(etDollars) + ' ' : '') + 'maintenance') + spxBpRow + eqBpRow;
     railCards = etradeNlv > 0
       ? `<div class="account-rail-card">
           <div class="account-rail-title">E-Trade</div>
           <div class="account-rail-line"><span>NLV</span><span>${fmtDollars(accounts.etrade_nlv)}</span></div>
           <div class="account-rail-line"><span>Maint</span><span>${fmtDollars(accounts.etrade_maintenance_margin)}</span></div>
+          ${etOptDollars > 0 ? `<div class="account-rail-line" style="color:rgba(201,168,64,0.85)"><span>SPX spread BP</span><span>${fmtDollars(etOptDollars)} · ${etOptWeLocal.toFixed(1)}%</span></div>` : ''}
         </div>`
       : `<div class="account-rail-card"><div class="account-rail-unavail">E-Trade temporarily unavailable</div></div>`;
 
