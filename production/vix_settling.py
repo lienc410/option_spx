@@ -176,7 +176,9 @@ def _fetch_hourly_vix_frame() -> pd.DataFrame:
     idx = df.index
     if getattr(idx, "tz", None) is not None:
         idx = idx.tz_convert(ET).tz_localize(None)
-    out = pd.DataFrame({"vix": pd.to_numeric(df["Close"], errors="coerce")}, index=idx)
+    # Use .values to drop the original tz-aware index so pandas aligns positionally
+    # with idx (tz-naive ET); passing the Series directly causes index mismatch → all NaN.
+    out = pd.DataFrame({"vix": pd.to_numeric(df["Close"].values, errors="coerce")}, index=idx)
     out = out.dropna(subset=["vix"]).sort_index()
     out["date"] = out.index.normalize()
     return out
