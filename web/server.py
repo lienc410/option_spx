@@ -143,7 +143,7 @@ def _backtest_query_params() -> tuple["StrategyParams", str, dict]:
         if raw in (None, ""):
             continue
         params_payload[key] = caster(raw)
-    return StrategyParams(**params_payload), _hash_payload(params_payload), params_payload
+    return StrategyParams(**params_payload), _hash_payload({**params_payload, "_acct": _BACKTEST_ACCOUNT_SIZE}), params_payload
 
 
 def _load_stats_disk() -> dict:
