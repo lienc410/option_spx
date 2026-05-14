@@ -2318,7 +2318,9 @@ function buildSpxChartData(trades, isResearch = false) {
   });
   events.sort((a, b) => a.date.localeCompare(b.date) || (a.type === 'open' ? -1 : 1));
 
-  const entryColor = isResearch ? '#4888E8' : '#42CC7C';
+  // Open ▲: blue (neutral — win/loss unknown at entry)
+  // Close ▽: green=win, red=loss
+  const openColor     = '#4888E8';
   const closeWinColor = isResearch ? '#4888E8' : '#42CC7C';
   const closeLossColor = isResearch ? '#E08040' : '#E04862';
   const ptColors = [];
@@ -2327,7 +2329,7 @@ function buildSpxChartData(trades, isResearch = false) {
 
   events.forEach(ev => {
     const isWin = (ev.trade.exit_pnl || 0) >= 0;
-    ptColors.push(ev.type === 'open' ? entryColor : (isWin ? closeWinColor : closeLossColor));
+    ptColors.push(ev.type === 'open' ? openColor : (isWin ? closeWinColor : closeLossColor));
     ptRotation.push(ev.type === 'open' ? 0 : 180);
     ptTrades.push(ev.trade);
   });
@@ -2462,7 +2464,10 @@ function renderResults(data) {
     if (ev.type === 'close') cum += ev.trade.exit_pnl;
     labels.push(ev.date);
     vals.push(cum);
-    ptColors.push(ev.trade.exit_pnl >= 0 ? '#42CC7C' : '#E04862');
+    // Open ▲: blue (direction neutral until close); Close ▽: green=win red=loss
+    const c = ev.type === 'open' ? '#4888E8'
+      : ev.trade.exit_pnl >= 0 ? '#42CC7C' : '#E04862';
+    ptColors.push(c);
     ptRotation.push(ev.type === 'open' ? 0 : 180);
     ptTrades.push(ev.trade);
   });
@@ -2567,30 +2572,55 @@ function renderResults(data) {
           footerMarginTop: 8,
           callbacks: {
             title: items => {
-              const i = items[0].dataIndex;
-              const ev = events[i];
-              const t = ev.trade;
-              const typeLabel = ev.type === 'open' ? '▲ Open' : '▼ Close';
-              return [`${typeLabel}  ·  ${t.strategy}  ·  ${t.underlying}`,
-                      `${t.entry_date} → ${t.exit_date}`];
+              // Group by trade to detect concurrent positions
+              const seen = new Set();
+              const uniq = items.filter(it => {
+                const t = events[it.dataIndex]?.trade;
+                if (!t || seen.has(t)) return false;
+                seen.add(t); return true;
+              });
+              if (uniq.length === 1) {
+                const ev = events[uniq[0].dataIndex];
+                const t = ev.trade;
+                const typeLabel = ev.type === 'open' ? '▲ 开仓' : '▼ 平仓';
+                return [`${typeLabel}  ·  ${t.strategy}  ·  ${t.underlying}`,
+                        `持仓 ${t.entry_date} → ${t.exit_date}`];
+              }
+              // Multiple concurrent trades at this x position
+              const dates = events[items[0].dataIndex]?.trade?.entry_date || '';
+              return [`${uniq.length} 笔并发仓位  ·  ${dates} 附近`];
             },
             label: item => {
-              const t = events[item.dataIndex].trade;
-              return `  P&L: ${fmtDollarFull(t.exit_pnl)}`;
+              const ev = events[item.dataIndex];
+              if (!ev) return '';
+              const t = ev.trade;
+              const typeTag = ev.type === 'open' ? '▲ 开仓' : '▼ 平仓';
+              const pnlStr = fmtDollarFull(t.exit_pnl);
+              // For open markers, P&L is unrealized/projected if exit is open_at_end
+              const suffix = ev.type === 'open' && t.exit_reason === 'open_at_end' ? ' (持仓中)' : '';
+              return `  ${typeTag}  P&L: ${pnlStr}${suffix}`;
             },
             footer: items => {
               const i = items[0].dataIndex;
-              const t = events[i].trade;
+              const ev = events[i];
+              if (!ev) return [];
+              const t = ev.trade;
               const spxIn  = t.entry_spx ? t.entry_spx.toLocaleString('en-US',{maximumFractionDigits:0}) : '—';
               const spxOut = t.exit_spx  ? t.exit_spx.toLocaleString('en-US', {maximumFractionDigits:0}) : '—';
-              return [
-                `Cumulative: ${fmtDollarFull(vals[i])}`,
+              const lines = [
                 `SPX: ${spxIn} → ${spxOut}   VIX: ${t.entry_vix ? t.entry_vix.toFixed(1) : '—'}`,
                 `Exit: ${t.exit_reason || '—'}`,
               ];
+              if (items.length === 1) lines.unshift(`Cumulative: ${fmtDollarFull(vals[i])}`);
+              return lines;
             },
             labelColor: item => {
-              const c = events[item.dataIndex].trade.exit_pnl >= 0 ? '#42CC7C' : '#E04862';
+              const ev = events[item.dataIndex];
+              if (!ev) return { backgroundColor: '#606880', borderColor: '#606880' };
+              // Open marker: always teal-ish; close: green=win red=loss
+              const c = ev.type === 'open'
+                ? '#4888E8'   // blue for open — distinct from close win/loss
+                : ev.trade.exit_pnl >= 0 ? '#42CC7C' : '#E04862';
               return { backgroundColor: c, borderColor: c, borderRadius: 2 };
             },
           }
