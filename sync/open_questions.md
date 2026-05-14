@@ -1586,8 +1586,36 @@
 
 ---
 
+### Q069 — IVP Gate Smoothed/Slope-aware 变体研究
+- **状态**：**CLOSED 2026-05-13**（R-20260513-09）
+- **来源**：Q067/Q068 延伸——测试 SMA/EWM smoothed IVP 或 slope-aware IVP 是否解决 jitter 问题
+- **结论**：**全部失败**。smoothing 引入 lag，已知 2026-02-25 bad trade 被重新放行；slope-aware worst trade 恶化
+- **正式 wording**：hard IVP_252 ≥ 55 gate 是 **tested frameworks 内** empirical local optimum（不写"永远不能解决"）
+- **Artifacts**：`research/q069/q069_phase2_memo_2026-05-13.md`，`RESEARCH_LOG.md R-20260513-09`
+
+---
+
+### Q068 — IVP Gate MA-timing Override + Regime Stop 研究
+- **状态**：**CLOSED 2026-05-13**（R-20260513-09）
+- **来源**：Q067 jitter 实证后，测试 MA cross / regime-conditional stop 能否在不改 gate 的情况下改善表现
+- **结论**：**全部失败**。P6-P7 所有变体 worst trade 恶化至 -$15k（vs baseline -$9k），robustness FAIL
+- **核心 takeaway**：PM intuition is valid as trading observation, but not stable enough for rule-level adoption
+- **Artifacts**：`RESEARCH_LOG.md R-20260513-09`
+
+---
+
+### Q067 — IVP Gate Threshold Jitter 研究
+- **状态**：**CLOSED 2026-05-13**（R-20260513-09）
+- **来源**：Q063 发现 gate 有效，但 PM 质疑 IVP 在边界附近是否频繁 flip（jitter 问题）
+- **P1 实证**：7.37% historical / 11.5% recent daily flip rate；61% reverse within 5 TD；15% 126d-vs-252d window disagreement——**jitter 是真实的**
+- **P2 结论**：hysteresis / multi-horizon / cross-window 所有 jitter fix 变体全部失败（alpha 流失或 worst trade 恶化）
+- **核心 takeaway**：Jitter is real, but all tested jitter fixes are worse than the hard gate
+- **Artifacts**：`RESEARCH_LOG.md R-20260513-09`
+
+---
+
 ### Q064 — Aftermath 路由回测 + Spell Reset Sensitivity（P1–P9）
-- **状态**：**CLOSED 2026-05-13（Phase 9 final closure，APPROVE α）**
+- **状态**：**CLOSED 2026-05-13（FULLY CLOSED — P1–P9 + SPEC-100 DEPLOYED commit b894e26）**
 - **来源**：主策略 `is_aftermath()` 路由到 V3-A IC HV，P1–P4 初步显示 $/BP-day 低 62%，疑似可 revert
 - **研究路径**：P1–P6（routing review）→ P7–P9（spell reset sensitivity）→ 2nd Quant review × 2
 - **P1–P6 结论**：V3-A gate-bypass 价值确认，SPEC-064 保留。V3-A 真实价值 = 绕过 post-vol-shock cells 中 reduce_wait gates，捕捉 ~$30k+ alpha
@@ -1603,13 +1631,14 @@
 
 - **Design Principles 固化**：vix_low_reset 单日触发 deliberate；vix_high_reset(≥35) 是 event-boundary reset 非冗余；age_cap=30 near-optimal
 - **方法论 learning**：spell gate 行为不能从 code structure 直觉推断，必须 engine replay（Quant 3/3 预测全错）
-- **待办**：SPEC-100 实现 P8（单参数 `max_trades_per_spell: 2→3`，~30 行 SPEC，~1h Developer）
+- **SPEC-100 DEPLOYED**（commit b894e26）：`max_trades_per_spell: 2→3`，三套 backtest cache 已刷新
+- **Standing obligations**：2027-05-13 12-month live review；spell #3 单笔亏损 ≥ -$3k 或连续 HV spell ≥ 60d → 临时 Quant review
 - **Artifacts**：`research/q064/`，`task/q064_aftermath_2nd_quant_review_packet_2026-05-12_Review.md`，`RESEARCH_LOG.md R-20260512-03, R-20260513-04`
 
 ---
 
-### Q063 — SPX 主策略 IVP<55 Gate Robustness Review
-- **状态**：**CLOSED 2026-05-11**（R-20260511-01，commit d9020e5）
+### Q063 — SPX 主策略 IVP<55 Gate Robustness Review（含 Q067/Q068/Q069 延伸）
+- **状态**：**CLOSED 2026-05-11（§13 supplement 2026-05-13，Q067/Q068/Q069 全线确认）**
 - **来源**：PM hypothesis「IVP<55 gate 在低 VIX 环境下产生 false alarm，应放宽」
 - **结论**：**REJECT relaxation，keep gate unchanged，no SPEC change**
 - **研究路径**：Phase 1 VIX-stratified blocked trades → Phase 2 candidate gate comparison → Phase 3 OOS robustness → Phase 4 decay-weighted
@@ -1619,7 +1648,9 @@
   - Phase 4：decay 越重 A 越差——3y HL A loses -$19,237；last 5y A loses -$13,730；last 3y A loses -$7,700
   - 2024-2026 gate 挡住 5 笔 entries，counterfactual P&L = -$13.7k（gate 是高价值真信号）
 - **Mechanism**：VIX=15-17 + IVP=60-65 不矛盾——vol 已 compress 到 1y 高分位（相对）即使 absolute 低；gate 在 recent regime shift（2022+ 结构性低 vol 但 IV spike 仍阶段性高）下更重要
-- **Artifacts**：`task/q063_phase4_closure_memo_2026-05-11.md`，`research/q063/q063_phase1-4_*.py`，`RESEARCH_LOG.md R-20260511-01`
+- **延伸研究（Q067/Q068/Q069，2026-05-13）**：jitter / MA-timing / smoothed IVP 三条路全部失败，BPS_NNB_IVP_UPPER=55 最终确认为 tested frameworks 内 empirical local optimum。Q070+ 重启需满足 4 条高门槛之一（非传统框架 / Bayesian / live evidence / routing 重大变化）
+- **selector.py:187-203 inline comment** 已固化三条 takeaways：VIX 绝对值低 ≠ IVP 相对位置低；jitter real but fixes worse；PM intuition valid but not rule-stable
+- **Artifacts**：`task/q063_phase4_closure_memo_2026-05-11.md`，`task/q063_q067_q068_q069_closure_2nd_quant_review_2026-05-13.md`，`RESEARCH_LOG.md R-20260511-01, R-20260513-09`
 
 ---
 
