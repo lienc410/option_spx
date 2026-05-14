@@ -2030,14 +2030,14 @@ function _initDefaultView() {
 
 // ── Position Greeks help popup ───────────────────────────────────────────────
 function showPosGreekHelp() {
-  document.getElementById('pos-greek-help-overlay').classList.remove('hidden');
+  document.getElementById('pos-greek-help-overlay').style.display = 'flex';
 }
 function hidePosGreekHelp() {
-  document.getElementById('pos-greek-help-overlay').classList.add('hidden');
+  document.getElementById('pos-greek-help-overlay').style.display = 'none';
 }
 </script>
 
-<div id="pos-greek-help-overlay" class="hidden" onclick="if(event.target===this)hidePosGreekHelp()" style="position:fixed;inset:0;background:rgba(5,8,20,0.72);z-index:9999;display:flex;align-items:center;justify-content:center">
+<div id="pos-greek-help-overlay" onclick="if(event.target===this)hidePosGreekHelp()" style="display:none;position:fixed;inset:0;background:rgba(5,8,20,0.72);z-index:9999;align-items:center;justify-content:center">
   <div style="background:#0D1020;border:1px solid #2A3350;border-radius:10px;padding:24px 28px;max-width:480px;width:90%;font-family:var(--f-ui);position:relative">
     <button onclick="hidePosGreekHelp()" style="position:absolute;top:12px;right:14px;background:none;border:none;color:var(--text-muted);font-size:1.1rem;cursor:pointer;line-height:1">×</button>
     <div style="font-size:0.75rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-2);margin-bottom:16px">Position Greeks 解读</div>
