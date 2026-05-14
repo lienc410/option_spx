@@ -110,19 +110,37 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
     <span class="meta" id="status-meta"></span>
   </div>
 
+  <!-- "Got E-Trade error?" recovery banner (hidden by default) -->
+  <div id="etrade-error-recovery" style="display:none;background:rgba(224,72,98,0.07);border:1px solid rgba(224,72,98,0.22);border-radius:9px;padding:12px 16px;margin-bottom:14px;font-family:var(--f-ui);font-size:0.70rem;color:var(--red)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div>
+        <strong>E-Trade 显示错误？</strong> — token 可能已过期或未提前登录。
+        <span style="color:var(--text-2);display:block;margin-top:3px;font-size:0.65rem">常见原因：① 点链接前未登录 etrade.com  ② 超过 5 分钟未完成  ③ 重复使用了同一链接</span>
+      </div>
+      <button class="btn" onclick="restartStep1()" style="border-color:rgba(224,72,98,0.4);color:var(--red);background:rgba(224,72,98,0.08);white-space:nowrap">↻ 重新获取链接</button>
+    </div>
+  </div>
+
   <!-- Step 1: Get authorization link -->
   <div class="step-card" id="step1">
     <div class="step-num">Step 1</div>
     <div class="step-title">Get authorization link from E-Trade</div>
     <div class="step-body">
-      生成新的 request token（有效期约 5 分钟）。下一步会显示 E-Trade 授权链接。
+      生成新的 request token（<strong>有效期 5 分钟</strong>）。<br>
+      <span style="color:var(--orange)">⚠ 请先在浏览器中登录 etrade.com，再点击下方链接 — 登录页面的跳转会消耗 token 时间。</span>
     </div>
     <button class="btn primary" id="btn-request" onclick="onRequestToken()">→ Get authorization link</button>
     <div class="flow-msg" id="step1-msg"></div>
     <div class="auth-link-box" id="auth-link-box">
-      <div style="font-family:var(--f-ui);font-size:0.60rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Authorization URL</div>
-      <a id="auth-link" href="#" target="_blank" rel="noopener noreferrer">—</a>
-      <div class="auth-link-hint">点击上方链接 → 登录 E-Trade → 点击 Accept → 复制显示的 5 位 verifier code → 粘贴到下方 Step 2 输入框</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-family:var(--f-ui);font-size:0.60rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em">Authorization URL</div>
+        <div id="token-countdown" style="font-family:var(--f-mono);font-size:0.60rem;color:var(--gold)"></div>
+      </div>
+      <a id="auth-link" href="#" target="_blank" rel="noopener noreferrer" onclick="startCountdown()">—</a>
+      <div class="auth-link-hint">
+        点击链接 → <strong>E-Trade 页面点 Accept</strong> → 复制 5 位 verifier code → 粘贴到下方<br>
+        <span style="color:var(--red);font-size:0.60rem">如果 E-Trade 显示「logon delay」错误 → 点下方「重新获取链接」按钮</span>
+      </div>
     </div>
   </div>
 
@@ -131,13 +149,16 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
     <div class="step-num">Step 2</div>
     <div class="step-title">Paste verifier code</div>
     <div class="step-body">
-      E-Trade 授权后会显示一个 5 位 code（字母+数字）。立即粘贴到下方 — request token 5 分钟内有效。
+      E-Trade 授权后会显示一个 5 位 code（字母+数字）。立即粘贴 — request token 5 分钟有效。
     </div>
     <div class="verifier-row">
       <input type="text" class="verifier-input" id="verifier-input" placeholder="ABC12" maxlength="20" autocomplete="off" spellcheck="false" disabled>
       <button class="btn primary" id="btn-exchange" onclick="onExchangeVerifier()" disabled>→ Exchange for token</button>
     </div>
-    <div class="verifier-hint">输入 verifier code 后按回车或点击按钮</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div class="verifier-hint">输入 verifier code 后按回车或点击按钮</div>
+      <button class="btn" id="btn-got-error" onclick="showEtradeErrorRecovery()" style="font-size:0.60rem;padding:4px 10px;display:none">E-Trade 报错了?</button>
+    </div>
     <div class="flow-msg" id="step2-msg"></div>
   </div>
 
@@ -198,6 +219,62 @@ async function refreshStatus() {
   }
 }
 
+let _countdownTimer = null;
+let _tokenExpireAt  = null;
+
+function startCountdown() {
+  if (!_tokenExpireAt) return;
+  if (_countdownTimer) clearInterval(_countdownTimer);
+  const el = document.getElementById('token-countdown');
+  function tick() {
+    const secs = Math.max(0, Math.round((_tokenExpireAt - Date.now()) / 1000));
+    if (!el) return;
+    if (secs <= 0) {
+      el.textContent = '⚠ 已过期 — 重新获取链接';
+      el.style.color = 'var(--red)';
+      showEtradeErrorRecovery();
+      clearInterval(_countdownTimer);
+    } else {
+      const m = Math.floor(secs / 60), s = secs % 60;
+      el.textContent = `剩余 ${m}:${String(s).padStart(2,'0')}`;
+      el.style.color = secs < 60 ? 'var(--red)' : 'var(--gold)';
+    }
+  }
+  tick();
+  _countdownTimer = setInterval(tick, 1000);
+}
+
+function showEtradeErrorRecovery() {
+  const el = document.getElementById('etrade-error-recovery');
+  if (el) el.style.display = 'block';
+  const btn = document.getElementById('btn-got-error');
+  if (btn) btn.style.display = 'none';
+}
+
+function restartStep1() {
+  document.getElementById('etrade-error-recovery').style.display = 'none';
+  // Reset Step 1
+  const card1 = document.getElementById('step1');
+  card1.classList.remove('done');
+  document.getElementById('auth-link-box').classList.remove('visible');
+  hideMsg('step1-msg');
+  // Reset Step 2
+  const card2 = document.getElementById('step2');
+  card2.classList.remove('active', 'done');
+  const inp = document.getElementById('verifier-input');
+  inp.disabled = true;
+  inp.value = '';
+  document.getElementById('btn-exchange').disabled = true;
+  hideMsg('step2-msg');
+  const btn = document.getElementById('btn-got-error');
+  if (btn) btn.style.display = 'none';
+  if (_countdownTimer) clearInterval(_countdownTimer);
+  const cdEl = document.getElementById('token-countdown');
+  if (cdEl) cdEl.textContent = '';
+  // Immediately trigger Step 1
+  onRequestToken();
+}
+
 async function onRequestToken() {
   const btn = document.getElementById('btn-request');
   const card = document.getElementById('step1');
@@ -205,6 +282,7 @@ async function onRequestToken() {
   btn.textContent = '⟳ Fetching…';
   hideMsg('step1-msg');
   document.getElementById('auth-link-box').classList.remove('visible');
+  if (_countdownTimer) clearInterval(_countdownTimer);
   try {
     const r = await fetch('/api/etrade/request-token', { method: 'POST' });
     const d = await r.json();
@@ -216,11 +294,16 @@ async function onRequestToken() {
     card.classList.add('done');
     btn.textContent = '↻ Get fresh link';
     btn.disabled = false;
+    // Start countdown (5 min default)
+    _tokenExpireAt = Date.now() + (d.expires_in_min || 5) * 60 * 1000;
+    startCountdown();
     // Enable Step 2
     document.getElementById('step2').classList.add('active');
     const inp = document.getElementById('verifier-input');
     inp.disabled = false;
     document.getElementById('btn-exchange').disabled = false;
+    const gotErrBtn = document.getElementById('btn-got-error');
+    if (gotErrBtn) gotErrBtn.style.display = 'inline-flex';
     setTimeout(() => inp.focus(), 100);
     showMsg('step1-msg', 'success', `✓ Authorization link ready. Valid for ~${d.expires_in_min || 5} minutes.`);
   } catch (e) {
