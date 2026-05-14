@@ -2902,32 +2902,11 @@ function renderSpxChart() {
   const bandKey = overlaySignalKey(_spxOverlay);
   const bands = bandKey ? buildSignalBands(visibleRows, bandKey) : [];
 
-  // Trade event points — offset concurrent markers so they don't overlap.
-  // Count how many events share the same date, then spread them vertically
-  // by a step proportional to the visible SPX range (≈0.6% per step).
-  const _ptBase = visibleEvents.map(ev => ({
+  // Trade event points — raw SPX values; pixel-level offset handled by concurrentMarkerOffsetPlugin.
+  const tradePoints = visibleEvents.map(ev => ({
     x: ev.date,
     y: ev.type === 'open' ? ev.trade.entry_spx : ev.trade.exit_spx,
   }));
-  {
-    const byDate = {};
-    _ptBase.forEach((pt, i) => {
-      if (!byDate[pt.x]) byDate[pt.x] = [];
-      byDate[pt.x].push(i);
-    });
-    const spxVals = _ptBase.map(p => p.y).filter(Boolean);
-    const spxRange = spxVals.length ? Math.max(...spxVals) - Math.min(...spxVals) : 500;
-    const step = Math.max(spxRange * 0.04, 250);   // ≥250 pts so offset is visible (~17px on 3y range)
-    Object.values(byDate).forEach(indices => {
-      if (indices.length < 2) return;
-      const n = indices.length;
-      indices.forEach((idx, k) => {
-        // spread evenly: k=0 gets -(n-1)/2 * step, k=last gets +(n-1)/2 * step
-        _ptBase[idx].y += (k - (n - 1) / 2) * step;
-      });
-    });
-  }
-  const tradePoints = _ptBase;
 
   const datasets = [
     {
@@ -2943,6 +2922,7 @@ function renderSpxChart() {
     },
     {
       label: 'Trades',
+      _isTradeMarkers: true,
       data: tradePoints,
       pointStyle: 'triangle',
       rotation: visiblePtRotation,
@@ -3278,9 +3258,35 @@ function renderSpxChart() {
     };
   }
 
+  // Offset concurrent markers (same date) by a fixed 22px in pixel space so
+  // the separation stays constant regardless of zoom level.
+  const concurrentMarkerOffsetPlugin = {
+    id: 'concurrentMarkerOffset',
+    afterUpdate(chart) {
+      const dsIdx = chart.data.datasets.findIndex(d => d._isTradeMarkers);
+      if (dsIdx < 0) return;
+      const meta = chart.getDatasetMeta(dsIdx);
+      const ds   = chart.data.datasets[dsIdx];
+      const byDate = {};
+      ds.data.forEach((d, i) => {
+        if (!byDate[d.x]) byDate[d.x] = [];
+        byDate[d.x].push(i);
+      });
+      const STEP_PX = 22;
+      Object.values(byDate).forEach(indices => {
+        if (indices.length < 2) return;
+        const n = indices.length;
+        indices.forEach((idx, k) => {
+          const baseY = chart.scales.y.getPixelForValue(ds.data[idx].y);
+          meta.data[idx].y = baseY + (k - (n - 1) / 2) * STEP_PX;
+        });
+      });
+    },
+  };
+
   const ctx2 = document.getElementById('spx-price-chart').getContext('2d');
   spxChart = new Chart(ctx2, {
-    plugins: [spxSignalBandsPlugin, q019FlipPlugin, spxSiblingPlugin],
+    plugins: [spxSignalBandsPlugin, q019FlipPlugin, spxSiblingPlugin, concurrentMarkerOffsetPlugin],
     type: 'line',
     data: { datasets },
     options: {
