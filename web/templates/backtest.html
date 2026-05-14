@@ -2596,16 +2596,17 @@ function renderResults(data) {
               const t = ev.trade;
               const fmtSpx = v => v ? Number(v).toLocaleString('en-US',{maximumFractionDigits:0}) : '—';
               if (ev.type === 'open') {
-                // Show entry context so user can confirm this is the open point
                 const suffix = t.exit_reason === 'open_at_end' ? '  (持仓中)' : '';
+                const exitInfo = t.exit_reason === 'open_at_end'
+                  ? '' : `  → ${t.exit_date}  ${t.exit_reason || ''}`;
                 return [
-                  `  ▲ 开仓  SPX ${fmtSpx(t.entry_spx)}  VIX ${t.entry_vix ? t.entry_vix.toFixed(1) : '—'}`,
-                  `     P&L: ${fmtDollarFull(t.exit_pnl)}${suffix}`,
+                  `  ▲ 开仓 ${t.entry_date}  SPX ${fmtSpx(t.entry_spx)}  VIX ${t.entry_vix ? t.entry_vix.toFixed(1) : '—'}`,
+                  `     P&L: ${fmtDollarFull(t.exit_pnl)}${suffix}${exitInfo}`,
                 ];
               } else {
                 const holdDays = t.hold_days != null ? `  持 ${t.hold_days}d` : '';
                 return [
-                  `  ▼ 平仓  SPX ${fmtSpx(t.exit_spx)}  ${t.exit_reason || '—'}${holdDays}`,
+                  `  ▼ 平仓 ${t.exit_date}  SPX ${fmtSpx(t.exit_spx)}  ${t.exit_reason || '—'}${holdDays}`,
                   `     P&L: ${fmtDollarFull(t.exit_pnl)}`,
                 ];
               }
