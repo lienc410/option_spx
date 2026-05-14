@@ -1057,9 +1057,10 @@ async function loadSpx() {
             tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Profit</div><div class="pos-value profit">+$${Math.round(maxPnl * 0.60).toLocaleString()}</div></div>`;
           }
           if (pnl != null) {
-            const pct = Math.min(pnl / maxPnl * 100, 100);
-            const pctCls = pct >= 60 ? 'profit' : pct >= 40 ? 'warn' : '';
-            capturedHtml = `<div class="pos-item"><div class="pos-label">Captured</div><div class="pos-value ${pctCls}">${pct.toFixed(1)}%${pct >= 60 ? ' ✓' : ''}</div></div>`;
+            const tgtProfit = maxPnl * 0.60;
+            const pct = Math.min(pnl / tgtProfit * 100, 100);
+            const pctCls = pct >= 100 ? 'profit' : pct >= 60 ? 'warn' : '';
+            capturedHtml = `<div class="pos-item"><div class="pos-label">Captured</div><div class="pos-value ${pctCls}">${pct.toFixed(1)}%${pct >= 100 ? ' ✓' : ''}</div></div>`;
           }
         }
         posBody.outerHTML = `<div class="pos-grid">
