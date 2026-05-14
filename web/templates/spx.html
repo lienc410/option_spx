@@ -1177,14 +1177,17 @@ function renderPosition(p) {
   const fmtPos = (v, mult) => v != null ? ((v * mult) >= 0 ? '+' : '') + (v * mult).toFixed(0) : null;
   const liveHtml = live.visible ? `
     <div class="pos-live">
-      <div class="pos-live-title">Live Risk (${live.pricing_source === 'spread_quote' ? 'Schwab spread quote' : live.pricing_source === 'positions_mark' ? 'Schwab · mark only' : 'Schwab'})${live.structure ? ' · ' + live.structure : ''}${live.stale ? ' · stale' : ''}</div>
+      <div class="pos-live-title" style="display:flex;align-items:center;gap:6px">
+        <span>Live Risk (${live.pricing_source === 'spread_quote' ? 'Schwab spread quote' : live.pricing_source === 'positions_mark' ? 'Schwab · mark only' : 'Schwab'})${live.structure ? ' · ' + live.structure : ''}${live.stale ? ' · stale' : ''}</span>
+        <span onclick="showPosGreekHelp()" style="cursor:pointer;width:14px;height:14px;border-radius:50%;background:rgba(100,120,180,0.18);color:var(--text-2);font-size:0.60rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;line-height:1;user-select:none" title="Position Greeks 解读">?</span>
+      </div>
       <div class="pos-live-row"><strong>Δ</strong> ${fmt(live.delta)} &nbsp; <strong>Γ</strong> ${fmt(live.gamma, 3)} &nbsp; <strong>Θ</strong> ${fmt(live.theta)} /day &nbsp; <strong>V</strong> ${fmt(live.vega)}</div>
       <div class="pos-live-row"><strong>Mark</strong> ${fmt(live.mark)} &nbsp; <strong>Bid</strong> ${fmt(live.bid)} &nbsp; <strong>Ask</strong> ${fmt(live.ask)}</div>
       <div class="pos-live-row" style="color:var(--text-2)">
         ${fmtPos(live.delta, totalContracts*100) != null ? `Δ×n <strong>${fmtPos(live.delta, totalContracts*100)}</strong> $/pt &nbsp;` : ''}
+        ${live.gamma != null ? `Γ×n <strong>${(live.gamma * totalContracts * 100).toFixed(3)}</strong> &nbsp;` : ''}
         ${fmtPos(live.theta, totalContracts*100) != null ? `Θ×n <strong>${fmtPos(live.theta, totalContracts*100)}</strong> $/d &nbsp;` : ''}
-        ${fmtPos(live.vega,  totalContracts*100) != null ? `V×n <strong>${fmtPos(live.vega,  totalContracts*100)}</strong> $/vol &nbsp;` : ''}
-        ${live.gamma != null ? `Γ×n <strong>${(live.gamma * totalContracts * 100).toFixed(3)}</strong>` : ''}
+        ${fmtPos(live.vega,  totalContracts*100) != null ? `V×n <strong>${fmtPos(live.vega,  totalContracts*100)}</strong> $/vol` : ''}
       </div>
     </div>` : '';
   const acctBadge = (acct) => {
@@ -2028,6 +2031,38 @@ async function loadSettling() {
   setInterval(loadIntraday,    60 * 1000);
   setInterval(loadSettling,    60 * 1000);
 })();
+function showPosGreekHelp() { document.getElementById('pos-greek-help-overlay').classList.remove('hidden'); }
+function hidePosGreekHelp() { document.getElementById('pos-greek-help-overlay').classList.add('hidden'); }
 </script>
+
+<div id="pos-greek-help-overlay" class="hidden" onclick="if(event.target===this)hidePosGreekHelp()" style="position:fixed;inset:0;background:rgba(5,8,20,0.72);z-index:9999;display:flex;align-items:center;justify-content:center">
+  <div style="background:#0D1020;border:1px solid #2A3350;border-radius:10px;padding:24px 28px;max-width:480px;width:90%;font-family:var(--f-ui);position:relative">
+    <button onclick="hidePosGreekHelp()" style="position:absolute;top:12px;right:14px;background:none;border:none;color:var(--text-muted);font-size:1.1rem;cursor:pointer;line-height:1">×</button>
+    <div style="font-size:0.75rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-2);margin-bottom:16px">Position Greeks 解读</div>
+    <div style="display:flex;flex-direction:column;gap:12px;font-size:0.72rem;line-height:1.55;color:var(--text)">
+      <div>
+        <span style="font-family:var(--f-mono);font-weight:700;color:var(--blue)">Δ×n &nbsp;Position Delta</span><br>
+        整仓对 SPX <strong>每移动 1 点</strong>的盈亏（美元）。<br>
+        <span style="color:var(--text-muted)">例：+63 $/pt = SPX 涨 1 点盈利 $63，跌 1 点亏损 $63。Bull put spread 为正 Delta，看涨方向。</span>
+      </div>
+      <div>
+        <span style="font-family:var(--f-mono);font-weight:700;color:var(--blue)">Γ×n &nbsp;Position Gamma</span><br>
+        Delta 对 SPX 的<strong>变化速率</strong>（二阶风险）。<br>
+        <span style="color:var(--text-muted)">SPX 每移动 1 点，Position Delta 随之改变 Γ×n。做空 spread 通常 Gamma 为正（凸性不利，大幅波动对持仓不利）。</span>
+      </div>
+      <div>
+        <span style="font-family:var(--f-mono);font-weight:700;color:var(--blue)">Θ×n &nbsp;Position Theta</span><br>
+        整仓<strong>每日时间价值</strong>变化（美元/天）。<br>
+        <span style="color:var(--text-muted)">正值 = 每天时间流逝对仓位有利（做空期权收 theta）。例：+$313/d = 每个交易日"自然"盈利 $313，假设 SPX 和 IV 不变。</span>
+      </div>
+      <div>
+        <span style="font-family:var(--f-mono);font-weight:700;color:var(--blue)">V×n &nbsp;Position Vega</span><br>
+        整仓对 <strong>IV 每变动 1 vol 点</strong>的敏感度（美元）。<br>
+        <span style="color:var(--text-muted)">负值 = 做空 Vega，IV 上升对仓位不利。例：−$486/vol = VIX / IV 每上升 1 点，仓位亏损 $486。</span>
+      </div>
+    </div>
+    <div style="margin-top:16px;font-size:0.63rem;color:var(--text-muted)">所有数值 = 单张合约 Greek × 全部张数 × 乘数（100）。基于 Schwab 实时期权链报价。</div>
+  </div>
+</div>
 </body>
 </html>
