@@ -392,6 +392,7 @@ body {
   gap: 16px;
 }
 .pos-item { display: flex; flex-direction: column; gap: 3px; }
+.pos-item.full { width: 100%; }
 .pos-label {
   font-family: var(--f-ui);
   font-size: 0.58rem; font-weight: 500;
@@ -972,43 +973,54 @@ async function loadSpx() {
         const pnl     = live.unrealized_pnl;
         const pnlCls  = pnl == null ? '' : pnl >= 0 ? 'profit' : 'loss';
         const pnlStr  = pnl != null ? (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(0) : '—';
-        const premium = pos.actual_premium || pos.model_premium;
-        // Compute current DTE from expiry
+        // Compute current DTE from expiry (use first position's expiry)
         let dte = null;
         if (pos.expiry) {
           const exp = new Date(pos.expiry + 'T00:00:00');
           const today = new Date(); today.setHours(0,0,0,0);
           dte = Math.max(0, Math.round((exp - today) / 86400000));
         }
-        // Target profit / stop $ + captured % — SPX credit spread: $100/pt multiplier
-        const n = Number(pos.contracts) || 1;
-        const maxPnl = premium != null ? Number(premium) * n * 100 : null;
+        // Per-account position rows (supports multi-account e.g. Schwab + E-Trade)
+        const allPositions = (pos.positions && pos.positions.length > 0) ? pos.positions : [pos];
+        const acctBadge = a => {
+          const isEt = a === 'etrade';
+          return `<span style="font-family:var(--f-ui);font-size:0.60rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:${isEt ? 'var(--orange)' : 'var(--blue)'};background:rgba(72,136,232,0.10);border:1px solid rgba(72,136,232,0.25);padding:1px 6px;border-radius:4px">${isEt ? 'E-Trade' : 'Schwab'}</span>`;
+        };
+        const posRows = allPositions.map(p => {
+          const acct    = p.account || 'schwab';
+          const strikes = p.short_strike ? `${p.short_strike} / ${p.long_strike || '—'}` : '—';
+          const prem    = p.actual_premium != null ? `$${Number(p.actual_premium).toFixed(2)}` : (p.model_premium != null ? `$${Number(p.model_premium).toFixed(2)}` : '—');
+          const contracts = p.contracts || 1;
+          return `<div style="display:flex;align-items:center;gap:8px;padding:3px 0;border-top:1px solid var(--border)">
+            ${acctBadge(acct)}
+            <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-2)">${strikes}</span>
+            <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-muted)">${contracts}× @ ${prem}</span>
+          </div>`;
+        }).join('');
+        // Target profit / captured % based on combined premium × contracts
+        const totalPrem = allPositions.reduce((sum, p) => sum + (Number(p.actual_premium || p.model_premium) || 0) * (Number(p.contracts) || 1), 0);
+        const totalN    = allPositions.reduce((sum, p) => sum + (Number(p.contracts) || 1), 0);
+        const maxPnl    = totalPrem > 0 ? totalPrem * 100 : null;
         let tgtHtml = '', capturedHtml = '';
-        if (premium != null && n > 0) {
+        if (maxPnl != null) {
           const inLoss = pnl != null && pnl < 0;
           if (inLoss) {
-            const stopDollars = Math.round(Number(premium) * 1.0 * n * 100);
-            tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Stop</div><div class="pos-value loss">-$${stopDollars.toLocaleString()}</div></div>`;
+            tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Stop</div><div class="pos-value loss">-$${Math.round(maxPnl).toLocaleString()}</div></div>`;
           } else {
-            const tgtDollars = Math.round(Number(premium) * 0.60 * n * 100);
-            tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Profit</div><div class="pos-value profit">+$${tgtDollars.toLocaleString()}</div></div>`;
+            tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Profit</div><div class="pos-value profit">+$${Math.round(maxPnl * 0.60).toLocaleString()}</div></div>`;
           }
-          if (pnl != null && maxPnl > 0) {
+          if (pnl != null) {
             const pct = Math.min(pnl / maxPnl * 100, 100);
             const pctCls = pct >= 60 ? 'profit' : pct >= 40 ? 'warn' : '';
-            const flag   = pct >= 60 ? ' ✓' : '';
-            capturedHtml = `<div class="pos-item"><div class="pos-label">Captured</div><div class="pos-value ${pctCls}">${pct.toFixed(1)}%${flag}</div></div>`;
+            capturedHtml = `<div class="pos-item"><div class="pos-label">Captured</div><div class="pos-value ${pctCls}">${pct.toFixed(1)}%${pct >= 60 ? ' ✓' : ''}</div></div>`;
           }
         }
         posBody.outerHTML = `<div class="pos-grid">
-          ${pos.opened_at   ? `<div class="pos-item"><div class="pos-label">Opened</div><div class="pos-value">${pos.opened_at}</div></div>` : ''}
-          ${pos.expiry      ? `<div class="pos-item"><div class="pos-label">Expiry</div><div class="pos-value">${pos.expiry}${dte != null ? ' (' + dte + 'd)' : ''}</div></div>` : ''}
-          ${pos.short_strike? `<div class="pos-item"><div class="pos-label">Strikes</div><div class="pos-value">${pos.short_strike} / ${pos.long_strike || '—'}</div></div>` : ''}
-          ${pos.contracts   ? `<div class="pos-item"><div class="pos-label">Contracts</div><div class="pos-value">${pos.contracts}</div></div>` : ''}
-          ${premium != null ? `<div class="pos-item"><div class="pos-label">Entry</div><div class="pos-value">$${Number(premium).toFixed(2)}</div></div>` : ''}
-          ${pnl != null     ? `<div class="pos-item"><div class="pos-label">Unrealized</div><div class="pos-value ${pnlCls}">${pnlStr}</div></div>` : ''}
-          ${tgtHtml}
-          ${capturedHtml}
+          ${pos.opened_at ? `<div class="pos-item"><div class="pos-label">Opened</div><div class="pos-value">${pos.opened_at}</div></div>` : ''}
+          ${pos.expiry    ? `<div class="pos-item"><div class="pos-label">Expiry</div><div class="pos-value">${pos.expiry}${dte != null ? ' (' + dte + 'd)' : ''}</div></div>` : ''}
+          ${pnl != null   ? `<div class="pos-item"><div class="pos-label">Unrealized</div><div class="pos-value ${pnlCls}">${pnlStr}</div></div>` : ''}
+          ${tgtHtml}${capturedHtml}
+          <div class="pos-item full" style="padding:0">${posRows}</div>
         </div>`;
       } else {
         posBody.textContent = 'No open position';
