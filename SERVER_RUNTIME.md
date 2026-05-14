@@ -1,6 +1,6 @@
 # SERVER_RUNTIME
 
-Last Updated: 2026-05-06
+Last Updated: 2026-05-13
 Owner: PM / Planner / Server Maintainer
 
 ## Canonical Live Host
@@ -60,6 +60,29 @@ Expected responsibilities:
 - `web`: local Flask dashboard on `127.0.0.1:5050`
 - `cloudflared`: primary public ingress connector from Cloudflare to local web
 - `cloudflared-b`: secondary connector for the same tunnel on the same host
+
+## Scheduled Jobs
+
+All scheduled jobs run on old Air via launchd. Logs go to `~/Library/Logs/spx-strat/`.
+
+| Job | 触发时间 | 功能 | 日志文件 | 失败行为 |
+|---|---|---|---|---|
+| `com.spxstrat.refresh_backtest` | 每天 02:00 ET | 预热 5 个回测端点磁盘缓存（stats / 3y / 5y / Q041 / ES），耗时约 2 分钟 | `refresh_backtest.log` | 静默失败，下次访问时 cold start |
+| `com.spxstrat.signal_settling` | 每小时（SPEC-091）| Q019 Signal 2 VIX settling 计算，写入 `data/q019_settling_log.jsonl` | `signal_settling.log` | fail-soft，不影响 Signal 1 |
+| `com.spxstrat.q041align` | 每个交易日收盘后（SPEC-090）| Q041 三数据源日度对齐检查，阈值超标推 Telegram | `q041align.log` | 非交易日 skip，缺数据 fail-soft |
+| `com.spxstrat.refresh_backtest`（双源对比）| [PM 补充时间] | 双源数据下载对比，验证 yfinance vs [第二数据源] 一致性 | [PM 补充] | [PM 补充] |
+
+### 端点预热顺序（refresh_backtest）
+
+| 端点 | 预计耗时 |
+|---|---|
+| `/api/backtest/stats` | ~52s（首次）|
+| `/api/backtest?start=3y` | ~18s |
+| `/api/backtest?start=5y` | ~32s |
+| `/api/q041/backtest` | 即时 |
+| `/api/es/backtest` | ~8s |
+
+早上用户访问回测页面时全部命中磁盘缓存，响应 < 0.1s。
 
 ## Key Paths On Old Air
 
