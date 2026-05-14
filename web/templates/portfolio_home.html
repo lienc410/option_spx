@@ -970,11 +970,7 @@ async function loadSpx() {
       applyBadge('badge-spx', spxBadge({ ...rec, open: pos.open }));
       if (pos.open) {
         const live    = pos.schwab_live || {};
-        // Use combined trade-log P&L (all accounts) as the primary P&L figure
-        const pnl     = live.combined_trade_log_pnl ?? live.trade_log_pnl ?? null;
-        const pnlCls  = pnl == null ? '' : pnl >= 0 ? 'profit' : 'loss';
-        const pnlStr  = pnl != null ? (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(0) : '—';
-        const fmt     = (v, d=2) => v != null ? Number(v).toFixed(d) : '—';
+        const fmt = (v, d=2) => v != null ? Number(v).toFixed(d) : '—';
         // Compute current DTE from expiry (use first position's expiry)
         let dte = null;
         if (pos.expiry) {
@@ -984,11 +980,18 @@ async function loadSpx() {
         }
         // Per-account position rows (supports multi-account e.g. Schwab + E-Trade)
         const allPositions = (pos.positions && pos.positions.length > 0) ? pos.positions : [pos];
+        // spreadMark + combined P&L: always computed from allPositions so numerator
+        // and denominator are both full-account (avoids Schwab-only / combined-denom mismatch).
+        const spreadMark = live.visible ? live.mark : null;
+        const pnl = spreadMark != null
+          ? allPositions.reduce((s, p) => s + (Number(p.actual_premium ?? p.model_premium ?? 0) - spreadMark) * (Number(p.contracts) || 0) * 100, 0)
+          : (live.combined_trade_log_pnl ?? null);
+        const pnlCls = pnl == null ? '' : pnl >= 0 ? 'profit' : 'loss';
+        const pnlStr = pnl != null ? (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(0) : '—';
         const acctBadge = a => {
           const isEt = a === 'etrade';
           return `<span style="font-family:var(--f-ui);font-size:0.60rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:${isEt ? 'var(--orange)' : 'var(--blue)'};background:rgba(72,136,232,0.10);border:1px solid rgba(72,136,232,0.25);padding:1px 6px;border-radius:4px">${isEt ? 'E-Trade' : 'Schwab'}</span>`;
         };
-        const spreadMark = live.visible ? live.mark : null;
         const posRows = allPositions.map(p => {
           const acct      = p.account || 'schwab';
           const strikes   = p.short_strike ? `${p.short_strike} / ${p.long_strike || '—'}` : '—';
