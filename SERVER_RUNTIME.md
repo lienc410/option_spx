@@ -69,8 +69,7 @@ All scheduled jobs run on old Air via launchd. Logs go to `~/Library/Logs/spx-st
 |---|---|---|---|---|
 | `com.spxstrat.refresh_backtest` | 每天 02:00 ET | 预热 5 个回测端点磁盘缓存（stats / 3y / 5y / Q041 / ES），耗时约 2 分钟 | `refresh_backtest.log` | 静默失败，下次访问时 cold start |
 | `com.spxstrat.signal_settling` | 每小时（SPEC-091）| Q019 Signal 2 VIX settling 计算，写入 `data/q019_settling_log.jsonl` | `signal_settling.log` | fail-soft，不影响 Signal 1 |
-| `com.spxstrat.q041align` | 每个交易日收盘后（SPEC-090）| Q041 三数据源日度对齐检查，阈值超标推 Telegram | `q041align.log` | 非交易日 skip，缺数据 fail-soft |
-| `com.spxstrat.refresh_backtest`（双源对比）| [PM 补充时间] | 双源数据下载对比，验证 yfinance vs [第二数据源] 一致性 | [PM 补充] | [PM 补充] |
+| `com.spxstrat.q041align` | 每天 17:00 ET（SPEC-090） | 双源数据对齐检查，验证 Schwab chains vs Massive snapshot 的 M1 / M4 / M6 一致性，阈值超标推 Telegram | `q041_alignment.out.log` / `q041_alignment.err.log` | 非交易日 skip，缺数据 fail-soft |
 
 ### 端点预热顺序（refresh_backtest）
 
