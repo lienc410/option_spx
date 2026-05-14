@@ -970,7 +970,8 @@ async function loadSpx() {
       applyBadge('badge-spx', spxBadge({ ...rec, open: pos.open }));
       if (pos.open) {
         const live    = pos.schwab_live || {};
-        const pnl     = live.unrealized_pnl;
+        // Use combined trade-log P&L (all accounts) as the primary P&L figure
+        const pnl     = live.combined_trade_log_pnl ?? live.trade_log_pnl ?? null;
         const pnlCls  = pnl == null ? '' : pnl >= 0 ? 'profit' : 'loss';
         const pnlStr  = pnl != null ? (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(0) : '—';
         const fmt     = (v, d=2) => v != null ? Number(v).toFixed(d) : '—';
@@ -1024,14 +1025,6 @@ async function loadSpx() {
               <span><strong>Mark</strong> ${fmt(live.mark)}</span>
               <span><strong>Bid</strong> ${fmt(live.bid)}</span>
               <span><strong>Ask</strong> ${fmt(live.ask)}</span>
-            </div>
-            <div style="font-family:var(--f-mono);font-size:0.68rem;color:var(--text);display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:3px">
-              <span><strong>Unrealized</strong> <span class="${pnlCls}">${pnlStr}</span></span>
-              ${live.combined_trade_log_pnl != null
-                ? `<span><strong>Trade-log P&L (all accts)</strong> ${live.combined_trade_log_pnl >= 0 ? '+' : ''}$${live.combined_trade_log_pnl.toFixed(0)}</span>`
-                : live.trade_log_pnl != null
-                  ? `<span><strong>Trade-log P&L (Schwab)</strong> ${live.trade_log_pnl >= 0 ? '+' : ''}$${live.trade_log_pnl.toFixed(0)}</span>`
-                  : ''}
             </div>`;
         const liveHtml = `
           <div class="pos-item full" style="padding:4px 0;border-top:1px solid var(--border);margin-top:4px">
@@ -1060,7 +1053,7 @@ async function loadSpx() {
         posBody.outerHTML = `<div class="pos-grid">
           ${pos.opened_at ? `<div class="pos-item"><div class="pos-label">Opened</div><div class="pos-value">${pos.opened_at}</div></div>` : ''}
           ${pos.expiry    ? `<div class="pos-item"><div class="pos-label">Expiry</div><div class="pos-value">${pos.expiry}${dte != null ? ' (' + dte + 'd)' : ''}</div></div>` : ''}
-          ${!live.visible && pnl == null ? '' : pnl != null ? `<div class="pos-item"><div class="pos-label">Unrealized</div><div class="pos-value ${pnlCls}">${pnlStr}</div></div>` : ''}
+          ${pnl != null ? `<div class="pos-item"><div class="pos-label">P&L (all accts)</div><div class="pos-value ${pnlCls}">${pnlStr}</div></div>` : ''}
           ${tgtHtml}${capturedHtml}
           <div class="pos-item full" style="padding:0">${posRows}</div>
           ${liveHtml}

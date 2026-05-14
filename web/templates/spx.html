@@ -1174,7 +1174,6 @@ function renderPosition(p) {
       <div class="pos-live-title">Live Risk (${live.pricing_source === 'spread_quote' ? 'Schwab spread quote' : live.pricing_source === 'positions_mark' ? 'Schwab · mark only' : 'Schwab'})${live.structure ? ' · ' + live.structure : ''}${live.stale ? ' · stale' : ''}</div>
       <div class="pos-live-row"><strong>Δ</strong> ${fmt(live.delta)} &nbsp; <strong>Γ</strong> ${fmt(live.gamma, 3)} &nbsp; <strong>Θ</strong> ${fmt(live.theta)} /day &nbsp; <strong>V</strong> ${fmt(live.vega)}</div>
       <div class="pos-live-row"><strong>Mark</strong> ${fmt(live.mark)} &nbsp; <strong>Bid</strong> ${fmt(live.bid)} &nbsp; <strong>Ask</strong> ${fmt(live.ask)}</div>
-      <div class="pos-live-row"><strong>Unrealized</strong> ${live.unrealized_pnl == null ? '—' : live.unrealized_pnl.toFixed(2)} &nbsp; <strong>${live.combined_trade_log_pnl != null ? 'Trade-log P&L (all accts)' : 'Trade-log P&L (Schwab)'}</strong> ${(live.combined_trade_log_pnl ?? live.trade_log_pnl) == null ? '—' : (live.combined_trade_log_pnl ?? live.trade_log_pnl).toFixed(2)}</div>
     </div>` : '';
   const dteLine = dteEstimate(meta, p);
   CURRENT_POS = p;
