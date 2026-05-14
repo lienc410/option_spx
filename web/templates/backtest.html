@@ -3272,7 +3272,7 @@ function renderSpxChart() {
         if (!byDate[d.x]) byDate[d.x] = [];
         byDate[d.x].push(i);
       });
-      const STEP_PX = 14;
+      const STEP_PX = 10;
       Object.values(byDate).forEach(indices => {
         if (indices.length < 2) return;
         const n = indices.length;
