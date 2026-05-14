@@ -786,6 +786,11 @@ def run_backtest(
     full_vix = vix_df[vix_df.index >= lookback_start]
     full_spx = spx_df[spx_df.index >= lookback_start]
 
+    # Q068 Phase 7: precompute SPX 10-day MA if regime_stop_below_ma10 is enabled
+    spx_ma10_series = None
+    if params.regime_stop_below_ma10:
+        spx_ma10_series = full_spx["close"].rolling(10).mean()
+
     trades: list[Trade] = []
     signal_history: list[dict] = []
     shock_reports: list[dict] = []
@@ -964,6 +969,23 @@ def run_backtest(
                             exit_reason = "stop_loss"
                     elif pnl_ratio <= -0.50:
                         exit_reason = "stop_loss"
+
+            # Q068 Phase 7 regime stops (research mode; defaults disabled)
+            if exit_reason is None and position.days_held >= params.regime_stop_min_hold_days:
+                is_bps_strategy = position.strategy in (
+                    StrategyName.BULL_PUT_SPREAD,
+                    StrategyName.BULL_PUT_SPREAD_HV,
+                )
+                regime_check_eligible = is_bps_strategy if params.regime_stop_bps_only else True
+                if regime_check_eligible:
+                    if (params.regime_stop_vix_rise > 0
+                            and position.entry_vix > 0
+                            and vix > position.entry_vix * (1.0 + params.regime_stop_vix_rise)):
+                        exit_reason = "regime_vix_rise"
+                    elif params.regime_stop_below_ma10 and spx_ma10_series is not None:
+                        ma10_val = spx_ma10_series.get(date)
+                        if ma10_val is not None and not pd.isna(ma10_val) and spx < ma10_val:
+                            exit_reason = "regime_below_ma10"
 
             if short_dte <= 21 and exit_reason is None:
                 exit_reason = "roll_21dte"

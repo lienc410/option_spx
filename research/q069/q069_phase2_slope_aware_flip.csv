@@ -1,0 +1,6 @@
+variant,block_days,block_%,flips,flip_rate_%,flip_flop_5TD
+V0_baseline,2103,43.2,359,7.37,219
+M1_lvl_slope,1071,22.0,755,15.5,570
+M2_avg_slope,1006,20.7,475,9.75,277
+M3_lvl_vix5d_1.0,952,19.5,582,11.95,379
+M4_lvl_vix5d_1.5,843,17.3,538,11.04,344

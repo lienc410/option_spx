@@ -185,7 +185,23 @@ LOCAL_SPIKE_IVP252_MAX   = 50
 IVP63_BCS_BLOCK          = 70
 # DIAGONAL_IVP252_GATE_LO/HI removed — Gate 1 (SPEC-049) rescinded 2026-04-15
 # BPS NORMAL+NEUTRAL+BULLISH gate: IVP upper cap (monkey-patchable for sensitivity research)
-# Raised 50→55: Q015 OOS validation passed (Sharpe non-degrading in IS/OOS, Pareto improvement)
+# Raised 50→55: Q015 OOS validation passed (Sharpe non-degrading in IS/OOS, Pareto improvement).
+#
+# BPS_NNB_IVP_UPPER = 55 is an empirical low-vol repricing filter, not a
+# precise volatility cliff. Q063 confirmed that relaxing this gate re-admits
+# negative-alpha BPS NNB entries, including recent 2024-2026 counterfactual
+# losers (-$13.7k over 5 blocked entries). Q067 confirmed rank-jump / threshold
+# jitter (7.37% historical / 11.5% recent daily flip rate; 61% reverse within
+# 5 TD; 15% 126d-vs-252d window disagreement), but hysteresis / multi-horizon /
+# cross-window variants all failed. Q068 MA-timing overrides and regime stops
+# failed robustness / worst-trade tests (P6 variants worst -$15k vs baseline
+# -$9k). Q069 smoothed (SMA/EWM) and slope-aware IVP variants also failed —
+# smoothing introduces lag; slope-aware re-admits known 2026-02-25 bad trade.
+# Mechanism: low VIX absolute level ≠ low IVP relative position. VIX 15-17 +
+# IVP 60-65 can be "complacency before mean reversion," not safe premium-selling.
+# Keep hard IVP_252 >= 55 block unless a future non-threshold framework
+# (probabilistic / Bayesian / cross-asset) is explicitly approved.
+# See task/q063_q067_q068_q069_closure_2nd_quant_review_2026-05-13.md
 BPS_NNB_IVP_UPPER        = 55
 BPS_NNB_IVP_LOWER        = 43
 

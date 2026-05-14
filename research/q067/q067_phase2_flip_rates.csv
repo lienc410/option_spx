@@ -1,0 +1,7 @@
+variant,block_days,block_%,flips,flip_rate_%,flip_flop
+V0_baseline,3687,42.6,683,7.89,416
+V1a_hyst_N3,4460,51.5,359,4.15,122
+V1b_hyst_N5,4859,56.2,295,3.41,60
+V1c_hyst_N10,5556,64.2,201,2.32,20
+V2_multihorizon,2790,32.2,756,8.74,458
+V3_crosswin_any,4777,55.2,758,8.76,477

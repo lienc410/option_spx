@@ -1,7 +1,129 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-13 (R-20260513-06: Q068 CLOSED per 2nd Quant Review PASS / KEEP V0。三轮研究 (Round 1 + Phase 6 + Phase 7) 一致：no MA override / no regime stop / no formal paper trade。**Final**: Keep `BPS_NNB_IVP_UPPER = 55` unchanged。可选 shadow tag for future regime-conditional 数据累积，不实施。Q063 + Q067 + Q068 三大 phase 一致 verdict：hard IVP > 55 gate 是 tested space empirical local optimum)
+Last Updated: 2026-05-13 (R-20260513-09: Q063/Q067/Q068/Q069 closure APPROVED by 2nd Quant. Verdict: hard `IVP > 55` gate is current tested-space empirical local optimum；keep `BPS_NNB_IVP_UPPER = 55` unchanged。Code comment 已加 [strategy/selector.py:187-203](strategy/selector.py:187)；Q069 wording 收紧为 "within tested frameworks unlikely to solve"；future Q070+ Bayesian/cross-asset reopen 仅在 4 个 high-bar conditions 任一满足时启动)
 Owner: Planner or PM
+
+### R-20260513-09 — Q063/Q067/Q068/Q069 Closure APPROVED by 2nd Quant
+
+- Topic: 2nd Quant 完成对 Q063/Q067/Q068/Q069 综合 closure review。verdict: APPROVE CLOSURE
+- 6 个 review 部分:
+  - **Q1 (Q063)**: PASS — gate 不是"错过机会"是"过滤负 alpha"，机制解释 (VIX 低 ≠ IVP 低) 必须保留
+  - **Q2 (Q067 jitter)**: PASS — "Jitter is real, but tested jitter fixes are worse than the original hard gate"
+  - **Q3 (Q068 MA timing / stops)**: PASS — "PM intuition is valid as trading observation, not stable enough for rule-level adoption"
+  - **Q4 (Q069 smoothing/slope)**: PASS with wording adjustment — 收紧 "not something more research effort can solve" 为 "within tested frameworks unlikely to solve"
+  - **Q5 (code comment)**: STRONGLY RECOMMEND ADD — 2nd Quant 提供具体注释文本
+  - **Q6 (future Q070)**: 可以但高门槛 — 4 个 reopen conditions
+- Action items 全部完成:
+  - ✅ [task/q063_q067_q068_q069_closure_2nd_quant_review_2026-05-13.md](task/q063_q067_q068_q069_closure_2nd_quant_review_2026-05-13.md) — 完整 review 归档
+  - ✅ [strategy/selector.py:187-203](strategy/selector.py:187) — Inline comment 已加（mechanism + Q063/Q067/Q068/Q069 closure summary）
+  - ✅ [research/q069/q069_phase2_memo_2026-05-13.md] — wording 收紧
+  - ✅ [task/q063_phase4_closure_memo_2026-05-11.md] §13 — closure approval supplement
+- Future Q070+ reopen criteria (high bar) — 任一满足才能重启:
+  1. 完全不同的信息集 (credit spreads, rates, breadth, vol surface, VVIX, macro/liquidity)
+  2. 完全不同的建模形式 (probabilistic / Bayesian / calibrated loss-prob model)
+  3. 新 live evidence (repeated blocked entries + positive counterfactual PnL across enough samples)
+  4. 账户/strategy routing materially changes (BPS NNB capital share much larger)
+- 不应再测试: IVP threshold relax / hysteresis / MA5-10 override / VIX confirmation / smoothed IVP / slope filter — 已充分覆盖
+- Production code 状态:
+  - `BPS_NNB_IVP_UPPER = 55` UNCHANGED (final)
+  - `LOOKBACK_DAYS = 252` UNCHANGED
+  - selector.py inline comment ADDED 2026-05-13
+  - Engine research-mode flags (Q068 P7) KEEP, default disabled
+- 5 项研究 closure final status:
+  - Q063 (Phase 1-5) CLOSED
+  - Q067 (Phase 1-2) CLOSED
+  - Q068 (Round 1 + Phase 6-7) CLOSED
+  - Q069 (Phase 1-2) CLOSED
+  - Total ~10 research sub-phases over 3 days (2026-05-11 to 2026-05-13) demonstrating hard gate robustness
+- Quant 收口建议: 把 research effort 转向其他 strategy parameters；仅在 4 个 reopen conditions 任一满足时再开 IVP gate 研究，且作为独立 SPEC-level project
+- Related: All R-20260511 to R-20260513-08
+- Output: 见上方 action items checklist
+
+---
+
+### R-20260513-08 — Q069 Phase 2 + CLOSED: Slope-aware IVP — ALL FAIL hard guardrail
+
+- Topic: 2nd Quant 2026-05-13 提议 slope-aware 作为真正不同于 Phase 1 smoothing 的方向：不平滑信号但区分 "high & rising" (real risk) vs "high but falling" (noise)。4 变体 M1-M4。采纳 2nd Quant 的 2026-02-25 hard guardrail + 三档 verdict matrix
+- Method:
+  - M1: IVP > 55 AND IVP_3d_change > 0
+  - M2: IVP_3d_avg > 55 AND avg_change > 0
+  - M3: IVP > 55 AND VIX_5d_change > +1.0
+  - M4: IVP > 55 AND VIX_5d_change > +1.5
+  - 同 Q067 P2 + Q068 + Q069 P1 框架
+- Findings:
+  - **4 个变体全部 fail hard guardrail (2026-02-25 必须 block)**：trade-level 验证全部产生 `2026-02-25 → 2026-03-10 → -$4,791` 坏 trade
+  - 根因：2026-02-25 当天 IVP=57.1 但 **IVP_3d_change=-9.92 (快速回落)** + VIX_5d_change=-1.69 (VIX 也跌) → slope-aware 把"high but easing"判为 allow
+  - **Flip rate 反而比 V0 恶化**：M1 15.50%, M2 9.75%, M3 11.95%, M4 11.04% (vs V0 7.37%)。多变量 (IVP 跨阈值 + slope 符号) 独立抖动相乘 → 比单变量更多 noise
+  - **PnL 全 windows 全负**：Full -$6.7k to -$14.6k, OOS -$9.4k to -$13k, Recent 2y -$2.4k to -$3.6k
+  - **Worst trade 全部恶化 -$2.6k to -$5.7k**
+  - **M1/M2 不仅没救 PM 5/12，还放行 2/25**：方向完全相反（5/12 IVP_3d_change=+14.68 上升 → M1/M2 block，2/25 IVP_3d_change=-9.92 下降 → M1/M2 allow）
+  - **M3/M4 救 5/12 但放行 2/25**：VIX 不上升时都 allow
+- Phase 1 vs Phase 2 死因对比:
+  - Phase 1 smoothing 死因: **lag** → 错过 risk ramp-up
+  - Phase 2 slope-aware 死因: 错过 **"elevated but easing" risk** → 2026-02-25 类 trade
+  - 两类 failure modes 互斥但都坏 → **threshold gate 软化无法 simultaneously avoid 两类 failure**
+- Meta-finding 强化（5 方向 unanimous）:
+  - Q063 P5 (multi-factor) + Q067 P2 (hysteresis) + Q068 P6 (MA timing) + Q069 P1 (smoothing) + Q069 P2 (slope-aware) 全部失败
+  - worst trade 收敛到 -$15,119（4 个研究重复同一数字）→ 同一笔 historical bad trade 被不同机制反复放进策略
+  - **Hard `IVP > 55` gate 在 tested space 内是 confirmed empirical local optimum**
+- Verdict: **Q069 CLOSED 不启动 Phase 3 regime-state**
+  - R1/R2 (regime-state) 实质重复 M3/M4 framework（multi-factor confirmation），2026-02-25 VIX_5d_change=-1.69 negative → R1/R2 必允许 → hard guardrail fail
+  - 2nd Quant 自己的判据已满足：smoothed IVP fail → hard 55 is final answer
+- Q063 / Q067 / Q068 / Q069 全部 CLOSED:
+  - `BPS_NNB_IVP_UPPER = 55` final UNCHANGED
+  - `LOOKBACK_DAYS = 252` UNCHANGED
+  - 任何 threshold-based 修改 REJECTED
+  - 真正非 threshold-based (Bayesian / ML / continuous-score) 应作为独立 SPEC-level research，非 Q069 phase
+- Quant 推荐: 接受 "IVP > 55 is final" 把研究 effort 转向其他 strategy parameters
+- Confidence: **Very high** (5 个独立方向 unanimous fail 是强 evidence)
+- Caveats:
+  - 测试 space 限于 threshold-based variations + simple multi-factor；non-threshold 框架未测
+  - Strict-dominance / 三档 verdict 都是 author proposed standards
+- Related: R-20260513-07 (Phase 1), 2nd Quant Q069 input (2026-05-13), [task/q068_..._Review.md], [task/q063_phase4_closure_memo_2026-05-11.md]
+- Output:
+  - `research/q069/q069_phase2_memo_2026-05-13.md`
+  - `research/q069/q069_phase2_slope_aware.py`
+  - `research/q069/q069_phase2_slope_aware_bt.csv` + `q069_phase2_slope_aware_flip.csv`
+
+---
+
+### R-20260513-07 — Q069 Phase 1: Smoothed IVP — ALL FAIL but META-PATTERN identified
+
+- Topic: Per 2nd Quant Q068 review framing — explore "真正不同的研究假设"。Q069 P1 测修改信号输入（smoothed IVP）而非修改 gate 逻辑（Q067 hysteresis）或加 entry filter（Q068 MA timing）。Hypothesis：short-window smoothing 减少 daily noise 而保留长期信号
+- Method:
+  - 5 smoothing variants（SMA 3/5/10 days + EWM α=0.3/0.1）应用同 55 阈值
+  - 复用 Q067 Phase 2 + Q068 框架 engine patcher
+  - Strict dominance 标准：PnL ≥ -$750/yr, worst ≥ baseline, flip < 3%
+- Findings:
+  - **Flip rate 完美机械下降**：V0 7.37% → V3 SMA10 2.14% / V5 EWM α=0.1 1.66%（都跨过 3% 目标）
+  - **Worst trade 全部恶化到 -$15,119 ~ -$15,713**（与 Q068 P6 一模一样的数字）—— 不是巧合，是同一笔 historical bad trade 被 smoothing lag 放进策略
+  - **Alpha 单调流失**：smoothing window 越长 → flip 越低 → alpha 损失越大。V1 -$2,027/yr 到 V3 -$3,435/yr
+  - **V5 EWM α=0.1 recent 2y anomaly**：8 trades $23,153 worst -$290（接近 V0 14 trades $24,520 worst -$9,379）—— 但全 19yr fail -$34k。与 Q068 P6 一样的 "recent works, full sample fails" pattern
+  - Agreement analysis：smoothing 在双方向改变 gate 决策（V3 SMA10 11.6% TD differ，306 smooth-allows-raw-blocks + 259 smooth-blocks-raw-allows）—— 不是 systematic shift，是 timing reshuffling
+- **META-FINDING (Phase 1 最重要发现)**:
+  - 四个不同方向研究 worst trade 一致 collide 到 -$15k：Q063 / Q067 hysteresis / Q068 MA timing / Q069 smoothing
+  - 死因相同：**所有对 IVP gate 的"软化"修改都通过同一机制损害 worst trade —— 延迟 block 时机**
+  - Threshold-based 修改的 trade-off 是确定性的：noise reduction ⊥ worst trade preservation
+  - 暗示 non-threshold-based 是唯一可能出路（probability / Bayesian / continuous score），但工程复杂 + overfit 风险高
+- Verdict: **Phase 1 ALL VARIANTS FAIL strict dominance**
+- Decision point for PM:
+  - **A**. Close Q069 — 接受 "threshold-based gate 不可能同时 reduce jitter + preserve worst trade" 作为 fundamental 限制（Quant 推荐）
+  - **B**. Phase 2 regime detection — 但本质是 multi-factor 的 rebrand，已被 Q063 Phase 5 否决；overfit 风险高
+  - **C**. Phase 3 non-threshold (Bayesian / nearest-neighbor on historical outcomes) — 工程量 ~1 周，作为 exploration
+- Confidence:
+  - High on Phase 1 fail verdict（直接 backtest 数字 + 5 个变体 worst trade 全部 -$15k）
+  - High on meta-pattern（四研究 collide 同一 worst trade 是强信号）
+  - Medium on "non-threshold 是唯一出路" 的推论（理论合理但未实证）
+- Caveats:
+  - 仅测了 short-window smoothing；未测 longer (20d+) 或 multi-scale 组合
+  - Strict dominance 标准是 author proposed
+  - "Recent works, full sample fails" pattern 可能反映 regime change，也可能是 sample chasing artifact —— 19yr 数据无法分辨
+- Next Tests: 取决于 PM Decision Point 选择
+- Related: 2nd Quant Q068 framing (task/q068_..._Review.md), R-20260513-02 (Q067 P2), R-20260513-03 (Q068 P6), R-20260513-05 (Q068 P7), R-20260513-06 (Q068 CLOSED)
+- Output:
+  - `research/q069/q069_phase1_memo_2026-05-13.md`
+  - `research/q069/q069_phase1_smoothed_ivp.py`
+  - `research/q069/q069_phase1_smoothed_ivp_bt.csv` + `q069_phase1_smoothed_ivp_flip.csv`
 
 ---
 
