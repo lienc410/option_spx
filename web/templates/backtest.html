@@ -2316,7 +2316,19 @@ function buildSpxChartData(trades, isResearch = false) {
     events.push({ date: t.entry_date, type: 'open',  trade: t });
     events.push({ date: t.exit_date,  type: 'close', trade: t });
   });
-  events.sort((a, b) => a.date.localeCompare(b.date) || (a.type === 'open' ? -1 : 1));
+  // Sort: date → opens before closes → within closes wins before losses
+  // (losses render last = on top, so red isn't hidden by an overlapping green)
+  events.sort((a, b) => {
+    const dc = a.date.localeCompare(b.date);
+    if (dc !== 0) return dc;
+    if (a.type !== b.type) return a.type === 'open' ? -1 : 1;
+    if (a.type === 'close') {
+      const aWin = (a.trade.exit_pnl || 0) >= 0;
+      const bWin = (b.trade.exit_pnl || 0) >= 0;
+      if (aWin !== bWin) return aWin ? -1 : 1;
+    }
+    return 0;
+  });
 
   // Open ▲: blue (neutral — win/loss unknown at entry)
   // Close ▽: green=win, red=loss
@@ -2451,7 +2463,17 @@ function renderResults(data) {
     events.push({ date: t.entry_date, type: 'open',  trade: t });
     events.push({ date: t.exit_date,  type: 'close', trade: t });
   });
-  events.sort((a, b) => a.date.localeCompare(b.date) || (a.type === 'open' ? -1 : 1));
+  events.sort((a, b) => {
+    const dc = a.date.localeCompare(b.date);
+    if (dc !== 0) return dc;
+    if (a.type !== b.type) return a.type === 'open' ? -1 : 1;
+    if (a.type === 'close') {
+      const aWin = (a.trade.exit_pnl || 0) >= 0;
+      const bWin = (b.trade.exit_pnl || 0) >= 0;
+      if (aWin !== bWin) return aWin ? -1 : 1;
+    }
+    return 0;
+  });
 
   // Cumulative P&L advances only when the trade closes.
   let cum = 0;
