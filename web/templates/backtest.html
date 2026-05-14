@@ -2594,25 +2594,28 @@ function renderResults(data) {
               const ev = events[item.dataIndex];
               if (!ev) return '';
               const t = ev.trade;
-              const typeTag = ev.type === 'open' ? '▲ 开仓' : '▼ 平仓';
-              const pnlStr = fmtDollarFull(t.exit_pnl);
-              // For open markers, P&L is unrealized/projected if exit is open_at_end
-              const suffix = ev.type === 'open' && t.exit_reason === 'open_at_end' ? ' (持仓中)' : '';
-              return `  ${typeTag}  P&L: ${pnlStr}${suffix}`;
+              const fmtSpx = v => v ? Number(v).toLocaleString('en-US',{maximumFractionDigits:0}) : '—';
+              if (ev.type === 'open') {
+                // Show entry context so user can confirm this is the open point
+                const suffix = t.exit_reason === 'open_at_end' ? '  (持仓中)' : '';
+                return [
+                  `  ▲ 开仓  SPX ${fmtSpx(t.entry_spx)}  VIX ${t.entry_vix ? t.entry_vix.toFixed(1) : '—'}`,
+                  `     P&L: ${fmtDollarFull(t.exit_pnl)}${suffix}`,
+                ];
+              } else {
+                const holdDays = t.hold_days != null ? `  持 ${t.hold_days}d` : '';
+                return [
+                  `  ▼ 平仓  SPX ${fmtSpx(t.exit_spx)}  ${t.exit_reason || '—'}${holdDays}`,
+                  `     P&L: ${fmtDollarFull(t.exit_pnl)}`,
+                ];
+              }
             },
             footer: items => {
+              if (items.length !== 1) return [];
               const i = items[0].dataIndex;
               const ev = events[i];
               if (!ev) return [];
-              const t = ev.trade;
-              const spxIn  = t.entry_spx ? t.entry_spx.toLocaleString('en-US',{maximumFractionDigits:0}) : '—';
-              const spxOut = t.exit_spx  ? t.exit_spx.toLocaleString('en-US', {maximumFractionDigits:0}) : '—';
-              const lines = [
-                `SPX: ${spxIn} → ${spxOut}   VIX: ${t.entry_vix ? t.entry_vix.toFixed(1) : '—'}`,
-                `Exit: ${t.exit_reason || '—'}`,
-              ];
-              if (items.length === 1) lines.unshift(`Cumulative: ${fmtDollarFull(vals[i])}`);
-              return lines;
+              return [`Cumulative: ${fmtDollarFull(vals[i])}`];
             },
             labelColor: item => {
               const ev = events[item.dataIndex];
@@ -2866,9 +2869,12 @@ function renderSpxChart() {
     const mapped = eventIndexMap.indexOf(oldSibling);
     visibleSiblingIdx[i] = mapped;
   });
-  const visiblePtRadius = eventIndexMap.map(i => ptRadius[i]);
-  const visiblePtColors = eventIndexMap.map(i => ptColors[i]);
-  const visiblePtRotation = eventIndexMap.map(i => ptRotation[i]);
+  const visiblePtRadius      = eventIndexMap.map(i => ptRadius[i]);
+  const visiblePtColors      = eventIndexMap.map(i => ptColors[i]);
+  const visiblePtRotation    = eventIndexMap.map(i => ptRotation[i]);
+  // Open markers get a white border so they stand out from close markers on the chart
+  const visiblePtBorderColor = visibleEvents.map(ev => ev.type === 'open' ? 'rgba(255,255,255,0.60)' : 'transparent');
+  const visiblePtBorderWidth = visibleEvents.map(ev => ev.type === 'open' ? 1.5 : 0);
 
   const bandKey = overlaySignalKey(_spxOverlay);
   const bands = bandKey ? buildSignalBands(visibleRows, bandKey) : [];
@@ -2901,8 +2907,8 @@ function renderSpxChart() {
       pointHoverBorderWidth: 2,
       pointHoverBorderColor: '#fff',
       pointBackgroundColor: visiblePtColors,
-      pointBorderColor: visiblePtColors,
-      pointBorderWidth: 0,
+      pointBorderColor: visiblePtBorderColor,
+      pointBorderWidth: visiblePtBorderWidth,
       showLine: false,
       yAxisID: 'y',
     },
