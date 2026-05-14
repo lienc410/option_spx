@@ -2726,6 +2726,42 @@ def api_schwab_status():
     return jsonify(token_status())
 
 
+@app.route("/api/schwab/chain-debug")
+def api_schwab_chain_debug():
+    """Debug: show raw chain rows for current open position's strikes."""
+    from schwab.client import _get_option_chain_exact_expiry, _spread_live_snapshot_from_chain, live_position_snapshot
+    from strategy.state import read_state
+    state = read_state()
+    if not state:
+        return jsonify({"error": "no open position"})
+    expiry   = state.get("expiry", "")
+    ss       = state.get("short_strike")
+    ls       = state.get("long_strike")
+    underly  = state.get("underlying", "SPX")
+    try:
+        rows = _get_option_chain_exact_expiry(underly, "PUT", expiry, center_strike=ss, strike_window=160)
+    except Exception as e:
+        rows = []
+        chain_error = str(e)
+    else:
+        chain_error = None
+    def _row(r):
+        return {k: r.get(k) for k in ("strike","bid","ask","mark","mid","delta","gamma","theta","vega")}
+    target_rows = [_row(r) for r in rows if r.get("strike") in (float(ss) if ss else None, float(ls) if ls else None)]
+    snapshot = live_position_snapshot(state)
+    return jsonify({
+        "state_used": {"strategy_key": state.get("strategy_key"), "expiry": expiry,
+                       "short_strike": ss, "long_strike": ls, "underlying": underly},
+        "chain_rows_total": len(rows),
+        "chain_error": chain_error,
+        "target_rows": target_rows,
+        "snapshot_visible": snapshot.get("visible"),
+        "snapshot_pricing_source": snapshot.get("pricing_source"),
+        "snapshot_mark": snapshot.get("mark"),
+        "snapshot_trade_log_pnl": snapshot.get("trade_log_pnl"),
+    })
+
+
 @app.route("/api/schwab/positions")
 def api_schwab_positions():
     from schwab.client import get_account_positions, get_account_balances
