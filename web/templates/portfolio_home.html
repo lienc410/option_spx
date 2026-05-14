@@ -1122,8 +1122,17 @@ async function loadSettling() {
     }
     if (data.status === 'stable' || data.status === 'timeout') {
       const stableLabel = data.status === 'timeout'
-        ? `timeout (12:30 ET · ${fmtNum(current, 1)} · ${elapsed}m)`
-        : `stable at VIX ${fmtNum(current, 1)} · ${elapsed}m`;
+        ? `timeout · VIX ${fmtNum(current, 1)}`
+        : `stable · VIX ${fmtNum(current, 1)}`;
+      // Format checked_at to HH:MM ET
+      let checkedTs = '';
+      if (data.checked_at) {
+        try {
+          const d = new Date(data.checked_at);
+          checkedTs = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }) + ' ET';
+        } catch (_) {}
+      }
+      const sig1Ts = data.date ? data.date + ' 09:30 ET' : '';
       bodyEl.innerHTML = `
         <div>${data.changed ? 'Signal 2 differs from Signal 1.' : 'Signal 2 confirms Signal 1.'}</div>
         <div class="settling-compare">
@@ -1131,11 +1140,13 @@ async function loadSettling() {
             <div class="settling-box-label">Signal 1 · Opening</div>
             <div class="settling-box-main">${shortRecLabel(sig1)}</div>
             <div class="settling-box-sub">VIX ${fmtNum(sig1?.vix, 1)}</div>
+            ${sig1Ts ? `<div class="settling-box-sub" style="color:var(--text-muted)">${sig1Ts}</div>` : ''}
           </div>
           <div class="settling-box">
             <div class="settling-box-label">Signal 2 · Settled</div>
             <div class="settling-box-main">${shortRecLabel(sig2)}</div>
             <div class="settling-box-sub">${stableLabel}</div>
+            ${checkedTs ? `<div class="settling-box-sub" style="color:var(--text-muted)">${checkedTs}</div>` : ''}
           </div>
         </div>`;
       noteEl.textContent = 'Forward-tracking observation only. Not an actionable trade recommendation.';
