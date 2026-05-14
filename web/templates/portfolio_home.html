@@ -1014,7 +1014,9 @@ async function loadSpx() {
             ${pnlHtml}
           </div>`;
         }).join('');
-        // Live risk block (Schwab Greeks + mark + PnL) — always rendered; shows placeholder outside market hours
+        // Live risk block — always rendered; shows placeholder outside market hours
+        const totalContracts = allPositions.reduce((s, p) => s + (Number(p.contracts) || 0), 0);
+        const fmtPos = (v, mult) => v != null ? ((v * mult) >= 0 ? '+' : '') + (v * mult).toFixed(0) : null;
         const liveStatusNote = !live.visible
           ? `<div style="font-family:var(--f-mono);font-size:0.67rem;color:var(--text-muted)">暂无报价（盘后 / 未找到合约）</div>`
           : `<div style="font-family:var(--f-mono);font-size:0.68rem;color:var(--text);display:flex;flex-wrap:wrap;gap:8px 16px">
@@ -1025,6 +1027,12 @@ async function loadSpx() {
               <span><strong>Mark</strong> ${fmt(live.mark)}</span>
               <span><strong>Bid</strong> ${fmt(live.bid)}</span>
               <span><strong>Ask</strong> ${fmt(live.ask)}</span>
+            </div>
+            <div style="font-family:var(--f-mono);font-size:0.67rem;color:var(--text-muted);display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:3px">
+              ${fmtPos(live.delta, totalContracts*100) != null ? `<span>Δ×n <span style="color:var(--text)">${fmtPos(live.delta, totalContracts*100)}</span> $/pt</span>` : ''}
+              ${fmtPos(live.theta, totalContracts*100) != null ? `<span>Θ×n <span style="color:var(--text)">${fmtPos(live.theta, totalContracts*100)}</span> $/d</span>` : ''}
+              ${fmtPos(live.vega,  totalContracts*100) != null ? `<span>V×n <span style="color:var(--text)">${fmtPos(live.vega,  totalContracts*100)}</span> $/vol</span>` : ''}
+              ${live.gamma != null ? `<span>Γ×n <span style="color:var(--text)">${(live.gamma * totalContracts * 100).toFixed(3)}</span></span>` : ''}
             </div>`;
         const liveHtml = `
           <div class="pos-item full" style="padding:4px 0;border-top:1px solid var(--border);margin-top:4px">
