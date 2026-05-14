@@ -973,6 +973,7 @@ async function loadSpx() {
         const pnl     = live.unrealized_pnl;
         const pnlCls  = pnl == null ? '' : pnl >= 0 ? 'profit' : 'loss';
         const pnlStr  = pnl != null ? (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(0) : '—';
+        const fmt     = (v, d=2) => v != null ? Number(v).toFixed(d) : '—';
         // Compute current DTE from expiry (use first position's expiry)
         let dte = null;
         if (pos.expiry) {
@@ -997,9 +998,28 @@ async function loadSpx() {
             <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-muted)">${contracts}× @ ${prem}</span>
           </div>`;
         }).join('');
+        // Live risk block (Schwab Greeks + mark + PnL) — mirrors spx.html pos-live
+        const liveHtml = live.visible ? `
+          <div class="pos-item full" style="padding:4px 0;border-top:1px solid var(--border);margin-top:4px">
+            <div style="font-family:var(--f-ui);font-size:0.58rem;font-weight:500;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-2);margin-bottom:3px">
+              Live Risk (Schwab)${live.stale ? ' · stale' : ''}
+            </div>
+            <div style="font-family:var(--f-mono);font-size:0.68rem;color:var(--text);display:flex;flex-wrap:wrap;gap:8px 16px">
+              <span><strong>Δ</strong> ${fmt(live.delta)}</span>
+              <span><strong>Γ</strong> ${fmt(live.gamma, 3)}</span>
+              <span><strong>Θ</strong> ${fmt(live.theta)}/d</span>
+              <span><strong>V</strong> ${fmt(live.vega)}</span>
+              <span><strong>Mark</strong> ${fmt(live.mark)}</span>
+              <span><strong>Bid</strong> ${fmt(live.bid)}</span>
+              <span><strong>Ask</strong> ${fmt(live.ask)}</span>
+            </div>
+            <div style="font-family:var(--f-mono);font-size:0.68rem;color:var(--text);display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:3px">
+              <span><strong>Unrealized</strong> <span class="${pnlCls}">${pnlStr}</span></span>
+              ${live.trade_log_pnl != null ? `<span><strong>Trade-log P&L</strong> ${live.trade_log_pnl >= 0 ? '+' : ''}$${live.trade_log_pnl.toFixed(0)}</span>` : ''}
+            </div>
+          </div>` : '';
         // Target profit / captured % based on combined premium × contracts
         const totalPrem = allPositions.reduce((sum, p) => sum + (Number(p.actual_premium || p.model_premium) || 0) * (Number(p.contracts) || 1), 0);
-        const totalN    = allPositions.reduce((sum, p) => sum + (Number(p.contracts) || 1), 0);
         const maxPnl    = totalPrem > 0 ? totalPrem * 100 : null;
         let tgtHtml = '', capturedHtml = '';
         if (maxPnl != null) {
@@ -1018,9 +1038,10 @@ async function loadSpx() {
         posBody.outerHTML = `<div class="pos-grid">
           ${pos.opened_at ? `<div class="pos-item"><div class="pos-label">Opened</div><div class="pos-value">${pos.opened_at}</div></div>` : ''}
           ${pos.expiry    ? `<div class="pos-item"><div class="pos-label">Expiry</div><div class="pos-value">${pos.expiry}${dte != null ? ' (' + dte + 'd)' : ''}</div></div>` : ''}
-          ${pnl != null   ? `<div class="pos-item"><div class="pos-label">Unrealized</div><div class="pos-value ${pnlCls}">${pnlStr}</div></div>` : ''}
+          ${!live.visible && pnl == null ? '' : pnl != null ? `<div class="pos-item"><div class="pos-label">Unrealized</div><div class="pos-value ${pnlCls}">${pnlStr}</div></div>` : ''}
           ${tgtHtml}${capturedHtml}
           <div class="pos-item full" style="padding:0">${posRows}</div>
+          ${liveHtml}
         </div>`;
       } else {
         posBody.textContent = 'No open position';
