@@ -967,6 +967,7 @@ async function loadSpx() {
     const posBody = document.getElementById('pos-spx-body');
     if (posRes.ok) {
       const pos = await posRes.json();
+      _spxPos = pos.open ? pos : null;
       applyBadge('badge-spx', spxBadge({ ...rec, open: pos.open }));
       if (pos.open) {
         const live    = pos.schwab_live || {};
@@ -1688,6 +1689,7 @@ document.getElementById('hero-date').textContent = dateStr;
 
 // ── Position Composition ─────────────────────────────────────────────────────
 let _posCache = { schwab: null, etrade: null };
+let _spxPos   = null;   // latest /api/position response (for cross-referencing E-Trade options)
 
 async function loadPositionComposition() {
   const [sr, er, ebr] = await Promise.allSettled([
@@ -1816,7 +1818,22 @@ function renderPositionBars() {
     const maxAbs = Math.max(...positions.map(p => Math.abs(p.market_value || 0)), 1);
     const nlv = d.nlv || 0;
     const ref = { i: 0 };
-    const rows = positions.map(pos => {
+    // Group SPX option legs into one strategy row
+    const spxOpts = positions.filter(p => (p.asset_type||'').toUpperCase() === 'OPTN' && p.symbol === 'SPX');
+    const nonSpxOpts = positions.filter(p => !((p.asset_type||'').toUpperCase() === 'OPTN' && p.symbol === 'SPX'));
+    let spxStratRow = '';
+    if (spxOpts.length > 0) {
+      const netMv  = spxOpts.reduce((s, p) => s + (p.market_value || 0), 0);
+      const netPnl = spxOpts.every(p => p.unrealized_pnl != null)
+        ? spxOpts.reduce((s, p) => s + p.unrealized_pnl, 0) : null;
+      const etPos  = (_spxPos?.positions || []).find(p => p.account === 'etrade');
+      const strikes = etPos?.short_strike ? `${etPos.short_strike}/${etPos.long_strike||'?'}` : 'SPX';
+      const qty    = spxOpts.reduce((s, p) => s + Math.abs(p.quantity || 0), 0) / 2;
+      const label  = `SPX 主策略 ${strikes} ×${qty}`;
+      spxStratRow  = _posBarRow(label, netMv, netPnl,
+        Math.abs(netMv) / maxAbs * 100, 'rgba(201,168,64,0.70)', nlv);
+    }
+    const rows = nonSpxOpts.map(pos => {
       const mv = pos.market_value || 0;
       return _posBarRow((pos.symbol || '—').substring(0, 10), mv, pos.unrealized_pnl ?? null,
         Math.abs(mv) / maxAbs * 100, _etradePosColor(pos, ref), nlv);
@@ -1829,7 +1846,7 @@ function renderPositionBars() {
           <span class="margin-badge" style="background:rgba(96,104,128,0.12);color:rgba(96,104,128,0.8);border-color:rgba(96,104,128,0.3)">${etCashMv > 0 ? _fmtMv(etCashMv) : '$0'} / ${etCashPct != null ? etCashPct.toFixed(1) + '%' : '0.0%'}</span>
         </div>
       </div>`;
-    barsEl.innerHTML = rows + `
+    barsEl.innerHTML = spxStratRow + rows + `
       <div class="margin-footer">
         <div class="margin-footer-left">NLV ${_fmtMv(nlv)} · Maintenance margin (E-Trade PM)</div>
         <div class="margin-footer-right">
