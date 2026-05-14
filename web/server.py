@@ -3003,9 +3003,13 @@ def api_backtest_latest_cached():
     disk_cache = _load_results_disk()
     if not disk_cache:
         return jsonify({"empty": True})
+    current_phash = _params_hash()
     latest = None
     for entry in disk_cache.values():
         if not isinstance(entry, dict):
+            continue
+        # Only serve entries that match current params (account_size, strategy defaults)
+        if entry.get("params_hash") != current_phash:
             continue
         if latest is None or entry.get("computed_at", "") > latest.get("computed_at", ""):
             latest = entry
