@@ -577,14 +577,73 @@ def _spread_live_snapshot_from_chain(state: dict | None, positions_payload: dict
     }
 
 
+def _spread_mark_from_positions(state: dict, positions: list[dict], positions_payload: dict) -> dict | None:
+    """
+    Fallback: compute spread mark from per-leg market values when the chain
+    API has no mid (SPX often returns null bid/ask from the positions endpoint).
+    Returns a visible=True snapshot with mark + trade_log_pnl but no Greeks.
+    """
+    leg_specs = _strategy_quote_layout(state)
+    if not leg_specs:
+        return None
+    expiry = str(state.get("expiry") or "")
+    expiry_token = expiry.replace("-", "")[-6:]
+    if not expiry_token:
+        return None
+    net_mv = 0.0
+    for spec in leg_specs:
+        strike = spec.get("strike")
+        if strike is None:
+            return None
+        strike_str = str(int(float(strike)))
+        leg_pos = next(
+            (p for p in positions
+             if expiry_token in str(p.get("symbol") or "")
+             and strike_str in str(p.get("symbol") or "")),
+            None,
+        )
+        if leg_pos is None or leg_pos.get("mark") is None:
+            return None
+        net_mv += float(leg_pos["mark"])
+    try:
+        contracts = float(state.get("contracts", 1))
+        # Credit spread: net_mv < 0 (short leg dominates); spread_mark = cost to close per contract
+        spread_mark = round(-net_mv / (contracts * 100), 4)
+        entry_credit = float(state.get("actual_premium") or 0)
+        trade_log_pnl = round((entry_credit - spread_mark) * contracts * 100, 2)
+    except Exception:
+        return None
+    return {
+        "visible": True,
+        "pricing_source": "positions_mark",
+        "stale": positions_payload.get("stale", False),
+        "mark": spread_mark,
+        "bid": None,
+        "ask": None,
+        "delta": None,
+        "gamma": None,
+        "theta": None,
+        "vega": None,
+        "unrealized_pnl": None,
+        "trade_log_pnl": trade_log_pnl,
+    }
+
+
 def live_position_snapshot(state: dict | None) -> dict:
     positions_payload = get_account_positions()
     if not positions_payload.get("configured") or not positions_payload.get("authenticated"):
         return {"visible": False, **positions_payload}
+    # Tier 1: full chain snapshot (Greeks + bid/ask)
     chain_snapshot = _spread_live_snapshot_from_chain(state, positions_payload)
     if chain_snapshot is not None:
         return chain_snapshot
     positions = positions_payload.get("positions", [])
+    # Tier 2: positions mark fallback (spread mark + trade-log P&L, no Greeks)
+    if state:
+        fallback = _spread_mark_from_positions(state, positions, positions_payload)
+        if fallback is not None:
+            return fallback
+    # Tier 3: single-leg position match
     pos = _find_matching_position(positions, state)
     if not pos:
         return {"visible": False, **positions_payload}

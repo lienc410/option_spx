@@ -1017,7 +1017,7 @@ async function loadSpx() {
         const liveHtml = `
           <div class="pos-item full" style="padding:4px 0;border-top:1px solid var(--border);margin-top:4px">
             <div style="font-family:var(--f-ui);font-size:0.58rem;font-weight:500;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-2);margin-bottom:3px">
-              Live Risk (Schwab)${live.visible && live.stale ? ' · stale' : ''}
+              Live Risk (Schwab${live.pricing_source === 'positions_mark' ? ' · mark only' : ''})${live.visible && live.stale ? ' · stale' : ''}
             </div>
             ${liveStatusNote}
           </div>`;
