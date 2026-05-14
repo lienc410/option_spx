@@ -480,28 +480,22 @@ def _spread_live_snapshot_from_chain(state: dict | None, positions_payload: dict
         except (TypeError, ValueError):
             return None
 
-    grouped_specs: dict[str, list[dict]] = {}
     for spec in leg_specs:
         option_type = str(spec.get("option_type") or "").upper()
         strike = spec.get("strike")
         if option_type not in {"PUT", "CALL"} or strike is None:
             return None
-        grouped_specs.setdefault(option_type, []).append(spec)
 
-    chain_by_type: dict[str, list[dict]] = {}
-    for option_type, specs in grouped_specs.items():
-        center_strike = specs[0].get("strike")
-        chain_by_type[option_type] = _get_option_chain_exact_expiry(
-            underlying,
-            option_type,
-            expiry,
-            center_strike=center_strike,
-            strike_window=160,
-        )
-
+    # Fetch chain per-leg with each leg's own strike as center so dense SPX
+    # strike lists don't push the far leg out of the strike_window cutoff.
     leg_rows: list[dict] = []
     for spec in leg_specs:
-        row = _find_chain_row(chain_by_type.get(str(spec["option_type"]).upper(), []), spec["strike"])
+        option_type = str(spec["option_type"]).upper()
+        leg_chain = _get_option_chain_exact_expiry(
+            underlying, option_type, expiry,
+            center_strike=spec["strike"], strike_window=20,
+        )
+        row = _find_chain_row(leg_chain, spec["strike"])
         if not row:
             return None
         leg_rows.append({"spec": spec, "row": row})
