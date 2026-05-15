@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-14 (Q071 2nd Quant review 完成 + memo 修订。策略命名 "ES High-Vol Sell Put Ladder"。Promote level：DRAFT SPEC + paper/shadow，非 production。SPEC-XXX 待起草)
+Last Updated: 2026-05-14 (SPEC-101 APPROVED — ES High-Vol Sell Put Ladder (VIX≥22 gate)，paper/shadow 部署，AC1-AC9，Developer 待实施)
 Owner: Planner or PM
 
 ## Current Phase
@@ -28,6 +28,7 @@ Owner: Planner or PM
 
 ## Active APPROVED Specs
 
+- `SPEC-101` — ES High-Vol Sell Put Ladder (VIX ≥ 22 gate). **APPROVED 2026-05-14.** Paper/shadow 部署，非生产。改动：`run_phase2_hvlad()`（backtest）/ `/api/es-backtest/hvlad`（API）/ HV Ladder tab（dashboard）/ Telegram paper-trade 告警 + `q071_hv_paper_trades.jsonl`。AC1-AC9。Review：12mo AND ≥10 entries，OR 24mo — `See: task/SPEC-101.md`
 - `SPEC-100` — HV Spell `max_trades_per_spell` 2→3. **DEPLOYED 2026-05-13**. Backtest confirmed n=37 (+4), WR=91.9%, total=$45,139 (+$5,424), worst=-$2,016 (unchanged). Three backtest caches refreshed. 12-month monitor obligation: **2027-05-13** rerun P8 with live data; if incremental WR < 70% or net P&L < $0, revert. — `See: task/SPEC-100.md`, `RESEARCH_LOG.md R-20260513-04`
 
 ## Recently Closed Specs

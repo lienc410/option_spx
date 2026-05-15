@@ -1,6 +1,6 @@
 # SPEC-101: ES High-Vol Sell Put Ladder — VIX ≥ 22 Entry Gate
 
-**Status**: DRAFT  
+**Status**: APPROVED  
 **Date**: 2026-05-14  
 **Source**: Q071 P0–P5 research + 2nd Quant review PROMOTE  
 **Promote level**: Paper/shadow/small-cell — NOT immediate full production
