@@ -1005,9 +1005,13 @@ async function loadSpx() {
         const allPositions = (pos.positions && pos.positions.length > 0) ? pos.positions : [pos];
         const spreadMark  = live.visible ? live.mark : null;
         const etradeMark  = etradeLive.visible ? etradeLive.mark : null;
-        // Combined P&L: each position uses its own broker's mark
-        const _markFor = p => (p.account || 'schwab') === 'etrade'
-          ? (etradeMark ?? spreadMark) : spreadMark;
+        // Combined P&L: use positionLives[trade_id] first, then broker-level fallback
+        const _markFor = p => {
+          const pl = positionLives[p.trade_id];
+          if (pl?.visible) return pl.mark;
+          return (p.account || 'schwab') === 'etrade'
+            ? (etradeMark ?? spreadMark) : spreadMark;
+        };
         const pnl = allPositions.some(p => _markFor(p) != null)
           ? allPositions.reduce((s, p) => {
               const m = _markFor(p);
