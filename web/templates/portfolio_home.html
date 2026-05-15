@@ -1598,14 +1598,16 @@ function _renderMarginAllocation(data) {
       <div class="bp-legend-item"><div class="bp-legend-dot dot-equity"></div>Equity ${equityW.toFixed(1)}%</div>
       <div class="bp-legend-item"><div class="bp-legend-dot dot-q041"></div>Q041 ${q041W.toFixed(1)}%</div>
       <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>`;
-    // Sub-row only for E-Trade options when present (equity is already merged into the combined row)
-    const etOptsRow = etOptW > 0 ? barHtml('  E-Trade Options', etOptW, 'bar-etrade', 'PM max-loss') : '';
     const doBp_a = _q042Cache?.combined_bp_pct ?? 0;
     const amActive_a = !!_aftermathCache?.active;
     const amNote_a = `condition · ${amActive_a ? 'ACTIVE' : 'WAIT'}`;
+    const optionsNote = etOptW > 0 ? 'SPX spread + E-Trade options' : 'SPX spread';
+    const optionsRow = etOptW > 0
+      ? splitBarHtml('Options Margin', optionsW, spxW, etOptW,
+          'rgba(201,168,64,0.85)', 'rgba(201,168,64,0.45)', optionsNote)
+      : barHtml('Options Margin', optionsW, 'bar-spx', optionsNote);
     bucketRows =
-      barHtml('Options Margin', optionsW, 'bar-spx', 'SPX spread' + (etOptW > 0 ? ' + E-Trade options' : '')) +
-      etOptsRow +
+      optionsRow +
       (etEqW > 0
         ? splitBarHtml('Equity Margin', equityW, eqW, etEqW,
             'rgba(66,204,124,0.85)', 'rgba(66,204,124,0.38)', allEqNote)
