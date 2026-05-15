@@ -288,16 +288,26 @@ def get_option_spread_quote(
 
         short = extract(short_strike)
         long_ = extract(long_strike)
+        spread_bid = (
+            round(short["bid"] - long_["ask"], 2)
+            if short["bid"] is not None and long_["ask"] is not None
+            else None
+        )
+        spread_ask = (
+            round(short["ask"] - long_["bid"], 2)
+            if short["ask"] is not None and long_["bid"] is not None
+            else None
+        )
         spread_mark = (
-            round(short["mark"] - long_["mark"], 2)
-            if short["mark"] is not None and long_["mark"] is not None
+            round((spread_bid + spread_ask) / 2, 2)
+            if spread_bid is not None and spread_ask is not None
             else None
         )
         result = {
             "visible": spread_mark is not None,
             "mark": spread_mark,
-            "bid": short["bid"],
-            "ask": short["ask"],
+            "bid": spread_bid,
+            "ask": spread_ask,
             "short_leg": short,
             "long_leg": long_,
             "source": "etrade_quote",
