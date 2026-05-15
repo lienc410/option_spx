@@ -108,6 +108,7 @@ class SettlingState:
     prev_vix: float | None
     delta_vix: float | None
     signal1: dict | None
+    signal1_captured_at: str | None
     signal2: dict | None
     changed: bool | None
     note: str | None
@@ -420,6 +421,7 @@ def run_settling_process(*, now_fn=_now_et, sleep_fn=time.sleep, send_telegram: 
         return 0
 
     signal1 = _build_signal1()
+    signal1_captured_at = now.isoformat()
     frame = pd.DataFrame()
     first_state = SettlingState(
         date=today.isoformat(),
@@ -434,6 +436,7 @@ def run_settling_process(*, now_fn=_now_et, sleep_fn=time.sleep, send_telegram: 
         prev_vix=None,
         delta_vix=None,
         signal1=asdict(signal1),
+        signal1_captured_at=signal1_captured_at,
         signal2=None,
         changed=None,
         note="awaiting_first_stable_check",
@@ -468,6 +471,7 @@ def run_settling_process(*, now_fn=_now_et, sleep_fn=time.sleep, send_telegram: 
             prev_vix=prev_vix,
             delta_vix=delta_vix,
             signal1=asdict(signal1),
+            signal1_captured_at=signal1_captured_at,
             signal2=None,
             changed=None,
             note=note,

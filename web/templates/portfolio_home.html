@@ -1125,14 +1125,14 @@ async function loadSettling() {
         ? `timeout · VIX ${fmtNum(current, 1)}`
         : `stable · VIX ${fmtNum(current, 1)}`;
       // Format checked_at to HH:MM ET
-      let checkedTs = '';
-      if (data.checked_at) {
+      const _fmtTs = iso => {
+        if (!iso) return '';
         try {
-          const d = new Date(data.checked_at);
-          checkedTs = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }) + ' ET';
-        } catch (_) {}
-      }
-      const sig1Ts = data.date ? data.date + ' 09:30 ET' : '';
+          return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }) + ' ET';
+        } catch (_) { return ''; }
+      };
+      const checkedTs = _fmtTs(data.checked_at);
+      const sig1Ts    = _fmtTs(data.signal1_captured_at);
       bodyEl.innerHTML = `
         <div>${data.changed ? 'Signal 2 differs from Signal 1.' : 'Signal 2 confirms Signal 1.'}</div>
         <div class="settling-compare">
