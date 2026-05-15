@@ -982,6 +982,7 @@ async function loadSpx() {
       applyBadge('badge-spx', spxBadge({ ...rec, open: pos.open }));
       if (pos.open) {
         const live    = pos.schwab_live || {};
+        const etradeLive = pos.etrade_live || {};
         const fmt = (v, d=2) => v != null ? Number(v).toFixed(d) : '—';
         // Compute current DTE from expiry (use first position's expiry)
         let dte = null;
@@ -1021,8 +1022,9 @@ async function loadSpx() {
             const tgt = entryPrem * n * 100 * 0.60;
             tgtHtml = `<span style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2)">tgt +$${Math.round(tgt).toLocaleString()}</span>`;
           }
-          const mkBaHtml = (acct !== 'etrade' && live.visible)
-            ? `<span style="font-family:var(--f-mono);font-size:0.64rem;color:var(--text-2);white-space:nowrap"><strong style="color:var(--text)">M</strong> ${fmt(live.mark)} · <strong style="color:var(--text)">B</strong> ${fmt(live.bid)} · <strong style="color:var(--text)">A</strong> ${fmt(live.ask)}</span>`
+          const _liveForAcct = acct === 'etrade' ? etradeLive : live;
+          const mkBaHtml = _liveForAcct.visible
+            ? `<span style="font-family:var(--f-mono);font-size:0.64rem;color:var(--text-2);white-space:nowrap"><strong style="color:var(--text)">M</strong> ${fmt(_liveForAcct.mark)} · <strong style="color:var(--text)">B</strong> ${fmt(_liveForAcct.bid)} · <strong style="color:var(--text)">A</strong> ${fmt(_liveForAcct.ask)}</span>`
             : '';
           return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid var(--border)">
             ${acctBadge(acct)}

@@ -1169,6 +1169,7 @@ function renderPosition(p) {
     ? `<div class="pos-notes">${notes.slice(-2).map(n => '· ' + n).join('<br>')}</div>`
     : '';
   const live = p.schwab_live || {};
+  const etradeLive = p.etrade_live || {};
   const dteLine = dteEstimate(meta, p);
   CURRENT_POS = p;
   // Per-account position rows
@@ -1212,8 +1213,9 @@ function renderPosition(p) {
           const tgt = entryPrem * n * 100 * 0.60;
           tgtHtml = `<span style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2)">tgt +$${Math.round(tgt).toLocaleString()}</span>`;
         }
-        const mkBaHtml = (acct !== 'etrade' && live.visible)
-          ? `<span style="font-family:var(--f-mono);font-size:0.64rem;color:var(--text-2);white-space:nowrap"><strong style="color:var(--text)">M</strong> ${fmt(live.mark)} · <strong style="color:var(--text)">B</strong> ${fmt(live.bid)} · <strong style="color:var(--text)">A</strong> ${fmt(live.ask)}</span>`
+        const _liveForAcct = acct === 'etrade' ? etradeLive : live;
+        const mkBaHtml = _liveForAcct.visible
+          ? `<span style="font-family:var(--f-mono);font-size:0.64rem;color:var(--text-2);white-space:nowrap"><strong style="color:var(--text)">M</strong> ${fmt(_liveForAcct.mark)} · <strong style="color:var(--text)">B</strong> ${fmt(_liveForAcct.bid)} · <strong style="color:var(--text)">A</strong> ${fmt(_liveForAcct.ask)}</span>`
           : '';
         return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid var(--border)">
           ${acctBadge(acct)}

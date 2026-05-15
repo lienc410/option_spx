@@ -233,6 +233,80 @@ def get_account_balances(account_id: str | None = None) -> dict:
         return _fail_soft_balances()
 
 
+def _market_client():
+    pyetrade = _load_pyetrade()
+    token = load_token() or {}
+    return pyetrade.ETradeMarket(
+        consumer_key(),
+        consumer_secret(),
+        token.get("oauth_token"),
+        token.get("oauth_token_secret"),
+        dev=False,
+    )
+
+
+def get_option_spread_quote(
+    underlier: str,
+    expiry: str,
+    short_strike: float,
+    long_strike: float,
+) -> dict:
+    """Mark/bid/ask for a put spread. mark = (bid+ask)/2 per leg, spread_mark = short - long."""
+    cache_key = f"optquote:{underlier}:{expiry}:{short_strike}:{long_strike}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    if not is_token_valid():
+        return {"visible": False, "error": "token_invalid"}
+    try:
+        y, m, d = expiry.split("-")
+
+        def sym(strike: float) -> str:
+            return f"{underlier}:{y}:{m}:{d}:PUT:{int(strike)}"
+
+        client = _market_client()
+        payload = client.get_quote(
+            [sym(short_strike), sym(long_strike)],
+            detail_flag="options",
+            resp_format="json",
+        )
+        quotes = {
+            q["Product"]["symbol"]: q
+            for q in _as_list(_dig(payload, "QuoteResponse", "QuoteData"))
+        }
+
+        def extract(strike: float) -> dict:
+            row = quotes.get(sym(strike), {})
+            all_ = row.get("All") or row.get("all") or {}
+            bid = _num(all_.get("bid"))
+            ask = _num(all_.get("ask"))
+            mark = round((bid + ask) / 2, 2) if bid is not None and ask is not None else None
+            return {"bid": bid, "ask": ask, "mark": mark}
+
+        short = extract(short_strike)
+        long_ = extract(long_strike)
+        spread_mark = (
+            round(short["mark"] - long_["mark"], 2)
+            if short["mark"] is not None and long_["mark"] is not None
+            else None
+        )
+        result = {
+            "visible": spread_mark is not None,
+            "mark": spread_mark,
+            "bid": short["bid"],
+            "ask": short["ask"],
+            "short_leg": short,
+            "long_leg": long_,
+            "source": "etrade_quote",
+        }
+        _cache_put(cache_key, result)
+        return result
+    except Exception as exc:
+        log.warning("etrade.client: get_option_spread_quote failed", exc_info=True)
+        return {"visible": False, "error": str(exc)}
+
+
 def get_account_positions(account_id: str | None = None) -> dict:
     if not is_configured():
         return {"configured": False, "authenticated": False, "positions": [], "stale": False}

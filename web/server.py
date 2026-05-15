@@ -1960,11 +1960,26 @@ def api_position():
             live["combined_trade_log_pnl"] = round(combined_pnl, 2)
         except Exception:
             pass
+    # E-Trade live quote — uses the E-Trade leg's own strikes (may differ from Schwab's)
+    etrade_live: dict = {"visible": False}
+    etrade_pos = next((p for p in positions if (p.get("account") or "schwab") == "etrade"), None)
+    if etrade_pos and state.get("expiry") and etrade_pos.get("short_strike") and etrade_pos.get("long_strike"):
+        try:
+            from etrade.client import get_option_spread_quote
+            etrade_live = get_option_spread_quote(
+                underlier=state.get("underlying", "SPX"),
+                expiry=state["expiry"],
+                short_strike=float(etrade_pos["short_strike"]),
+                long_strike=float(etrade_pos["long_strike"]),
+            )
+        except Exception:
+            pass
     return jsonify({
         "open": True,
         **state,
         "positions": positions,
         "schwab_live": live,
+        "etrade_live": etrade_live,
     })
 
 
