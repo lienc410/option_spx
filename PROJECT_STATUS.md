@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-14 (SPEC-101 APPROVED — ES High-Vol Sell Put Ladder (VIX≥22 gate)，paper/shadow 部署，AC1-AC9，Developer 待实施)
+Last Updated: 2026-05-14 (SPEC-101 DONE — ES High-Vol Sell Put Ladder deployed，Quant tie-out exact match，paper-trade 阶段开始；§9 Review Obligation 改为 PM 主导无时间锁)
 Owner: Planner or PM
 
 ## Current Phase
@@ -28,7 +28,11 @@ Owner: Planner or PM
 
 ## Active APPROVED Specs
 
-- `SPEC-101` — ES High-Vol Sell Put Ladder (VIX ≥ 22 gate). **APPROVED 2026-05-14.** Paper/shadow 部署，非生产。改动：`run_phase2_hvlad()`（backtest）/ `/api/es-backtest/hvlad`（API）/ HV Ladder tab（dashboard）/ Telegram paper-trade 告警 + `q071_hv_paper_trades.jsonl`。AC1-AC9。Review：12mo AND ≥10 entries，OR 24mo — `See: task/SPEC-101.md`
+（无）
+
+## Recently Closed Specs
+
+- `SPEC-101` — ES High-Vol Sell Put Ladder (VIX ≥ 22 gate). Closed **DONE 2026-05-14**. Quant tie-out exact match（n=146/ann_roe 1.14%/sharpe 0.34/MaxDD -9.68%/bootstrap 100% 精确对齐 Q071 P5）。paper-trade 阶段正式开始，Telegram alert 在 VIX ≥ 22 时推送 paper signal。Review §9 改为 PM 主导无时间锁。生产 bot（SPEC-061）未改动 — `See: task/SPEC-101.md`
 - `SPEC-100` — HV Spell `max_trades_per_spell` 2→3. **DEPLOYED 2026-05-13**. Backtest confirmed n=37 (+4), WR=91.9%, total=$45,139 (+$5,424), worst=-$2,016 (unchanged). Three backtest caches refreshed. 12-month monitor obligation: **2027-05-13** rerun P8 with live data; if incremental WR < 70% or net P&L < $0, revert. — `See: task/SPEC-100.md`, `RESEARCH_LOG.md R-20260513-04`
 
 ## Recently Closed Specs

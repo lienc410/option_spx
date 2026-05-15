@@ -248,16 +248,19 @@ Paper trade log：
 
 ## 9. Review Obligation
 
-**触发条件（满足其一）**：
-- 12 个月后 **AND** live paper entries ≥ 10
-- 24 个月后（若 paper entries < 10）
+**PM 主导的 paper-trade 观察期，时机由 PM 判断**。没有时间锁定。
 
-**Review 内容**：
+**建议参考触发条件（非强制）**：
+- 任意一次 live VIX ≥ 22 触发 paper signal 后，PM 评估 entry 时机 / fill quality
+- PM 认为 paper sample 足够时，通知 Quant 启动 re-run
+
+**Quant re-run 内容**（PM 触发时执行）：
 - Paper entry VIX 分布 vs historical G6（是否一致）
 - Paper PnL vs backtest prediction（方向对齐？）
 - 用 live + 扩展数据重跑 Q071 P5 bootstrap
 - 若 live WR < 50% 或 worst paper trade < -10% NLV → 临时 Quant review
-- 决策：是否 promote 至生产 bot（需独立 SPEC）
+
+**Promote 决策**：是否将 G6 gate 写入生产 bot 由 PM 决定，需独立 SPEC。
 
 ---
 
