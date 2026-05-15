@@ -1081,22 +1081,31 @@ async function loadSpx() {
             </div>
             ${liveStatusNote}
           </div>`;
-        // Target profit / captured % based on combined premium × contracts
-        const totalPrem = allPositions.reduce((sum, p) => sum + (Number(p.actual_premium || p.model_premium) || 0) * (Number(p.contracts) || 1), 0);
+        // Target profit / captured %
+        // Only count positions that have live data in BOTH numerator and denominator
+        // to avoid captured% deflation when some positions are missing marks.
+        const posWithMark = allPositions.filter(p => _markFor(p) != null);
+        const totalPrem = posWithMark.reduce(
+          (sum, p) => sum + (Number(p.actual_premium || p.model_premium) || 0) * (Number(p.contracts) || 0), 0);
         const maxPnl    = totalPrem > 0 ? totalPrem * 100 : null;
+        // Show Tgt Profit based on all positions (not just those with live marks)
+        const totalPremAll = allPositions.reduce(
+          (sum, p) => sum + (Number(p.actual_premium || p.model_premium) || 0) * (Number(p.contracts) || 0), 0);
+        const maxPnlAll = totalPremAll > 0 ? totalPremAll * 100 : null;
         let tgtHtml = '', capturedHtml = '';
-        if (maxPnl != null) {
+        if (maxPnlAll != null) {
           const inLoss = pnl != null && pnl < 0;
           if (inLoss) {
-            tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Stop</div><div class="pos-value loss">-$${Math.round(maxPnl).toLocaleString()}</div></div>`;
+            tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Stop</div><div class="pos-value loss">-$${Math.round(maxPnlAll).toLocaleString()}</div></div>`;
           } else {
-            tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Profit</div><div class="pos-value profit">+$${Math.round(maxPnl * 0.60).toLocaleString()}</div></div>`;
+            tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Profit</div><div class="pos-value profit">+$${Math.round(maxPnlAll * 0.60).toLocaleString()}</div></div>`;
           }
-          if (pnl != null) {
+          if (pnl != null && maxPnl != null) {
             const tgtProfit = maxPnl * 0.60;
             const pct = Math.min(pnl / tgtProfit * 100, 100);
             const pctCls = pct >= 100 ? 'profit' : pct >= 60 ? 'warn' : '';
-            capturedHtml = `<div class="pos-item"><div class="pos-label">Captured</div><div class="pos-value ${pctCls}">${pct.toFixed(1)}%${pct >= 100 ? ' ✓' : ''}</div></div>`;
+            const partial = posWithMark.length < allPositions.length ? '~' : '';
+            capturedHtml = `<div class="pos-item"><div class="pos-label">Captured</div><div class="pos-value ${pctCls}">${partial}${pct.toFixed(1)}%${pct >= 100 ? ' ✓' : ''}</div></div>`;
           }
         }
         posBody.className = 'pos-grid';
