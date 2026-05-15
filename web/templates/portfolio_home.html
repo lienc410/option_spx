@@ -1002,11 +1002,17 @@ async function loadSpx() {
         }
         // Per-account position rows (supports multi-account e.g. Schwab + E-Trade)
         const allPositions = (pos.positions && pos.positions.length > 0) ? pos.positions : [pos];
-        // spreadMark + combined P&L: always computed from allPositions so numerator
-        // and denominator are both full-account (avoids Schwab-only / combined-denom mismatch).
-        const spreadMark = live.visible ? live.mark : null;
-        const pnl = spreadMark != null
-          ? allPositions.reduce((s, p) => s + (Number(p.actual_premium ?? p.model_premium ?? 0) - spreadMark) * (Number(p.contracts) || 0) * 100, 0)
+        const spreadMark  = live.visible ? live.mark : null;
+        const etradeMark  = etradeLive.visible ? etradeLive.mark : null;
+        // Combined P&L: each position uses its own broker's mark
+        const _markFor = p => (p.account || 'schwab') === 'etrade'
+          ? (etradeMark ?? spreadMark) : spreadMark;
+        const pnl = allPositions.some(p => _markFor(p) != null)
+          ? allPositions.reduce((s, p) => {
+              const m = _markFor(p);
+              if (m == null) return s;
+              return s + (Number(p.actual_premium ?? p.model_premium ?? 0) - m) * (Number(p.contracts) || 0) * 100;
+            }, 0)
           : (live.combined_trade_log_pnl ?? null);
         const pnlCls = pnl == null ? '' : pnl >= 0 ? 'profit' : 'loss';
         const pnlStr = pnl != null ? (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(0) : '—';
@@ -1020,10 +1026,12 @@ async function loadSpx() {
           const entryPrem = Number(p.actual_premium ?? p.model_premium ?? 0);
           const premStr   = entryPrem ? `$${entryPrem.toFixed(2)}` : '—';
           const n         = Number(p.contracts) || 1;
-          // Per-account trade-log P&L and target profit using shared spread mark
+          // Per-account P&L: each row uses its own broker's mark
           let pnlHtml = '', tgtHtml = '';
-          if (spreadMark != null && entryPrem) {
-            const acctPnl = (entryPrem - spreadMark) * n * 100;
+          const _liveForAcct = acct === 'etrade' ? etradeLive : live;
+          const markForAcct = _liveForAcct.visible ? _liveForAcct.mark : spreadMark;
+          if (markForAcct != null && entryPrem) {
+            const acctPnl = (entryPrem - markForAcct) * n * 100;
             const cls     = acctPnl >= 0 ? 'var(--green)' : 'var(--red)';
             pnlHtml = `<span style="font-family:var(--f-mono);font-size:0.68rem;color:${cls}">${acctPnl >= 0 ? '+' : ''}$${acctPnl.toFixed(0)}</span>`;
           }
@@ -1031,7 +1039,6 @@ async function loadSpx() {
             const tgt = entryPrem * n * 100 * 0.60;
             tgtHtml = `<span style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2)">tgt +$${Math.round(tgt).toLocaleString()}</span>`;
           }
-          const _liveForAcct = acct === 'etrade' ? etradeLive : live;
           const mkBaHtml = _liveForAcct.visible
             ? `<span style="font-family:var(--f-mono);font-size:0.64rem;color:var(--text-2);white-space:nowrap"><strong style="color:var(--text)">M</strong> ${fmt(_liveForAcct.mark)} · <strong style="color:var(--text)">B</strong> ${fmt(_liveForAcct.bid)} · <strong style="color:var(--text)">A</strong> ${fmt(_liveForAcct.ask)}</span>`
             : '';

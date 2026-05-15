@@ -1204,8 +1204,10 @@ function renderPosition(p) {
         const premStr   = entryPrem ? `$${entryPrem.toFixed(2)}` : '—';
         const n         = Number(pos.contracts) || 1;
         let pnlHtml = '', tgtHtml = '';
-        if (spreadMark != null && entryPrem) {
-          const acctPnl = (entryPrem - spreadMark) * n * 100;
+        const _liveForAcct = acct === 'etrade' ? etradeLive : live;
+        const markForAcct = _liveForAcct.visible ? _liveForAcct.mark : spreadMark;
+        if (markForAcct != null && entryPrem) {
+          const acctPnl = (entryPrem - markForAcct) * n * 100;
           const cls = acctPnl >= 0 ? 'var(--green)' : 'var(--red)';
           pnlHtml = `<span style="font-family:var(--f-mono);font-size:0.68rem;color:${cls}">${acctPnl >= 0 ? '+' : ''}$${acctPnl.toFixed(0)}</span>`;
         }
@@ -1213,7 +1215,6 @@ function renderPosition(p) {
           const tgt = entryPrem * n * 100 * 0.60;
           tgtHtml = `<span style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2)">tgt +$${Math.round(tgt).toLocaleString()}</span>`;
         }
-        const _liveForAcct = acct === 'etrade' ? etradeLive : live;
         const mkBaHtml = _liveForAcct.visible
           ? `<span style="font-family:var(--f-mono);font-size:0.64rem;color:var(--text-2);white-space:nowrap"><strong style="color:var(--text)">M</strong> ${fmt(_liveForAcct.mark)} · <strong style="color:var(--text)">B</strong> ${fmt(_liveForAcct.bid)} · <strong style="color:var(--text)">A</strong> ${fmt(_liveForAcct.ask)}</span>`
           : '';
