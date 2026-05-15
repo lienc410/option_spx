@@ -742,6 +742,79 @@ function renderV2fPanel(v0Summary, v2fPayload) {
     ${tailRiskHtml}`;
 }
 
+function renderHvLadderPanel(hvPayload) {
+  const metrics = hvPayload?.hvlad_metrics || null;
+  const baseline = hvPayload?.v2f_baseline || null;
+  const delta = hvPayload?.hv_delta || null;
+  const caveats = Array.isArray(hvPayload?.caveats) ? hvPayload.caveats : [];
+  const paper = hvPayload?.paper_state || {};
+  const gate = typeof hvPayload?.vix_min_entry === 'number' ? hvPayload.vix_min_entry.toFixed(1) : '22.0';
+  const compareRows = [
+    ['Ann. ROE (acct.)', `${fmtPctFrac(baseline?.ann_roe_geometric, 2)} → ${fmtPctFrac(metrics?.ann_roe_geometric, 2)} (${fmtSignedDelta(delta?.ann_roe_pp, 2, 'pp')})`],
+    ['Sharpe', `${typeof baseline?.sharpe === 'number' ? baseline.sharpe.toFixed(2) : '—'} → ${typeof metrics?.sharpe === 'number' ? metrics.sharpe.toFixed(2) : '—'} (${fmtSignedDelta(delta?.sharpe_delta, 2)})`],
+    ['MaxDD', `${fmtPctFrac(baseline?.max_dd, 2)} → ${fmtPctFrac(metrics?.max_dd, 2)} (${fmtSignedDelta(delta?.max_dd_improvement_pp, 2, 'pp')})`],
+    ['Worst Trade % NLV', `${fmtPctFrac(baseline?.worst_trade_pct_nlv, 2)} → ${fmtPctFrac(metrics?.worst_trade_pct_nlv, 2)} (${fmtSignedDelta(delta?.worst_trade_improvement_pp, 2, 'pp')})`],
+    ['Bootstrap Sig', `${fmtPctFrac(baseline?.bootstrap_sig_rate, 0)} → ${fmtPctFrac(metrics?.bootstrap_sig_rate, 0)} (${fmtSignedDelta(delta?.bootstrap_improvement_pp, 0, 'pp')})`],
+    ['2020 COVID PnL', `${fmtPctFrac(baseline?.covid_2020_pct_nlv, 2)} → ${fmtPctFrac(metrics?.covid_2020_pct_nlv, 2)} (${fmtSignedDelta(delta?.covid_2020_pp, 2, 'pp')})`],
+  ];
+  const caveatHtml = `
+    <div class="caveat-banner">
+      <h3>ES High-Vol Sell Put Ladder — paper/shadow mode only</h3>
+      <ul>
+        <li>Strategy active only when VIX ≥ ${gate}; expect low capital deployment (~21% of trading days).</li>
+        <li>Bootstrap significance supports paper promotion; live sample accumulation required.</li>
+        <li>STOP=15 retained as fail-safe (0 historical triggers in G6 sample).</li>
+        ${caveats.map(item => `<li>${item}</li>`).join('')}
+      </ul>
+    </div>`;
+  const body = metrics
+    ? `
+      <div class="metric-grid">
+        <div class="metric-card"><div class="metric-label">Trades</div><div class="metric-value">${metrics.n_trades ?? '—'}</div><div class="metric-sub">G6 historical sample</div></div>
+        <div class="metric-card"><div class="metric-label">Ann. ROE (acct.)</div><div class="metric-value ${metrics.ann_roe_geometric > 0 ? 'up' : 'down'}">${fmtPctFrac(metrics.ann_roe_geometric, 2)}</div><div class="metric-sub">Based on $500k account</div></div>
+        <div class="metric-card"><div class="metric-label">Sharpe</div><div class="metric-value">${typeof metrics.sharpe === 'number' ? metrics.sharpe.toFixed(2) : '—'}</div></div>
+        <div class="metric-card"><div class="metric-label">MaxDD</div><div class="metric-value warn">${fmtPctFrac(metrics.max_dd, 2)}</div></div>
+        <div class="metric-card"><div class="metric-label">Worst Trade % NLV</div><div class="metric-value warn">${fmtPctFrac(metrics.worst_trade_pct_nlv, 2)}</div></div>
+        <div class="metric-card"><div class="metric-label">Active Days</div><div class="metric-value">${fmtPctFrac(metrics.active_days_pct, 1)}</div><div class="metric-sub">VIX-gated deployment</div></div>
+        <div class="metric-card"><div class="metric-label">Bootstrap Sig Rate</div><div class="metric-value up">${fmtPctFrac(metrics.bootstrap_sig_rate, 0)}</div><div class="metric-sub">20 seeds · block=250</div></div>
+        <div class="metric-card"><div class="metric-label">VIX Gate</div><div class="metric-value">≥ ${gate}</div><div class="metric-sub">Entry-only hard skip</div></div>
+      </div>`
+    : `<div class="v2f-empty">HV Ladder summary unavailable${hvPayload?.error ? `: ${hvPayload.error}` : ''}</div>`;
+  const paperRows = [
+    ['Paper log', paper.path || 'data/q071_hv_paper_trades.jsonl'],
+    ['Total paper entries', paper.total_entries ?? 0],
+    ['Last signal date', paper.last_signal?.signal_date || '—'],
+    ['Last signal VIX', typeof paper.last_signal?.vix_at_signal === 'number' ? paper.last_signal.vix_at_signal.toFixed(1) : '—'],
+    ['Current mode', 'paper / shadow only'],
+    ['Execution', 'No auto-execution · Telegram alert only'],
+  ];
+  return `
+    ${caveatHtml}
+    <div class="section-label">HV Ladder Monitoring Snapshot</div>
+    ${body}
+    <div class="section-label">V2f Base vs HV Ladder</div>
+    <div class="compare-grid">
+      ${renderV2fCompareCard('V2f base · no VIX gate', [
+        ['Trades', baseline?.n_trades ?? '—'],
+        ['Ann. ROE (acct.)', fmtPctFrac(baseline?.ann_roe_geometric, 2)],
+        ['Sharpe', typeof baseline?.sharpe === 'number' ? baseline.sharpe.toFixed(2) : '—'],
+        ['MaxDD', fmtPctFrac(baseline?.max_dd, 2)],
+        ['Worst Trade % NLV', fmtPctFrac(baseline?.worst_trade_pct_nlv, 2)],
+        ['Bootstrap Sig', fmtPctFrac(baseline?.bootstrap_sig_rate, 0)],
+      ])}
+      ${renderV2fCompareCard('HV Ladder · VIX ≥ ' + gate, [
+        ['Trades', metrics?.n_trades ?? '—'],
+        ['Ann. ROE (acct.)', fmtPctFrac(metrics?.ann_roe_geometric, 2)],
+        ['Sharpe', typeof metrics?.sharpe === 'number' ? metrics.sharpe.toFixed(2) : '—'],
+        ['MaxDD', fmtPctFrac(metrics?.max_dd, 2)],
+        ['Worst Trade % NLV', fmtPctFrac(metrics?.worst_trade_pct_nlv, 2)],
+        ['Bootstrap Sig', fmtPctFrac(metrics?.bootstrap_sig_rate, 0)],
+      ])}
+      ${renderV2fCompareCard('Delta', compareRows)}
+      ${renderV2fCompareCard('Paper Tracking', paperRows)}
+    </div>`;
+}
+
 function buildEquityChart(filtered, baseline) {
   if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
   const canvas = document.getElementById('equity-chart');
@@ -792,7 +865,7 @@ function buildEquityChart(filtered, baseline) {
   });
 }
 
-const _BT_SS_PREFIX = 'es_bt_v1:';
+const _BT_SS_PREFIX = 'es_bt_v2:';
 const _BT_SS_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 function _btCacheKey(start, hybrid) { return _BT_SS_PREFIX + start + ':' + hybrid; }
@@ -831,6 +904,7 @@ async function _renderBacktestResult(data, start) {
   const filtered = data.filtered;
   const baseline  = data.baseline;
   const v2f = data.v2f || null;
+  const hvlad = data.hvlad || null;
 
   const note = document.getElementById('pricing-note');
   const fi = filtered?.summary;
@@ -895,10 +969,12 @@ async function _renderBacktestResult(data, start) {
   }
 
   const v2fContent = renderV2fPanel(filtered?.summary, v2f);
+  const hvladContent = renderHvLadderPanel(hvlad);
   const html = `
     <div class="tab-strip">
       <button class="tab-btn active" data-es-tab-btn="v0" onclick="setEsResearchTab('v0')">V0</button>
       <button class="tab-btn" data-es-tab-btn="v2f" onclick="setEsResearchTab('v2f')">V2f</button>
+      <button class="tab-btn" data-es-tab-btn="hvlad" onclick="setEsResearchTab('hvlad')">HV Ladder</button>
     </div>
     <div id="es-tab-v0" class="tab-panel active">
       ${v0Content}
@@ -907,6 +983,9 @@ async function _renderBacktestResult(data, start) {
     </div>
     <div id="es-tab-v2f" class="tab-panel">
       ${v2fContent}
+    </div>
+    <div id="es-tab-hvlad" class="tab-panel">
+      ${hvladContent}
     </div>
 
     <div class="discipline-section">
@@ -982,14 +1061,17 @@ async function runBacktest(fromCache = true) {
   document.getElementById('body-area').innerHTML = '<div class="loading-msg">Running backtest — this may take 10–15 seconds…</div>';
 
   try {
-    const [res, v2fRes]  = await Promise.all([
+    const [res, v2fRes, hvladRes]  = await Promise.all([
       fetch(`/api/es/backtest?mode=both&start=${start}&hybrid=${hybrid}`),
       fetch(`/api/es-backtest/v2f?start=${start}`),
+      fetch(`/api/es-backtest/hvlad?start=${start}`),
     ]);
     const data = await res.json();
     const v2f = await v2fRes.json();
+    const hvlad = await hvladRes.json();
     if (data.error) throw new Error(data.error);
     data.v2f = v2f;
+    data.hvlad = hvlad;
     _btSaveCache(start, hybrid, data);
     await _renderBacktestResult(data, start);
   } catch (e) {

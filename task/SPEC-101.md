@@ -1,6 +1,6 @@
 # SPEC-101: ES High-Vol Sell Put Ladder — VIX ≥ 22 Entry Gate
 
-**Status**: APPROVED  
+**Status**: DONE  
 **Date**: 2026-05-14  
 **Source**: Q071 P0–P5 research + 2nd Quant review PROMOTE  
 **Promote level**: Paper/shadow/small-cell — NOT immediate full production
@@ -271,3 +271,19 @@ task/SPEC-095.md                              ← V2f 基础 SPEC
 task/SPEC-097.md                              ← M1 cluster throttle 参考
 RESEARCH_LOG.md R-20260514-01                 ← Q071 研究记录
 ```
+
+---
+
+## 11. Implementation Review — 2026-05-14
+
+**Result**: PASS / DONE
+
+- AC1–AC3 PASS: `run_phase2_hvlad(start=2000-01-01, end=2026-04-17)` returns 146 trades, active days 21.4%, ann ROE 1.14%, Sharpe 0.34, MaxDD -9.68%, worst trade -4.77% NLV, bootstrap sig_rate 100%.
+- AC4 PASS: `/api/es-backtest/hvlad` returns `hvlad_metrics`, `v2f_baseline`, `hv_delta`, `caveats`, and paper state.
+- AC5 PASS: `/es-backtest` has a separate `HV Ladder` tab with visible paper/shadow caveat banner.
+- AC6 PASS: paper alert helper writes `data/q071_hv_paper_trades.jsonl` schema in dry-run/mock test.
+- AC7 PASS: stale/missing VIX guard suppresses paper entry and returns warning.
+- AC8 PASS: `strategy/es_params.py` and production `/ES` SPEC-061 bot logic were not modified.
+- AC9 PASS: paper JSONL path is created fail-soft when absent.
+
+Known validation note: `tests.test_telegram_bot` currently has broker-state/environment-dependent failures in legacy intraday tests caused by live Schwab mismatch/profit checks consuming mocked position payloads. SPEC-101-specific tests and SPEC-095 regression pass.

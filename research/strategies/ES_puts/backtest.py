@@ -75,6 +75,7 @@ V2F_CLUSTER_THRESHOLD  = 4
 V2F_CLUSTER_ENTRY_FREQ = 10
 V2F_STOP_MULT      = 15.0
 V2F_PROFIT_TARGET  = 0.10
+V2F_VIX_MIN_ENTRY  = 22.0
 
 # Phase 3 — VIX leverage table + BSH drag
 P3_DTE_SLOTS      = [21, 28, 35, 42, 49]
@@ -639,6 +640,8 @@ def _run_phase2_v2f_on_frame(
     enable_m1: bool,
     phase: str,
     cadence_mode: Literal["legacy", "relative"] = "legacy",
+    vix_min_entry: float | None = None,
+    apply_trend_gate: bool = False,
 ) -> BacktestResult:
     result = BacktestResult(phase=phase, mode=mode)
     exp_id = f"es_puts_p2_v2f_{mode}"
@@ -663,7 +666,7 @@ def _run_phase2_v2f_on_frame(
         window = full_spx[full_spx.index <= date].iloc[-200:]
         warmed = len(window) >= WARMUP_DAYS
         trend_ok = True
-        if mode == "filtered" and warmed:
+        if (mode == "filtered" or apply_trend_gate) and warmed:
             trend_ok = (_trend(window, spx) == TrendSignal.BULLISH)
 
         to_close: list[int] = []
@@ -715,7 +718,8 @@ def _run_phase2_v2f_on_frame(
             if cadence_mode == "relative" or enable_m1
             else day_counter % entry_freq == 0
         )
-        should_enter = warmed and trend_ok and cadence_ok and n_active < V2F_MAX_SLOTS
+        vix_ok = vix_min_entry is None or vix >= vix_min_entry
+        should_enter = warmed and trend_ok and vix_ok and cadence_ok and n_active < V2F_MAX_SLOTS
         if should_enter:
             k = find_strike_for_delta(spx, V2F_ENTRY_DTE, sig, TARGET_DELTA, False)
             prem = put_price(spx, k, V2F_ENTRY_DTE, sig)
@@ -757,6 +761,43 @@ def _run_phase2_v2f_on_frame(
                 years=years,
             )
         )
+    return result
+
+
+def run_phase2_hvlad(
+    sim_df: pd.DataFrame | None = None,
+    mode: Literal["baseline", "filtered"] = "baseline",
+    vix_min_entry: float = V2F_VIX_MIN_ENTRY,
+    start_date: str = "2000-01-01",
+    end_date: str | None = None,
+    verbose: bool = False,
+) -> BacktestResult:
+    """
+    ES High-Vol Sell Put Ladder:
+    V2f rolling ladder chassis, hard-skipping entries unless VIX >= threshold.
+    Paper/shadow research variant only; production SPEC-061 path is unchanged.
+    """
+    data, full_spx = _load_data()
+    sim = sim_df.copy() if sim_df is not None else data
+    sim = sim[sim.index >= pd.Timestamp(start_date)]
+    if end_date:
+        sim = sim[sim.index <= pd.Timestamp(end_date)]
+
+    result = _run_phase2_v2f_on_frame(
+        sim,
+        full_spx,
+        mode=mode,
+        verbose=verbose,
+        enable_m1=True,
+        phase="es_hv_ladder",
+        vix_min_entry=vix_min_entry,
+        apply_trend_gate=True,
+    )
+    active_days = sum(1 for row in result.daily_rows if getattr(row, "bp_used", 0.0) > 0)
+    result.portfolio_metrics["active_days_pct"] = (
+        active_days / len(result.daily_rows) if result.daily_rows else 0.0
+    )
+    result.portfolio_metrics["vix_min_entry"] = vix_min_entry
     return result
 
 

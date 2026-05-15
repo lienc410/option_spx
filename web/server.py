@@ -1157,10 +1157,13 @@ def _es_trade_summary_metrics(result) -> dict:
     worst_trade = min((trade.pnl for trade in trades), default=0.0)
     initial_equity = 500_000.0
     return {
+        "n_trades": len(trades),
         "ann_roe_geometric": portfolio.get("ann_return"),
         "sharpe": portfolio.get("daily_sharpe"),
+        "max_dd": portfolio.get("max_drawdown"),
         "worst_trade_pct_nlv": (worst_trade / initial_equity) if trades else 0.0,
         "win_rate": (wins / len(trades)) if trades else 0.0,
+        "active_days_pct": portfolio.get("active_days_pct"),
         "bootstrap_sig_rate": bootstrap.get("sig_rate"),
         "bootstrap_ci_lo": bootstrap.get("ci_lo"),
         "stress_worst_single_pct_nlv": stress.get("stress_worst_single_pct_nlv"),
@@ -1176,6 +1179,26 @@ def _default_v2f_caveats() -> list[str]:
         "BSH / dynamic leverage interaction with V2f remains untested; Phase 3/4 results still belong to V0.",
         "M1 1987 stress worst single remains slightly beyond the original -15% veto threshold.",
     ]
+
+
+def _default_hvlad_caveats() -> list[str]:
+    return [
+        "BS-flat pricing; OTM put premium underestimated ~17-25% (Q057).",
+        "G6 deploys only ~21% of trading days; accept low capital deployment.",
+        "Bootstrap sig supports paper promotion, not production certainty.",
+        "STOP=15 unused in historical sample; retained as fail-safe.",
+    ]
+
+
+def _result_window_pnl_pct(result, start: str, end: str) -> float | None:
+    rows = [
+        row for row in (result.daily_rows or [])
+        if start <= getattr(row, "date", "") <= end
+    ]
+    if not rows:
+        return None
+    pnl = sum(float(getattr(row, "total_pnl", 0.0) or 0.0) for row in rows)
+    return pnl / 500_000.0
 
 
 def _purge_v2f_cache_entries() -> None:
@@ -1198,6 +1221,63 @@ def _purge_v2f_cache_entries() -> None:
 
 def _is_v2f_m1_payload(payload: dict | None) -> bool:
     return isinstance(payload, dict) and "v2f_baseline" in payload and "v2f_m1" in payload and "m1_delta" in payload
+
+
+def _is_hvlad_payload(payload: dict | None) -> bool:
+    return isinstance(payload, dict) and "hvlad_metrics" in payload and "hv_delta" in payload
+
+
+def _purge_hvlad_cache_entries() -> None:
+    for key in list(_ES_BT_CACHE.keys()):
+        if str(key).startswith("hvlad:"):
+            _ES_BT_CACHE.pop(key, None)
+    try:
+        with open(_ES_DISK_CACHE_PATH, "r") as f:
+            store = json.load(f)
+    except Exception:
+        return
+    next_store = {k: v for k, v in store.items() if not str(k).startswith("hvlad:")}
+    if next_store == store:
+        return
+    tmp = _ES_DISK_CACHE_PATH + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(next_store, f)
+    os.replace(tmp, _ES_DISK_CACHE_PATH)
+
+
+def _hvlad_paper_state() -> dict:
+    path = Path(__file__).parent.parent / "data" / "q071_hv_paper_trades.jsonl"
+    rows: list[dict] = []
+    if path.exists():
+        for raw in path.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line:
+                continue
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    rows.sort(key=lambda row: str(row.get("signal_date") or row.get("timestamp") or ""))
+    return {
+        "path": "data/q071_hv_paper_trades.jsonl",
+        "total_entries": len(rows),
+        "last_signal": rows[-1] if rows else None,
+        "status": "paper_observation",
+    }
+
+
+def _pct_point_delta(new_value, old_value) -> float | None:
+    if isinstance(new_value, (int, float)) and isinstance(old_value, (int, float)):
+        return (new_value - old_value) * 100.0
+    return None
+
+
+def _numeric_delta(new_value, old_value) -> float | None:
+    if isinstance(new_value, (int, float)) and isinstance(old_value, (int, float)):
+        return new_value - old_value
+    return None
+
+
 _VIX_BY_DATE: dict | None = None
 
 _Q041_DISK_CACHE_PATH = os.path.normpath(
@@ -1800,6 +1880,102 @@ def api_es_backtest():
         return jsonify(payload)
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/es-backtest/hvlad")
+def api_es_backtest_hvlad():
+    start_date = flask_req.args.get("start", "2000-01-01")
+    end_date = flask_req.args.get("end")
+    cache_key = f"hvlad:{start_date}:{end_date or ''}"
+
+    if cache_key in _ES_BT_CACHE:
+        cached = _ES_BT_CACHE[cache_key]
+        if _is_hvlad_payload(cached):
+            return jsonify(cached)
+        _purge_hvlad_cache_entries()
+
+    disk_cached = _load_es_disk_cache(cache_key)
+    if disk_cached and _is_hvlad_payload(disk_cached):
+        _ES_BT_CACHE[cache_key] = disk_cached
+        return jsonify(disk_cached)
+    if disk_cached:
+        _purge_hvlad_cache_entries()
+
+    try:
+        from research.strategies.ES_puts.backtest import V2F_VIX_MIN_ENTRY, run_phase2_hvlad
+
+        baseline_result = run_phase2_hvlad(
+            start_date=start_date,
+            end_date=end_date,
+            vix_min_entry=0.0,
+        )
+        hv_result = run_phase2_hvlad(
+            start_date=start_date,
+            end_date=end_date,
+            vix_min_entry=V2F_VIX_MIN_ENTRY,
+        )
+        baseline_metrics = _es_trade_summary_metrics(baseline_result)
+        hv_metrics = _es_trade_summary_metrics(hv_result)
+        baseline_covid = _result_window_pnl_pct(baseline_result, "2020-02-15", "2020-05-31")
+        hv_covid = _result_window_pnl_pct(hv_result, "2020-02-15", "2020-05-31")
+        baseline_metrics["covid_2020_pct_nlv"] = baseline_covid
+        hv_metrics["covid_2020_pct_nlv"] = hv_covid
+
+        payload = {
+            "phase": hv_result.phase,
+            "mode": hv_result.mode,
+            "vix_min_entry": V2F_VIX_MIN_ENTRY,
+            "paper_mode": True,
+            "hvlad_metrics": hv_metrics,
+            "v2f_baseline": baseline_metrics,
+            "hv_delta": {
+                "ann_roe_pp": _pct_point_delta(
+                    hv_metrics.get("ann_roe_geometric"),
+                    baseline_metrics.get("ann_roe_geometric"),
+                ),
+                "sharpe_delta": _numeric_delta(
+                    hv_metrics.get("sharpe"),
+                    baseline_metrics.get("sharpe"),
+                ),
+                "max_dd_improvement_pp": _pct_point_delta(
+                    hv_metrics.get("max_dd"),
+                    baseline_metrics.get("max_dd"),
+                ),
+                "worst_trade_improvement_pp": _pct_point_delta(
+                    hv_metrics.get("worst_trade_pct_nlv"),
+                    baseline_metrics.get("worst_trade_pct_nlv"),
+                ),
+                "bootstrap_improvement_pp": _pct_point_delta(
+                    hv_metrics.get("bootstrap_sig_rate"),
+                    baseline_metrics.get("bootstrap_sig_rate"),
+                ),
+                "covid_2020_pp": _pct_point_delta(hv_covid, baseline_covid),
+            },
+            "paper_state": _hvlad_paper_state(),
+            "caveats": _default_hvlad_caveats(),
+            "start_date": start_date,
+            "end_date": end_date,
+        }
+        _purge_hvlad_cache_entries()
+        _ES_BT_CACHE[cache_key] = payload
+        _save_es_disk_cache(cache_key, payload)
+        return jsonify(payload)
+    except Exception as exc:
+        payload = {
+            "phase": "es_hv_ladder",
+            "mode": "baseline",
+            "vix_min_entry": 22.0,
+            "paper_mode": True,
+            "hvlad_metrics": None,
+            "v2f_baseline": None,
+            "hv_delta": None,
+            "paper_state": _hvlad_paper_state(),
+            "caveats": _default_hvlad_caveats(),
+            "error": str(exc),
+            "start_date": start_date,
+            "end_date": end_date,
+        }
+        return jsonify(payload)
 
 
 @app.route("/api/es-backtest/v2f")

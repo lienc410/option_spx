@@ -29,8 +29,9 @@ import logging
 import os
 import sys
 from dataclasses import asdict, dataclass
-from datetime import date, datetime, time as dtime
+from datetime import date, datetime, time as dtime, timedelta
 from enum import Enum
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
@@ -102,6 +103,11 @@ def is_market_open(dt: datetime | None = None) -> bool:
 _SPIKE_RANK = {SpikeLevel.NONE: 0, SpikeLevel.WARNING: 1, SpikeLevel.ALERT: 2}
 _STOP_RANK  = {StopLevel.NONE:  0, StopLevel.CAUTION:  1, StopLevel.TRIGGER: 2}
 _STALE_QUOTE_MINUTES = 10
+_ES_HV_VIX_MIN_ENTRY = 22.0
+_ES_HV_ENTRY_DTE = 49
+_ES_HV_TARGET_DELTA = 0.20
+_ES_HV_MAX_SLOTS = 5
+_ES_HV_PAPER_LOG = Path(__file__).resolve().parents[1] / "data" / "q071_hv_paper_trades.jsonl"
 
 
 class EsStopLevel(str, Enum):
@@ -127,6 +133,8 @@ _intraday_state: dict = {
     "es_stop_level":    EsStopLevel.NONE,
     "profit_alerted":   False,   # True once profit target alert has been sent this session
     "mismatch_alerted": False,   # True once broker-state mismatch warning has been sent this session
+    "es_hv_signal_alerted_date": None,
+    "es_hv_stale_alerted_date": None,
 }
 _morning_snapshot: dict | None = None
 
@@ -356,6 +364,175 @@ def _format_es_stop_alert(result: EsStopResult) -> str:
         f"✅ <b>/ES Short Put — Stop watch cleared</b>\n"
         f"Mark has fallen back below ×{_warn:.0f} threshold. Current mark: <code>{mark:.2f}</code>"
     )
+
+
+def _parse_quote_time(quote: dict) -> datetime | None:
+    raw = quote.get("quote_time")
+    if raw in (None, ""):
+        return None
+    try:
+        ts = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=ET)
+    return ts.astimezone(ET)
+
+
+def _is_quote_stale_daily(quote: dict, now: datetime) -> bool:
+    ts = _parse_quote_time(quote)
+    if ts is None:
+        return True
+    return ts.date() < (now.date() - timedelta(days=1))
+
+
+def _read_es_hv_paper_records(path: Path = _ES_HV_PAPER_LOG) -> list[dict]:
+    if not path.exists():
+        return []
+    rows: list[dict] = []
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return rows
+
+
+def _append_es_hv_paper_record(record: dict, path: Path = _ES_HV_PAPER_LOG) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
+
+
+def _business_days_between(start: date, end: date) -> int:
+    if end <= start:
+        return 0
+    days = 0
+    cur = start
+    while cur < end:
+        cur += timedelta(days=1)
+        if cur.weekday() < 5 and cur.strftime("%Y-%m-%d") not in _ALL_HOLIDAYS:
+            days += 1
+    return days
+
+
+def _es_hv_active_slots(records: list[dict], today: date) -> int:
+    active = 0
+    for row in records:
+        raw = row.get("signal_date")
+        if not raw:
+            continue
+        try:
+            signal_date = date.fromisoformat(str(raw)[:10])
+        except ValueError:
+            continue
+        if 0 <= (today - signal_date).days <= _ES_HV_ENTRY_DTE:
+            active += 1
+    return min(active, _ES_HV_MAX_SLOTS)
+
+
+def _es_hv_cadence_ok(records: list[dict], today: date, active_slots: int) -> bool:
+    signal_dates: list[date] = []
+    for row in records:
+        raw = row.get("signal_date")
+        if not raw:
+            continue
+        try:
+            signal_dates.append(date.fromisoformat(str(raw)[:10]))
+        except ValueError:
+            continue
+    if not signal_dates:
+        return True
+    min_gap = 10 if active_slots >= 4 else 5
+    return _business_days_between(max(signal_dates), today) >= min_gap
+
+
+def _format_es_hv_stale_alert(vix_quote: dict) -> str:
+    return (
+        "⚠️ <b>/ES HV Ladder — VIX data unavailable/stale</b>\n"
+        f"Quote time: <code>{_h(vix_quote.get('quote_time') or 'missing')}</code>\n"
+        "No paper entry evaluated. Production /ES logic unchanged."
+    )
+
+
+def _format_es_hv_paper_signal(record: dict) -> str:
+    return (
+        "🧪 <b>/ES HV Ladder — Paper Trade Signal</b>\n"
+        f"Date: <code>{_h(record['signal_date'])}</code>\n"
+        f"VIX: <code>{record['vix_at_signal']:.1f}</code> (gate ≥ {_ES_HV_VIX_MIN_ENTRY:.0f})\n"
+        f"Trend: <code>{_h(record.get('trend', 'BULLISH'))}</code>\n"
+        f"Active slots: <code>{record['active_slots']}/{_ES_HV_MAX_SLOTS}</code>\n"
+        f"Entry DTE: <code>{_ES_HV_ENTRY_DTE}</code> · target |delta| <code>{_ES_HV_TARGET_DELTA:.2f}</code>\n"
+        f"Est. strike: <code>{record['est_strike']:.0f}</code> · est. premium: <code>{record['est_premium']:.2f}</code>\n"
+        "<i>Paper/shadow only. No auto-execution.</i>"
+    )
+
+
+def _check_es_hv_ladder_paper_signal(
+    *,
+    now: datetime | None = None,
+    vix_quote: dict | None = None,
+    spx_quote: dict | None = None,
+    paper_log_path: Path = _ES_HV_PAPER_LOG,
+) -> str | None:
+    now = now or datetime.now(ET)
+    today_str = now.strftime("%Y-%m-%d")
+    vix_quote = vix_quote if vix_quote is not None else get_vix_quote()
+    if _is_quote_stale_daily(vix_quote, now):
+        if _intraday_state.get("es_hv_stale_alerted_date") == today_str:
+            return None
+        _intraday_state["es_hv_stale_alerted_date"] = today_str
+        return _format_es_hv_stale_alert(vix_quote)
+
+    vix = _num(vix_quote.get("last"))
+    if vix is None or vix < _ES_HV_VIX_MIN_ENTRY:
+        return None
+    if _intraday_state.get("es_hv_signal_alerted_date") == today_str:
+        return None
+
+    spx_quote = spx_quote if spx_quote is not None else get_spx_quote()
+    spx = _num(spx_quote.get("last"))
+    if spx is None or spx <= 0:
+        return None
+
+    try:
+        from backtest.pricer import find_strike_for_delta, put_price
+        from signals.trend import TrendSignal, fetch_spx_history, get_current_trend
+
+        trend = get_current_trend(fetch_spx_history(period="2y"), current_spx=spx)
+        if trend.signal != TrendSignal.BULLISH:
+            return None
+        sigma = vix / 100.0
+        strike = float(find_strike_for_delta(spx, _ES_HV_ENTRY_DTE, sigma, _ES_HV_TARGET_DELTA, is_call=False))
+        premium = float(put_price(spx, strike, _ES_HV_ENTRY_DTE, sigma))
+    except Exception:
+        log.exception("_check_es_hv_ladder_paper_signal: failed to evaluate paper signal")
+        return None
+
+    records = _read_es_hv_paper_records(paper_log_path)
+    active_slots = _es_hv_active_slots(records, now.date())
+    if active_slots >= _ES_HV_MAX_SLOTS or not _es_hv_cadence_ok(records, now.date(), active_slots):
+        return None
+
+    record = {
+        "signal_date": today_str,
+        "timestamp": now.isoformat(timespec="seconds"),
+        "vix_at_signal": round(vix, 4),
+        "active_slots": active_slots,
+        "entry_dte": _ES_HV_ENTRY_DTE,
+        "target_delta": _ES_HV_TARGET_DELTA,
+        "est_spx": round(spx, 4),
+        "est_strike": round(strike, 4),
+        "est_premium": round(premium, 4),
+        "trend": trend.signal.value,
+        "status": "paper",
+    }
+    _append_es_hv_paper_record(record, paper_log_path)
+    _intraday_state["es_hv_signal_alerted_date"] = today_str
+    return _format_es_hv_paper_signal(record)
 
 
 def _check_spx_profit_target() -> tuple[bool, float | None, bool]:
@@ -610,6 +787,8 @@ def _reset_intraday_state() -> None:
     _intraday_state["es_stop_level"]    = EsStopLevel.NONE
     _intraday_state["profit_alerted"]   = False
     _intraday_state["mismatch_alerted"] = False
+    _intraday_state["es_hv_signal_alerted_date"] = None
+    _intraday_state["es_hv_stale_alerted_date"] = None
     _morning_snapshot = None
     log.info("Intraday state reset for new session.")
 
@@ -659,10 +838,14 @@ async def intraday_monitor(bot: Bot, chat_id: str) -> None:
     if not is_market_open():
         return
 
+    vix_quote = None
+    spx_quote = None
     try:
         try:
-            spike = get_vix_spike_from_quote(get_vix_quote())
-            stop = get_spx_stop_from_quote(get_spx_quote())
+            vix_quote = get_vix_quote()
+            spx_quote = get_spx_quote()
+            spike = get_vix_spike_from_quote(vix_quote)
+            stop = get_spx_stop_from_quote(spx_quote)
         except Exception:
             spike = get_vix_spike(interval="5m")
             stop = get_spx_stop(interval="5m")
@@ -714,6 +897,14 @@ async def intraday_monitor(bot: Bot, chat_id: str) -> None:
             and es_stop.current_mark is not None
         ):
             msgs.append(_format_es_stop_alert(es_stop))
+
+    if vix_quote is not None and spx_quote is not None and vix_quote.get("quote_time"):
+        try:
+            hv_ladder_msg = _check_es_hv_ladder_paper_signal(vix_quote=vix_quote, spx_quote=spx_quote)
+            if hv_ladder_msg:
+                msgs.append(hv_ladder_msg)
+        except Exception:
+            log.exception("intraday_monitor: ES HV Ladder paper check failed")
 
     # Broker-state mismatch check — fires once per session (SPEC-099 Layer B)
     if not _intraday_state["mismatch_alerted"]:
