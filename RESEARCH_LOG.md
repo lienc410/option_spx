@@ -1,6 +1,6 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-13 (R-20260513-10: Q070 Aftermath Peak VIX threshold sensitivity sweep — 维持 `AFTERMATH_PEAK_VIX_10D_MIN = 28` 不下调。19y sweep 显示 threshold=27 LOW_VOL 污染率 5.9% 但 19y 仅新增 1 笔 BPS HV trade（n=1 不显著）；threshold=25 LOW_VOL 污染率跳升至 27.7%；2025-11-20 case 是 IC_HV 持仓时机重叠而非 threshold 问题。selector.py 不动；2nd Quant review 略过——无生产变更提案)
+Last Updated: 2026-05-14 (R-20260514-01: Q071 ES Sell Put 整合研究 PROMOTE V2f + G6 (VIX ≥ 22)。IVP 43-55 被实证驳斥（ann_roe -0.98pp）。G6 数据驱动：ann_roe +1.14% / sharpe 0.34 / MaxDD -9.7% / bootstrap 100%（baseline 0%）/ 2020 COVID +3.1%。P0 Criterion B PASS。下一步 SPEC vix_min_entry=22.0 / 2027-05-14 review)
 Owner: Planner or PM
 
 ### R-20260513-10 — Q070: Aftermath Peak VIX Threshold Sensitivity Sweep

@@ -1532,7 +1532,7 @@
 
 
 ### Q071 — ES Sell Put 整合策略研究（/ES V2f + Q041 T1）
-- **状态**：**IN PROGRESS 2026-05-14**（Quant prompt 已发出，P1 attribution 待执行）
+- **状态**：**CLOSED 2026-05-14（PROMOTE V2f + G6，R-20260514-01）**
 - **来源**：PM 希望整合 /ES V2f（结构骨架）与 Q041 T1（IV/regime 入场质量思想），形成统一 ES Sell Put 策略
 - **2nd Quant review**：**REVISE**（2026-05-14）——原设计是"加 IVP 43-55 gate"的 filter 移植，不是完整策略设计。三个核心问题：①IVP signal 迁移存疑（Q063 alpha 在 SPX DTE30 验证，/ES V2f 结构完全不同）；②窄 IVP window 可能打断 rolling ladder 时间分散优势；③缺 portfolio/margin governance 层
 - **重构后研究架构（P0–P5）**：
@@ -1542,9 +1542,16 @@
   - P3：Cadence-aware 实现（hard skip vs delay retry vs size scale 0.5x）
   - P4：STOP=15 尾部交互证明（验证 V2f STOP 是否真正解决 Q041 T1 尾部问题）
   - P5：完整 portfolio viability（Ann ROE / Sharpe / MaxDD / stress SPAN / bootstrap / 2008/2020/2022）
-- **停止条件**：P1 IVP bucket 无显著 edge → 停止 P2-P5，报告"IVP gate 在 V2f 语境下无 edge"
-- **工具确认**：/ES only（不含 SPX CSP 路径）
-- **Artifacts**：`task/q071_es_q041t1_integration_design_review_2026-05-14.md`，`task/q071_es_q041t1_integration_design_review_2026-05-14_Review.md`
+- **关键发现**：
+  - IVP 43-55 被实证驳斥（ann_roe 1.04%→0.07%，-0.98pp）——Q041 假设不能迁移到 V2f 语境
+  - G6（VIX ≥ 22）数据驱动发现：ann_roe +1.14%，sharpe 0.34，MaxDD -9.7%（vs baseline -33.3%），bootstrap 100%（baseline 0%），2020 COVID +3.1%（vs -23.4%）
+  - V2f_base bootstrap sig_rate = 0%：生产 baseline 本身边缘脆弱，G6 是创造显著性而非增强
+  - G6 仅 21% 交易日有仓（vs baseline 86%），PM 接受低 capital deployment
+  - Mode B = Mode A（IVP/VIX 5TD 内不翻面）；Mode C 反向破坏（半仓重引入 excluded trades）
+  - STOP=15 在 G6 下冗余，保留作 defense-in-depth
+- **P0 判定**：Criterion B PASS（ROE flat +0.09pp，DD 改善 23.6pp ≫ 2pp 门槛），V1 PASS，bootstrap PASS，SPAN 15% NLV < 30% ceiling → PROMOTE
+- **下一步**：SPEC 加 `vix_min_entry: float = 22.0` 到 V2f params；2027-05-14 12-month 重测 obligation
+- **Artifacts**：`research/q071/q071_memo_2026-05-14.md`，11 个 CSV，5 个 phase scripts，`q071_engine.py`，`RESEARCH_LOG.md R-20260514-01`
 
 ---
 
