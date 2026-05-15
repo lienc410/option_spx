@@ -1182,7 +1182,6 @@ function renderPosition(p) {
         <span onclick="showPosGreekHelp()" style="cursor:pointer;width:14px;height:14px;border-radius:50%;background:rgba(100,120,180,0.18);color:var(--text-2);font-size:0.60rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;line-height:1;user-select:none" title="Position Greeks 解读">?</span>
       </div>
       <div class="pos-live-row"><strong>Δ</strong> ${fmt(live.delta)} &nbsp; <strong>Γ</strong> ${fmt(live.gamma, 3)} &nbsp; <strong>Θ</strong> ${fmt(live.theta)} /day &nbsp; <strong>V</strong> ${fmt(live.vega)}</div>
-      <div class="pos-live-row"><strong>Mark</strong> ${fmt(live.mark)} &nbsp; <strong>Bid</strong> ${fmt(live.bid)} &nbsp; <strong>Ask</strong> ${fmt(live.ask)}</div>
       <div class="pos-live-row" style="color:var(--text-2)">
         ${fmtPos(live.delta, totalContracts*100) != null ? `Δ×n <strong>${fmtPos(live.delta, totalContracts*100)}</strong> $/pt &nbsp;` : ''}
         ${live.gamma != null ? `Γ×n <strong>${(live.gamma * totalContracts * 100).toFixed(3)}</strong> &nbsp;` : ''}
@@ -1211,14 +1210,17 @@ function renderPosition(p) {
         }
         if (entryPrem) {
           const tgt = entryPrem * n * 100 * 0.60;
-          tgtHtml = `<span style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-muted)">tgt +$${Math.round(tgt).toLocaleString()}</span>`;
+          tgtHtml = `<span style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2)">tgt +$${Math.round(tgt).toLocaleString()}</span>`;
         }
+        const mkBaHtml = (acct !== 'etrade' && live.visible)
+          ? `<span style="font-family:var(--f-mono);font-size:0.64rem;color:var(--text-2);white-space:nowrap"><strong style="color:var(--text)">M</strong> ${fmt(live.mark)} · <strong style="color:var(--text)">B</strong> ${fmt(live.bid)} · <strong style="color:var(--text)">A</strong> ${fmt(live.ask)}</span>`
+          : '';
         return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid var(--border)">
           ${acctBadge(acct)}
           <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-2)">${strikes}</span>
-          <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-muted)">${n}× @ ${premStr}</span>
+          <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-2)">${n}× @ ${premStr}</span>
           ${tgtHtml}
-          ${pnlHtml}
+          <span style="display:flex;gap:8px;align-items:center;margin-left:auto">${pnlHtml}${mkBaHtml}</span>
         </div>`;
       }).join('')
     : '';

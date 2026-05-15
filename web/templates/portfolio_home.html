@@ -919,18 +919,29 @@ async function loadSpx() {
       fetch('/api/recommendation'),
       fetch('/api/position'),
     ]);
-    if (!recRes.ok) throw new Error('rec HTTP ' + recRes.status);
-    const rec = await recRes.json();
-    if (rec.error) throw new Error(rec.error);
+    let rec = {};
+    if (!recRes.ok) {
+      console.error('[loadSpx] rec HTTP', recRes.status);
+      document.getElementById('subtitle-spx').textContent = '[REC UNAVAILABLE]';
+    } else {
+      rec = await recRes.json();
+      if (rec.error) {
+        console.error('[loadSpx] rec error:', rec.error);
+        document.getElementById('subtitle-spx').textContent = '[REC: ' + rec.error.slice(0, 60) + ']';
+        rec = {};
+      }
+    }
 
     // Badge — applied after pos is read so data.open is available
-    // Subtitle: strategy + legs
+    // Subtitle: strategy + legs (only update if rec data is present)
     const legs = (rec.legs || []);
-    const legsStr = legs.map(l =>
-      `${l.action} PUT ${l.dte}d Δ${Number(l.delta).toFixed(2)}`
-    ).join(' / ');
-    document.getElementById('subtitle-spx').textContent =
-      (rec.strategy || '') + (legsStr ? ' · ' + legsStr : '');
+    if (rec.strategy || legs.length > 0) {
+      const legsStr = legs.map(l =>
+        `${l.action} PUT ${l.dte}d Δ${Number(l.delta).toFixed(2)}`
+      ).join(' / ');
+      document.getElementById('subtitle-spx').textContent =
+        (rec.strategy || '') + (legsStr ? ' · ' + legsStr : '');
+    }
 
     // Signal chips
     const vix   = rec.vix_snapshot  || {};
@@ -1004,18 +1015,21 @@ async function loadSpx() {
           if (spreadMark != null && entryPrem) {
             const acctPnl = (entryPrem - spreadMark) * n * 100;
             const cls     = acctPnl >= 0 ? 'var(--green)' : 'var(--red)';
-            pnlHtml = `<span style="font-family:var(--f-mono);font-size:0.68rem;color:${cls};margin-left:auto">${acctPnl >= 0 ? '+' : ''}$${acctPnl.toFixed(0)}</span>`;
+            pnlHtml = `<span style="font-family:var(--f-mono);font-size:0.68rem;color:${cls}">${acctPnl >= 0 ? '+' : ''}$${acctPnl.toFixed(0)}</span>`;
           }
           if (entryPrem) {
             const tgt = entryPrem * n * 100 * 0.60;
-            tgtHtml = `<span style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-muted)">tgt +$${Math.round(tgt).toLocaleString()}</span>`;
+            tgtHtml = `<span style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2)">tgt +$${Math.round(tgt).toLocaleString()}</span>`;
           }
+          const mkBaHtml = (acct !== 'etrade' && live.visible)
+            ? `<span style="font-family:var(--f-mono);font-size:0.64rem;color:var(--text-2);white-space:nowrap"><strong style="color:var(--text)">M</strong> ${fmt(live.mark)} · <strong style="color:var(--text)">B</strong> ${fmt(live.bid)} · <strong style="color:var(--text)">A</strong> ${fmt(live.ask)}</span>`
+            : '';
           return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid var(--border)">
             ${acctBadge(acct)}
             <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-2)">${strikes}</span>
-            <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-muted)">${n}× @ ${premStr}</span>
+            <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-2)">${n}× @ ${premStr}</span>
             ${tgtHtml}
-            ${pnlHtml}
+            <span style="display:flex;gap:8px;align-items:center;margin-left:auto">${pnlHtml}${mkBaHtml}</span>
           </div>`;
         }).join('');
         // Live risk block — always rendered; shows placeholder outside market hours
@@ -1028,9 +1042,6 @@ async function loadSpx() {
               <span><strong>Γ</strong> ${fmt(live.gamma, 3)}</span>
               <span><strong>Θ</strong> ${fmt(live.theta)}/d</span>
               <span><strong>V</strong> ${fmt(live.vega)}</span>
-              <span><strong>Mark</strong> ${fmt(live.mark)}</span>
-              <span><strong>Bid</strong> ${fmt(live.bid)}</span>
-              <span><strong>Ask</strong> ${fmt(live.ask)}</span>
             </div>
             <div style="font-family:var(--f-mono);font-size:0.67rem;color:var(--text-muted);display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:3px">
               ${fmtPos(live.delta, totalContracts*100) != null ? `<span>Δ×n <span style="color:var(--text)">${fmtPos(live.delta, totalContracts*100)}</span> $/pt</span>` : ''}
@@ -1079,9 +1090,10 @@ async function loadSpx() {
       applyBadge('badge-spx', spxBadge({ ...rec, open: false }));
       posBody.textContent = 'Position data unavailable';
     }
-  } catch (_) {
+  } catch (err) {
+    console.error('[loadSpx] unexpected error:', err);
     applyBadge('badge-spx', { cls: 'badge-unavail', label: 'N/A' });
-    document.getElementById('subtitle-spx').textContent = '[API UNAVAILABLE]';
+    document.getElementById('subtitle-spx').textContent = '[ERR: ' + (err.message || 'unknown').slice(0, 60) + ']';
     document.getElementById('pos-spx-body').textContent = '—';
   }
 }
