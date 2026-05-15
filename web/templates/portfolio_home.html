@@ -1179,22 +1179,17 @@ async function loadSettling() {
       };
       const checkedTs = _fmtTs(data.checked_at);
       const sig1Ts    = _fmtTs(data.signal1_captured_at);
-      bodyEl.innerHTML = `
-        <div>${data.changed ? 'Signal 2 differs from Signal 1.' : 'Signal 2 confirms Signal 1.'}</div>
-        <div class="settling-compare">
-          <div class="settling-box">
-            <div class="settling-box-label">Signal 1 · Opening</div>
-            <div class="settling-box-main">${shortRecLabel(sig1)}</div>
-            <div class="settling-box-sub">VIX ${fmtNum(sig1?.vix, 1)}</div>
-            ${sig1Ts ? `<div class="settling-box-sub" style="color:var(--text-muted)">${sig1Ts}</div>` : ''}
-          </div>
-          <div class="settling-box">
-            <div class="settling-box-label">Signal 2 · Settled</div>
-            <div class="settling-box-main">${shortRecLabel(sig2)}</div>
-            <div class="settling-box-sub">${stableLabel}</div>
-            ${checkedTs ? `<div class="settling-box-sub" style="color:var(--text-muted)">${checkedTs}</div>` : ''}
-          </div>
+      const _sigRow = (lbl, val, vix, ts) =>
+        `<div style="display:flex;align-items:baseline;gap:8px;margin-top:4px;font-family:var(--f-mono);font-size:0.67rem">
+          <span style="color:var(--text-2);min-width:90px">${lbl}</span>
+          <span style="color:var(--text);font-weight:600">${val}</span>
+          ${vix ? `<span style="color:var(--text-2)">VIX ${vix}</span>` : ''}
+          ${ts  ? `<span style="color:var(--text-muted)">${ts}</span>` : ''}
         </div>`;
+      bodyEl.innerHTML =
+        `<div style="font-size:0.72rem;color:var(--text)">${data.changed ? 'Signal 2 differs from Signal 1.' : 'Signal 2 confirms Signal 1.'}</div>` +
+        _sigRow('S1 · Opening', shortRecLabel(sig1), fmtNum(sig1?.vix, 1), sig1Ts) +
+        _sigRow('S2 · Settled', shortRecLabel(sig2), stableLabel,          checkedTs);
       noteEl.textContent = 'Forward-tracking observation only. Not an actionable trade recommendation.';
       return;
     }
