@@ -1532,7 +1532,7 @@
 
 
 ### Q071 — ES Sell Put 整合策略研究（/ES V2f + Q041 T1）
-- **状态**：**CLOSED 2026-05-14（PROMOTE V2f + G6，R-20260514-01）**
+- **状态**：**CLOSED 2026-05-14（PROMOTE，2nd Quant review 完成）**
 - **来源**：PM 希望整合 /ES V2f（结构骨架）与 Q041 T1（IV/regime 入场质量思想），形成统一 ES Sell Put 策略
 - **2nd Quant review**：**REVISE**（2026-05-14）——原设计是"加 IVP 43-55 gate"的 filter 移植，不是完整策略设计。三个核心问题：①IVP signal 迁移存疑（Q063 alpha 在 SPX DTE30 验证，/ES V2f 结构完全不同）；②窄 IVP window 可能打断 rolling ladder 时间分散优势；③缺 portfolio/margin governance 层
 - **重构后研究架构（P0–P5）**：
@@ -1550,8 +1550,9 @@
   - Mode B = Mode A（IVP/VIX 5TD 内不翻面）；Mode C 反向破坏（半仓重引入 excluded trades）
   - STOP=15 在 G6 下冗余，保留作 defense-in-depth
 - **P0 判定**：Criterion B PASS（ROE flat +0.09pp，DD 改善 23.6pp ≫ 2pp 门槛），V1 PASS，bootstrap PASS，SPAN 15% NLV < 30% ceiling → PROMOTE
-- **下一步**：SPEC 加 `vix_min_entry: float = 22.0` 到 V2f params；2027-05-14 12-month 重测 obligation
-- **Artifacts**：`research/q071/q071_memo_2026-05-14.md`，11 个 CSV，5 个 phase scripts，`q071_engine.py`，`RESEARCH_LOG.md R-20260514-01`
+- **2nd Quant 修订（2026-05-14）**：策略 rename → ES High-Vol Sell Put Ladder；Q041 framing 改为 regime-quality concept 迁移；STOP=15 → "unused historical safeguard"；bootstrap sig 加 production fragility caveat；promote level → DRAFT SPEC + paper/shadow（非 production）；review obligation → 12mo AND ≥10 entries OR 24mo；Q072 IVP 增量判别为 OPTIONAL post-SPEC
+- **下一步**：起草 SPEC-XXX ES High-Vol Sell Put Ladder（2nd Quant §7 已给出 entry rules / structure / risk controls / monitoring 建议起点）
+- **Artifacts**：`research/q071/q071_memo_2026-05-14.md`（已按 review 修订），`task/q071_2nd_quant_review_2026-05-14.md`，11 个 CSV，5 个 phase scripts，`q071_engine.py`，`RESEARCH_LOG.md R-20260514-01`
 
 ---
 

@@ -1,6 +1,6 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-14 (R-20260514-01: Q071 ES Sell Put 整合研究 PROMOTE V2f + G6 (VIX ≥ 22)。IVP 43-55 被实证驳斥（ann_roe -0.98pp）。G6 数据驱动：ann_roe +1.14% / sharpe 0.34 / MaxDD -9.7% / bootstrap 100%（baseline 0%）/ 2020 COVID +3.1%。P0 Criterion B PASS。下一步 SPEC vix_min_entry=22.0 / 2027-05-14 review)
+Last Updated: 2026-05-14 (Q071 2nd Quant review 落地 + memo 修订完成。策略正式命名为 "ES High-Vol Sell Put Ladder"。Promote level：DRAFT SPEC + paper/shadow/small-cell，非立即 production。STOP=15 改为 "unused historical safeguard"；bootstrap sig 加 production fragility caveat；review obligation 改为 12mo AND ≥10 entries OR 24mo；Q072 IVP 增量判别为 OPTIONAL post-SPEC)
 Owner: Planner or PM
 
 ### R-20260513-10 — Q070: Aftermath Peak VIX Threshold Sensitivity Sweep
