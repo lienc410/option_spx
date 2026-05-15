@@ -2136,26 +2136,60 @@ def api_position():
             live["combined_trade_log_pnl"] = round(combined_pnl, 2)
         except Exception:
             pass
-    # E-Trade live quote — uses the E-Trade leg's own strikes (may differ from Schwab's)
+    # Per-tranche live quotes keyed by trade_id; also maintain etrade_live for compat
+    position_lives: dict = {}
     etrade_live: dict = {"visible": False}
-    etrade_pos = next((p for p in positions if (p.get("account") or "schwab") == "etrade"), None)
-    if etrade_pos and state.get("expiry") and etrade_pos.get("short_strike") and etrade_pos.get("long_strike"):
-        try:
-            from etrade.client import get_option_spread_quote
-            etrade_live = get_option_spread_quote(
-                underlier=state.get("underlying", "SPX"),
-                expiry=state["expiry"],
-                short_strike=float(etrade_pos["short_strike"]),
-                long_strike=float(etrade_pos["long_strike"]),
-            )
-        except Exception:
-            pass
+    _et_cache: dict = {}
+    _sw_cache: dict = {}
+    primary_sw = (str(state.get("short_strike")), str(state.get("long_strike")))
+    expiry = state.get("expiry", "")
+    underlying = state.get("underlying", "SPX")
+
+    for p in positions:
+        tid = p.get("trade_id")
+        if not tid or not expiry:
+            continue
+        acct = (p.get("account") or "schwab").lower()
+        ss, ls = str(p.get("short_strike") or ""), str(p.get("long_strike") or "")
+        if not (ss and ls):
+            continue
+        ck = (ss, ls)
+
+        if acct == "etrade":
+            if ck not in _et_cache:
+                try:
+                    from etrade.client import get_option_spread_quote
+                    _et_cache[ck] = get_option_spread_quote(
+                        underlier=underlying, expiry=expiry,
+                        short_strike=float(ss), long_strike=float(ls),
+                    )
+                except Exception:
+                    _et_cache[ck] = {"visible": False}
+            position_lives[tid] = _et_cache[ck]
+            if not etrade_live.get("visible"):   # first E-Trade entry wins for compat
+                etrade_live = _et_cache[ck]
+
+        elif acct == "schwab":
+            if ck not in _sw_cache:
+                if ck == primary_sw:
+                    _sw_cache[ck] = live   # reuse already-computed schwab_live (has Greeks)
+                else:
+                    try:
+                        from schwab.client import spread_quote_for_strikes
+                        _sw_cache[ck] = spread_quote_for_strikes(
+                            underlying, expiry, float(ss), float(ls)
+                        )
+                    except Exception:
+                        _sw_cache[ck] = {"visible": False}
+            position_lives[tid] = _sw_cache[ck]
+
     return jsonify({
         "open": True,
         **state,
         "positions": positions,
         "schwab_live": live,
         "etrade_live": etrade_live,
+        "position_lives": position_lives,
     })
 
 
@@ -2368,7 +2402,8 @@ def api_position_open():
         "paper_trade": paper_trade,
     }
     account = str(body.get("account") or "schwab").strip().lower()
-    write_state(desc.name, body.get("underlying", desc.underlying), strategy_key=strategy_key, account=account, **state_payload)
+    add_tranche = bool(body.get("add_tranche", False))
+    write_state(desc.name, body.get("underlying", desc.underlying), strategy_key=strategy_key, account=account, add_tranche=add_tranche, **state_payload)
     append_event({
         "id": trade_id,
         "event": "open",

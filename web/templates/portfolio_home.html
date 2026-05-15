@@ -992,6 +992,7 @@ async function loadSpx() {
       if (pos.open) {
         const live    = pos.schwab_live || {};
         const etradeLive = pos.etrade_live || {};
+        const positionLives = pos.position_lives || {};
         const fmt = (v, d=2) => v != null ? Number(v).toFixed(d) : '—';
         // Compute current DTE from expiry (use first position's expiry)
         let dte = null;
@@ -1028,7 +1029,8 @@ async function loadSpx() {
           const n         = Number(p.contracts) || 1;
           // Per-account P&L: each row uses its own broker's mark
           let pnlHtml = '', tgtHtml = '';
-          const _liveForAcct = acct === 'etrade' ? etradeLive : live;
+          const _liveForAcct = positionLives[p.trade_id]
+            || (acct === 'etrade' ? etradeLive : live);
           const markForAcct = _liveForAcct.visible ? _liveForAcct.mark : spreadMark;
           if (markForAcct != null && entryPrem) {
             const acctPnl = (entryPrem - markForAcct) * n * 100;

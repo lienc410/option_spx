@@ -623,6 +623,34 @@ def _spread_mark_from_positions(state: dict, positions: list[dict], positions_pa
     }
 
 
+def spread_quote_for_strikes(
+    underlying: str,
+    expiry: str,
+    short_strike: float,
+    long_strike: float,
+) -> dict:
+    """Mark/bid/ask for a specific put spread via Schwab chain (no Greeks, lightweight)."""
+    cache_key = f"swquote:{underlying}:{expiry}:{short_strike}:{long_strike}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    mock_state = {
+        "strategy_key": "bull_put_spread",
+        "underlying": underlying,
+        "expiry": expiry,
+        "short_strike": short_strike,
+        "long_strike": long_strike,
+    }
+    result = _spread_live_snapshot_from_chain(mock_state, {})
+    if result:
+        out = {k: result[k] for k in ("visible", "mark", "bid", "ask")
+               if k in result}
+        out.setdefault("visible", True)
+        _cache_put(cache_key, out)
+        return out
+    return {"visible": False}
+
+
 def live_position_snapshot(state: dict | None) -> dict:
     positions_payload = get_account_positions()
     if not positions_payload.get("configured") or not positions_payload.get("authenticated"):

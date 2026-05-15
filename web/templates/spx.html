@@ -1170,6 +1170,7 @@ function renderPosition(p) {
     : '';
   const live = p.schwab_live || {};
   const etradeLive = p.etrade_live || {};
+  const positionLives = p.position_lives || {};
   const dteLine = dteEstimate(meta, p);
   CURRENT_POS = p;
   // Per-account position rows
@@ -1204,7 +1205,8 @@ function renderPosition(p) {
         const premStr   = entryPrem ? `$${entryPrem.toFixed(2)}` : '—';
         const n         = Number(pos.contracts) || 1;
         let pnlHtml = '', tgtHtml = '';
-        const _liveForAcct = acct === 'etrade' ? etradeLive : live;
+        const _liveForAcct = positionLives[pos.trade_id]
+          || (acct === 'etrade' ? etradeLive : live);
         const markForAcct = _liveForAcct.visible ? _liveForAcct.mark : spreadMark;
         if (markForAcct != null && entryPrem) {
           const acctPnl = (entryPrem - markForAcct) * n * 100;
@@ -1237,12 +1239,13 @@ function renderPosition(p) {
       ${liveHtml}
     </div>`;
   const existingAccts = new Set(positions.map(pos => pos.account || 'schwab'));
-  const addBtns = ['schwab', 'etrade']
+  const addAcctBtns = ['schwab', 'etrade']
     .filter(a => !existingAccts.has(a))
     .map(a => `<button class="action-btn primary" onclick="openTradeModal('open','${a}')">+ Add ${a === 'etrade' ? 'E-Trade' : 'Schwab'}</button>`)
     .join('');
   actions.innerHTML = `
-    ${addBtns}
+    ${addAcctBtns}
+    <button class="action-btn primary" onclick="openTradeModal('open',null,true)">+ Add Tranche</button>
     <button class="action-btn" onclick="openTradeModal('close')">Close</button>
     <button class="action-btn" onclick="openTradeModal('roll')">Roll</button>
     <button class="action-btn" onclick="openTradeModal('note')">Add Note</button>
@@ -1507,13 +1510,13 @@ function modalShell(inner) {
   return `${inner}<div id="trade-modal-msg" class="modal-msg hidden"></div>`;
 }
 
-function openTradeModal(kind, presetAccount) {
+function openTradeModal(kind, presetAccount, addTranche) {
   const wrap = document.getElementById('trade-modal-wrap');
   const body = document.getElementById('trade-modal-body');
   const title = document.getElementById('trade-modal-title');
   if (kind === 'open') {
     const options = MANUAL_OPTIONS.map(o => `<option value="${o.key}" ${o.key === CURRENT_REC?.strategy_key ? 'selected' : ''}>${o.name}</option>`).join('');
-    title.textContent = 'Open Position';
+    title.textContent = addTranche ? 'Add Tranche' : 'Open Position';
     body.innerHTML = modalShell(`
       <div class="modal-grid">
         <div class="modal-field">
@@ -1595,8 +1598,14 @@ function openTradeModal(kind, presetAccount) {
       </div>
       <div class="modal-cta">
         <button class="action-btn" onclick="closeTradeModal()">Cancel</button>
-        <button class="action-btn primary" onclick="submitOpenPosition()">Open</button>
+        <button class="action-btn primary" id="open-submit-btn" onclick="submitOpenPosition()">${addTranche ? 'Add Tranche' : 'Open'}</button>
       </div>`);
+    document.getElementById('open-submit-btn').dataset.addTranche = addTranche ? '1' : '';
+    // Pre-fill expiry from existing open position when adding a tranche
+    if (addTranche && CURRENT_POS?.expiry) {
+      const expEl = document.getElementById('open-expiry');
+      if (expEl) { expEl.value = CURRENT_POS.expiry; expEl.dataset.locked = '1'; }
+    }
     updateOpenDerivedFields();
     loadOpenDraft(document.getElementById('open-strategy-key')?.value || '');
   } else if (kind === 'close') {
@@ -1776,14 +1785,15 @@ async function submitOpenPosition() {
     paper_trade: !!document.getElementById('open-paper-trade')?.checked,
     note: document.getElementById('open-note').value || '',
   };
+  const addTranche = !!document.getElementById('open-submit-btn')?.dataset.addTranche;
   const accounts = accountSel === 'both' ? ['schwab', 'etrade'] : [accountSel];
   let lastData = null;
   for (const acct of accounts) {
-    lastData = await postJson('/api/position/open', { ...basePayload, account: acct });
+    lastData = await postJson('/api/position/open', { ...basePayload, account: acct, add_tranche: addTranche });
     if (lastData.error) return showTradeModalMessage(lastData.error, true);
   }
   const label = accountSel === 'both' ? 'Schwab + E-Trade' : accountSel.charAt(0).toUpperCase() + accountSel.slice(1);
-  showTradeModalMessage(`Opened [${label}] trade ${lastData.trade_id}`);
+  showTradeModalMessage(addTranche ? `Added tranche [${label}] ${lastData.trade_id}` : `Opened [${label}] trade ${lastData.trade_id}`);
   await loadPosition();
   setTimeout(closeTradeModal, 400);
 }

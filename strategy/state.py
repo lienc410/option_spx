@@ -168,6 +168,7 @@ def write_state(
     underlying: str = "SPX",
     strategy_key: Optional[str] = None,
     account: str = "schwab",
+    add_tranche: bool = False,
     **extra_fields,
 ) -> None:
     """
@@ -202,11 +203,15 @@ def write_state(
     )
 
     if same_strategy and "positions" in existing:
-        # Append / replace position for this account
-        positions = [p for p in (existing.get("positions") or [])
-                     if p.get("account") != account]
-        positions.append(pos_fields)
-        existing["positions"] = positions
+        if add_tranche:
+            # Always append — supports multiple tranches per account with different strikes
+            existing["positions"].append(pos_fields)
+        else:
+            # Default: replace existing entry for this account (same-strike update)
+            positions = [p for p in (existing.get("positions") or [])
+                         if p.get("account") != account]
+            positions.append(pos_fields)
+            existing["positions"] = positions
         _save(existing)
         return
 
