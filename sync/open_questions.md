@@ -1531,6 +1531,23 @@
 - **Artifacts**：`research/q042/q062_memo_2026-05-10.md`，`q062_p1/p2/p3_*.csv`
 
 
+### Q071 — ES Sell Put 整合策略研究（/ES V2f + Q041 T1）
+- **状态**：**IN PROGRESS 2026-05-14**（Quant prompt 已发出，P1 attribution 待执行）
+- **来源**：PM 希望整合 /ES V2f（结构骨架）与 Q041 T1（IV/regime 入场质量思想），形成统一 ES Sell Put 策略
+- **2nd Quant review**：**REVISE**（2026-05-14）——原设计是"加 IVP 43-55 gate"的 filter 移植，不是完整策略设计。三个核心问题：①IVP signal 迁移存疑（Q063 alpha 在 SPX DTE30 验证，/ES V2f 结构完全不同）；②窄 IVP window 可能打断 rolling ladder 时间分散优势；③缺 portfolio/margin governance 层
+- **重构后研究架构（P0–P5）**：
+  - P0：目标函数（ROE 改善 OR MaxDD 改善，否决条件：V1 FAIL / bootstrap < 80% / SPAN > 30% NLV）
+  - P1：V2f entry attribution by IVP × VIX bucket（不加 gate，先看 edge 是否存在）
+  - P2：Gate candidates（从 attribution 数据驱动，测 IVP≤55 / ≥43 / 43-55 / VIX<30 / VIX≥22 等 8 变体）
+  - P3：Cadence-aware 实现（hard skip vs delay retry vs size scale 0.5x）
+  - P4：STOP=15 尾部交互证明（验证 V2f STOP 是否真正解决 Q041 T1 尾部问题）
+  - P5：完整 portfolio viability（Ann ROE / Sharpe / MaxDD / stress SPAN / bootstrap / 2008/2020/2022）
+- **停止条件**：P1 IVP bucket 无显著 edge → 停止 P2-P5，报告"IVP gate 在 V2f 语境下无 edge"
+- **工具确认**：/ES only（不含 SPX CSP 路径）
+- **Artifacts**：`task/q071_es_q041t1_integration_design_review_2026-05-14.md`，`task/q071_es_q041t1_integration_design_review_2026-05-14_Review.md`
+
+---
+
 ### Q070 — Aftermath Peak VIX 阈值敏感性 Sweep
 - **状态**：**CLOSED 2026-05-13**（R-20260513-10，无 2nd Quant review——结论为 status quo 维持）
 - **来源**：PM 发现 2025-11-20 VIX 峰值 26.4 被 `AFTERMATH_PEAK_VIX_10D_MIN=28` 门槛排除，质疑门槛是否过高
