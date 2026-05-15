@@ -620,6 +620,15 @@ body {
   font-family: var(--f-mono); font-size: 0.60rem; color: var(--text-2);
   min-width: 38px; text-align: right;
 }
+.pos-row-pnlpct {
+  font-family: var(--f-mono); font-size: 0.60rem;
+  min-width: 46px; text-align: right;
+}
+.pos-summary-row {
+  display: flex; align-items: center; justify-content: flex-end; gap: 14px;
+  border-top: 1px solid var(--border-2); margin-top: 6px; padding-top: 5px;
+  font-family: var(--f-mono); font-size: 0.63rem; color: var(--text-2);
+}
 .margin-footer {
   display: flex; align-items: center; justify-content: space-between;
   border-top: 1px solid var(--border); margin-top: 10px; padding-top: 8px;
@@ -1808,6 +1817,15 @@ function _etradePosColor(pos, ref) {
   return s[(ref.i++) % s.length];                                        // light blue shades (stock)
 }
 
+function _pnlPctFmt(mv, pnl) {
+  if (pnl == null || mv == null) return '';
+  const basis = mv - pnl;
+  if (Math.abs(basis) < 1) return '';
+  const p = pnl / Math.abs(basis) * 100;
+  const c = p >= 0 ? 'var(--green)' : 'var(--red)';
+  return `<span style="color:${c}">${p >= 0 ? '+' : ''}${p.toFixed(1)}%</span>`;
+}
+
 function _splitPosBarRow(label, mv, pnl, barW, colorL, colorR, ratioL, nlv) {
   const pct = nlv > 0 && mv != null ? (Math.abs(mv) / nlv * 100).toFixed(1) + '%' : '—';
   const pnlStr = pnl != null
@@ -1823,6 +1841,7 @@ function _splitPosBarRow(label, mv, pnl, barW, colorL, colorR, ratioL, nlv) {
     </div>
     <div class="pos-row-mv">${_fmtMv(mv)}${pnlStr}</div>
     <div class="pos-row-pct">${pct}</div>
+    <div class="pos-row-pnlpct">${_pnlPctFmt(mv, pnl)}</div>
   </div>`;
 }
 
@@ -1836,6 +1855,21 @@ function _posBarRow(label, mv, pnl, barW, color, nlv) {
     <div class="pos-bar-wrap"><div class="pos-bar" style="width:${barW.toFixed(1)}%;background:${color}"></div></div>
     <div class="pos-row-mv">${_fmtMv(mv)}${pnlStr}</div>
     <div class="pos-row-pct">${pct}</div>
+    <div class="pos-row-pnlpct">${_pnlPctFmt(mv, pnl)}</div>
+  </div>`;
+}
+
+function _summaryRow(totalMv, totalPnl) {
+  if (totalMv == null) return '';
+  const pnlPart = totalPnl != null
+    ? `<span style="color:${totalPnl >= 0 ? 'var(--green)' : 'var(--red)'}">${totalPnl >= 0 ? '+' : ''}${_fmtMv(totalPnl)}</span>`
+    : '';
+  const pctPart = _pnlPctFmt(totalMv, totalPnl);
+  return `<div class="pos-summary-row">
+    <span style="color:var(--text-2)">Total (ex-cash)</span>
+    <span>${_fmtMv(totalMv)}</span>
+    ${pnlPart ? `<span>${pnlPart}</span>` : ''}
+    ${pctPart ? `<span>${pctPart}</span>` : ''}
   </div>`;
 }
 
@@ -1876,11 +1910,22 @@ function renderPositionBars() {
       spxStratRow  = _posBarRow(label, netMv, netPnl,
         Math.abs(netMv) / maxAbs * 100, 'rgba(201,168,64,0.70)', nlv);
     }
+    const nonCashET = nonSpxOpts.filter(p => !_CASH_SYMBOLS.has(p.symbol));
     const rows = nonSpxOpts.map(pos => {
       const mv = pos.market_value || 0;
       return _posBarRow((pos.symbol || '—').substring(0, 10), mv, pos.unrealized_pnl ?? null,
         Math.abs(mv) / maxAbs * 100, _etradePosColor(pos, ref), nlv);
     }).join('');
+    // Summary: SPX options net + non-cash equities
+    const spxNetMv  = spxOpts.reduce((s, p) => s + (p.market_value || 0), 0);
+    const spxNetPnl = spxOpts.length > 0 && spxOpts.every(p => p.unrealized_pnl != null)
+      ? spxOpts.reduce((s, p) => s + p.unrealized_pnl, 0) : null;
+    const eqMv  = nonCashET.reduce((s, p) => s + (p.market_value || 0), 0);
+    const eqPnl = nonCashET.some(p => p.unrealized_pnl != null)
+      ? nonCashET.reduce((s, p) => s + (p.unrealized_pnl || 0), 0) : null;
+    const sumMvET  = spxNetMv + eqMv;
+    const sumPnlET = (spxNetPnl != null || eqPnl != null)
+      ? (spxNetPnl || 0) + (eqPnl || 0) : null;
     const etCashMv = d.cash_balance || 0;
     const etCashPct = nlv > 0 && etCashMv > 0 ? etCashMv / nlv * 100 : null;
     const cashFooterET = `<div class="margin-footer" style="margin-top:4px">
@@ -1889,7 +1934,7 @@ function renderPositionBars() {
           <span class="margin-badge" style="background:rgba(96,104,128,0.12);color:rgba(96,104,128,0.8);border-color:rgba(96,104,128,0.3)">${etCashMv > 0 ? _fmtMv(etCashMv) : '$0'} / ${etCashPct != null ? etCashPct.toFixed(1) + '%' : '0.0%'}</span>
         </div>
       </div>`;
-    barsEl.innerHTML = spxStratRow + rows + `
+    barsEl.innerHTML = spxStratRow + rows + _summaryRow(sumMvET, sumPnlET) + `
       <div class="margin-footer">
         <div class="margin-footer-left">NLV ${_fmtMv(nlv)} · Maintenance margin (E-Trade PM)</div>
         <div class="margin-footer-right">
@@ -2014,6 +2059,20 @@ function renderPositionBars() {
       return _posBarRow(label, mv, pos.unrealized_pnl ?? null, barW, color, combinedNlv);
     }).join('');
 
+    // Summary: exclude cash positions
+    const _isCashAll = pos => {
+      if (pos._isSPXOpt) return false;
+      if (pos._acct === 'schwab' || pos._schwab) {
+        const p = pos._schwab || pos;
+        return p.category === 'cash' || p.sub_category === 'cash_etf' ||
+               p.sub_category === 'money_market' || p.sub_category === 'cash';
+      }
+      return _CASH_SYMBOLS.has(pos.symbol);
+    };
+    const nonCashAll = renderList.filter(p => !_isCashAll(p));
+    const sumMvAll  = nonCashAll.reduce((s, p) => s + (p.market_value || 0), 0);
+    const sumPnlAll = nonCashAll.some(p => p.unrealized_pnl != null)
+      ? nonCashAll.reduce((s, p) => s + (p.unrealized_pnl || 0), 0) : null;
     const combMaint = (s?.summary?.maintenance_margin || 0) + (e?.maintenance_margin || 0);
     const combMPct  = combinedNlv > 0 ? (combMaint / combinedNlv * 100) : null;
     const schwabCashAll = s?.summary?.total_cash_mv || 0;
@@ -2026,7 +2085,7 @@ function renderPositionBars() {
           <span class="margin-badge" style="background:rgba(96,104,128,0.12);color:rgba(96,104,128,0.8);border-color:rgba(96,104,128,0.3)">${combinedCash > 0 ? _fmtMv(combinedCash) : '$0'} / ${combinedCashPct != null ? combinedCashPct.toFixed(1) + '%' : '0.0%'}</span>
         </div>
       </div>`;
-    barsEl.innerHTML = rows + `
+    barsEl.innerHTML = rows + _summaryRow(sumMvAll, sumPnlAll) + `
       <div class="margin-footer">
         <div class="margin-footer-left">Combined NLV ${_fmtMv(combinedNlv)}
           · Schwab <span style="color:rgba(66,204,124,0.90)">■</span>
@@ -2049,11 +2108,17 @@ function renderPositionBars() {
   if (!positions.length) { barsEl.innerHTML = '<div class="snapshot-unavail">No positions found</div>'; return; }
   const maxAbs = Math.max(...positions.map(p => Math.abs(p.market_value || 0)), 1);
   const ref = { i: 0 };
+  const _isCashS = p => p.category === 'cash' || p.sub_category === 'cash_etf' ||
+    p.sub_category === 'money_market' || p.sub_category === 'cash';
   const rows = positions.map(pos => {
     const mv = pos.market_value || 0;
     const label = pos.symbol === 'SPX Options' ? 'SPX spread' : pos.symbol.substring(0, 10);
     return _posBarRow(label, mv, pos.unrealized_pnl, Math.abs(mv) / maxAbs * 100, _schwabPosColor(pos, ref), nlv);
   }).join('');
+  const nonCashS = positions.filter(p => !_isCashS(p));
+  const sumMvS  = nonCashS.reduce((s, p) => s + (p.market_value || 0), 0);
+  const sumPnlS = nonCashS.some(p => p.unrealized_pnl != null)
+    ? nonCashS.reduce((s, p) => s + (p.unrealized_pnl || 0), 0) : null;
   const maint = summary.maintenance_margin, mPct = summary.margin_pct_nlv;
   const totalCash = summary.total_cash_mv,  cashPct = summary.total_cash_pct;
   const cashFooter = totalCash > 1
@@ -2063,7 +2128,7 @@ function renderPositionBars() {
           <span class="margin-badge" style="background:rgba(96,104,128,0.12);color:rgba(96,104,128,0.8);border-color:rgba(96,104,128,0.3)">${_fmtMv(totalCash)} / ${cashPct != null ? cashPct.toFixed(1) + '%' : '—'}</span>
         </div>
       </div>` : '';
-  barsEl.innerHTML = rows + `
+  barsEl.innerHTML = rows + _summaryRow(sumMvS, sumPnlS) + `
     <div class="margin-footer">
       <div class="margin-footer-left">NLV ${_fmtMv(nlv)} · Maintenance margin (Schwab PM)</div>
       <div class="margin-footer-right">
