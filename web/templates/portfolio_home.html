@@ -1077,14 +1077,15 @@ async function loadSpx() {
             capturedHtml = `<div class="pos-item"><div class="pos-label">Captured</div><div class="pos-value ${pctCls}">${pct.toFixed(1)}%${pct >= 100 ? ' ✓' : ''}</div></div>`;
           }
         }
-        posBody.outerHTML = `<div class="pos-grid">
+        posBody.className = 'pos-grid';
+        posBody.innerHTML = `
           ${pos.opened_at ? `<div class="pos-item"><div class="pos-label">Opened</div><div class="pos-value">${pos.opened_at}</div></div>` : ''}
           ${pos.expiry    ? `<div class="pos-item"><div class="pos-label">Expiry</div><div class="pos-value">${pos.expiry}${dte != null ? ' (' + dte + 'd)' : ''}</div></div>` : ''}
           ${pnl != null ? `<div class="pos-item"><div class="pos-label">P&L (all accts)</div><div class="pos-value ${pnlCls}">${pnlStr}</div></div>` : ''}
           ${tgtHtml}${capturedHtml}
           <div class="pos-item full" style="padding:0">${posRows}</div>
           ${liveHtml}
-        </div>`;
+        `;
       } else {
         posBody.textContent = 'No open position';
       }
