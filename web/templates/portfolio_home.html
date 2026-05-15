@@ -1545,28 +1545,28 @@ function _renderMarginAllocation(data) {
     const etOptWeLocal = _rpct(etOptDollars, etradeNlv);
     const etEqWeLocal  = _rpct(etEqDollars,  etradeNlv);
     const idleW      = Math.max(100 - etWe, 0);
-    barSegments = `<div class="bp-seg bp-seg-es" style="width:${etWe.toFixed(1)}%"></div>`;
+    // Split allocation bar into SPX (gold) + Equity (green) segments for visual breakdown
+    barSegments = `
+      ${etOptWeLocal > 0 ? `<div class="bp-seg bp-seg-spx" style="width:${etOptWeLocal.toFixed(1)}%"></div>` : ''}
+      ${etEqWeLocal  > 0 ? `<div class="bp-seg bp-seg-equity" style="width:${etEqWeLocal.toFixed(1)}%"></div>` : ''}`;
     legendItems = `
-      <div class="bp-legend-item"><div class="bp-legend-dot dot-es"></div>E-Trade ${etWe.toFixed(1)}%</div>
+      ${etOptWeLocal > 0 ? `<div class="bp-legend-item"><div class="bp-legend-dot dot-spx"></div>SPX ${etOptWeLocal.toFixed(1)}%</div>` : ''}
+      ${etEqWeLocal  > 0 ? `<div class="bp-legend-item"><div class="bp-legend-dot" style="background:#4a7c59"></div>Equity ${etEqWeLocal.toFixed(1)}%</div>` : ''}
       <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>`;
+    // Bucket rows show only the two leaf categories (parent "E-Trade PM" is implied by top card)
     const spxBpRow = etOptDollars > 0
-      ? barHtml('  SPX 主策略 (max-loss)', etOptWeLocal, 'bar-spx',
-          `${fmtDollars(etOptDollars)} · ${etOptWeLocal.toFixed(1)}% NLV`)
+      ? barHtml('SPX 主策略 (max-loss)', etOptWeLocal, 'bar-spx', fmtDollars(etOptDollars))
       : '';
     const eqBpRow = etEqDollars > 0
-      ? barHtml('  Equity / other', etEqWeLocal, 'bar-etrade',
-          `${fmtDollars(etEqDollars)} residual`)
+      ? barHtml('Equity / other', etEqWeLocal, 'bar-equity', fmtDollars(etEqDollars))
       : '';
-    bucketRows = barHtml('E-Trade PM', etWe, 'bar-etrade',
-        (etDollars > 0 ? fmtDollars(etDollars) + ' ' : '') + 'maintenance') + spxBpRow + eqBpRow;
+    bucketRows = spxBpRow + eqBpRow;
+    // Rail card: account anchor only (NLV + Maint total). Breakdowns are in bucket rows.
     railCards = etradeNlv > 0
       ? `<div class="account-rail-card">
           <div class="account-rail-title">E-Trade</div>
           <div class="account-rail-line"><span>NLV</span><span>${fmtDollars(accounts.etrade_nlv)}</span></div>
-          <div class="account-rail-line"><span>Maint (total)</span><span>${fmtDollars(accounts.etrade_maintenance_margin)}</span></div>
-          ${etOptDollars > 0 ? `
-          <div class="account-rail-line" style="color:var(--gold)"><span>└ SPX spread BP</span><span>${fmtDollars(etOptDollars)} · ${etOptWeLocal.toFixed(1)}%</span></div>
-          <div class="account-rail-line" style="color:var(--text-muted)"><span>└ Equity/other</span><span>${fmtDollars(etEqDollars)} · ${etEqWeLocal.toFixed(1)}%</span></div>` : ''}
+          <div class="account-rail-line"><span>Maint</span><span>${fmtDollars(accounts.etrade_maintenance_margin)}</span></div>
         </div>`
       : `<div class="account-rail-card"><div class="account-rail-unavail">E-Trade temporarily unavailable</div></div>`;
 
