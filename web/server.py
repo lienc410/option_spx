@@ -8,6 +8,7 @@ Start:
 from __future__ import annotations
 
 import hashlib
+import csv
 import json
 import os
 import threading
@@ -233,6 +234,16 @@ def portfolio_backtest_page():
 @app.route("/es-backtest")
 def es_backtest_page():
     return render_template("es_backtest.html")
+
+
+@app.route("/hvladder")
+def hvladder_page():
+    return render_template("hvladder.html")
+
+
+@app.route("/hvladder_backtest")
+def hvladder_backtest_page():
+    return render_template("hvladder_backtest.html")
 
 
 @app.route("/q041-backtest")
@@ -1247,16 +1258,7 @@ def _purge_hvlad_cache_entries() -> None:
 
 def _hvlad_paper_state() -> dict:
     path = Path(__file__).parent.parent / "data" / "q071_hv_paper_trades.jsonl"
-    rows: list[dict] = []
-    if path.exists():
-        for raw in path.read_text(encoding="utf-8").splitlines():
-            line = raw.strip()
-            if not line:
-                continue
-            try:
-                rows.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
+    rows = _load_hvlad_paper_trades()
     rows.sort(key=lambda row: str(row.get("signal_date") or row.get("timestamp") or ""))
     return {
         "path": "data/q071_hv_paper_trades.jsonl",
@@ -1264,6 +1266,183 @@ def _hvlad_paper_state() -> dict:
         "last_signal": rows[-1] if rows else None,
         "status": "paper_observation",
     }
+
+
+def _load_hvlad_paper_trades() -> list[dict]:
+    path = Path(__file__).parent.parent / "data" / "q071_hv_paper_trades.jsonl"
+    rows: list[dict] = []
+    if not path.exists():
+        return rows
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    rows.sort(key=lambda row: str(row.get("timestamp") or row.get("signal_date") or ""), reverse=True)
+    return rows
+
+
+def _hvlad_business_days_between(start: date, end: date) -> int:
+    if end <= start:
+        return 0
+    # Local lightweight copy; exact holiday handling is not critical for read-only display.
+    holidays = {
+        "2025-01-01", "2025-01-20", "2025-02-17", "2025-04-18", "2025-05-26",
+        "2025-07-04", "2025-09-01", "2025-11-27", "2025-12-25",
+        "2026-01-01", "2026-01-19", "2026-02-16", "2026-04-03", "2026-05-25",
+        "2026-07-03", "2026-09-07", "2026-11-26", "2026-12-25",
+    }
+    days = 0
+    cur = start
+    while cur < end:
+        cur += timedelta(days=1)
+        if cur.weekday() < 5 and cur.isoformat() not in holidays:
+            days += 1
+    return days
+
+
+def _hvlad_active_slots(rows: list[dict], today: date) -> int:
+    active = 0
+    for row in rows:
+        raw = row.get("signal_date")
+        if not raw:
+            continue
+        try:
+            signal_date = date.fromisoformat(str(raw)[:10])
+        except ValueError:
+            continue
+        if 0 <= (today - signal_date).days <= 49:
+            active += 1
+    return min(active, 5)
+
+
+def _hvlad_cadence_status(rows: list[dict], today: date, active_slots: int) -> tuple[bool, int | None]:
+    signal_dates: list[date] = []
+    for row in rows:
+        raw = row.get("signal_date")
+        if not raw:
+            continue
+        try:
+            signal_dates.append(date.fromisoformat(str(raw)[:10]))
+        except ValueError:
+            continue
+    if not signal_dates:
+        return True, None
+    min_gap = 10 if active_slots >= 4 else 5
+    elapsed = _hvlad_business_days_between(max(signal_dates), today)
+    return elapsed >= min_gap, elapsed
+
+
+def _hvlad_vix_context() -> dict:
+    try:
+        from signals.vix_regime import fetch_vix_history
+        from schwab.client import get_vix_quote
+
+        df = fetch_vix_history(period="1mo")
+        latest_date = df.index[-1].strftime("%Y-%m-%d")
+        eod_vix = float(df["vix"].iloc[-1])
+        vix_5td_avg = float(df["vix"].iloc[-5:].mean())
+        quote = None
+        current_vix = eod_vix
+        quote_time = None
+        stale = False
+        source = "yfinance_eod"
+        try:
+            quote = get_vix_quote()
+            last = quote.get("last")
+            if last not in (None, ""):
+                current_vix = float(last)
+                source = "schwab_quote"
+            quote_time = quote.get("quote_time")
+            if quote_time:
+                ts = datetime.fromisoformat(str(quote_time).replace("Z", "+00:00"))
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=_ET)
+                stale = ts.astimezone(_ET).date() < (datetime.now(_ET).date() - timedelta(days=1))
+        except Exception:
+            quote = None
+        hist = [{"date": idx.strftime("%Y-%m-%d"), "vix": float(row["vix"])} for idx, row in df.tail(10).iterrows()]
+        return {
+            "ok": True,
+            "vix_current": current_vix,
+            "vix_eod": eod_vix,
+            "vix_5td_avg": vix_5td_avg,
+            "latest_close_date": latest_date,
+            "quote_time": quote_time,
+            "source": source,
+            "stale": stale,
+            "history_tail": hist,
+            "raw_quote": quote,
+        }
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "stale": True}
+
+
+def _hvlad_trend_status() -> dict:
+    try:
+        from signals.trend import TrendSignal, fetch_spx_history, get_current_trend
+        from schwab.client import get_spx_quote
+
+        spx_quote = None
+        current_spx = None
+        try:
+            spx_quote = get_spx_quote()
+            if spx_quote.get("last") not in (None, ""):
+                current_spx = float(spx_quote["last"])
+        except Exception:
+            pass
+        df = fetch_spx_history(period="2y")
+        trend = get_current_trend(df, current_spx=current_spx)
+        warmed = len(df) >= 64
+        return {
+            "ok": True,
+            "warmed": warmed,
+            "trend_ok": trend.signal == TrendSignal.BULLISH,
+            "trend": trend.signal.value,
+            "spx": trend.spx,
+            "ma50": trend.ma50,
+            "ma_gap_pct": trend.ma_gap_pct,
+            "spx_quote_time": (spx_quote or {}).get("quote_time"),
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "warmed": False,
+            "trend_ok": False,
+            "trend": "unavailable",
+            "error": str(exc),
+        }
+
+
+def _hvlad_vix_days_counts() -> dict:
+    vix = _get_vix_by_date()
+    if not vix:
+        return {"days_30": None, "days_90": None, "days_365": None, "max_vix": None}
+    items = sorted(vix.items())
+    latest = datetime.fromisoformat(items[-1][0]).date()
+    result = {"max_vix": max(v for _, v in items)}
+    for window in (30, 90, 365):
+        cutoff = latest - timedelta(days=window)
+        result[f"days_{window}"] = sum(1 for d, value in items if datetime.fromisoformat(d).date() >= cutoff and value >= 22.0)
+    return result
+
+
+def _load_hvlad_crisis_windows() -> list[dict]:
+    path = Path(__file__).parent.parent / "research" / "q071" / "q071_p5_crisis.csv"
+    if not path.exists():
+        return []
+    with path.open("r", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    for row in rows:
+        for key in ("n_active", "window_pnl", "window_pnl_pct_nlv", "worst_cluster_pct_nlv", "worst_trade_nlv_pct", "ann_ret_in_window"):
+            try:
+                row[key] = float(row[key])
+            except Exception:
+                pass
+    return rows
 
 
 def _pct_point_delta(new_value, old_value) -> float | None:
@@ -1976,6 +2155,79 @@ def api_es_backtest_hvlad():
             "end_date": end_date,
         }
         return jsonify(payload)
+
+
+@app.route("/api/hvladder/live")
+def api_hvladder_live():
+    rows = _load_hvlad_paper_trades()
+    today = datetime.now(_ET).date()
+    active_slots = _hvlad_active_slots(rows, today)
+    cadence_ok, cadence_elapsed = _hvlad_cadence_status(rows, today, active_slots)
+    vix = _hvlad_vix_context()
+    trend = _hvlad_trend_status()
+    vix_current = vix.get("vix_current")
+    vix_ok = isinstance(vix_current, (int, float)) and vix_current >= 22.0 and not vix.get("stale")
+    slots_ok = active_slots < 5
+    gate_status = {
+        "warmed": bool(trend.get("warmed")),
+        "trend_ok": bool(trend.get("trend_ok")),
+        "cadence_ok": bool(cadence_ok),
+        "slots_ok": bool(slots_ok),
+        "vix_ok": bool(vix_ok),
+    }
+    blockers = [key for key, ok in gate_status.items() if not ok]
+    return jsonify({
+        "date": today.isoformat(),
+        "threshold": 22.0,
+        "vix_current": vix_current,
+        "vix_5td_avg": vix.get("vix_5td_avg"),
+        "latest_close_date": vix.get("latest_close_date"),
+        "quote_time": vix.get("quote_time"),
+        "vix_source": vix.get("source"),
+        "vix_stale": bool(vix.get("stale")),
+        "vix_gate_distance": (vix_current - 22.0) if isinstance(vix_current, (int, float)) else None,
+        "active_slots": active_slots,
+        "max_slots": 5,
+        "cadence_elapsed_trading_days": cadence_elapsed,
+        "trend": trend,
+        "gate_status": gate_status,
+        "signal_live": all(gate_status.values()),
+        "blockers": blockers,
+        "last_signal": rows[0] if rows else None,
+        "status": "ok" if vix.get("ok") and trend.get("ok") else "degraded",
+        "errors": {
+            "vix": vix.get("error"),
+            "trend": trend.get("error"),
+        },
+    })
+
+
+@app.route("/api/hvladder/paper_trades")
+def api_hvladder_paper_trades():
+    try:
+        limit = int(flask_req.args.get("limit", 20))
+    except ValueError:
+        limit = 20
+    rows = _load_hvlad_paper_trades()
+    return jsonify({
+        "path": "data/q071_hv_paper_trades.jsonl",
+        "count": len(rows),
+        "trades": rows[: max(0, min(limit, 200))],
+    })
+
+
+@app.route("/api/hvladder/stats")
+def api_hvladder_stats():
+    rows = _load_hvlad_paper_trades()
+    vix_counts = _hvlad_vix_days_counts()
+    vix_values = [row.get("vix_at_signal") for row in rows if isinstance(row.get("vix_at_signal"), (int, float))]
+    return jsonify({
+        "paper_signal_count": len(rows),
+        "max_signal_vix": max(vix_values) if vix_values else None,
+        "last_signal": rows[0] if rows else None,
+        "vix_days": vix_counts,
+        "crisis_windows": _load_hvlad_crisis_windows(),
+    })
 
 
 @app.route("/api/es-backtest/v2f")

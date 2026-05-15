@@ -46,8 +46,8 @@ class Spec101HvLadderTests(unittest.TestCase):
         template = Path("web/templates/es_backtest.html").read_text(encoding="utf-8")
         self.assertIn('data-es-tab-btn="hvlad"', template)
         self.assertIn("/api/es-backtest/hvlad", template)
-        self.assertIn("ES High-Vol Sell Put Ladder", template)
-        self.assertIn("paper/shadow mode only", template)
+        self.assertIn("HV Ladder [archived]", template)
+        self.assertIn("/hvladder_backtest", template)
 
     def test_paper_signal_writes_jsonl(self):
         from signals.trend import TrendSignal
