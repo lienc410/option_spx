@@ -271,16 +271,18 @@ def get_option_spread_quote(
             detail_flag="options",
             resp_format="json",
         )
+        # Key by strikePrice (float) — Product.symbol is just "SPX" for all rows
         quotes = {
-            q["Product"]["symbol"]: q
+            float(q["Product"]["strikePrice"]): q
             for q in _as_list(_dig(payload, "QuoteResponse", "QuoteData"))
+            if _dig(q, "Product", "strikePrice") is not None
         }
 
         def extract(strike: float) -> dict:
-            row = quotes.get(sym(strike), {})
-            all_ = row.get("All") or row.get("all") or {}
-            bid = _num(all_.get("bid"))
-            ask = _num(all_.get("ask"))
+            row = quotes.get(float(strike), {})
+            opt = row.get("Option") or {}  # E-Trade puts bid/ask under "Option", not "All"
+            bid = _num(opt.get("bid"))
+            ask = _num(opt.get("ask"))
             mark = round((bid + ask) / 2, 2) if bid is not None and ask is not None else None
             return {"bid": bid, "ask": ask, "mark": mark}
 
