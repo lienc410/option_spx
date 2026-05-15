@@ -1948,20 +1948,35 @@ function renderPositionBars() {
         renderList.push({ ...etrade, _acct: 'etrade', _split: false });
       }
     }
-    for (const p of (s?.positions || []).filter(p => _isOpt(p, 'schwab')))
-      renderList.push({ ...p, _acct: 'schwab', _split: false });
-    for (const p of (e?.positions || []).filter(p => _isOpt(p, 'etrade')))
-      renderList.push({ ...p, _acct: 'etrade', _split: false });
+    // Merge SPX options from both accounts into a single row
+    const schwabSpx = (s?.positions || []).filter(p => _isOpt(p, 'schwab'));
+    const etradeSpx = (e?.positions || []).filter(p => _isOpt(p, 'etrade'));
+    if (schwabSpx.length > 0 || etradeSpx.length > 0) {
+      const swMv  = schwabSpx.reduce((sum, p) => sum + (p.market_value || 0), 0);
+      const etMv  = etradeSpx.reduce((sum, p) => sum + (p.market_value || 0), 0);
+      const swPnl = schwabSpx.length > 0 && schwabSpx.every(p => p.unrealized_pnl != null)
+        ? schwabSpx.reduce((sum, p) => sum + p.unrealized_pnl, 0) : null;
+      const etPnl = etradeSpx.length > 0 && etradeSpx.every(p => p.unrealized_pnl != null)
+        ? etradeSpx.reduce((sum, p) => sum + p.unrealized_pnl, 0) : null;
+      renderList.push({
+        symbol: 'SPX spread',
+        market_value: swMv + etMv,
+        unrealized_pnl: (swPnl != null || etPnl != null) ? (swPnl || 0) + (etPnl || 0) : null,
+        _isSPXOpt: true,
+        _hasBoth: schwabSpx.length > 0 && etradeSpx.length > 0,
+        _swMv: swMv,
+        _etMv: etMv,
+        _split: false,
+      });
+    }
 
     const _allRank = pos => {
+      if (pos._isSPXOpt) return 0;
       if (pos._split) return 1;
       if (pos._acct === 'schwab') {
-        if (pos.category === 'spx_options' || pos.symbol === 'SPX Options') return 0;
         if (pos.category === 'cash' || pos.sub_category === 'cash_etf' ||
             pos.sub_category === 'money_market' || pos.sub_category === 'cash') return 2;
       } else {
-        const at = (pos.asset_type||'').toUpperCase();
-        if (at === 'OPTN' || at === 'OPTION') return 0;
         if (_CASH_SYMBOLS.has(pos.symbol)) return 2;
       }
       return 1;
@@ -1976,6 +1991,16 @@ function renderPositionBars() {
     const rows = renderList.map(pos => {
       const mv = pos.market_value || 0;
       const barW = Math.abs(mv) / maxAbs * 100;
+      if (pos._isSPXOpt) {
+        if (pos._hasBoth) {
+          const totalAbs = Math.abs(pos._swMv) + Math.abs(pos._etMv);
+          const ratioL = totalAbs > 0 ? Math.abs(pos._swMv) / totalAbs : 1;
+          return _splitPosBarRow('SPX spread', mv, pos.unrealized_pnl, barW,
+            'rgba(201,168,64,0.90)', 'rgba(201,168,64,0.52)', ratioL, combinedNlv);
+        }
+        return _posBarRow('SPX spread', mv, pos.unrealized_pnl ?? null, barW,
+          'rgba(201,168,64,0.90)', combinedNlv);
+      }
       if (pos._split) {
         const totalAbs = Math.abs(pos._swMv) + Math.abs(pos._etMv);
         const ratioL = totalAbs > 0 ? Math.abs(pos._swMv) / totalAbs : 1;
@@ -1984,7 +2009,7 @@ function renderPositionBars() {
           _schwabPosColor(pos._schwab, sRef), _etradePosColor(pos._etrade, eRef),
           ratioL, combinedNlv);
       }
-      const label = pos.symbol === 'SPX Options' ? 'SPX spread' : (pos.symbol || '—').substring(0, 10);
+      const label = (pos.symbol || '—').substring(0, 10);
       const color = pos._acct === 'etrade' ? _etradePosColor(pos, eRef) : _schwabPosColor(pos, sRef);
       return _posBarRow(label, mv, pos.unrealized_pnl ?? null, barW, color, combinedNlv);
     }).join('');
