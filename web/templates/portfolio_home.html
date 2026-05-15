@@ -1081,43 +1081,39 @@ async function loadSpx() {
             </div>
             ${liveStatusNote}
           </div>`;
-        // Target profit / captured %
-        // Only count positions that have live data in BOTH numerator and denominator
-        // to avoid captured% deflation when some positions are missing marks.
-        const posWithMark = allPositions.filter(p => _markFor(p) != null);
-        const totalPrem = posWithMark.reduce(
-          (sum, p) => sum + (Number(p.actual_premium || p.model_premium) || 0) * (Number(p.contracts) || 0), 0);
-        const maxPnl    = totalPrem > 0 ? totalPrem * 100 : null;
-        // Show Tgt Profit based on all positions (not just those with live marks)
+        // Max Risk = Σ (spread_width − entry_prem) × contracts × 100
+        const totalMaxRisk = allPositions.reduce((sum, p) => {
+          const width = Number(p.short_strike || 0) - Number(p.long_strike || 0);
+          const n     = Number(p.contracts) || 0;
+          const prem  = Number(p.actual_premium || p.model_premium) || 0;
+          return sum + Math.max(0, (width - prem) * n * 100);
+        }, 0);
+        // Tgt Profit = 60% of total credit received
         const totalPremAll = allPositions.reduce(
           (sum, p) => sum + (Number(p.actual_premium || p.model_premium) || 0) * (Number(p.contracts) || 0), 0);
         const maxPnlAll = totalPremAll > 0 ? totalPremAll * 100 : null;
-        let tgtHtml = '', capturedHtml = '';
+        // Captured%: pnl / tgt_profit; only shown when pnl >= 0
+        const posWithMark = allPositions.filter(p => _markFor(p) != null);
+        const partial = posWithMark.length < allPositions.length ? '~' : '';
+        let tgtHtml = '', capturedHtml = '', maxRiskHtml = '';
         if (maxPnlAll != null) {
-          // Always show Tgt Profit (the 60% profit target across all positions)
           tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Profit</div><div class="pos-value profit">+$${Math.round(maxPnlAll * 0.60).toLocaleString()}</div></div>`;
-          if (pnl != null && maxPnl != null) {
-            const tgtProfit = maxPnl * 0.60;
-            const partial = posWithMark.length < allPositions.length ? '~' : '';
-            if (pnl >= 0) {
-              // In profit: show how much of the target we've captured
-              const pct = Math.min(pnl / tgtProfit * 100, 100);
-              const pctCls = pct >= 100 ? 'profit' : pct >= 60 ? 'warn' : '';
-              capturedHtml = `<div class="pos-item"><div class="pos-label">Captured</div><div class="pos-value ${pctCls}">${partial}${pct.toFixed(1)}%${pct >= 100 ? ' ✓' : ''}</div></div>`;
-            } else {
-              // In loss: show how far we are from the stop (stop = 100% credit loss)
-              const stopPct = Math.min(Math.abs(pnl) / maxPnlAll * 100, 100);
-              const stopCls = stopPct >= 80 ? 'loss' : stopPct >= 50 ? 'warn' : '';
-              capturedHtml = `<div class="pos-item"><div class="pos-label">To Stop</div><div class="pos-value ${stopCls}">${partial}${stopPct.toFixed(1)}% used</div></div>`;
-            }
-          }
+        }
+        if (totalMaxRisk > 0) {
+          maxRiskHtml = `<div class="pos-item"><div class="pos-label">Max Risk</div><div class="pos-value" style="color:var(--text-2)">-$${Math.round(totalMaxRisk).toLocaleString()}</div></div>`;
+        }
+        if (pnl != null && pnl >= 0 && maxPnlAll != null) {
+          const tgtProfit = maxPnlAll * 0.60;
+          const pct = Math.min(pnl / tgtProfit * 100, 100);
+          const pctCls = pct >= 100 ? 'profit' : pct >= 60 ? 'warn' : '';
+          capturedHtml = `<div class="pos-item"><div class="pos-label">Captured</div><div class="pos-value ${pctCls}">${partial}${pct.toFixed(1)}%${pct >= 100 ? ' ✓' : ''}</div></div>`;
         }
         posBody.className = 'pos-grid';
         posBody.innerHTML = `
           ${pos.opened_at ? `<div class="pos-item"><div class="pos-label">Opened</div><div class="pos-value">${pos.opened_at}</div></div>` : ''}
           ${pos.expiry    ? `<div class="pos-item"><div class="pos-label">Expiry</div><div class="pos-value">${pos.expiry}${dte != null ? ' (' + dte + 'd)' : ''}</div></div>` : ''}
           ${pnl != null ? `<div class="pos-item"><div class="pos-label">P&L (all accts)</div><div class="pos-value ${pnlCls}">${pnlStr}</div></div>` : ''}
-          ${tgtHtml}${capturedHtml}
+          ${tgtHtml}${maxRiskHtml}${capturedHtml}
           <div class="pos-item full" style="padding:0">${posRows}</div>
           ${liveHtml}
         `;
