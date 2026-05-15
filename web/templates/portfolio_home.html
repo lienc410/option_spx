@@ -1094,18 +1094,22 @@ async function loadSpx() {
         const maxPnlAll = totalPremAll > 0 ? totalPremAll * 100 : null;
         let tgtHtml = '', capturedHtml = '';
         if (maxPnlAll != null) {
-          const inLoss = pnl != null && pnl < 0;
-          if (inLoss) {
-            tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Stop</div><div class="pos-value loss">-$${Math.round(maxPnlAll).toLocaleString()}</div></div>`;
-          } else {
-            tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Profit</div><div class="pos-value profit">+$${Math.round(maxPnlAll * 0.60).toLocaleString()}</div></div>`;
-          }
+          // Always show Tgt Profit (the 60% profit target across all positions)
+          tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Profit</div><div class="pos-value profit">+$${Math.round(maxPnlAll * 0.60).toLocaleString()}</div></div>`;
           if (pnl != null && maxPnl != null) {
             const tgtProfit = maxPnl * 0.60;
-            const pct = Math.min(pnl / tgtProfit * 100, 100);
-            const pctCls = pct >= 100 ? 'profit' : pct >= 60 ? 'warn' : '';
             const partial = posWithMark.length < allPositions.length ? '~' : '';
-            capturedHtml = `<div class="pos-item"><div class="pos-label">Captured</div><div class="pos-value ${pctCls}">${partial}${pct.toFixed(1)}%${pct >= 100 ? ' ✓' : ''}</div></div>`;
+            if (pnl >= 0) {
+              // In profit: show how much of the target we've captured
+              const pct = Math.min(pnl / tgtProfit * 100, 100);
+              const pctCls = pct >= 100 ? 'profit' : pct >= 60 ? 'warn' : '';
+              capturedHtml = `<div class="pos-item"><div class="pos-label">Captured</div><div class="pos-value ${pctCls}">${partial}${pct.toFixed(1)}%${pct >= 100 ? ' ✓' : ''}</div></div>`;
+            } else {
+              // In loss: show how far we are from the stop (stop = 100% credit loss)
+              const stopPct = Math.min(Math.abs(pnl) / maxPnlAll * 100, 100);
+              const stopCls = stopPct >= 80 ? 'loss' : stopPct >= 50 ? 'warn' : '';
+              capturedHtml = `<div class="pos-item"><div class="pos-label">To Stop</div><div class="pos-value ${stopCls}">${partial}${stopPct.toFixed(1)}% used</div></div>`;
+            }
           }
         }
         posBody.className = 'pos-grid';
