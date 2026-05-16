@@ -1458,6 +1458,7 @@ def _numeric_delta(new_value, old_value) -> float | None:
 
 
 _VIX_BY_DATE: dict | None = None
+_SPX_BY_DATE: dict | None = None
 
 _Q041_DISK_CACHE_PATH = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "data", "q041_backtest_cache.json")
@@ -1771,6 +1772,27 @@ def _build_q041_overview_payload() -> dict:
             "shock": _q041_shock_metrics(),
         },
     }
+
+
+def _get_spx_by_date() -> dict:
+    global _SPX_BY_DATE
+    if _SPX_BY_DATE is not None:
+        return _SPX_BY_DATE
+    import pickle as _pkl
+    path = os.path.join(os.path.dirname(__file__), "..", "data", "market_cache", "yahoo__GSPC__max__1d.pkl")
+    try:
+        with open(os.path.normpath(path), "rb") as _f:
+            _df = _pkl.load(_f)
+        result: dict = {}
+        for _idx, _row in _df.iterrows():
+            _d = str(_idx)[:10]
+            _v = _row.get("Close", _row.get("close", _row.iloc[0] if len(_row) > 0 else None))
+            if _v is not None:
+                result[_d] = round(float(_v), 2)
+        _SPX_BY_DATE = result
+    except Exception:
+        _SPX_BY_DATE = {}
+    return _SPX_BY_DATE
 
 
 def _get_vix_by_date() -> dict:
@@ -2227,6 +2249,25 @@ def api_hvladder_stats():
         "last_signal": rows[0] if rows else None,
         "vix_days": vix_counts,
         "crisis_windows": _load_hvlad_crisis_windows(),
+    })
+
+
+@app.route("/api/hvladder/chart")
+def api_hvladder_chart():
+    """Daily SPX + VIX for the last 2 years, with paper signal dates marked."""
+    cutoff = (datetime.now(_ET).date() - timedelta(days=730)).isoformat()
+    vix = _get_vix_by_date()
+    spx = _get_spx_by_date()
+    dates = sorted(d for d in vix if d >= cutoff and d in spx)
+    paper = _load_hvlad_paper_trades()
+    signal_set = {str(r.get("signal_date") or "")[:10] for r in paper} - {""}
+    signal_dates = sorted(signal_set & set(dates))
+    return jsonify({
+        "dates":         dates,
+        "spx":           [spx[d] for d in dates],
+        "vix":           [vix[d] for d in dates],
+        "signal_dates":  signal_dates,
+        "vix_threshold": 22.0,
     })
 
 

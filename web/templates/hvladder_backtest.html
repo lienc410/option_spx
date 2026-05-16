@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -83,7 +84,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .section-label { font-family: var(--f-ui); font-size: 0.62rem; font-weight: 600; letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-2); margin: 24px 0 10px; }
 
 /* ── Metric cards ── */
-.metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.metric-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
 .m-card { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 14px 14px 12px; }
 .m-k { font-family: var(--f-ui); font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); margin-bottom: 6px; }
 .m-v { font-family: var(--f-mono); font-size: 1.05rem; color: var(--text); }
@@ -110,12 +111,10 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .data-table tbody tr:last-child td { border-bottom: none; }
 .table-wrap { border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
 
-/* ── Chart placeholder ── */
-.chart-placeholder {
-  border: 1px dashed var(--border-2); border-radius: 9px;
-  padding: 28px; text-align: center;
-  color: var(--text-muted); font-size: 0.72rem; font-family: var(--f-mono);
-  background: var(--surface);
+/* ── Chart ── */
+.chart-wrap {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 9px; padding: 16px; position: relative;
 }
 
 /* ── Trading Discipline (per DESIGN.md Backtest Page Template §3) ── */
@@ -194,11 +193,10 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     <div class="empty-state">Loading metrics…</div>
   </div>
 
-  <!-- ② SPX Price chart placeholder (required per DESIGN.md) -->
+  <!-- ② SPX Price + VIX overlay chart (required per DESIGN.md) -->
   <div class="section-label">SPX Price — HV Ladder Signal Events</div>
-  <div class="chart-placeholder" id="spx-chart-placeholder">
-    SPX overlay chart — per-trade dates not yet surfaced via API.<br>
-    接入 q071 逐笔数据后在此处添加 Chart.js 标注图。
+  <div class="chart-wrap">
+    <canvas id="spx-chart" height="90"></canvas>
   </div>
 
   <!-- V2f Base vs HV Ladder comparison -->
@@ -334,11 +332,132 @@ function renderCrisis(rows) {
     </div>`;
 }
 
+let _spxChart = null;
+
+function renderChart(data) {
+  const dates    = data.dates    || [];
+  const spxVals  = data.spx      || [];
+  const vixVals  = data.vix      || [];
+  const sigSet   = new Set(data.signal_dates || []);
+  const vixThr   = data.vix_threshold ?? 22.0;
+
+  // Signal markers: SPX price on signal dates
+  const sigPoints = dates.map((d, i) => sigSet.has(d) ? { x: d, y: spxVals[i] } : null).filter(Boolean);
+
+  if (_spxChart) { _spxChart.destroy(); _spxChart = null; }
+  const ctx = document.getElementById('spx-chart').getContext('2d');
+  _spxChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: dates,
+      datasets: [
+        {
+          label: 'SPX',
+          data: spxVals,
+          borderColor: 'rgba(196,206,236,0.70)',
+          backgroundColor: 'transparent',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          tension: 0,
+          yAxisID: 'y',
+          order: 2,
+        },
+        {
+          label: 'VIX',
+          data: vixVals,
+          borderColor: 'rgba(72,136,232,0.55)',
+          backgroundColor: 'transparent',
+          borderWidth: 1,
+          borderDash: [3, 3],
+          pointRadius: 0,
+          tension: 0,
+          yAxisID: 'y1',
+          order: 3,
+        },
+        {
+          label: 'VIX 22 threshold',
+          data: dates.map(() => vixThr),
+          borderColor: 'rgba(224,128,64,0.45)',
+          backgroundColor: 'transparent',
+          borderWidth: 1,
+          borderDash: [6, 4],
+          pointRadius: 0,
+          yAxisID: 'y1',
+          order: 4,
+        },
+        {
+          label: 'Signal entry',
+          data: sigPoints,
+          parsing: false,
+          type: 'scatter',
+          pointStyle: 'triangle',
+          pointRadius: 7,
+          pointBackgroundColor: 'rgba(224,128,64,0.90)',
+          pointBorderColor: 'rgba(224,128,64,1)',
+          borderWidth: 0,
+          yAxisID: 'y',
+          order: 1,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: {
+            color: '#606880',
+            font: { family: "'DM Sans', sans-serif", size: 11 },
+            boxWidth: 20, padding: 14,
+          },
+        },
+        tooltip: {
+          backgroundColor: '#0D1020',
+          borderColor: '#232A42',
+          borderWidth: 1,
+          titleColor: '#C4CEEC',
+          bodyColor: '#606880',
+          titleFont: { family: "'JetBrains Mono', monospace", size: 11 },
+          bodyFont:  { family: "'JetBrains Mono', monospace", size: 10 },
+          callbacks: {
+            label: ctx => {
+              if (ctx.datasetIndex === 3) return `  Signal entry @ SPX ${ctx.parsed.y.toFixed(0)}`;
+              if (ctx.datasetIndex === 2) return null;
+              const v = ctx.parsed.y;
+              return `  ${ctx.dataset.label}: ${v != null ? v.toFixed(ctx.datasetIndex === 1 ? 1 : 0) : '—'}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: { color: '#606880', font: { family: "'JetBrains Mono', monospace", size: 10 }, maxTicksLimit: 12 },
+          grid: { color: 'rgba(25,30,51,0.8)' },
+        },
+        y: {
+          position: 'left',
+          ticks: { color: '#606880', font: { family: "'JetBrains Mono', monospace", size: 10 } },
+          grid: { color: 'rgba(25,30,51,0.8)' },
+          title: { display: true, text: 'SPX', color: '#606880', font: { size: 10 } },
+        },
+        y1: {
+          position: 'right',
+          ticks: { color: 'rgba(72,136,232,0.7)', font: { family: "'JetBrains Mono', monospace", size: 10 } },
+          grid: { drawOnChartArea: false },
+          title: { display: true, text: 'VIX', color: 'rgba(72,136,232,0.7)', font: { size: 10 } },
+          suggestedMin: 10, suggestedMax: 50,
+        },
+      },
+    },
+  });
+}
+
 async function load() {
   const today = new Date().toISOString().slice(0, 10);
-  const [hvR, statsR] = await Promise.allSettled([
+  const [hvR, statsR, chartR] = await Promise.allSettled([
     fetch(`/api/es-backtest/hvlad?start=2000-01-01&end=${today}`).then(r => r.json()),
     fetch('/api/hvladder/stats').then(r => r.json()),
+    fetch('/api/hvladder/chart').then(r => r.json()),
   ]);
 
   if (hvR.status === 'fulfilled') {
@@ -357,6 +476,13 @@ async function load() {
     renderCrisis(statsR.value.crisis_windows || []);
   } else {
     document.getElementById('crisis-table').innerHTML = `<div class="err-state">Crisis data unavailable: ${statsR.reason?.message || 'network error'}</div>`;
+  }
+
+  if (chartR.status === 'fulfilled') {
+    renderChart(chartR.value);
+  } else {
+    const wrap = document.getElementById('spx-chart').closest('.chart-wrap');
+    if (wrap) wrap.innerHTML = `<div class="err-state">Chart data unavailable: ${chartR.reason?.message || 'network error'}</div>`;
   }
 }
 
