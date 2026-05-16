@@ -106,6 +106,16 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .bad  { color: var(--red); }
 .warn { color: var(--orange); }
 
+/* ── Strategy spec annotation (matches es.html) ── */
+.spec-card { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 14px 16px; }
+.card-structure { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+.leg-chip { font-family: var(--f-mono); font-size: 0.65rem; color: var(--text-2); background: var(--surface-hi); border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px; }
+.leg-chip.leg-sell { border-color: rgba(224,72,98,0.25); color: var(--red); }
+.rule-row { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.rule-row:last-child { border-bottom: none; }
+.rule-key { font-family: var(--f-ui); font-size: 0.60rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); min-width: 90px; padding-top: 1px; }
+.rule-val { font-family: var(--f-ui); font-size: 0.68rem; color: var(--text-2); flex: 1; }
+
 /* ── Gate checklist ── */
 .check-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
 .check { border: 1px solid var(--border-2); background: var(--surface-hi); border-radius: 8px; padding: 9px 10px; }
@@ -190,6 +200,17 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
       <div class="empty-state">Loading gates…</div>
     </section>
   </div>
+
+  <section class="spec-card" style="margin-bottom:12px">
+    <div class="card-structure">
+      <span class="leg-chip leg-sell">SELL PUT · 49d · Δ0.20</span>
+    </div>
+    <div>
+      <div class="rule-row"><span class="rule-key">Size</span><span class="rule-val">Up to <strong style="color:var(--text)">5 concurrent slots</strong>; 1 contract per slot; SPAN ≤ 30% NLV cap</span></div>
+      <div class="rule-row"><span class="rule-key">Roll / Stop</span><span class="rule-val">Close at <strong style="color:var(--text)">21 DTE</strong>; take profit at <strong style="color:var(--text)">90% of credit</strong>; stop at <strong style="color:var(--text)">3× credit</strong>; <strong style="color:var(--orange)">VIX ≥ 22</strong> required at entry</span></div>
+      <div class="rule-row"><span class="rule-key">Max Risk</span><span class="rule-val">Undefined downside (/ES naked put); entry gated by VIX ≥ 22 + SPAN ≤ 30% NLV</span></div>
+    </div>
+  </section>
 
   <section class="card" style="margin-bottom:12px">
     <div class="card-title">Paper Entries</div>

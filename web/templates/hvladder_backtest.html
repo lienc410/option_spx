@@ -130,6 +130,16 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .discipline-val code { font-family: var(--f-mono); font-size: 0.68rem; background: var(--surface-hi); padding: 1px 5px; border-radius: 3px; color: var(--text); }
 .discipline-footnote { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-2); font-family: var(--f-ui); font-size: 0.62rem; color: var(--text-muted); line-height: 1.5; }
 
+/* ── Strategy spec annotation (matches es.html) ── */
+.spec-card { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 14px 16px; margin-bottom: 12px; }
+.card-structure { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+.leg-chip { font-family: var(--f-mono); font-size: 0.65rem; color: var(--text-2); background: var(--surface-hi); border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px; }
+.leg-chip.leg-sell { border-color: rgba(224,72,98,0.25); color: var(--red); }
+.rule-row { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.rule-row:last-child { border-bottom: none; }
+.rule-key { font-family: var(--f-ui); font-size: 0.60rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); min-width: 90px; padding-top: 1px; }
+.rule-val { font-family: var(--f-ui); font-size: 0.68rem; color: var(--text-2); flex: 1; }
+
 /* ── Misc ── */
 .empty-state { padding: 20px; text-align: center; color: var(--text-muted); font-style: italic; font-size: 0.76rem; }
 .err-state { padding: 10px; color: var(--red); font-size: 0.72rem; font-family: var(--f-mono); }
@@ -204,55 +214,27 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   <!-- ③ Trading Discipline (required per DESIGN.md) -->
   <div class="discipline-section">
     <div class="discipline-title">Trading Discipline</div>
-    <div class="discipline-card">
-      <div class="discipline-row">
-        <div class="discipline-key">Entry</div>
-        <div class="discipline-val">
-          Signal fires when <strong>all five gates</strong> are satisfied:
-          <code>VIX ≥ 22</code> (spot, not 5TD avg alone) ·
-          trend <code>BULLISH</code> ·
-          cadence ≥ <code>5 TD</code> since last signal (≥ <code>10 TD</code> when slots ≥ 4) ·
-          active slots <code>&lt; 5</code> ·
-          system <strong>warmed</strong>.
-          Instrument: /ES short put, ~<code>δ0.15</code>, <code>30–45 DTE</code>.
-        </div>
+    <div class="spec-card">
+      <div class="card-structure">
+        <span class="leg-chip leg-sell">SELL PUT · 49d · Δ0.20</span>
       </div>
-      <div class="discipline-row">
-        <div class="discipline-key">Exit</div>
-        <div class="discipline-val">
-          Target: <strong>close at 60% profit</strong> after ≥ <code>10 days held</code>.
-          Time stop: <strong>close at 21 DTE</strong>.
-          Credit stop: <strong>2× entry credit</strong> (mark reaches 3× premium).
-          Paper/shadow mode only — no automated broker orders.
+      <div>
+        <div class="rule-row">
+          <span class="rule-key">Size</span>
+          <span class="rule-val">Up to <strong style="color:var(--text)">5 concurrent slots</strong>; 1 contract per slot; SPAN ≤ <strong style="color:var(--text)">30% NLV</strong> cap (primary gate)</span>
         </div>
-      </div>
-      <div class="discipline-row">
-        <div class="discipline-key">Sizing</div>
-        <div class="discipline-val">
-          Maximum <strong>5 concurrent positions</strong> (slots).
-          Per-slot size: <code>1 contract</code> in paper mode.
-          BP allocation: not yet calibrated for production sizing.
+        <div class="rule-row">
+          <span class="rule-key">Roll / Stop</span>
+          <span class="rule-val">Close at <strong style="color:var(--text)">21 DTE</strong>; take profit at <strong style="color:var(--text)">90% of credit</strong> (mark ≤ 10% of entry); stop at <strong style="color:var(--text)">3× credit</strong>; cadence ≥ <strong style="color:var(--text)">5 TD</strong> between entries (10 TD when slots ≥ 4)</span>
         </div>
-      </div>
-      <div class="discipline-row">
-        <div class="discipline-key">Risk</div>
-        <div class="discipline-val">
-          Requires <code>VIX ≥ 22</code> at entry — strategy is <strong>inactive during low-vol regimes</strong>.
-          Trend gate (<code>BULLISH</code>) blocks entry during bearish SPX MA50 regime.
-          Crisis windows (2008, 2020, 2022) reviewed separately — see table above.
-        </div>
-      </div>
-      <div class="discipline-row">
-        <div class="discipline-key">Frequency</div>
-        <div class="discipline-val">
-          Cadence minimum <strong>5 trading days</strong> between signals (10 TD when near full capacity).
-          Max <strong>5 active positions</strong> at any time.
-          Historically active ≈ 15–20% of trading days (VIX ≥ 22 gate is binding).
+        <div class="rule-row">
+          <span class="rule-key">Max Risk</span>
+          <span class="rule-val">Undefined downside (/ES naked put); entry blocked by <strong style="color:var(--orange)">VIX ≥ 22</strong> gate + trend <code style="font-family:var(--f-mono);font-size:0.65rem;background:var(--surface-hi);padding:1px 5px;border-radius:3px">BULLISH</code> + SPAN ≤ 30% NLV</span>
         </div>
       </div>
       <div class="discipline-footnote">
-        Source: research/q071/q071_engine.py · research/q071/q071_p5_portfolio_viability.py ·
-        SPEC-101 (entry/exit/sizing rules) · SPEC-102 (frontend)
+        Source: research/q071/q071_engine.py (V2F_ENTRY_DTE=49, TARGET_DELTA=0.20, V2F_MAX_SLOTS=5, V2F_PROFIT_TARGET=0.10) ·
+        SPEC-101 entry/exit rules · SPEC-102 frontend
       </div>
     </div>
   </div>
