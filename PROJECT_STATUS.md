@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-15 (Q072 CLOSED — APPROVED. Sleeve global evaluation 完整 P1-P4 + 2 轮 2nd Quant review。**Final verdict**: Augmented Default Cap (R1-R4 默认 + R5 stress episode SPX cap → 60% + R6 second-leg short-vol absolute block)。Priority allocator 实证 ≡ FCFS 不实施，static per-sleeve cap 实证 destroys winners 不实施。提议 **SPEC-103: Global Sleeve Stress Governance** 待 PM 批准。Deferred: P4B /ES rerun + P4C.7 synthetic stress at Q071 lock — `See: RESEARCH_LOG.md R-20260515-01`, `research/q072/q072_final_memo_2026-05-15.md`, `task/SPEC-103.md`)
+Last Updated: 2026-05-15 (**Q072 CLOSED + SPEC-103 DONE + DEPLOYED old Air** commit 1c690cc。Sleeve global evaluation 完整 P1-P4 + 2 轮 2nd Quant review APPROVE。Augmented Default Cap (R1-R4 默认 + R5 stress episode SPX cap → 60% + R6 second-leg short-vol absolute block) 已实施：strategy/sleeve_governance.py + scripts/sleeve_governance_daemon.py + scripts/manage_governance.py + /api/sleeve-governance/state + Portfolio Command Center Sleeve Stress Governance panel + tests 8/8 PASS（含 AC8 backtest replay smoke test 数值 100% 匹配 Q072 P4C.4: n=872 / P&L $742k / maxDD -$175k）。Deferred validation (不阻塞 SPEC-103): P4B /ES rerun + P4C.7 synthetic stress at Q071 lock — `See: RESEARCH_LOG.md R-20260515-01`, `research/q072/q072_final_memo_2026-05-15.md`, `task/SPEC-103.md`, `task/SPEC-103_handoff.md`)
 Owner: Planner or PM
 
 ## Current Phase
@@ -28,9 +28,11 @@ Owner: Planner or PM
 
 ## Active APPROVED Specs
 
-- `SPEC-103` — Global Sleeve Stress Governance. **DRAFT 2026-05-15，待 PM 批准。** Augmented Default Cap 实施：R5（stress episode SPX cap 70%→60%）+ R6（second-leg short-vol absolute block）。F1-F6：portfolio state tracker / state flag computation / entry gate / logging / dashboard / override CLI。AC1-AC9，6 governance rules。来源：Q072 P4C 实证（priority allocator ≡ FCFS，static cap destroys $102k，R6 在 2022 节省 $11.6k）。Deferred 验证不阻塞实施 — `See: task/SPEC-103.md`, `research/q072/q072_final_memo_2026-05-15.md`
+_(currently empty — SPEC-103 closed below)_
 
 ## Recently Closed Specs
+
+- `SPEC-103` — Global Sleeve Stress Governance. Closed **DONE + DEPLOYED old Air** 2026-05-15（commit 1c690cc）. Augmented Default Cap 实施：R1-R4 默认 hard caps + R5（stress episode SPX cap 70%→60%）+ R6（second-leg short-vol absolute block）。新增 strategy/sleeve_governance.py / scripts/sleeve_governance_daemon.py / scripts/manage_governance.py / /api/sleeve-governance/state + Portfolio Command Center "Sleeve Stress Governance" panel。tests/test_spec_103.py 8/8 PASS，含 **AC8 backtest replay smoke** 数值 100% 匹配 Q072 P4C.4 default cap（n_entered=872 / total_pnl=$742,193 / max_dd=-$174,959）。本地 + old Air 都 PASS。/api/sleeve-governance/state, /api/portfolio/summary, /api/recommendation 在 old Air 都返回 200。来源：Q072 P4C 实证（priority allocator ≡ FCFS，static cap destroys $102k，R6 在 2022 节省 $11.6k）。Deferred 验证（P4B /ES rerun + P4C.7 synthetic stress，待 Q071 final lock 后做）不阻塞 close — `See: task/SPEC-103.md`, `task/SPEC-103_handoff.md`, `research/q072/q072_final_memo_2026-05-15.md`
 
 - `SPEC-101` — ES High-Vol Sell Put Ladder (VIX ≥ 22 gate). Closed **DONE 2026-05-14**. Quant tie-out exact match（n=146/ann_roe 1.14%/sharpe 0.34/MaxDD -9.68%/bootstrap 100% 精确对齐 Q071 P5）。paper-trade 阶段正式开始，Telegram alert 在 VIX ≥ 22 时推送 paper signal。Review §9 改为 PM 主导无时间锁。生产 bot（SPEC-061）未改动 — `See: task/SPEC-101.md`
 - `SPEC-100` — HV Spell `max_trades_per_spell` 2→3. **DEPLOYED 2026-05-13**. Backtest confirmed n=37 (+4), WR=91.9%, total=$45,139 (+$5,424), worst=-$2,016 (unchanged). Three backtest caches refreshed. 12-month monitor obligation: **2027-05-13** rerun P8 with live data; if incremental WR < 70% or net P&L < $0, revert. — `See: task/SPEC-100.md`, `RESEARCH_LOG.md R-20260513-04`
