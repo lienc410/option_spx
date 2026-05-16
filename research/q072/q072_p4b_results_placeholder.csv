@@ -1,0 +1,4 @@
+split,group,n_days,n_trades,total_pnl,ann_roe_pct,sharpe,max_dd,worst_trade,worst_20d_window,avg_bp_pct,peak_bp_pct
+full,E_hv_only,4869,557,131692.0,6.25,0.74,-173219.0,-52967.0,-113742.0,20.61,86.58
+post2020,E_hv_only,1597,192,84514.0,16.4,0.88,-173219.0,-52967.0,-113742.0,36.2,86.58
+recent2y,E_hv_only,591,74,144387.0,34.72,6.44,-49288.0,-20879.0,-33212.0,47.96,86.58

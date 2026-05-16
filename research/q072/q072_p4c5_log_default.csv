@@ -1,0 +1,878 @@
+sleeve,strategy,entry_date,exit_date,bp_dollar,pool,is_short_vol,cap_config,passed,blocker,realized_pnl,priority_score
+Bull_Call_Diagonal,Bull Call Diagonal,2007-02-07,2007-02-27,15000.0,SPX_PM,False,default,True,,-2975.57,33.629124004550626
+Iron_Condor,Iron Condor,2007-03-13,2007-04-17,15000.0,SPX_PM,False,default,True,,1041.89,30.91012514220705
+Bull_Call_Diagonal,Bull Call Diagonal,2007-04-17,2007-05-21,15000.0,SPX_PM,False,default,True,,8912.44,38.54379977246872
+Bull_Call_Diagonal,Bull Call Diagonal,2007-05-21,2007-06-25,15000.0,SPX_PM,False,default,True,,-2548.76,-6.052332195676905
+Iron_Condor,Iron Condor,2007-06-22,2007-07-27,15000.0,SPX_PM,False,default,True,,-2010.08,30.91012514220705
+Iron_Condor,Iron Condor,2007-08-08,2007-09-12,15000.0,SPX_PM,False,default,True,,1942.02,30.91012514220705
+Iron_Condor_High_Vol,Iron Condor (High Vol),2007-08-20,2007-09-18,14000.000000000002,SPX_PM,True,default,True,,1444.21,11.695108077360633
+Iron_Condor_High_Vol,Iron Condor (High Vol),2007-08-21,2007-09-20,14000.000000000002,SPX_PM,True,default,True,,1380.84,11.54721274175199
+Iron_Condor_High_Vol,Iron Condor (High Vol),2007-11-02,2007-12-06,14000.000000000002,SPX_PM,True,default,True,,3854.7,27.758816837315123
+Iron_Condor_High_Vol,Iron Condor (High Vol),2007-11-13,2007-12-06,14000.000000000002,SPX_PM,True,default,True,,1480.86,11.54721274175199
+Iron_Condor_High_Vol,Iron Condor (High Vol),2007-12-11,2007-12-26,14000.000000000002,SPX_PM,True,default,True,,3213.86,27.758816837315123
+Iron_Condor,Iron Condor,2007-12-06,2008-01-11,15000.0,SPX_PM,False,default,True,,-2704.21,30.91012514220705
+Iron_Condor_High_Vol,Iron Condor (High Vol),2007-12-12,2008-01-17,14000.000000000002,SPX_PM,True,default,True,,-6052.25,27.758816837315123
+Iron_Condor_High_Vol,Iron Condor (High Vol),2007-12-31,2008-02-05,14000.000000000002,SPX_PM,True,default,True,,-4503.26,27.758816837315123
+Iron_Condor_High_Vol,Iron Condor (High Vol),2008-01-24,2008-02-14,14000.000000000002,SPX_PM,True,default,True,,1310.38,11.695108077360633
+Bear_Call_Spread_High_Vol,Bear Call Spread (High Vol),2008-02-27,2008-03-17,14000.000000000002,SPX_PM,True,default,True,,1866.64,-0.9670079635949942
+Iron_Condor_High_Vol,Iron Condor (High Vol),2008-03-11,2008-04-08,14000.000000000002,SPX_PM,True,default,True,,1476.51,11.695108077360633
+Iron_Condor_High_Vol,Iron Condor (High Vol),2008-03-18,2008-04-09,14000.000000000002,SPX_PM,True,default,False,R6_second_leg_short_vol_block,1346.53,11.54721274175199
+Bull_Put_Spread,Bull Put Spread,2008-04-10,2008-04-23,15000.0,SPX_PM,False,default,True,,3330.61,44.91467576791808
+Iron_Condor_High_Vol,Iron Condor (High Vol),2008-04-11,2008-05-13,14000.000000000002,SPX_PM,True,default,True,,3302.68,27.758816837315123
+Bear_Call_Spread_High_Vol,Bear Call Spread (High Vol),2008-04-14,2008-05-16,14000.000000000002,SPX_PM,True,default,True,,-1104.45,-0.9670079635949942
+Bear_Call_Spread_High_Vol,Bear Call Spread (High Vol),2008-06-18,2008-07-02,14000.000000000002,SPX_PM,True,default,True,,2003.21,-0.9670079635949942
+Iron_Condor,Iron Condor,2008-06-04,2008-07-09,15000.0,SPX_PM,False,default,True,,-6518.94,9.71558589306029
+Iron_Condor_High_Vol,Iron Condor (High Vol),2008-07-16,2008-08-06,14000.000000000002,SPX_PM,True,default,True,,1352.69,11.54721274175199
+Bear_Call_Spread_High_Vol,Bear Call Spread (High Vol),2008-07-21,2008-08-21,14000.000000000002,SPX_PM,True,default,True,,1838.1,2.0705346985210458
+Iron_Condor,Iron Condor,2008-09-02,2008-10-06,15000.0,SPX_PM,False,default,True,,-11125.95,9.71558589306029
+Iron_Condor_High_Vol,Iron Condor (High Vol),2009-04-17,2009-05-18,14000.000000000002,SPX_PM,True,default,True,,3101.44,18.156996587030715
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2009-05-04,2009-05-22,14000.000000000002,SPX_PM,True,default,True,,663.44,48.998862343572235
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2009-05-22,2009-06-01,14000.000000000002,SPX_PM,True,default,True,,3278.76,48.998862343572235
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2009-10-21,2009-11-10,14000.000000000002,SPX_PM,True,default,True,,1954.7,47.62229806598407
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2009-11-10,2009-11-25,14000.000000000002,SPX_PM,True,default,True,,2594.23,51.82025028441411
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2009-11-27,2009-12-14,14000.000000000002,SPX_PM,True,default,True,,3004.64,47.62229806598407
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2009-12-17,2010-01-04,14000.000000000002,SPX_PM,True,default,True,,3235.31,47.62229806598407
+Iron_Condor_High_Vol,Iron Condor (High Vol),2010-01-21,2010-02-19,14000.000000000002,SPX_PM,True,default,True,,3467.53,27.758816837315123
+Bear_Call_Spread_High_Vol,Bear Call Spread (High Vol),2010-02-16,2010-03-22,14000.000000000002,SPX_PM,True,default,True,,-1157.11,-0.9670079635949942
+Iron_Condor_High_Vol,Iron Condor (High Vol),2010-05-10,2010-06-14,14000.000000000002,SPX_PM,True,default,True,,1012.57,11.695108077360633
+Iron_Condor_High_Vol,Iron Condor (High Vol),2010-05-11,2010-06-15,14000.000000000002,SPX_PM,True,default,True,,1565.05,11.695108077360633
+Bear_Call_Spread_High_Vol,Bear Call Spread (High Vol),2010-06-17,2010-07-01,14000.000000000002,SPX_PM,True,default,True,,1869.22,2.0705346985210458
+Iron_Condor_High_Vol,Iron Condor (High Vol),2010-06-14,2010-07-08,14000.000000000002,SPX_PM,True,default,True,,1458.15,11.695108077360633
+Iron_Condor_High_Vol,Iron Condor (High Vol),2010-06-15,2010-07-13,14000.000000000002,SPX_PM,True,default,True,,1445.82,11.54721274175199
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2010-08-09,2010-08-27,14000.000000000002,SPX_PM,True,default,True,,-5392.19,47.62229806598407
+Iron_Condor_High_Vol,Iron Condor (High Vol),2010-08-11,2010-09-03,14000.000000000002,SPX_PM,True,default,True,,3578.76,27.758816837315123
+Iron_Condor_High_Vol,Iron Condor (High Vol),2010-08-10,2010-09-13,14000.000000000002,SPX_PM,True,default,True,,3669.41,27.758816837315123
+Bear_Call_Spread_High_Vol,Bear Call Spread (High Vol),2010-08-27,2010-10-01,14000.000000000002,SPX_PM,True,default,True,,-2680.01,-0.9670079635949942
+Iron_Condor_High_Vol,Iron Condor (High Vol),2010-09-07,2010-10-11,14000.000000000002,SPX_PM,True,default,True,,2309.47,27.758816837315123
+Iron_Condor_High_Vol,Iron Condor (High Vol),2010-09-21,2010-10-21,14000.000000000002,SPX_PM,True,default,True,,3496.8,27.758816837315123
+Bull_Put_Spread,Bull Put Spread,2010-11-29,2010-12-10,15000.0,SPX_PM,False,default,True,,6222.57,44.91467576791808
+Bull_Put_Spread,Bull Put Spread,2011-03-07,2011-03-18,15000.0,SPX_PM,False,default,True,,-3573.55,44.91467576791808
+Iron_Condor_High_Vol,Iron Condor (High Vol),2011-03-17,2011-03-31,14000.000000000002,SPX_PM,True,default,True,,1521.21,11.695108077360633
+Iron_Condor_High_Vol,Iron Condor (High Vol),2011-03-18,2011-04-04,14000.000000000002,SPX_PM,True,default,True,,1319.96,11.54721274175199
+Bull_Call_Diagonal,Bull Call Diagonal,2011-04-21,2011-05-24,15000.0,SPX_PM,False,default,True,,-1875.37,9.283276450511943
+Iron_Condor,Iron Condor,2011-06-06,2011-07-11,15000.0,SPX_PM,False,default,True,,3203.08,9.71558589306029
+Iron_Condor,Iron Condor,2011-07-11,2011-08-10,15000.0,SPX_PM,False,default,True,,-12043.69,11.023890784982935
+Iron_Condor_High_Vol,Iron Condor (High Vol),2011-08-15,2011-09-15,14000.000000000002,SPX_PM,True,default,True,,1386.73,18.156996587030715
+Iron_Condor_High_Vol,Iron Condor (High Vol),2011-08-16,2011-09-15,14000.000000000002,SPX_PM,True,default,True,,1396.22,18.156996587030715
+Iron_Condor_High_Vol,Iron Condor (High Vol),2011-09-15,2011-10-12,14000.000000000002,SPX_PM,True,default,True,,1297.01,18.156996587030715
+Iron_Condor_High_Vol,Iron Condor (High Vol),2011-09-16,2011-10-13,14000.000000000002,SPX_PM,True,default,True,,1295.59,18.156996587030715
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2011-10-11,2011-10-21,14000.000000000002,SPX_PM,True,default,True,,2615.25,55.13083048919226
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2011-10-24,2011-11-11,14000.000000000002,SPX_PM,True,default,True,,1754.17,48.998862343572235
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2011-11-11,2011-12-02,14000.000000000002,SPX_PM,True,default,True,,1102.87,55.13083048919226
+Iron_Condor_High_Vol,Iron Condor (High Vol),2011-11-17,2011-12-09,14000.000000000002,SPX_PM,True,default,True,,3577.45,6.131968145620018
+Iron_Condor_High_Vol,Iron Condor (High Vol),2011-11-18,2011-12-09,14000.000000000002,SPX_PM,True,default,True,,1322.66,18.156996587030715
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2011-12-08,2011-12-22,14000.000000000002,SPX_PM,True,default,True,,3576.73,55.13083048919226
+Bull_Put_Spread,Bull Put Spread,2011-12-22,2012-01-06,15000.0,SPX_PM,False,default,True,,3467.1,44.91467576791808
+Iron_Condor_High_Vol,Iron Condor (High Vol),2011-12-28,2012-02-02,14000.000000000002,SPX_PM,True,default,True,,2966.05,27.758816837315123
+Iron_Condor_High_Vol,Iron Condor (High Vol),2011-12-29,2012-02-02,14000.000000000002,SPX_PM,True,default,True,,3405.4,27.758816837315123
+Bull_Put_Spread,Bull Put Spread,2012-02-10,2012-02-24,15000.0,SPX_PM,False,default,True,,4369.72,44.91467576791808
+Bull_Put_Spread,Bull Put Spread,2012-03-06,2012-03-19,15000.0,SPX_PM,False,default,True,,6772.27,44.91467576791808
+Bull_Call_Diagonal,Bull Call Diagonal,2012-03-23,2012-04-10,15000.0,SPX_PM,False,default,True,,-2591.22,9.283276450511943
+Iron_Condor,Iron Condor,2012-05-04,2012-06-08,15000.0,SPX_PM,False,default,True,,1230.22,9.71558589306029
+Iron_Condor,Iron Condor,2012-06-08,2012-06-29,15000.0,SPX_PM,False,default,True,,3530.28,11.023890784982935
+Iron_Condor,Iron Condor,2012-07-24,2012-08-27,15000.0,SPX_PM,False,default,True,,2947.2,9.71558589306029
+Bull_Call_Diagonal,Bull Call Diagonal,2012-09-07,2012-10-11,15000.0,SPX_PM,False,default,True,,-243.57,9.283276450511943
+Iron_Condor,Iron Condor,2012-11-02,2012-11-28,15000.0,SPX_PM,False,default,True,,3681.99,9.71558589306029
+Bull_Put_Spread,Bull Put Spread,2012-12-19,2013-01-03,15000.0,SPX_PM,False,default,True,,4454.15,44.91467576791808
+Iron_Condor,Iron Condor,2012-12-04,2013-01-08,15000.0,SPX_PM,False,default,True,,3732.91,9.71558589306029
+Bull_Call_Diagonal,Bull Call Diagonal,2013-01-08,2013-02-12,15000.0,SPX_PM,False,default,True,,9404.09,33.629124004550626
+Bull_Call_Diagonal,Bull Call Diagonal,2013-02-12,2013-03-19,15000.0,SPX_PM,False,default,True,,5372.13,33.629124004550626
+Bull_Call_Diagonal,Bull Call Diagonal,2013-03-19,2013-04-23,15000.0,SPX_PM,False,default,True,,4521.71,9.283276450511943
+Bull_Call_Diagonal,Bull Call Diagonal,2013-04-23,2013-05-28,15000.0,SPX_PM,False,default,True,,10559.17,33.629124004550626
+Bull_Call_Diagonal,Bull Call Diagonal,2013-05-28,2013-06-20,15000.0,SPX_PM,False,default,True,,-5345.68,-8.839590443686008
+Iron_Condor,Iron Condor,2013-06-12,2013-07-05,15000.0,SPX_PM,False,default,True,,4266.97,30.91012514220705
+Iron_Condor,Iron Condor,2013-07-05,2013-08-08,15000.0,SPX_PM,False,default,True,,2475.72,11.023890784982935
+Bull_Call_Diagonal,Bull Call Diagonal,2013-08-08,2013-08-19,15000.0,SPX_PM,False,default,True,,-5419.26,33.629124004550626
+Iron_Condor,Iron Condor,2013-08-28,2013-10-02,15000.0,SPX_PM,False,default,True,,2350.54,30.91012514220705
+Bull_Call_Diagonal,Bull Call Diagonal,2013-10-16,2013-11-19,15000.0,SPX_PM,False,default,True,,8275.67,3.788395904436859
+Bull_Call_Diagonal,Bull Call Diagonal,2013-11-19,2013-12-24,15000.0,SPX_PM,False,default,True,,6114.06,-4.004550625711036
+Bull_Call_Diagonal,Bull Call Diagonal,2013-12-24,2014-01-24,15000.0,SPX_PM,False,default,True,,-2202.28,33.629124004550626
+Iron_Condor,Iron Condor,2014-02-10,2014-03-17,15000.0,SPX_PM,False,default,True,,2209.51,30.91012514220705
+Bull_Call_Diagonal,Bull Call Diagonal,2014-03-18,2014-04-11,15000.0,SPX_PM,False,default,True,,-5238.2,-9.715585893060297
+Iron_Condor,Iron Condor,2014-04-07,2014-05-02,15000.0,SPX_PM,False,default,True,,3937.73,30.91012514220705
+Bull_Call_Diagonal,Bull Call Diagonal,2014-05-02,2014-06-06,15000.0,SPX_PM,False,default,True,,8702.4,33.629124004550626
+Bull_Call_Diagonal,Bull Call Diagonal,2014-06-06,2014-07-11,15000.0,SPX_PM,False,default,True,,3245.72,33.629124004550626
+Bull_Call_Diagonal,Bull Call Diagonal,2014-07-11,2014-07-31,15000.0,SPX_PM,False,default,True,,-1677.68,33.629124004550626
+Iron_Condor,Iron Condor,2014-08-13,2014-09-17,15000.0,SPX_PM,False,default,True,,2694.04,-13.902161547212744
+Bull_Call_Diagonal,Bull Call Diagonal,2014-09-17,2014-10-01,15000.0,SPX_PM,False,default,True,,-3843.39,-4.004550625711036
+Iron_Condor,Iron Condor,2014-10-08,2014-11-11,15000.0,SPX_PM,False,default,True,,3080.41,30.91012514220705
+Bull_Call_Diagonal,Bull Call Diagonal,2014-11-11,2014-12-15,15000.0,SPX_PM,False,default,True,,-1164.63,-4.004550625711036
+Bull_Call_Diagonal,Bull Call Diagonal,2014-12-24,2015-01-05,15000.0,SPX_PM,False,default,True,,-2889.92,-9.715585893060297
+Iron_Condor,Iron Condor,2015-01-13,2015-02-05,15000.0,SPX_PM,False,default,True,,3860.98,30.91012514220705
+Iron_Condor,Iron Condor,2015-02-05,2015-02-27,15000.0,SPX_PM,False,default,True,,3935.2,30.91012514220705
+Bull_Call_Diagonal,Bull Call Diagonal,2015-02-27,2015-03-10,15000.0,SPX_PM,False,default,True,,-4252.96,-4.004550625711036
+Iron_Condor,Iron Condor,2015-03-26,2015-04-21,15000.0,SPX_PM,False,default,True,,3760.89,30.91012514220705
+Bull_Call_Diagonal,Bull Call Diagonal,2015-03-18,2015-04-22,15000.0,SPX_PM,False,default,True,,464.16,38.54379977246872
+Bull_Call_Diagonal,Bull Call Diagonal,2015-04-22,2015-05-27,15000.0,SPX_PM,False,default,True,,2158.26,-4.004550625711036
+Bull_Call_Diagonal,Bull Call Diagonal,2015-05-27,2015-06-08,15000.0,SPX_PM,False,default,True,,-3530.39,-4.004550625711036
+Iron_Condor,Iron Condor,2015-06-10,2015-07-15,15000.0,SPX_PM,False,default,True,,4017.27,10.341296928327642
+Iron_Condor,Iron Condor,2015-07-15,2015-08-17,15000.0,SPX_PM,False,default,True,,3815.58,-13.902161547212744
+Iron_Condor,Iron Condor,2015-08-17,2015-08-24,15000.0,SPX_PM,False,default,True,,-13234.99,-13.902161547212744
+Iron_Condor_High_Vol,Iron Condor (High Vol),2015-08-26,2015-09-10,14000.000000000002,SPX_PM,True,default,True,,1398.06,18.156996587030715
+Iron_Condor_High_Vol,Iron Condor (High Vol),2015-08-27,2015-09-15,14000.000000000002,SPX_PM,True,default,True,,1360.66,11.695108077360633
+Iron_Condor,Iron Condor,2015-09-16,2015-10-08,15000.0,SPX_PM,False,default,True,,4139.8,30.91012514220705
+Iron_Condor_High_Vol,Iron Condor (High Vol),2015-09-23,2015-10-15,14000.000000000002,SPX_PM,True,default,True,,3356.11,27.758816837315123
+Bull_Put_Spread,Bull Put Spread,2015-10-16,2015-10-29,15000.0,SPX_PM,False,default,True,,4929.08,44.91467576791808
+Bull_Put_Spread,Bull Put Spread,2015-10-30,2015-11-12,15000.0,SPX_PM,False,default,True,,-3496.71,44.91467576791808
+Iron_Condor,Iron Condor,2015-10-13,2015-11-16,15000.0,SPX_PM,False,default,True,,3068.67,30.91012514220705
+Bull_Put_Spread,Bull Put Spread,2015-11-25,2015-12-09,15000.0,SPX_PM,False,default,True,,-4454.73,44.91467576791808
+Iron_Condor,Iron Condor,2015-12-03,2016-01-08,15000.0,SPX_PM,False,default,True,,-4262.17,30.91012514220705
+Iron_Condor,Iron Condor,2016-01-29,2016-03-01,15000.0,SPX_PM,False,default,True,,4123.32,30.91012514220705
+Iron_Condor_High_Vol,Iron Condor (High Vol),2016-02-16,2016-03-10,14000.000000000002,SPX_PM,True,default,True,,1381.01,11.54721274175199
+Iron_Condor_High_Vol,Iron Condor (High Vol),2016-02-17,2016-03-10,14000.000000000002,SPX_PM,True,default,True,,1372.02,11.54721274175199
+Bull_Put_Spread,Bull Put Spread,2016-03-11,2016-03-24,15000.0,SPX_PM,False,default,True,,2875.99,44.91467576791808
+Bull_Put_Spread,Bull Put Spread,2016-03-28,2016-04-08,15000.0,SPX_PM,False,default,True,,1794.79,44.91467576791808
+Bull_Call_Diagonal,Bull Call Diagonal,2016-03-24,2016-04-28,15000.0,SPX_PM,False,default,True,,4711.81,-8.839590443686008
+Bull_Call_Diagonal,Bull Call Diagonal,2016-05-02,2016-05-19,15000.0,SPX_PM,False,default,True,,-3377.49,-8.839590443686008
+Iron_Condor,Iron Condor,2016-05-17,2016-06-21,15000.0,SPX_PM,False,default,True,,1921.75,11.023890784982935
+Iron_Condor,Iron Condor,2016-06-22,2016-07-07,15000.0,SPX_PM,False,default,True,,4515.07,30.91012514220705
+Iron_Condor,Iron Condor,2016-07-07,2016-08-10,15000.0,SPX_PM,False,default,True,,3225.37,10.341296928327642
+Bull_Call_Diagonal,Bull Call Diagonal,2016-08-10,2016-09-09,15000.0,SPX_PM,False,default,True,,-2089.48,33.629124004550626
+Iron_Condor,Iron Condor,2016-10-03,2016-11-04,15000.0,SPX_PM,False,default,True,,-3662.2,-13.902161547212744
+Bull_Call_Diagonal,Bull Call Diagonal,2016-11-09,2016-12-14,15000.0,SPX_PM,False,default,True,,8923.61,-8.839590443686008
+Bull_Call_Diagonal,Bull Call Diagonal,2016-12-14,2017-01-20,15000.0,SPX_PM,False,default,True,,1437.72,33.629124004550626
+Bull_Call_Diagonal,Bull Call Diagonal,2017-01-20,2017-02-24,15000.0,SPX_PM,False,default,True,,10172.92,33.629124004550626
+Bull_Call_Diagonal,Bull Call Diagonal,2017-02-24,2017-03-30,15000.0,SPX_PM,False,default,True,,-120.06,33.629124004550626
+Bull_Call_Diagonal,Bull Call Diagonal,2017-03-30,2017-04-12,15000.0,SPX_PM,False,default,True,,-207.27,33.629124004550626
+Bull_Call_Diagonal,Bull Call Diagonal,2017-04-24,2017-05-17,15000.0,SPX_PM,False,default,True,,748.28,33.629124004550626
+Bull_Call_Diagonal,Bull Call Diagonal,2017-05-19,2017-06-23,15000.0,SPX_PM,False,default,True,,6123.92,-4.004550625711036
+Bull_Call_Diagonal,Bull Call Diagonal,2017-06-23,2017-07-28,15000.0,SPX_PM,False,default,True,,4339.04,33.629124004550626
+Bull_Call_Diagonal,Bull Call Diagonal,2017-07-28,2017-08-10,15000.0,SPX_PM,False,default,True,,-96.53,33.629124004550626
+Bull_Call_Diagonal,Bull Call Diagonal,2017-08-14,2017-08-17,15000.0,SPX_PM,False,default,True,,-1631.19,-6.052332195676905
+Iron_Condor,Iron Condor,2017-08-22,2017-09-21,15000.0,SPX_PM,False,default,True,,3855.04,10.341296928327642
+Bull_Call_Diagonal,Bull Call Diagonal,2017-09-21,2017-10-25,15000.0,SPX_PM,False,default,True,,7205.94,33.629124004550626
+Bull_Call_Diagonal,Bull Call Diagonal,2017-10-25,2017-11-29,15000.0,SPX_PM,False,default,True,,7333.44,38.54379977246872
+Bull_Call_Diagonal,Bull Call Diagonal,2017-11-29,2018-01-04,15000.0,SPX_PM,False,default,True,,9905.98,-4.004550625711036
+Bull_Call_Diagonal,Bull Call Diagonal,2018-01-04,2018-02-05,15000.0,SPX_PM,False,default,True,,13904.95,33.629124004550626
+Iron_Condor_High_Vol,Iron Condor (High Vol),2018-02-07,2018-02-22,14000.000000000002,SPX_PM,True,default,True,,1868.49,11.695108077360633
+Iron_Condor_High_Vol,Iron Condor (High Vol),2018-02-08,2018-02-23,14000.000000000002,SPX_PM,True,default,True,,1903.03,18.156996587030715
+Iron_Condor,Iron Condor,2018-02-22,2018-03-16,15000.0,SPX_PM,False,default,True,,3609.64,30.91012514220705
+Iron_Condor,Iron Condor,2018-03-16,2018-04-20,15000.0,SPX_PM,False,default,True,,1094.7,30.91012514220705
+Iron_Condor,Iron Condor,2018-04-20,2018-05-09,15000.0,SPX_PM,False,default,True,,3981.97,30.91012514220705
+Bull_Call_Diagonal,Bull Call Diagonal,2018-05-09,2018-06-13,15000.0,SPX_PM,False,default,True,,6887.78,-6.052332195676905
+Bull_Call_Diagonal,Bull Call Diagonal,2018-06-13,2018-06-27,15000.0,SPX_PM,False,default,True,,-3143.74,-6.052332195676905
+Bull_Call_Diagonal,Bull Call Diagonal,2018-07-06,2018-08-09,15000.0,SPX_PM,False,default,True,,7995.31,-6.052332195676905
+Bull_Call_Diagonal,Bull Call Diagonal,2018-08-09,2018-09-13,15000.0,SPX_PM,False,default,True,,5297.0,-4.004550625711036
+Bull_Call_Diagonal,Bull Call Diagonal,2018-09-13,2018-10-10,15000.0,SPX_PM,False,default,True,,-2136.39,38.54379977246872
+Iron_Condor,Iron Condor,2018-10-18,2018-11-07,15000.0,SPX_PM,False,default,True,,3654.4,30.91012514220705
+Iron_Condor,Iron Condor,2018-11-07,2018-12-13,15000.0,SPX_PM,False,default,True,,-3962.97,30.91012514220705
+Iron_Condor_High_Vol,Iron Condor (High Vol),2018-12-26,2019-01-10,14000.000000000002,SPX_PM,True,default,True,,1554.03,18.156996587030715
+Iron_Condor_High_Vol,Iron Condor (High Vol),2018-12-27,2019-01-11,14000.000000000002,SPX_PM,True,default,True,,1776.72,11.695108077360633
+Bull_Put_Spread,Bull Put Spread,2019-01-31,2019-02-13,15000.0,SPX_PM,False,default,True,,3961.28,44.91467576791808
+Iron_Condor,Iron Condor,2019-01-10,2019-02-14,15000.0,SPX_PM,False,default,True,,1859.33,30.91012514220705
+Bull_Put_Spread,Bull Put Spread,2019-02-13,2019-02-27,15000.0,SPX_PM,False,default,True,,3619.37,44.91467576791808
+Bull_Put_Spread,Bull Put Spread,2019-03-06,2019-03-19,15000.0,SPX_PM,False,default,True,,4983.81,44.91467576791808
+Bull_Call_Diagonal,Bull Call Diagonal,2019-02-27,2019-04-02,15000.0,SPX_PM,False,default,True,,5980.55,-8.839590443686008
+Bull_Call_Diagonal,Bull Call Diagonal,2019-04-02,2019-05-07,15000.0,SPX_PM,False,default,True,,4044.21,33.629124004550626
+Iron_Condor,Iron Condor,2019-05-22,2019-06-26,15000.0,SPX_PM,False,default,True,,2646.37,11.023890784982935
+Bull_Put_Spread,Bull Put Spread,2019-06-18,2019-07-01,15000.0,SPX_PM,False,default,True,,3943.68,44.91467576791808
+Bull_Call_Diagonal,Bull Call Diagonal,2019-07-01,2019-08-05,15000.0,SPX_PM,False,default,True,,-2150.94,-8.839590443686008
+Iron_Condor,Iron Condor,2019-08-15,2019-09-16,15000.0,SPX_PM,False,default,True,,3500.62,30.91012514220705
+Bull_Put_Spread,Bull Put Spread,2019-09-05,2019-09-18,15000.0,SPX_PM,False,default,True,,3673.97,44.91467576791808
+Bull_Call_Diagonal,Bull Call Diagonal,2019-09-18,2019-10-02,15000.0,SPX_PM,False,default,True,,-4157.8,33.629124004550626
+Bull_Call_Diagonal,Bull Call Diagonal,2019-10-14,2019-11-15,15000.0,SPX_PM,False,default,True,,10628.93,9.283276450511943
+Bull_Call_Diagonal,Bull Call Diagonal,2019-11-15,2019-12-20,15000.0,SPX_PM,False,default,True,,8153.75,33.629124004550626
+Bull_Call_Diagonal,Bull Call Diagonal,2019-12-20,2020-01-28,15000.0,SPX_PM,False,default,True,,5621.94,33.629124004550626
+Bull_Call_Diagonal,Bull Call Diagonal,2020-02-06,2020-02-24,15000.0,SPX_PM,False,default,True,,-1534.2,-9.715585893060297
+Iron_Condor_High_Vol,Iron Condor (High Vol),2020-03-02,2020-04-03,14000.000000000002,SPX_PM,True,default,True,,-2016.39,18.156996587030715
+Iron_Condor_High_Vol,Iron Condor (High Vol),2020-03-04,2020-04-07,14000.000000000002,SPX_PM,True,default,True,,-1297.46,18.156996587030715
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2020-04-27,2020-05-11,14000.000000000002,SPX_PM,True,default,True,,2917.8,55.13083048919226
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2020-05-11,2020-05-27,14000.000000000002,SPX_PM,True,default,True,,2767.44,48.998862343572235
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2020-05-27,2020-06-05,14000.000000000002,SPX_PM,True,default,True,,3428.46,48.998862343572235
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2020-06-05,2020-06-25,14000.000000000002,SPX_PM,True,default,True,,-3162.67,51.82025028441411
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2020-06-25,2020-07-06,14000.000000000002,SPX_PM,True,default,True,,2788.27,55.13083048919226
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2020-07-07,2020-07-20,14000.000000000002,SPX_PM,True,default,True,,3332.91,48.998862343572235
+Iron_Condor_High_Vol,Iron Condor (High Vol),2020-06-26,2020-07-24,14000.000000000002,SPX_PM,True,default,True,,3312.18,6.131968145620018
+Iron_Condor_High_Vol,Iron Condor (High Vol),2020-07-02,2020-08-06,14000.000000000002,SPX_PM,True,default,True,,2634.65,11.695108077360633
+Bull_Put_Spread,Bull Put Spread,2020-08-17,2020-08-27,15000.0,SPX_PM,False,default,True,,3158.52,44.91467576791808
+Iron_Condor_High_Vol,Iron Condor (High Vol),2020-08-19,2020-09-23,14000.000000000002,SPX_PM,True,default,True,,-12.53,27.758816837315123
+Iron_Condor_High_Vol,Iron Condor (High Vol),2020-08-20,2020-09-24,14000.000000000002,SPX_PM,True,default,True,,48.6,27.758816837315123
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2020-11-06,2020-11-23,14000.000000000002,SPX_PM,True,default,True,,2654.29,51.82025028441411
+Iron_Condor_High_Vol,Iron Condor (High Vol),2020-11-05,2020-11-25,14000.000000000002,SPX_PM,True,default,True,,3456.62,11.695108077360633
+Iron_Condor_High_Vol,Iron Condor (High Vol),2020-11-09,2020-11-27,14000.000000000002,SPX_PM,True,default,True,,3237.13,11.54721274175199
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2020-11-23,2020-12-08,14000.000000000002,SPX_PM,True,default,True,,3176.24,47.62229806598407
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2020-12-09,2020-12-30,14000.000000000002,SPX_PM,True,default,True,,2282.58,47.62229806598407
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2020-12-30,2021-01-20,14000.000000000002,SPX_PM,True,default,True,,3194.57,47.62229806598407
+Iron_Condor_High_Vol,Iron Condor (High Vol),2021-01-04,2021-02-03,14000.000000000002,SPX_PM,True,default,True,,3627.12,6.131968145620018
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2021-01-25,2021-02-11,14000.000000000002,SPX_PM,True,default,True,,2690.31,47.62229806598407
+Iron_Condor_High_Vol,Iron Condor (High Vol),2021-01-29,2021-02-12,14000.000000000002,SPX_PM,True,default,True,,1613.72,18.156996587030715
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2021-02-18,2021-03-10,14000.000000000002,SPX_PM,True,default,True,,1099.7,47.62229806598407
+Iron_Condor_High_Vol,Iron Condor (High Vol),2021-03-05,2021-03-22,14000.000000000002,SPX_PM,True,default,True,,3339.76,11.54721274175199
+Iron_Condor_High_Vol,Iron Condor (High Vol),2021-03-08,2021-03-22,14000.000000000002,SPX_PM,True,default,True,,3346.48,11.54721274175199
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2021-03-10,2021-03-26,14000.000000000002,SPX_PM,True,default,False,R5_stress_episode_cap,3129.69,51.82025028441411
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2021-05-19,2021-06-03,14000.000000000002,SPX_PM,True,default,True,,3086.08,47.62229806598407
+Bull_Put_Spread,Bull Put Spread,2021-08-18,2021-08-31,15000.0,SPX_PM,False,default,True,,5685.51,44.91467576791808
+Iron_Condor,Iron Condor,2021-09-17,2021-10-14,15000.0,SPX_PM,False,default,True,,4495.12,11.023890784982935
+Bull_Put_Spread,Bull Put Spread,2021-11-22,2021-12-06,15000.0,SPX_PM,False,default,True,,-4008.86,44.91467576791808
+Iron_Condor_High_Vol,Iron Condor (High Vol),2021-12-02,2021-12-16,14000.000000000002,SPX_PM,True,default,True,,1610.47,11.695108077360633
+Bull_Put_Spread,Bull Put Spread,2021-12-10,2021-12-23,15000.0,SPX_PM,False,default,True,,1731.17,44.91467576791808
+Iron_Condor,Iron Condor,2021-12-17,2022-01-11,15000.0,SPX_PM,False,default,True,,3572.64,30.91012514220705
+Iron_Condor_High_Vol,Iron Condor (High Vol),2021-12-20,2022-01-12,14000.000000000002,SPX_PM,True,default,True,,3482.77,27.758816837315123
+Iron_Condor_High_Vol,Iron Condor (High Vol),2022-01-28,2022-02-16,14000.000000000002,SPX_PM,True,default,True,,1292.63,11.695108077360633
+Iron_Condor_High_Vol,Iron Condor (High Vol),2022-01-31,2022-03-07,14000.000000000002,SPX_PM,True,default,True,,-309.32,11.54721274175199
+Iron_Condor_High_Vol,Iron Condor (High Vol),2022-02-16,2022-03-18,14000.000000000002,SPX_PM,True,default,True,,1514.86,11.54721274175199
+Iron_Condor_High_Vol,Iron Condor (High Vol),2022-03-09,2022-03-23,14000.000000000002,SPX_PM,True,default,True,,1401.4,18.156996587030715
+Iron_Condor_High_Vol,Iron Condor (High Vol),2022-03-18,2022-04-04,14000.000000000002,SPX_PM,True,default,True,,1428.22,11.54721274175199
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2022-03-22,2022-04-11,14000.000000000002,SPX_PM,True,default,True,,-858.11,51.82025028441411
+Bull_Put_Spread,Bull Put Spread,2022-04-04,2022-04-18,15000.0,SPX_PM,False,default,True,,-7381.95,44.91467576791808
+Iron_Condor_High_Vol,Iron Condor (High Vol),2022-04-21,2022-05-25,14000.000000000002,SPX_PM,True,default,True,,-5040.79,27.758816837315123
+Iron_Condor_High_Vol,Iron Condor (High Vol),2022-04-22,2022-05-26,14000.000000000002,SPX_PM,True,default,True,,1795.28,6.131968145620018
+Bull_Put_Spread,Bull Put Spread,2022-07-29,2022-08-11,15000.0,SPX_PM,False,default,True,,3620.8,44.91467576791808
+Iron_Condor_High_Vol,Iron Condor (High Vol),2022-08-01,2022-09-02,14000.000000000002,SPX_PM,True,default,True,,460.48,27.758816837315123
+Iron_Condor_High_Vol,Iron Condor (High Vol),2022-08-02,2022-09-06,14000.000000000002,SPX_PM,True,default,True,,762.23,27.758816837315123
+Bear_Call_Spread_High_Vol,Bear Call Spread (High Vol),2022-09-14,2022-09-28,14000.000000000002,SPX_PM,True,default,False,R6_second_leg_short_vol_block,1807.28,2.0705346985210458
+Iron_Condor_High_Vol,Iron Condor (High Vol),2022-09-07,2022-10-11,14000.000000000002,SPX_PM,True,default,True,,-4491.58,27.758816837315123
+Iron_Condor_High_Vol,Iron Condor (High Vol),2022-09-08,2022-10-12,14000.000000000002,SPX_PM,True,default,True,,-5707.59,27.758816837315123
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2022-11-28,2022-12-16,14000.000000000002,SPX_PM,True,default,True,,-1359.8,47.62229806598407
+Iron_Condor_High_Vol,Iron Condor (High Vol),2022-12-16,2023-01-18,14000.000000000002,SPX_PM,True,default,True,,3445.78,27.758816837315123
+Bear_Call_Spread_High_Vol,Bear Call Spread (High Vol),2022-12-19,2023-01-25,14000.000000000002,SPX_PM,True,default,True,,-413.2,-0.9670079635949942
+Iron_Condor_High_Vol,Iron Condor (High Vol),2023-02-21,2023-03-21,14000.000000000002,SPX_PM,True,default,True,,3332.27,27.758816837315123
+Iron_Condor_High_Vol,Iron Condor (High Vol),2023-02-22,2023-03-27,14000.000000000002,SPX_PM,True,default,True,,3756.26,27.758816837315123
+Bull_Call_Diagonal,Bull Call Diagonal,2023-06-02,2023-07-10,15000.0,SPX_PM,False,default,True,,6770.45,9.283276450511943
+Bull_Call_Diagonal,Bull Call Diagonal,2023-07-11,2023-08-14,15000.0,SPX_PM,False,default,True,,2744.58,9.283276450511943
+Bull_Call_Diagonal,Bull Call Diagonal,2023-08-14,2023-08-17,15000.0,SPX_PM,False,default,True,,-3586.47,9.283276450511943
+Bull_Call_Diagonal,Bull Call Diagonal,2023-08-29,2023-09-15,15000.0,SPX_PM,False,default,True,,-2620.04,9.283276450511943
+Iron_Condor,Iron Condor,2023-10-04,2023-11-01,15000.0,SPX_PM,False,default,True,,3764.25,11.023890784982935
+Iron_Condor,Iron Condor,2023-11-03,2023-12-08,15000.0,SPX_PM,False,default,True,,-318.15,10.341296928327642
+Bull_Call_Diagonal,Bull Call Diagonal,2023-12-08,2024-01-16,15000.0,SPX_PM,False,default,True,,8625.06,33.629124004550626
+Bull_Call_Diagonal,Bull Call Diagonal,2024-01-16,2024-02-20,15000.0,SPX_PM,False,default,True,,9468.46,33.629124004550626
+Bull_Put_Spread,Bull Put Spread,2024-02-13,2024-02-27,15000.0,SPX_PM,False,default,True,,5341.77,44.91467576791808
+Bull_Call_Diagonal,Bull Call Diagonal,2024-02-27,2024-04-02,15000.0,SPX_PM,False,default,True,,6322.74,33.629124004550626
+Bull_Call_Diagonal,Bull Call Diagonal,2024-04-02,2024-04-15,15000.0,SPX_PM,False,default,True,,-3102.34,-9.715585893060297
+Iron_Condor,Iron Condor,2024-04-12,2024-05-03,15000.0,SPX_PM,False,default,True,,4384.35,30.91012514220705
+Iron_Condor,Iron Condor,2024-05-03,2024-06-07,15000.0,SPX_PM,False,default,True,,1035.86,-13.902161547212744
+Bull_Call_Diagonal,Bull Call Diagonal,2024-06-07,2024-07-15,15000.0,SPX_PM,False,default,True,,11241.52,33.629124004550626
+Bull_Call_Diagonal,Bull Call Diagonal,2024-07-15,2024-08-02,15000.0,SPX_PM,False,default,True,,-3887.13,-4.004550625711036
+Iron_Condor_High_Vol,Iron Condor (High Vol),2024-08-06,2024-08-20,14000.000000000002,SPX_PM,True,default,True,,1437.39,11.695108077360633
+Iron_Condor_High_Vol,Iron Condor (High Vol),2024-08-07,2024-08-27,14000.000000000002,SPX_PM,True,default,True,,1381.15,11.695108077360633
+Iron_Condor,Iron Condor,2024-08-01,2024-08-29,15000.0,SPX_PM,False,default,True,,3874.05,30.91012514220705
+Iron_Condor,Iron Condor,2024-09-03,2024-09-24,15000.0,SPX_PM,False,default,True,,3579.81,30.91012514220705
+Bull_Call_Diagonal,Bull Call Diagonal,2024-11-08,2024-12-13,15000.0,SPX_PM,False,default,True,,1882.84,-9.715585893060297
+Bull_Call_Diagonal,Bull Call Diagonal,2024-12-13,2024-12-18,15000.0,SPX_PM,False,default,True,,992.87,-4.004550625711036
+Bull_Call_Diagonal,Bull Call Diagonal,2024-12-24,2024-12-31,15000.0,SPX_PM,False,default,True,,-3654.77,3.788395904436859
+Bull_Put_Spread,Bull Put Spread,2025-01-21,2025-02-03,15000.0,SPX_PM,False,default,True,,-2170.33,44.91467576791808
+Iron_Condor,Iron Condor,2024-12-30,2025-02-05,15000.0,SPX_PM,False,default,True,,3936.66,30.91012514220705
+Bull_Put_Spread,Bull Put Spread,2025-02-06,2025-02-20,15000.0,SPX_PM,False,default,True,,1836.16,44.91467576791808
+Bull_Put_Spread,Bull Put Spread,2025-02-20,2025-03-05,15000.0,SPX_PM,False,default,True,,-9379.85,44.91467576791808
+Iron_Condor,Iron Condor,2025-02-21,2025-03-27,15000.0,SPX_PM,False,default,True,,-1106.01,30.91012514220705
+Iron_Condor_High_Vol,Iron Condor (High Vol),2025-04-09,2025-04-24,14000.000000000002,SPX_PM,True,default,True,,1464.99,18.156996587030715
+Iron_Condor_High_Vol,Iron Condor (High Vol),2025-04-14,2025-04-29,14000.000000000002,SPX_PM,True,default,True,,1351.35,18.156996587030715
+Iron_Condor,Iron Condor,2025-03-27,2025-05-01,15000.0,SPX_PM,False,default,True,,754.35,30.91012514220705
+Bull_Put_Spread_High_Vol,Bull Put Spread (High Vol),2025-05-02,2025-05-13,14000.000000000002,SPX_PM,True,default,True,,3455.94,51.82025028441411
+Iron_Condor_High_Vol,Iron Condor (High Vol),2025-04-24,2025-05-29,14000.000000000002,SPX_PM,True,default,False,R5_stress_episode_cap,1206.54,11.695108077360633
+Bull_Put_Spread,Bull Put Spread,2025-05-16,2025-05-30,15000.0,SPX_PM,False,default,True,,-871.59,44.91467576791808
+Bull_Put_Spread,Bull Put Spread,2025-06-03,2025-06-16,15000.0,SPX_PM,False,default,True,,1965.89,44.91467576791808
+Bull_Put_Spread,Bull Put Spread,2025-07-07,2025-07-18,15000.0,SPX_PM,False,default,True,,3130.72,44.91467576791808
+Bull_Call_Diagonal,Bull Call Diagonal,2025-07-25,2025-08-28,15000.0,SPX_PM,False,default,True,,4056.19,9.283276450511943
+Bull_Put_Spread,Bull Put Spread,2025-09-02,2025-09-15,15000.0,SPX_PM,False,default,True,,5283.38,44.91467576791808
+Bull_Call_Diagonal,Bull Call Diagonal,2025-08-28,2025-10-02,15000.0,SPX_PM,False,default,True,,7591.78,9.283276450511943
+Bull_Put_Spread,Bull Put Spread,2025-09-25,2025-10-08,15000.0,SPX_PM,False,default,True,,4214.15,44.91467576791808
+Bull_Put_Spread,Bull Put Spread,2025-10-23,2025-11-05,15000.0,SPX_PM,False,default,True,,1995.76,44.91467576791808
+Iron_Condor_High_Vol,Iron Condor (High Vol),2025-11-17,2025-12-02,14000.000000000002,SPX_PM,True,default,True,,3504.67,27.758816837315123
+Iron_Condor,Iron Condor,2025-11-13,2025-12-03,15000.0,SPX_PM,False,default,True,,3753.15,30.91012514220705
+Bull_Put_Spread,Bull Put Spread,2025-12-09,2025-12-22,15000.0,SPX_PM,False,default,True,,3168.29,44.91467576791808
+Iron_Condor,Iron Condor,2025-12-18,2026-01-22,15000.0,SPX_PM,False,default,True,,3744.78,11.023890784982935
+Bull_Put_Spread,Bull Put Spread,2026-01-14,2026-01-28,15000.0,SPX_PM,False,default,True,,2324.05,44.91467576791808
+Bull_Put_Spread,Bull Put Spread,2026-01-29,2026-02-11,15000.0,SPX_PM,False,default,True,,-18.03,44.91467576791808
+Iron_Condor,Iron Condor,2026-02-12,2026-03-19,15000.0,SPX_PM,False,default,True,,1038.71,30.91012514220705
+Iron_Condor_High_Vol,Iron Condor (High Vol),2026-03-09,2026-04-06,14000.000000000002,SPX_PM,True,default,True,,1362.74,11.54721274175199
+Iron_Condor_High_Vol,Iron Condor (High Vol),2026-03-10,2026-04-08,14000.000000000002,SPX_PM,True,default,True,,1824.83,11.54721274175199
+Bull_Put_Spread,Bull Put Spread,2026-04-17,2026-04-30,15000.0,SPX_PM,False,default,True,,2938.44,44.91467576791808
+Iron_Condor,Iron Condor,2026-04-08,2026-05-08,15000.0,SPX_PM,False,default,True,,-2410.4,30.91012514220705
+Bull_Put_Spread,Bull Put Spread,2026-04-30,2026-05-08,15000.0,SPX_PM,False,default,True,,3890.11,47.07622298065984
+DD_Overlay_A,DD Overlay,2007-02-28,2007-03-30,3220.0,SPX_PM,False,default,True,,508.1,36.93970420932878
+DD_Overlay_A,DD Overlay,2007-07-27,2007-08-27,-10000.0,SPX_PM,False,default,True,,-1616.3,36.93970420932878
+DD_Overlay_A,DD Overlay,2007-10-22,2007-11-21,-10000.0,SPX_PM,False,default,True,,-1853.67,48.47554038680318
+DD_Overlay_A,DD Overlay,2013-06-21,2013-07-22,11680.0,SPX_PM,False,default,True,,2155.33,48.47554038680318
+DD_Overlay_A,DD Overlay,2013-08-28,2013-09-27,12080.0,SPX_PM,False,default,True,,2188.67,36.93970420932878
+DD_Overlay_A,DD Overlay,2013-10-09,2013-11-08,10980.0,SPX_PM,False,default,True,,2093.26,48.47554038680318
+DD_Overlay_A,DD Overlay,2014-01-30,2014-03-03,11710.0,SPX_PM,False,default,True,,2426.99,36.93970420932878
+DD_Overlay_A,DD Overlay,2014-10-10,2014-11-10,12230.0,SPX_PM,False,default,True,,2475.48,36.93970420932878
+DD_Overlay_A,DD Overlay,2014-12-16,2015-01-15,-8830.0,SPX_PM,False,default,True,,-2013.02,51.53583617747441
+DD_Overlay_A,DD Overlay,2015-01-16,2015-02-17,11120.0,SPX_PM,False,default,True,,2369.8,48.47554038680318
+DD_Overlay_A,DD Overlay,2015-08-21,2015-09-21,-10000.0,SPX_PM,False,default,True,,-2299.05,36.93970420932878
+DD_Overlay_A,DD Overlay,2015-11-16,2015-12-16,11030.0,SPX_PM,False,default,True,,2521.16,48.47554038680318
+DD_Overlay_A,DD Overlay,2016-05-20,2016-06-20,8940.0,SPX_PM,False,default,True,,2041.84,36.93970420932878
+DD_Overlay_A,DD Overlay,2016-06-27,2016-07-27,11200.0,SPX_PM,False,default,True,,2906.05,36.93970420932878
+DD_Overlay_A,DD Overlay,2016-11-03,2016-12-05,11630.0,SPX_PM,False,default,True,,2688.38,51.53583617747441
+DD_Overlay_A,DD Overlay,2018-02-06,2018-03-08,11360.0,SPX_PM,False,default,True,,3456.64,36.93970420932878
+DD_Overlay_A,DD Overlay,2018-10-11,2018-11-12,-10000.0,SPX_PM,False,default,True,,-3216.69,36.93970420932878
+DD_Overlay_A,DD Overlay,2019-05-14,2019-06-13,10410.0,SPX_PM,False,default,True,,3569.81,48.47554038680318
+DD_Overlay_A,DD Overlay,2019-08-06,2019-09-05,9520.0,SPX_PM,False,default,True,,3414.02,48.47554038680318
+DD_Overlay_A,DD Overlay,2019-10-03,2019-11-04,11750.0,SPX_PM,False,default,True,,3781.48,48.47554038680318
+DD_Overlay_A,DD Overlay,2020-02-25,2020-03-26,-10000.0,SPX_PM,False,default,True,,-4045.98,36.93970420932878
+DD_Overlay_A,DD Overlay,2020-09-08,2020-10-08,-4350.0,SPX_PM,False,default,True,,-1684.06,36.93970420932878
+DD_Overlay_A,DD Overlay,2020-10-20,2020-11-19,9580.0,SPX_PM,False,default,True,,4403.46,36.93970420932878
+DD_Overlay_A,DD Overlay,2021-03-05,2021-04-05,9200.0,SPX_PM,False,default,True,,4551.54,51.53583617747441
+DD_Overlay_A,DD Overlay,2021-05-13,2021-06-14,9880.0,SPX_PM,False,default,True,,4968.66,51.53583617747441
+DD_Overlay_A,DD Overlay,2021-09-22,2021-10-22,10190.0,SPX_PM,False,default,True,,5550.68,48.47554038680318
+DD_Overlay_A,DD Overlay,2021-12-02,2022-01-03,10330.0,SPX_PM,False,default,True,,5588.13,36.93970420932878
+DD_Overlay_A,DD Overlay,2022-01-19,2022-02-18,-10000.0,SPX_PM,False,default,True,,-5650.93,36.93970420932878
+DD_Overlay_A,DD Overlay,2024-04-18,2024-05-20,11270.0,SPX_PM,False,default,True,,6888.05,48.47554038680318
+DD_Overlay_A,DD Overlay,2024-07-25,2024-08-26,11820.0,SPX_PM,False,default,True,,7582.92,48.47554038680318
+DD_Overlay_A,DD Overlay,2024-09-09,2024-10-09,9680.0,SPX_PM,False,default,True,,6639.77,48.47554038680318
+DD_Overlay_A,DD Overlay,2025-01-13,2025-02-12,14280.000000000002,SPX_PM,False,default,True,,8821.47,48.47554038680318
+DD_Overlay_A,DD Overlay,2025-02-28,2025-03-31,-10000.0,SPX_PM,False,default,True,,-6966.66,48.47554038680318
+DD_Overlay_A,DD Overlay,2025-11-21,2025-12-22,9980.0,SPX_PM,False,default,True,,7993.36,51.53583617747441
+DD_Overlay_A,DD Overlay,2026-03-13,2026-04-13,10430.0,SPX_PM,False,default,True,,8422.7,36.93970420932878
+DD_Overlay_B,DD Overlay,2008-01-29,2008-04-28,2430.0,SPX_PM,False,default,True,,809.81,36.81456200227531
+DD_Overlay_B,DD Overlay,2019-01-02,2019-04-02,11700.0,SPX_PM,False,default,True,,6740.72,36.81456200227531
+DD_Overlay_B,DD Overlay,2020-03-26,2020-06-24,6230.0,SPX_PM,False,default,True,,4799.31,36.81456200227531
+DD_Overlay_B,DD Overlay,2022-05-18,2022-08-16,11260.0,SPX_PM,False,default,True,,10859.29,36.81456200227531
+DD_Overlay_B,DD Overlay,2025-04-10,2025-07-09,10900.0,SPX_PM,False,default,True,,14343.98,36.81456200227531
+HV_Ladder,HV Ladder (V2f),2007-01-10,2007-02-07,3537.124938964844,ES_SPAN,True,default,True,,745.9985997780642,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2007-01-18,2007-02-22,3565.9249877929688,ES_SPAN,True,default,True,,708.5489312466514,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2007-01-25,2007-03-07,3559.7500610351567,ES_SPAN,True,default,True,,-832.9362920837411,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2007-02-02,2007-03-15,3620.975036621094,ES_SPAN,True,default,True,,-2519.493996110265,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2007-02-09,2007-03-22,3595.150146484375,ES_SPAN,True,default,True,,247.9438057925165,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2007-02-22,2007-04-03,3640.9500122070312,ES_SPAN,True,default,True,,-370.17567220838146,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2007-03-23,2007-04-20,3590.2749633789062,ES_SPAN,True,default,True,,861.4861960823497,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2007-04-03,2007-04-26,3594.425048828125,ES_SPAN,True,default,True,,885.4136755017748,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2007-04-11,2007-05-03,3597.1749877929688,ES_SPAN,True,default,True,,900.6768881316027,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2007-04-18,2007-05-22,3681.25,ES_SPAN,True,default,True,,847.9314140923052,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2007-04-25,2007-06-01,3738.5501098632817,ES_SPAN,True,default,True,,922.320905905582,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2007-05-02,2007-06-12,3739.8001098632812,ES_SPAN,True,default,True,,187.216036779364,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2007-05-09,2007-06-19,3781.4498901367188,ES_SPAN,True,default,True,,817.4183043833864,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2007-05-22,2007-07-02,3810.299987792969,ES_SPAN,True,default,True,,305.8021710214575,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2007-06-01,2007-07-12,3840.8499145507817,ES_SPAN,True,default,True,,501.5192553856309,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2007-06-13,2007-07-24,3789.1751098632817,ES_SPAN,True,default,True,,233.84878395806936,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2007-06-21,2007-08-01,3805.474853515625,ES_SPAN,True,default,True,,-2334.0673103935105,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2007-07-03,2007-08-13,3812.1749877929688,ES_SPAN,True,default,True,,-3311.236081617926,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2007-07-12,2007-08-21,3869.2498779296875,ES_SPAN,True,default,True,,-4352.9978480268655,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2007-09-18,2007-10-26,3799.4500732421875,ES_SPAN,True,default,True,,1262.843109314369,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2007-09-25,2007-11-02,3793.0249023437505,ES_SPAN,True,default,True,,349.6458634552141,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2007-10-02,2007-11-09,3866.5750122070312,ES_SPAN,True,default,True,,-3414.1712710071315,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2007-10-09,2007-11-16,3912.8750610351567,ES_SPAN,True,default,True,,-4498.991407353123,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2007-10-23,2007-12-03,3798.9749145507817,ES_SPAN,True,default,True,,-308.25906929483153,17.428896473265073
+HV_Ladder,HV Ladder (V2f),2007-12-26,2008-02-06,3744.150085449219,ES_SPAN,True,default,True,,-8385.236376872843,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2008-04-01,2008-05-02,3425.4501342773438,ES_SPAN,True,default,True,,1500.057049245092,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2008-04-08,2008-05-02,3413.8500976562505,ES_SPAN,True,default,True,,1427.7604225677244,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2008-04-16,2008-05-15,3411.7749023437505,ES_SPAN,True,default,True,,1385.4427748014275,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2008-04-23,2008-05-16,3449.8251342773438,ES_SPAN,True,default,True,,1289.1517666476332,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2008-05-02,2008-06-12,3534.7500610351567,ES_SPAN,True,default,True,,-1905.7732775584668,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2008-05-09,2008-06-19,3470.7000732421875,ES_SPAN,True,default,True,,-291.6022753368054,10.716723549488052
+HV_Ladder,HV Ladder (V2f),2008-05-16,2008-06-26,3563.3749389648438,ES_SPAN,True,default,True,,-6787.603158013172,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2008-05-27,2008-07-07,3463.3749389648438,ES_SPAN,True,default,True,,-5185.2535263329455,17.428896473265073
+HV_Ladder,HV Ladder (V2f),2008-08-28,2008-10-07,3251.700134277344,ES_SPAN,True,default,True,,-21938.46529848609,10.716723549488052
+HV_Ladder,HV Ladder (V2f),2008-12-31,2009-02-11,2258.125,ES_SPAN,True,default,True,,-561.9927628061248,-12.081911262798638
+HV_Ladder,HV Ladder (V2f),2009-01-08,2009-02-19,2274.324951171875,ES_SPAN,True,default,True,,-3013.789323202741,-12.081911262798638
+HV_Ladder,HV Ladder (V2f),2009-03-23,2009-04-29,2057.2999572753906,ES_SPAN,True,default,True,,1802.549686060527,-12.081911262798638
+HV_Ladder,HV Ladder (V2f),2009-04-01,2009-04-29,2027.7000427246094,ES_SPAN,True,default,True,,1654.135312734845,-12.081911262798638
+HV_Ladder,HV Ladder (V2f),2009-04-08,2009-05-04,2062.899932861328,ES_SPAN,True,default,True,,1588.075800216547,29.817974971558588
+HV_Ladder,HV Ladder (V2f),2009-04-16,2009-05-18,2163.249969482422,ES_SPAN,True,default,True,,1490.484962390306,29.817974971558588
+HV_Ladder,HV Ladder (V2f),2009-04-29,2009-05-29,2184.1000366210938,ES_SPAN,True,default,True,,1550.4937739865304,-12.081911262798638
+HV_Ladder,HV Ladder (V2f),2009-05-13,2009-06-09,2209.7999572753906,ES_SPAN,True,default,True,,1445.7377975955992,29.817974971558588
+HV_Ladder,HV Ladder (V2f),2009-05-06,2009-06-16,2298.8250732421875,ES_SPAN,True,default,True,,929.0381538905648,29.817974971558588
+HV_Ladder,HV Ladder (V2f),2009-05-20,2009-06-30,2258.674926757813,ES_SPAN,True,default,True,,1166.597000512774,25.904436860068255
+HV_Ladder,HV Ladder (V2f),2009-05-29,2009-07-09,2297.850036621094,ES_SPAN,True,default,True,,195.04548894938696,25.904436860068255
+HV_Ladder,HV Ladder (V2f),2009-06-16,2009-07-17,2279.9249267578125,ES_SPAN,True,default,True,,1466.0238057209172,-12.081911262798638
+HV_Ladder,HV Ladder (V2f),2009-06-09,2009-07-20,2356.074981689453,ES_SPAN,True,default,True,,1168.435229504246,25.904436860068255
+HV_Ladder,HV Ladder (V2f),2009-06-30,2009-07-23,2298.300018310547,ES_SPAN,True,default,True,,1142.8834114864144,25.904436860068255
+HV_Ladder,HV Ladder (V2f),2009-07-15,2009-08-07,2331.699981689453,ES_SPAN,True,default,True,,1157.7486570861631,24.28896473265074
+HV_Ladder,HV Ladder (V2f),2009-07-22,2009-08-21,2385.175018310547,ES_SPAN,True,default,True,,1060.2910522616544,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2009-07-29,2009-09-08,2437.875061035156,ES_SPAN,True,default,True,,1195.212173186124,24.28896473265074
+HV_Ladder,HV Ladder (V2f),2009-08-05,2009-09-14,2506.7999267578125,ES_SPAN,True,default,True,,1201.00835084842,23.37883959044368
+HV_Ladder,HV Ladder (V2f),2009-08-12,2009-09-15,2514.5249938964844,ES_SPAN,True,default,True,,1201.4340547950312,24.28896473265074
+HV_Ladder,HV Ladder (V2f),2009-08-21,2009-10-01,2565.3250122070312,ES_SPAN,True,default,True,,717.6472632534995,24.28896473265074
+HV_Ladder,HV Ladder (V2f),2009-09-04,2009-10-09,2541.000061035156,ES_SPAN,True,default,True,,1238.8834674234474,24.28896473265074
+HV_Ladder,HV Ladder (V2f),2009-09-14,2009-10-15,2623.3499145507812,ES_SPAN,True,default,True,,1198.393871422052,24.28896473265074
+HV_Ladder,HV Ladder (V2f),2009-10-01,2009-10-15,2574.624938964844,ES_SPAN,True,default,True,,1399.7218288862332,-12.081911262798638
+HV_Ladder,HV Ladder (V2f),2009-09-21,2009-10-29,2661.6500854492188,ES_SPAN,True,default,True,,846.1391729912947,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2009-10-09,2009-11-18,2678.724975585938,ES_SPAN,True,default,True,,1177.496402088834,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2009-10-16,2009-11-25,2719.2001342773438,ES_SPAN,True,default,True,,1034.501411957642,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2009-10-23,2009-12-03,2698.9999389648438,ES_SPAN,True,default,True,,989.585542762343,24.28896473265074
+HV_Ladder,HV Ladder (V2f),2009-11-05,2009-12-11,2666.5750122070312,ES_SPAN,True,default,True,,1306.6975238023026,23.37883959044368
+HV_Ladder,HV Ladder (V2f),2009-11-18,2009-12-30,2774.5001220703125,ES_SPAN,True,default,True,,1050.582968535555,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2009-12-03,2010-01-06,2749.8001098632812,ES_SPAN,True,default,True,,1160.2543033074382,24.28896473265074
+HV_Ladder,HV Ladder (V2f),2009-11-25,2010-01-07,2776.5750122070317,ES_SPAN,True,default,True,,1053.4164974594432,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2009-12-11,2010-01-11,2766.025085449219,ES_SPAN,True,default,True,,1136.6971404753854,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2009-12-28,2010-02-08,2819.4500732421875,ES_SPAN,True,default,True,,-2078.483797193749,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2010-01-06,2010-02-17,2842.850036621094,ES_SPAN,True,default,True,,-308.3983444754125,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2010-01-13,2010-02-24,2864.200134277344,ES_SPAN,True,default,True,,-473.0502515090137,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2010-03-02,2010-03-23,2795.7751464843755,ES_SPAN,True,default,True,,1019.8957855360596,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2010-03-09,2010-04-06,2851.124877929688,ES_SPAN,True,default,True,,963.1518571483482,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2010-03-16,2010-04-14,2898.6499023437505,ES_SPAN,True,default,True,,993.190552711736,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2010-03-23,2010-05-03,2935.4251098632817,ES_SPAN,True,default,True,,674.1594374067176,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2010-03-30,2010-05-10,2933.175048828125,ES_SPAN,True,default,True,,-757.0947489208976,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2010-04-07,2010-05-17,2956.1248779296875,ES_SPAN,True,default,True,,-2239.061664994756,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2010-04-14,2010-05-24,3026.6250610351562,ES_SPAN,True,default,True,,-8734.98824910472,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2010-04-28,2010-06-08,2978.3999633789067,ES_SPAN,True,default,True,,-5878.647356002381,17.428896473265073
+HV_Ladder,HV Ladder (V2f),2010-07-23,2010-09-01,2756.650085449219,ES_SPAN,True,default,True,,492.72721335073584,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2010-07-30,2010-09-09,2753.9999389648438,ES_SPAN,True,default,True,,950.586777533276,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2010-08-06,2010-09-16,2804.1000366210938,ES_SPAN,True,default,True,,851.5247689496817,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2010-09-03,2010-10-08,2761.275024414063,ES_SPAN,True,default,True,,1132.308254895626,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2010-09-13,2010-10-12,2804.7500610351562,ES_SPAN,True,default,True,,1127.1196181316498,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2010-09-20,2010-10-22,2856.77490234375,ES_SPAN,True,default,True,,1165.7549755160765,10.716723549488052
+HV_Ladder,HV Ladder (V2f),2010-09-27,2010-10-22,2855.4000854492188,ES_SPAN,True,default,True,,1199.2332282921077,23.37883959044368
+HV_Ladder,HV Ladder (V2f),2010-10-08,2010-11-04,2912.8750610351562,ES_SPAN,True,default,True,,1141.3545789836376,10.716723549488052
+HV_Ladder,HV Ladder (V2f),2010-10-15,2010-11-24,2940.474853515625,ES_SPAN,True,default,True,,931.5096078170724,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2010-10-22,2010-12-02,2957.699890136719,ES_SPAN,True,default,True,,1009.5684187125748,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2010-10-29,2010-12-03,2958.150024414063,ES_SPAN,True,default,True,,1203.8558536151477,17.428896473265073
+HV_Ladder,HV Ladder (V2f),2010-11-05,2010-12-16,3064.6249389648438,ES_SPAN,True,default,True,,947.6593544579544,10.716723549488052
+HV_Ladder,HV Ladder (V2f),2010-11-19,2010-12-17,2999.324951171875,ES_SPAN,True,default,True,,988.5008760666552,10.716723549488052
+HV_Ladder,HV Ladder (V2f),2010-12-02,2011-01-03,3053.8250732421875,ES_SPAN,True,default,True,,1112.5544236690282,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2010-12-09,2011-01-12,3082.5000000000005,ES_SPAN,True,default,True,,1013.8414453931651,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2010-12-16,2011-01-14,3107.174987792969,ES_SPAN,True,default,True,,1027.678484422293,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2010-12-23,2011-02-02,3141.925048828125,ES_SPAN,True,default,True,,961.4184942396854,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2011-01-03,2011-02-04,3179.6749877929688,ES_SPAN,True,default,True,,1026.2458160918943,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2011-01-20,2011-02-14,3200.6500244140625,ES_SPAN,True,default,True,,1068.0843990938797,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2011-01-12,2011-02-17,3214.8999023437505,ES_SPAN,True,default,True,,972.2775405043222,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2011-02-02,2011-03-15,3260.075073242188,ES_SPAN,True,default,True,,-438.6752750369226,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2011-02-09,2011-03-22,3302.2000122070317,ES_SPAN,True,default,True,,-348.86487450751247,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2011-02-16,2011-03-29,3340.7998657226562,ES_SPAN,True,default,True,,316.7807796532202,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2011-02-24,2011-04-01,3265.249938964844,ES_SPAN,True,default,True,,1320.4095231595509,17.428896473265073
+HV_Ladder,HV Ladder (V2f),2011-03-29,2011-04-28,3298.599853515625,ES_SPAN,True,default,True,,1163.6613525317628,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2011-04-05,2011-05-16,3331.5750122070312,ES_SPAN,True,default,True,,630.6366301948174,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2011-04-15,2011-05-26,3299.200134277344,ES_SPAN,True,default,True,,661.9676502299285,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2011-04-25,2011-06-03,3338.125,ES_SPAN,True,default,True,,-296.6507428840316,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2011-05-02,2011-06-10,3403.049926757813,ES_SPAN,True,default,True,,-2866.3283231997298,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2011-05-18,2011-06-28,3351.700134277344,ES_SPAN,True,default,True,,-662.9634296594531,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2011-05-31,2011-07-11,3362.9998779296875,ES_SPAN,True,default,True,,-144.2708853473846,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2011-07-01,2011-08-08,3349.1751098632812,ES_SPAN,True,default,True,,-16097.600002420077,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2011-07-19,2011-08-26,3316.824951171875,ES_SPAN,True,default,True,,-7881.584946092215,17.428896473265073
+HV_Ladder,HV Ladder (V2f),2011-07-26,2011-09-02,3329.849853515625,ES_SPAN,True,default,True,,-7821.449049353492,10.716723549488052
+HV_Ladder,HV Ladder (V2f),2011-10-11,2011-10-27,2988.85009765625,ES_SPAN,True,default,True,,1937.4002454189692,29.817974971558588
+HV_Ladder,HV Ladder (V2f),2011-10-18,2011-11-28,3063.4500122070312,ES_SPAN,True,default,True,,785.2255253230368,29.817974971558588
+HV_Ladder,HV Ladder (V2f),2011-10-25,2011-12-05,3072.6251220703125,ES_SPAN,True,default,True,,1853.866222820716,-12.081911262798638
+HV_Ladder,HV Ladder (V2f),2011-11-01,2011-12-06,3045.7000732421875,ES_SPAN,True,default,True,,2029.850239135149,-12.081911262798638
+HV_Ladder,HV Ladder (V2f),2011-11-08,2011-12-19,3189.8001098632812,ES_SPAN,True,default,True,,22.01587196690582,25.904436860068255
+HV_Ladder,HV Ladder (V2f),2011-11-30,2012-01-05,3117.3999023437505,ES_SPAN,True,default,True,,1675.79069597059,25.904436860068255
+HV_Ladder,HV Ladder (V2f),2011-12-07,2012-01-10,3152.5250244140625,ES_SPAN,True,default,True,,1763.2525271946563,25.904436860068255
+HV_Ladder,HV Ladder (V2f),2011-12-21,2012-01-19,3109.2999267578125,ES_SPAN,True,default,True,,1259.863740330397,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2011-12-29,2012-01-20,3157.550048828125,ES_SPAN,True,default,True,,1326.3568782716384,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2012-01-06,2012-02-03,3194.525146484375,ES_SPAN,True,default,True,,1298.991277549553,10.716723549488052
+HV_Ladder,HV Ladder (V2f),2012-01-13,2012-02-03,3222.7249145507812,ES_SPAN,True,default,True,,1275.1131193652902,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2012-01-23,2012-02-23,3290.0,ES_SPAN,True,default,True,,1150.7585484282563,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2012-01-30,2012-02-28,3282.5250244140625,ES_SPAN,True,default,True,,1188.8918684675773,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2012-02-06,2012-03-13,3360.824890136719,ES_SPAN,True,default,True,,1170.668116394495,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2012-02-13,2012-03-13,3379.425048828125,ES_SPAN,True,default,True,,1244.789779385806,10.716723549488052
+HV_Ladder,HV Ladder (V2f),2012-02-23,2012-03-26,3408.6499023437505,ES_SPAN,True,default,True,,1119.3318796821063,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2012-03-01,2012-03-26,3435.2249145507812,ES_SPAN,True,default,True,,1098.826054853648,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2012-03-13,2012-04-23,3489.8748779296875,ES_SPAN,True,default,True,,-437.78125538302106,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2012-03-20,2012-04-30,3513.800048828125,ES_SPAN,True,default,True,,448.48230807297966,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2012-03-27,2012-05-07,3531.3000488281255,ES_SPAN,True,default,True,,-695.0389230095936,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2012-04-03,2012-05-14,3533.4500122070317,ES_SPAN,True,default,True,,-2527.6665065852967,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2012-04-26,2012-06-06,3499.9499511718755,ES_SPAN,True,default,True,,-2898.792498975564,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2012-06-29,2012-08-07,3405.4000854492188,ES_SPAN,True,default,True,,1091.9922404185734,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2012-07-09,2012-08-07,3381.14990234375,ES_SPAN,True,default,True,,1133.811223396745,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2012-07-23,2012-08-09,3376.300048828125,ES_SPAN,True,default,True,,1152.2548180208205,10.716723549488052
+HV_Ladder,HV Ladder (V2f),2012-07-16,2012-08-10,3384.100036621094,ES_SPAN,True,default,True,,1097.6999415882246,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2012-08-06,2012-09-07,3485.574951171875,ES_SPAN,True,default,True,,1044.4116110165148,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2012-08-13,2012-09-13,3510.2749633789067,ES_SPAN,True,default,True,,895.0193771389401,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2012-08-27,2012-09-19,3526.0998535156255,ES_SPAN,True,default,True,,1065.549066943769,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2012-08-20,2012-09-28,3545.3250122070317,ES_SPAN,True,default,True,,747.8202838071879,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2012-09-07,2012-10-17,3594.8001098632817,ES_SPAN,True,default,True,,838.9272510946525,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2012-09-14,2012-10-24,3664.425048828125,ES_SPAN,True,default,True,,-1409.8988400405062,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2012-09-21,2012-11-02,3650.3750610351567,ES_SPAN,True,default,True,,-986.7444787970612,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2012-09-28,2012-11-09,3601.6751098632817,ES_SPAN,True,default,True,,-1302.8308076917654,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2012-10-15,2012-11-27,3600.3250122070312,ES_SPAN,True,default,True,,-256.4737021517601,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2012-12-11,2013-01-10,3569.5999145507812,ES_SPAN,True,default,True,,1043.9611266377212,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2012-12-31,2013-01-11,3565.474853515625,ES_SPAN,True,default,True,,1191.6994408787857,17.428896473265073
+HV_Ladder,HV Ladder (V2f),2012-12-18,2013-01-18,3616.9750976562505,ES_SPAN,True,default,True,,1081.9917000815535,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2013-01-08,2013-02-01,3642.8750610351562,ES_SPAN,True,default,True,,913.4516225508136,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2013-01-15,2013-02-14,3680.8499145507817,ES_SPAN,True,default,True,,931.119763018097,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2013-01-23,2013-03-05,3737.0251464843755,ES_SPAN,True,default,True,,855.49744689541,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2013-01-30,2013-03-07,3754.8999023437505,ES_SPAN,True,default,True,,1022.7155535348004,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2013-02-06,2013-03-11,3780.2999877929688,ES_SPAN,True,default,True,,970.184599443162,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2013-02-14,2013-03-14,3803.4500122070312,ES_SPAN,True,default,True,,873.8943956129816,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2013-03-01,2013-03-14,3795.499877929688,ES_SPAN,True,default,True,,1096.3019521477968,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2013-03-08,2013-04-18,3877.950134277344,ES_SPAN,True,default,True,,-167.26925552212606,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2013-03-15,2013-04-25,3901.749877929688,ES_SPAN,True,default,True,,618.7894201124948,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2013-03-22,2013-05-02,3892.2250366210938,ES_SPAN,True,default,True,,974.873250137908,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2013-04-01,2013-05-03,3905.4251098632817,ES_SPAN,True,default,True,,1004.2360309199544,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2013-04-15,2013-05-03,3880.8999633789062,ES_SPAN,True,default,True,,1312.6387991876363,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2013-04-25,2013-05-15,3962.900085449219,ES_SPAN,True,default,True,,1014.1821170020228,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2013-05-02,2013-05-17,3993.9749145507817,ES_SPAN,True,default,True,,1001.1970665823178,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2013-05-09,2013-06-19,4066.6751098632817,ES_SPAN,True,default,True,,319.5065860483453,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2013-05-16,2013-06-26,4126.1749267578125,ES_SPAN,True,default,True,,-1152.7602186150148,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2013-05-23,2013-07-03,4126.2750244140625,ES_SPAN,True,default,True,,-284.64524703904317,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2013-05-31,2013-07-11,4076.849975585938,ES_SPAN,True,default,True,,1304.2721930552452,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2013-06-17,2013-07-15,4097.60009765625,ES_SPAN,True,default,True,,1261.160215222938,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2013-07-08,2013-08-01,4101.14990234375,ES_SPAN,True,default,True,,1164.881462252243,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2013-07-15,2013-08-22,4206.25,ES_SPAN,True,default,True,,148.64985422762516,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2013-07-22,2013-08-29,4238.825073242188,ES_SPAN,True,default,True,,-1750.482772724331,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2013-07-29,2013-09-06,4213.324890136719,ES_SPAN,True,default,True,,-232.72422778595683,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2013-08-05,2013-09-13,4267.850036621094,ES_SPAN,True,default,True,,-47.58946208247039,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2013-09-10,2013-10-17,4209.9749755859375,ES_SPAN,True,default,True,,1170.97783198232,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2013-09-17,2013-10-22,4261.9000244140625,ES_SPAN,True,default,True,,1174.4763269339765,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2013-09-24,2013-10-22,4243.550109863281,ES_SPAN,True,default,True,,1106.543621692309,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2013-10-01,2013-10-22,4237.5,ES_SPAN,True,default,True,,1219.63740018184,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2013-10-15,2013-10-22,4245.150146484375,ES_SPAN,True,default,True,,1478.1623455761917,17.428896473265073
+HV_Ladder,HV Ladder (V2f),2013-10-22,2013-11-22,4386.675109863282,ES_SPAN,True,default,True,,1099.772227812877,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2013-10-29,2013-12-09,4429.8748779296875,ES_SPAN,True,default,True,,1059.3336342487733,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2013-11-05,2013-12-16,4407.4249267578125,ES_SPAN,True,default,True,,740.1785335332704,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2013-11-12,2013-12-23,4419.224853515625,ES_SPAN,True,default,True,,1085.1613488371704,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2013-11-22,2014-01-06,4511.9000244140625,ES_SPAN,True,default,True,,803.9615964902566,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2013-12-16,2014-01-08,4466.35009765625,ES_SPAN,True,default,True,,1332.2789322592698,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2013-12-09,2014-01-15,4520.92498779297,ES_SPAN,True,default,True,,1134.561048052086,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2013-12-23,2014-02-04,4569.9749755859375,ES_SPAN,True,default,True,,-2562.069648383357,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2014-01-06,2014-02-14,4566.925048828125,ES_SPAN,True,default,True,,910.9120401178388,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2014-01-13,2014-02-24,4547.9998779296875,ES_SPAN,True,default,True,,961.779430493749,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2014-01-21,2014-03-03,4609.5001220703125,ES_SPAN,True,default,True,,382.6667753507422,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2014-02-13,2014-03-26,4574.57489013672,ES_SPAN,True,default,True,,990.9712022767876,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2014-02-21,2014-04-01,4590.625,ES_SPAN,True,default,True,,1296.6211961365352,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2014-02-28,2014-04-09,4648.6248779296875,ES_SPAN,True,default,True,,986.46086204335,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2014-03-07,2014-04-16,4695.10009765625,ES_SPAN,True,default,True,,597.498652579992,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2014-03-21,2014-05-01,4666.300048828126,ES_SPAN,True,default,True,,1207.8743793648314,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2014-04-01,2014-05-12,4713.800048828125,ES_SPAN,True,default,True,,987.3913057319244,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2014-04-09,2014-05-20,4680.450134277344,ES_SPAN,True,default,True,,919.466004417808,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2014-04-21,2014-05-27,4679.725036621094,ES_SPAN,True,default,True,,1166.80801708562,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2014-05-01,2014-06-05,4709.200134277345,ES_SPAN,True,default,True,,1199.3964258670453,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2014-05-12,2014-06-06,4741.625061035157,ES_SPAN,True,default,True,,1072.0848391198288,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2014-05-21,2014-06-18,4720.075073242188,ES_SPAN,True,default,True,,1089.0838713584217,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2014-05-29,2014-07-01,4800.0750732421875,ES_SPAN,True,default,True,,1027.5205177699945,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2014-06-05,2014-07-03,4851.14990234375,ES_SPAN,True,default,True,,1036.0201511626883,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2014-06-12,2014-07-03,4825.274963378906,ES_SPAN,True,default,True,,1132.905890777187,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2014-06-19,2014-07-30,4898.699951171875,ES_SPAN,True,default,True,,438.1645886020067,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2014-07-01,2014-08-11,4933.299865722657,ES_SPAN,True,default,True,,-697.3737144344341,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2014-07-09,2014-08-18,4932.074890136719,ES_SPAN,True,default,True,,607.4399100286428,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2014-07-16,2014-08-25,4953.924865722656,ES_SPAN,True,default,True,,784.9876473673788,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2014-07-30,2014-09-05,4925.174865722656,ES_SPAN,True,default,True,,1203.7563197108454,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2014-08-18,2014-09-26,4929.3499755859375,ES_SPAN,True,default,True,,594.4279599324602,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2014-08-25,2014-10-03,4994.800109863281,ES_SPAN,True,default,True,,-386.64891317193906,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2014-09-02,2014-10-10,5005.7000732421875,ES_SPAN,True,default,True,,-4492.085278145424,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2014-09-09,2014-10-17,4971.099853515625,ES_SPAN,True,default,True,,-4347.802111452131,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2014-09-24,2014-11-03,4995.7501220703125,ES_SPAN,True,default,True,,897.9189378277056,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2014-10-30,2014-11-21,4986.625061035156,ES_SPAN,True,default,True,,1338.5744268396038,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2014-11-06,2014-12-17,5078.024902343751,ES_SPAN,True,default,True,,-400.1165017283938,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2014-11-13,2014-12-24,5098.324890136719,ES_SPAN,True,default,True,,1211.6257168150669,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2014-11-20,2015-01-02,5131.875,ES_SPAN,True,default,True,,377.75438860979307,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2014-11-28,2015-01-09,5168.900146484376,ES_SPAN,True,default,True,,-257.3878818343985,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2014-12-18,2015-01-30,5153.074951171875,ES_SPAN,True,default,True,,-1140.113722731337,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2014-12-26,2015-02-06,5221.925048828125,ES_SPAN,True,default,True,,-126.1372545359336,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2015-01-08,2015-02-19,5155.3497314453125,ES_SPAN,True,default,True,,1592.2434719468156,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2015-02-10,2015-03-18,5171.4752197265625,ES_SPAN,True,default,True,,1656.7398407657631,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2015-02-18,2015-03-30,5249.1998291015625,ES_SPAN,True,default,True,,986.6988235983512,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2015-02-25,2015-04-07,5284.650268554688,ES_SPAN,True,default,True,,65.94267770374813,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2015-03-04,2015-04-14,5246.3250732421875,ES_SPAN,True,default,True,,991.0772561087128,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2015-03-18,2015-04-28,5248.75,ES_SPAN,True,default,True,,1237.996163684645,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2015-03-30,2015-05-08,5215.5999755859375,ES_SPAN,True,default,True,,1388.1224260653269,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2015-04-09,2015-05-19,5227.9498291015625,ES_SPAN,True,default,True,,1208.5532730900966,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2015-04-16,2015-05-27,5262.4749755859375,ES_SPAN,True,default,True,,966.8156218520238,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2015-04-28,2015-06-08,5286.9000244140625,ES_SPAN,True,default,True,,-428.8599601961266,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2015-05-08,2015-06-18,5290.250244140626,ES_SPAN,True,default,True,,883.8503749280733,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2015-05-19,2015-06-29,5319.5751953125,ES_SPAN,True,default,True,,-2339.641495929959,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2015-05-27,2015-07-07,5308.699951171875,ES_SPAN,True,default,True,,-514.0115634870824,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2015-06-18,2015-07-29,5303.0999755859375,ES_SPAN,True,default,True,,799.3452649290418,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2015-07-16,2015-08-25,5310.72509765625,ES_SPAN,True,default,True,,-18520.938938617765,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2015-10-08,2015-10-28,5033.575134277344,ES_SPAN,True,default,True,,1632.9971055932815,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2015-10-15,2015-11-20,5059.649963378906,ES_SPAN,True,default,True,,1513.7951203555772,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2015-10-22,2015-12-02,5131.275024414063,ES_SPAN,True,default,True,,1077.7497947053944,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2015-10-29,2015-12-09,5223.5247802734375,ES_SPAN,True,default,True,,-801.2306224639531,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2015-11-05,2015-12-16,5249.8248291015625,ES_SPAN,True,default,True,,90.0971169830882,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2015-11-19,2015-12-31,5203.0999755859375,ES_SPAN,True,default,True,,315.04937508091757,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2015-12-02,2016-01-13,5198.7750244140625,ES_SPAN,True,default,True,,-9128.11825224619,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2016-03-01,2016-03-18,4945.874938964844,ES_SPAN,True,default,True,,1652.4408415220564,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2016-03-08,2016-03-18,4948.1500244140625,ES_SPAN,True,default,True,,1711.95969491682,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2016-03-15,2016-04-13,5039.825134277344,ES_SPAN,True,default,True,,1630.623592433947,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2016-03-22,2016-05-02,5124.500122070313,ES_SPAN,True,default,True,,1189.1599791581457,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2016-03-30,2016-05-09,5159.8748779296875,ES_SPAN,True,default,True,,674.0621831518524,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2016-04-06,2016-05-16,5166.6497802734375,ES_SPAN,True,default,True,,851.3042287245469,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2016-04-13,2016-05-23,5206.0498046875,ES_SPAN,True,default,True,,-68.04979473959065,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2016-04-27,2016-06-07,5237.874755859375,ES_SPAN,True,default,True,,1074.7503629310015,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2016-05-09,2016-06-17,5146.724853515625,ES_SPAN,True,default,True,,481.0685418323317,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2016-05-24,2016-07-05,5190.150146484375,ES_SPAN,True,default,True,,968.8778141120508,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2016-06-01,2016-07-12,5248.325195312501,ES_SPAN,True,default,True,,1397.5050512331309,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2016-06-21,2016-07-12,5222.249755859375,ES_SPAN,True,default,True,,1856.8086795260824,17.428896473265073
+HV_Ladder,HV Ladder (V2f),2016-06-08,2016-07-15,5297.800292968751,ES_SPAN,True,default,True,,1374.7445986661291,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2016-07-06,2016-07-20,5249.324951171875,ES_SPAN,True,default,True,,1473.5615773656575,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2016-07-13,2016-08-19,5381.0748291015625,ES_SPAN,True,default,True,,1298.643356826321,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2016-07-20,2016-08-29,5432.550048828125,ES_SPAN,True,default,True,,730.4725724198875,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2016-07-27,2016-09-06,5416.4501953125,ES_SPAN,True,default,True,,1156.298942871385,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2016-08-03,2016-09-13,5409.47509765625,ES_SPAN,True,default,True,,-858.7399825208649,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2016-08-17,2016-09-27,5455.5499267578125,ES_SPAN,True,default,True,,295.7025391748459,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2016-08-29,2016-10-07,5450.949707031251,ES_SPAN,True,default,True,,341.59014705183495,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2016-09-06,2016-10-14,5466.199951171875,ES_SPAN,True,default,True,,-1356.0667053825457,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2016-11-09,2016-12-07,5408.1500244140625,ES_SPAN,True,default,True,,1496.7654811190548,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2016-11-16,2016-12-09,5442.349853515626,ES_SPAN,True,default,True,,1429.7017238344652,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2016-12-01,2016-12-19,5477.7001953125,ES_SPAN,True,default,True,,1421.5174374754056,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2016-11-23,2016-12-20,5511.7999267578125,ES_SPAN,True,default,True,,1247.9171851114615,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2016-12-08,2017-01-20,5615.474853515625,ES_SPAN,True,default,True,,1233.9727498398502,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2016-12-15,2017-01-25,5655.0750732421875,ES_SPAN,True,default,True,,1335.3117955684893,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2016-12-30,2017-01-25,5597.0751953125,ES_SPAN,True,default,True,,1494.349314675354,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2016-12-22,2017-02-03,5652.39990234375,ES_SPAN,True,default,True,,1157.7669936043278,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2017-01-17,2017-02-14,5669.7247314453125,ES_SPAN,True,default,True,,1283.199069653651,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2017-02-01,2017-02-24,5698.8751220703125,ES_SPAN,True,default,True,,1245.1470966710033,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-01-25,2017-03-01,5745.92529296875,ES_SPAN,True,default,True,,1159.9132737774803,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-02-08,2017-03-03,5736.6748046875,ES_SPAN,True,default,True,,1223.2006827124856,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-02-15,2017-03-28,5873.125,ES_SPAN,True,default,True,,1039.3598494845776,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-02-24,2017-04-05,5918.3502197265625,ES_SPAN,True,default,True,,353.4935864194381,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-03-03,2017-04-12,5957.80029296875,ES_SPAN,True,default,True,,-1110.7675736035617,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-03-10,2017-04-20,5931.500244140625,ES_SPAN,True,default,True,,111.566510157013,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-03-24,2017-04-25,5859.949951171875,ES_SPAN,True,default,True,,1387.4024416971224,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2017-04-05,2017-05-05,5882.3748779296875,ES_SPAN,True,default,True,,1414.9714863183149,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-04-24,2017-06-01,5935.374755859375,ES_SPAN,True,default,True,,1228.805262192698,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2017-05-01,2017-06-09,5970.8251953125,ES_SPAN,True,default,True,,1047.191955035055,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2017-05-08,2017-06-16,5998.44970703125,ES_SPAN,True,default,True,,952.5217160930624,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2017-05-15,2017-06-23,6005.8001708984375,ES_SPAN,True,default,True,,1115.1644505307004,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-05-30,2017-07-10,6032.2747802734375,ES_SPAN,True,default,True,,835.4182832387266,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-06-09,2017-07-19,6079.425048828125,ES_SPAN,True,default,True,,1212.934657509554,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-06-16,2017-07-25,6082.874755859375,ES_SPAN,True,default,True,,1163.553280479951,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-06-23,2017-08-03,6095.7501220703125,ES_SPAN,True,default,True,,1008.021529774996,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-07-10,2017-08-17,6068.5748291015625,ES_SPAN,True,default,True,,80.62128324152127,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2017-07-19,2017-08-28,6184.5751953125,ES_SPAN,True,default,True,,-203.78077251788227,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2017-07-26,2017-09-05,6194.5751953125,ES_SPAN,True,default,True,,-221.079306783372,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-08-03,2017-09-13,6180.3997802734375,ES_SPAN,True,default,True,,1047.0944411394782,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-08-31,2017-10-02,6179.124755859375,ES_SPAN,True,default,True,,1215.4648838450314,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2017-09-11,2017-10-05,6220.2752685546875,ES_SPAN,True,default,True,,1259.0933763197982,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-09-18,2017-10-20,6259.67529296875,ES_SPAN,True,default,True,,1198.2776502130505,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-09-25,2017-10-20,6241.6497802734375,ES_SPAN,True,default,True,,1173.3861405013286,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-10-02,2017-11-03,6322.800292968751,ES_SPAN,True,default,True,,1113.5796557354724,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-10-09,2017-11-16,6361.824951171875,ES_SPAN,True,default,True,,1021.4178293291098,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-10-20,2017-11-30,6438.02490234375,ES_SPAN,True,default,True,,1174.3476325780491,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-10-27,2017-12-07,6452.6751708984375,ES_SPAN,True,default,True,,1153.0362561678971,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-11-16,2017-12-08,6464.099731445313,ES_SPAN,True,default,True,,1412.3112412960977,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2017-11-03,2017-12-11,6469.6002197265625,ES_SPAN,True,default,True,,1122.2886057458568,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-11-30,2018-01-03,6618.9501953125,ES_SPAN,True,default,True,,1454.9458409979557,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2017-12-07,2018-01-03,6592.449951171875,ES_SPAN,True,default,True,,1248.612374044312,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-12-14,2018-01-04,6630.0250244140625,ES_SPAN,True,default,True,,1266.282311264993,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2017-12-21,2018-01-19,6711.425170898438,ES_SPAN,True,default,True,,1204.2782996711808,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2018-01-03,2018-01-26,6782.650146484376,ES_SPAN,True,default,True,,1176.141650584156,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2018-01-10,2018-02-21,6870.574951171875,ES_SPAN,True,default,True,,-3215.902988862001,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2018-01-18,2018-02-28,6995.075073242188,ES_SPAN,True,default,True,,-3378.5030793470014,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2018-01-25,2018-03-07,7098.125,ES_SPAN,True,default,True,,-4476.778934661923,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2018-02-01,2018-03-14,7054.949951171875,ES_SPAN,True,default,True,,-1463.1527186354333,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2018-02-26,2018-04-06,6949.000244140625,ES_SPAN,True,default,True,,-6243.073833951859,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2018-03-09,2018-04-19,6966.425170898438,ES_SPAN,True,default,True,,-1287.2213793996366,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2018-05-09,2018-06-06,6744.47509765625,ES_SPAN,True,default,True,,1680.0226474943386,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2018-05-16,2018-06-26,6806.149902343751,ES_SPAN,True,default,True,,709.699271008941,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2018-05-23,2018-07-03,6833.225097656251,ES_SPAN,True,default,True,,-29.036225751474376,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2018-05-31,2018-07-06,6763.175048828126,ES_SPAN,True,default,True,,1940.7840729667969,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2018-06-07,2018-07-18,6925.925292968751,ES_SPAN,True,default,True,,1465.1747462527396,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2018-06-21,2018-07-24,6874.4000244140625,ES_SPAN,True,default,True,,1897.1763516599908,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2018-07-05,2018-07-25,6841.5252685546875,ES_SPAN,True,default,True,,1982.253709745794,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2018-07-12,2018-08-21,6995.725097656251,ES_SPAN,True,default,True,,1602.228151712134,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2018-07-19,2018-08-24,7011.224975585938,ES_SPAN,True,default,True,,1700.4879029449685,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2018-07-26,2018-09-05,7093.599853515626,ES_SPAN,True,default,True,,1329.9674176626183,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2018-08-02,2018-09-12,7068.0499267578125,ES_SPAN,True,default,True,,1491.279045111614,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2018-08-16,2018-09-19,7101.724853515626,ES_SPAN,True,default,True,,1780.1054383963888,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2018-08-24,2018-10-04,7186.724853515625,ES_SPAN,True,default,True,,1028.8142125499917,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2018-09-05,2018-10-15,7221.500244140626,ES_SPAN,True,default,True,,-5323.060894701541,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2018-09-12,2018-10-22,7222.299804687501,ES_SPAN,True,default,True,,-5041.94922640703,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2018-09-19,2018-10-29,7269.8748779296875,ES_SPAN,True,default,True,,-16526.24756820246,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2018-10-03,2018-11-12,7313.775024414063,ES_SPAN,True,default,True,,-10566.330662931445,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2019-01-28,2019-02-13,6609.625244140625,ES_SPAN,True,default,True,,2296.9071305759317,10.716723549488052
+HV_Ladder,HV Ladder (V2f),2019-01-18,2019-02-15,6676.77490234375,ES_SPAN,True,default,True,,2287.9444130402435,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2019-02-04,2019-03-12,6812.17529296875,ES_SPAN,True,default,True,,2025.0562637283535,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2019-02-11,2019-03-12,6774.500122070313,ES_SPAN,True,default,True,,2019.1202528939343,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2019-02-19,2019-03-29,6949.4000244140625,ES_SPAN,True,default,True,,1901.9203059107908,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2019-02-26,2019-04-01,6984.749755859376,ES_SPAN,True,default,True,,1983.003957881779,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2019-03-12,2019-04-05,6978.800048828126,ES_SPAN,True,default,True,,1782.635947060261,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2019-03-19,2019-04-18,7081.4251708984375,ES_SPAN,True,default,True,,1771.6459578651609,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2019-03-29,2019-04-23,7085.999755859375,ES_SPAN,True,default,True,,1789.130179220933,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2019-04-05,2019-05-16,7231.8499755859375,ES_SPAN,True,default,True,,375.21372714459176,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2019-04-12,2019-05-23,7268.524780273438,ES_SPAN,True,default,True,,-2607.500533673567,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2019-04-22,2019-05-31,7269.9249267578125,ES_SPAN,True,default,True,,-6563.071200303466,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2019-04-29,2019-06-07,7357.575073242188,ES_SPAN,True,default,True,,-1204.888541768878,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2019-06-18,2019-07-12,7294.375000000001,ES_SPAN,True,default,True,,2088.669182611821,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2019-06-25,2019-07-12,7293.44970703125,ES_SPAN,True,default,True,,2258.6452867476496,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2019-07-02,2019-08-12,7432.525024414063,ES_SPAN,True,default,True,,-3609.076655174499,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2019-07-10,2019-08-19,7482.6751708984375,ES_SPAN,True,default,True,,-1411.8062481491506,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2019-07-17,2019-08-26,7461.049804687501,ES_SPAN,True,default,True,,-3061.174664192265,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2019-07-24,2019-09-03,7548.900146484375,ES_SPAN,True,default,True,,-4695.146381679865,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2019-09-05,2019-10-15,7440.000000000001,ES_SPAN,True,default,True,,2156.0959435421864,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2019-09-12,2019-10-22,7523.925170898438,ES_SPAN,True,default,True,,1131.0974368343125,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2019-09-26,2019-10-28,7444.05029296875,ES_SPAN,True,default,True,,2217.590939572271,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2019-09-19,2019-10-29,7516.97509765625,ES_SPAN,True,default,True,,1776.6854711483434,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2019-10-11,2019-11-01,7425.675048828126,ES_SPAN,True,default,True,,2204.088421288438,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2019-10-22,2019-11-08,7489.9749755859375,ES_SPAN,True,default,True,,1991.497358638563,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2019-10-29,2019-11-25,7592.224731445313,ES_SPAN,True,default,True,,1867.7890566365063,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2019-11-05,2019-12-13,7686.550292968751,ES_SPAN,True,default,True,,1916.8969764763856,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2019-11-12,2019-12-16,7729.600219726563,ES_SPAN,True,default,True,,1835.443254433146,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2019-11-19,2019-12-20,7800.449829101563,ES_SPAN,True,default,True,,1856.9315445873572,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2019-11-26,2020-01-02,7851.300048828125,ES_SPAN,True,default,True,,1681.1469575698738,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2019-12-11,2020-01-02,7854.074707031251,ES_SPAN,True,default,True,,2217.91636474113,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2019-12-18,2020-01-16,7977.849731445313,ES_SPAN,True,default,True,,1874.8849488192943,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2019-12-26,2020-02-06,8099.774780273438,ES_SPAN,True,default,True,,1799.0390179781857,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2020-01-03,2020-02-11,8087.125244140626,ES_SPAN,True,default,True,,2095.918777160222,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2020-02-03,2020-02-12,8122.299804687501,ES_SPAN,True,default,True,,2743.1827955178846,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2020-01-10,2020-02-21,8163.375244140626,ES_SPAN,True,default,True,,1280.7632359188349,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2020-01-17,2020-02-28,8324.05029296875,ES_SPAN,True,default,True,,-28016.031699802763,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2020-02-11,2020-03-09,8394.375,ES_SPAN,True,default,True,,-48831.21420289109,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2020-02-19,2020-03-09,8465.374755859375,ES_SPAN,True,default,True,,-52967.05167177911,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2020-04-27,2020-05-27,7196.199951171876,ES_SPAN,True,default,True,,4682.503215183536,29.817974971558588
+HV_Ladder,HV Ladder (V2f),2020-05-04,2020-05-27,7106.8499755859375,ES_SPAN,True,default,True,,5059.4261482061665,29.817974971558588
+HV_Ladder,HV Ladder (V2f),2020-05-11,2020-06-05,7325.474853515625,ES_SPAN,True,default,True,,4036.4918726482992,25.904436860068255
+HV_Ladder,HV Ladder (V2f),2020-05-18,2020-06-05,7384.7747802734375,ES_SPAN,True,default,True,,4213.224224613343,25.904436860068255
+HV_Ladder,HV Ladder (V2f),2020-05-27,2020-07-07,7590.32470703125,ES_SPAN,True,default,True,,3588.2360729532993,25.904436860068255
+HV_Ladder,HV Ladder (V2f),2020-06-03,2020-07-14,7807.175292968751,ES_SPAN,True,default,True,,2884.707795174796,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2020-06-17,2020-07-17,7783.7249755859375,ES_SPAN,True,default,True,,5006.674462532723,-12.081911262798638
+HV_Ladder,HV Ladder (V2f),2020-06-10,2020-07-21,7975.3497314453125,ES_SPAN,True,default,True,,4013.3393559383735,-12.081911262798638
+HV_Ladder,HV Ladder (V2f),2020-07-01,2020-07-31,7789.6502685546875,ES_SPAN,True,default,True,,4250.652512408918,25.904436860068255
+HV_Ladder,HV Ladder (V2f),2020-07-14,2020-08-06,7993.800048828126,ES_SPAN,True,default,True,,4591.182007171406,25.904436860068255
+HV_Ladder,HV Ladder (V2f),2020-07-28,2020-08-18,8046.099853515625,ES_SPAN,True,default,True,,3842.020621436493,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2020-07-21,2020-08-21,8143.250122070313,ES_SPAN,True,default,True,,3818.390647217001,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2020-08-04,2020-09-14,8266.275024414062,ES_SPAN,True,default,True,,3088.753338935635,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2020-08-11,2020-09-21,8334.224853515625,ES_SPAN,True,default,True,,984.8534289688928,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2020-08-18,2020-09-28,8474.450073242188,ES_SPAN,True,default,True,,698.277674414453,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2020-08-25,2020-10-05,8609.05029296875,ES_SPAN,True,default,True,,511.5244929271285,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2020-09-09,2020-10-19,8497.39990234375,ES_SPAN,True,default,True,,3635.6381496807617,-12.081911262798638
+HV_Ladder,HV Ladder (V2f),2020-10-05,2020-11-10,8521.500244140625,ES_SPAN,True,default,True,,4551.758659895407,-12.081911262798638
+HV_Ladder,HV Ladder (V2f),2020-10-20,2020-11-13,8607.80029296875,ES_SPAN,True,default,True,,4800.597582239368,-12.081911262798638
+HV_Ladder,HV Ladder (V2f),2020-10-12,2020-11-19,8835.549926757812,ES_SPAN,True,default,True,,3811.804640457075,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2020-11-04,2020-11-24,8608.599853515625,ES_SPAN,True,default,True,,5033.487200791912,-12.081911262798638
+HV_Ladder,HV Ladder (V2f),2020-11-11,2020-12-17,8931.649780273438,ES_SPAN,True,default,True,,3943.16985953746,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2020-11-18,2020-12-24,8919.47509765625,ES_SPAN,True,default,True,,4028.813807294048,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2020-11-25,2021-01-07,9074.124755859375,ES_SPAN,True,default,True,,3647.6712422093615,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2020-12-03,2021-01-14,9166.799926757812,ES_SPAN,True,default,True,,3403.1857669585975,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2020-12-17,2021-01-29,9306.199951171875,ES_SPAN,True,default,True,,-460.2333839220137,10.716723549488052
+HV_Ladder,HV Ladder (V2f),2020-12-24,2021-02-04,9257.650146484375,ES_SPAN,True,default,True,,3758.9476956419703,10.716723549488052
+HV_Ladder,HV Ladder (V2f),2021-01-07,2021-02-12,9509.47509765625,ES_SPAN,True,default,True,,4022.348302462799,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2021-02-01,2021-02-12,9434.650268554688,ES_SPAN,True,default,True,,5617.2965487993115,-12.081911262798638
+HV_Ladder,HV Ladder (V2f),2021-01-14,2021-02-24,9488.850097656252,ES_SPAN,True,default,True,,4181.373769319276,24.28896473265074
+HV_Ladder,HV Ladder (V2f),2021-02-08,2021-03-19,9788.975219726564,ES_SPAN,True,default,True,,2831.804249291804,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2021-02-16,2021-03-26,9831.475219726562,ES_SPAN,True,default,True,,3703.302266988897,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2021-02-23,2021-03-31,9703.425292968752,ES_SPAN,True,default,True,,4220.3462658449835,23.37883959044368
+HV_Ladder,HV Ladder (V2f),2021-03-02,2021-04-01,9675.72509765625,ES_SPAN,True,default,True,,4696.712670298037,23.37883959044368
+HV_Ladder,HV Ladder (V2f),2021-03-16,2021-04-09,9906.77490234375,ES_SPAN,True,default,True,,3709.84203452164,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2021-03-26,2021-04-15,9936.35009765625,ES_SPAN,True,default,True,,3475.923081217488,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2021-04-05,2021-05-07,10194.774780273438,ES_SPAN,True,default,True,,3451.3599239236273,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2021-04-12,2021-05-20,10319.9755859375,ES_SPAN,True,default,True,,1733.337420839155,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2021-04-19,2021-05-27,10408.149414062502,ES_SPAN,True,default,True,,2869.662130748662,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2021-04-26,2021-06-04,10469.050292968752,ES_SPAN,True,default,True,,3104.9239833319916,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2021-05-07,2021-06-17,10581.500244140625,ES_SPAN,True,default,True,,1874.8886115584469,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2021-05-20,2021-06-23,10397.80029296875,ES_SPAN,True,default,True,,4032.654289638765,17.428896473265073
+HV_Ladder,HV Ladder (V2f),2021-05-27,2021-07-02,10502.19970703125,ES_SPAN,True,default,True,,3407.451131570325,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2021-06-04,2021-07-12,10574.725341796875,ES_SPAN,True,default,True,,3235.010912212516,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2021-06-17,2021-07-23,10554.649658203125,ES_SPAN,True,default,True,,3589.2793574524903,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2021-06-24,2021-08-04,10666.2255859375,ES_SPAN,True,default,True,,2959.3208755225987,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2021-07-02,2021-08-12,10880.849609375,ES_SPAN,True,default,True,,2915.23843451462,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2021-07-12,2021-08-19,10961.57470703125,ES_SPAN,True,default,True,,1002.3980271120422,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2021-07-23,2021-09-01,11029.475097656252,ES_SPAN,True,default,True,,3553.790966385432,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2021-08-04,2021-09-14,11006.650390625,ES_SPAN,True,default,True,,2707.526328033157,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2021-08-12,2021-09-22,11152.0751953125,ES_SPAN,True,default,True,,-885.0548461491144,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2021-08-19,2021-09-29,11014.49951171875,ES_SPAN,True,default,True,,2284.599117633809,17.428896473265073
+HV_Ladder,HV Ladder (V2f),2021-09-01,2021-10-12,11310.224609375002,ES_SPAN,True,default,True,,-3582.747279190528,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2021-09-15,2021-10-21,11201.75048828125,ES_SPAN,True,default,True,,3746.903854167744,17.428896473265073
+HV_Ladder,HV Ladder (V2f),2021-10-18,2021-11-16,11216.14990234375,ES_SPAN,True,default,True,,3438.2438020503714,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2021-10-25,2021-12-03,11416.199951171877,ES_SPAN,True,default,True,,-4401.20200107674,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2021-11-01,2021-12-10,11534.174804687502,ES_SPAN,True,default,True,,2921.659328008741,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2021-11-08,2021-12-17,11754.25048828125,ES_SPAN,True,default,True,,-472.9072101378506,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2021-12-06,2021-12-23,11479.1748046875,ES_SPAN,True,default,True,,6071.02840185855,-12.081911262798638
+HV_Ladder,HV Ladder (V2f),2021-11-16,2021-12-28,11752.249755859375,ES_SPAN,True,default,True,,3070.474011265429,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2021-12-13,2022-01-24,11672.425537109377,ES_SPAN,True,default,True,,-8286.931177546523,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2021-12-22,2022-02-02,11741.400146484375,ES_SPAN,True,default,True,,-425.4354991917353,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2021-12-30,2022-02-09,11946.824951171875,ES_SPAN,True,default,True,,-3089.6031113788013,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2022-01-11,2022-02-22,11782.674560546875,ES_SPAN,True,default,True,,-17707.057192320484,10.716723549488052
+HV_Ladder,HV Ladder (V2f),2022-03-22,2022-05-02,11279.024658203125,ES_SPAN,True,default,True,,-11722.450882851786,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2022-03-29,2022-05-09,11579.000244140625,ES_SPAN,True,default,True,,-36356.145391727514,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2022-04-05,2022-05-16,11312.800292968752,ES_SPAN,True,default,True,,-21685.5480475695,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2022-04-19,2022-05-27,11155.524902343752,ES_SPAN,True,default,True,,-7556.229628034203,17.428896473265073
+HV_Ladder,HV Ladder (V2f),2022-07-20,2022-08-10,9899.749755859375,ES_SPAN,True,default,True,,4661.694171819838,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2022-07-27,2022-08-12,10059.02526855469,ES_SPAN,True,default,True,,4486.350928550661,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2022-08-03,2022-09-13,10387.9248046875,ES_SPAN,True,default,True,,-4531.912379849666,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2022-08-10,2022-09-20,10525.6005859375,ES_SPAN,True,default,True,,-12997.827338713432,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2022-08-17,2022-09-27,10685.10009765625,ES_SPAN,True,default,True,,-34366.61941001447,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2022-08-24,2022-10-04,10351.925048828125,ES_SPAN,True,default,True,,-10682.820449853,23.37883959044368
+HV_Ladder,HV Ladder (V2f),2022-09-12,2022-10-20,10276.025390625,ES_SPAN,True,default,True,,-15771.483282130044,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2022-10-28,2022-11-30,9752.650146484377,ES_SPAN,True,default,True,,4966.2508067484805,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2022-11-10,2022-12-21,9890.925292968752,ES_SPAN,True,default,True,,2951.1511405980627,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2022-11-17,2022-12-29,9866.400146484375,ES_SPAN,True,default,True,,2391.5140994359263,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2022-11-25,2023-01-06,10065.30029296875,ES_SPAN,True,default,True,,24.91499455070425,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2022-12-02,2023-01-13,10179.249877929688,ES_SPAN,True,default,True,,1637.1074396161362,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2023-01-11,2023-02-02,9924.025268554688,ES_SPAN,True,default,True,,3928.026129869525,10.716723549488052
+HV_Ladder,HV Ladder (V2f),2023-01-20,2023-03-02,9931.525268554688,ES_SPAN,True,default,True,,2799.1600120448365,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2023-01-27,2023-03-09,10176.400146484375,ES_SPAN,True,default,True,,-2492.7551919510847,10.716723549488052
+HV_Ladder,HV Ladder (V2f),2023-02-03,2023-03-16,10341.199951171877,ES_SPAN,True,default,True,,-3617.3225504371544,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2023-02-10,2023-03-23,10226.14990234375,ES_SPAN,True,default,True,,-790.8271438962402,17.428896473265073
+HV_Ladder,HV Ladder (V2f),2023-03-03,2023-04-13,10114.099731445312,ES_SPAN,True,default,True,,3389.412824927365,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2023-03-31,2023-05-11,10273.275146484375,ES_SPAN,True,default,True,,3148.991083621041,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2023-04-10,2023-05-18,10272.774658203125,ES_SPAN,True,default,True,,3709.96374553265,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2023-04-17,2023-05-25,10378.299560546875,ES_SPAN,True,default,True,,1719.949910407183,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2023-04-24,2023-06-02,10342.60009765625,ES_SPAN,True,default,True,,3466.0549082429243,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2023-05-08,2023-06-02,10345.30029296875,ES_SPAN,True,default,True,,3263.4931027272473,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2023-05-25,2023-06-08,10378.199462890627,ES_SPAN,True,default,True,,3771.850371570767,17.428896473265073
+HV_Ladder,HV Ladder (V2f),2023-05-18,2023-06-13,10495.124511718752,ES_SPAN,True,default,True,,3106.286402028067,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2023-06-02,2023-06-30,10705.92529296875,ES_SPAN,True,default,True,,2917.6463012551094,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2023-06-09,2023-07-12,10747.149658203125,ES_SPAN,True,default,True,,2787.2391201947053,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2023-06-26,2023-07-17,10822.049560546875,ES_SPAN,True,default,True,,2845.1925535515584,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2023-06-16,2023-07-25,11023.974609375,ES_SPAN,True,default,True,,2773.2018624186394,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2023-07-03,2023-08-11,11138.974609375,ES_SPAN,True,default,True,,1681.8481782763115,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2023-07-12,2023-08-21,11180.400390625,ES_SPAN,True,default,True,,-853.212202126565,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2023-07-19,2023-08-28,11414.300537109375,ES_SPAN,True,default,True,,-1645.7229542343723,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2023-07-26,2023-09-05,11416.875,ES_SPAN,True,default,True,,319.52600105606734,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2023-08-09,2023-09-19,11169.27490234375,ES_SPAN,True,default,True,,2507.18215865586,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2023-08-29,2023-10-09,11244.074707031252,ES_SPAN,True,default,True,,-3519.9578278137324,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2023-09-14,2023-10-24,11262.750244140625,ES_SPAN,True,default,True,,-10741.44648135108,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2023-11-08,2023-11-24,10956.949462890625,ES_SPAN,True,default,True,,2944.656107747599,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2023-11-15,2023-12-12,11257.19970703125,ES_SPAN,True,default,True,,3000.052943573806,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2023-11-22,2023-12-18,11391.55029296875,ES_SPAN,True,default,True,,2709.747565924795,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2023-11-30,2023-12-19,11419.49951171875,ES_SPAN,True,default,True,,2698.22817119707,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2023-12-07,2023-12-27,11463.974609375,ES_SPAN,True,default,True,,2745.562790885475,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2023-12-14,2024-01-23,11798.87451171875,ES_SPAN,True,default,True,,2724.4723182360985,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2023-12-21,2024-01-26,11866.875,ES_SPAN,True,default,True,,2957.8833169375685,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2023-12-29,2024-02-06,11924.5751953125,ES_SPAN,True,default,True,,2820.8717180474664,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2024-01-08,2024-02-06,11908.85009765625,ES_SPAN,True,default,True,,2873.3859229037707,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2024-01-23,2024-02-23,12161.500244140627,ES_SPAN,True,default,True,,2849.014949023271,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2024-01-30,2024-03-01,12312.425537109375,ES_SPAN,True,default,True,,3141.722207911674,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2024-02-13,2024-03-01,12382.9248046875,ES_SPAN,True,default,True,,3653.685174683579,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2024-02-06,2024-03-12,12385.574951171875,ES_SPAN,True,default,True,,3075.202976310345,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2024-02-23,2024-03-27,12721.99951171875,ES_SPAN,True,default,True,,3302.3651546973724,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2024-03-01,2024-04-11,12842.7001953125,ES_SPAN,True,default,True,,2312.1535434680595,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2024-03-08,2024-04-18,12809.224853515625,ES_SPAN,True,default,True,,-1342.6073558303642,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2024-03-15,2024-04-25,12792.724609375,ES_SPAN,True,default,True,,817.780038412775,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2024-03-27,2024-05-07,13121.2255859375,ES_SPAN,True,default,True,,893.6646286082123,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2024-04-11,2024-05-15,12997.650146484375,ES_SPAN,True,default,True,,3631.18590703844,-13.549488054607508
+HV_Ladder,HV Ladder (V2f),2024-05-06,2024-06-05,12951.850585937502,ES_SPAN,True,default,True,,3280.678499410007,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2024-05-13,2024-06-12,13053.5498046875,ES_SPAN,True,default,True,,3443.466198208796,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2024-05-20,2024-06-26,13270.32470703125,ES_SPAN,True,default,True,,3000.050440639791,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2024-05-28,2024-06-27,13265.10009765625,ES_SPAN,True,default,True,,3188.870661220028,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2024-06-05,2024-07-03,13385.074462890625,ES_SPAN,True,default,True,,3114.2929729653047,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2024-06-12,2024-07-16,13552.574462890627,ES_SPAN,True,default,True,,3060.956160536676,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2024-06-26,2024-08-06,13694.749755859377,ES_SPAN,True,default,True,,-14457.04054190669,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2024-07-03,2024-08-13,13842.550048828125,ES_SPAN,True,default,True,,-3322.4344238263257,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2024-07-11,2024-08-20,13961.35009765625,ES_SPAN,True,default,True,,1356.2515434230818,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2024-07-18,2024-08-27,13861.474609375,ES_SPAN,True,default,True,,3760.56096415586,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2024-08-15,2024-09-24,13858.050537109375,ES_SPAN,True,default,True,,3967.167518802591,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2024-08-22,2024-09-24,13926.600341796877,ES_SPAN,True,default,True,,4537.564962274962,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2024-08-29,2024-10-09,13979.899902343752,ES_SPAN,True,default,True,,3289.796613890002,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2024-09-11,2024-10-16,13885.32470703125,ES_SPAN,True,default,True,,4564.692387969157,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2024-09-24,2024-11-01,14332.325439453127,ES_SPAN,True,default,True,,71.49895725449369,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2024-10-01,2024-11-06,14271.875,ES_SPAN,True,default,True,,5416.553583529196,17.428896473265073
+HV_Ladder,HV Ladder (V2f),2024-10-09,2024-11-06,14480.10009765625,ES_SPAN,True,default,True,,5614.943481984864,17.428896473265073
+HV_Ladder,HV Ladder (V2f),2024-10-16,2024-11-08,14606.175537109377,ES_SPAN,True,default,True,,5323.619650534081,10.716723549488052
+HV_Ladder,HV Ladder (V2f),2024-10-30,2024-11-13,14534.174804687502,ES_SPAN,True,default,True,,5659.5519268213675,10.716723549488052
+HV_Ladder,HV Ladder (V2f),2024-11-06,2024-12-04,14822.600097656252,ES_SPAN,True,default,True,,4459.52764226237,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2024-11-20,2024-12-06,14792.774658203127,ES_SPAN,True,default,True,,4739.77859515615,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2024-11-13,2024-12-24,14963.44970703125,ES_SPAN,True,default,True,,3192.2521929308346,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2024-11-27,2025-01-10,14996.8505859375,ES_SPAN,True,default,True,,-4530.072890932161,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2024-12-05,2025-01-17,15187.774658203125,ES_SPAN,True,default,True,,16.037415880509798,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2024-12-12,2025-01-27,15128.125,ES_SPAN,True,default,True,,212.71530899564368,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2024-12-24,2025-02-06,15100.10009765625,ES_SPAN,True,default,True,,2837.49500758405,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2025-01-21,2025-03-03,15123.100585937502,ES_SPAN,True,default,True,,-6594.598236389902,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2025-01-28,2025-03-10,15169.25048828125,ES_SPAN,True,default,True,,-20878.94539634897,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2025-02-05,2025-03-18,15153.699951171877,ES_SPAN,True,default,True,,-17692.922305530214,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2025-02-12,2025-03-25,15129.925537109375,ES_SPAN,True,default,True,,-5070.557780885838,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2025-05-02,2025-05-16,14216.6748046875,ES_SPAN,True,default,True,,6179.661776293205,28.407281001137655
+HV_Ladder,HV Ladder (V2f),2025-05-09,2025-05-16,14149.775390625002,ES_SPAN,True,default,True,,5792.023290796476,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2025-05-23,2025-06-10,14507.049560546875,ES_SPAN,True,default,True,,6081.689233232657,24.28896473265074
+HV_Ladder,HV Ladder (V2f),2025-05-16,2025-06-26,14895.94970703125,ES_SPAN,True,default,True,,4821.378350866422,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2025-06-02,2025-06-27,14839.849853515625,ES_SPAN,True,default,True,,5031.56481106048,17.428896473265073
+HV_Ladder,HV Ladder (V2f),2025-06-09,2025-07-09,15014.69970703125,ES_SPAN,True,default,True,,4837.779422248326,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2025-06-16,2025-07-09,15082.774658203127,ES_SPAN,True,default,True,,5310.788116142046,10.716723549488052
+HV_Ladder,HV Ladder (V2f),2025-06-26,2025-07-25,15352.550048828127,ES_SPAN,True,default,True,,4835.076261087295,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2025-07-03,2025-08-12,15698.375244140627,ES_SPAN,True,default,True,,4873.838833934977,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2025-07-11,2025-08-12,15649.375,ES_SPAN,True,default,True,,4723.462662980879,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2025-07-18,2025-08-22,15741.975097656252,ES_SPAN,True,default,True,,4900.827271032714,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2025-07-25,2025-09-04,15971.600341796875,ES_SPAN,True,default,True,,4020.234527507273,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2025-08-08,2025-09-17,15973.625488281252,ES_SPAN,True,default,True,,4439.725882396204,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2025-08-15,2025-09-25,16124.49951171875,ES_SPAN,True,default,True,,4050.2689319642113,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2025-08-22,2025-10-02,16167.275390625002,ES_SPAN,True,default,True,,4177.025756980231,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2025-09-04,2025-10-14,16255.2001953125,ES_SPAN,True,default,False,R2_es_span_cap,2815.8466461027388,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2025-09-17,2025-10-27,16500.87524414063,ES_SPAN,True,default,False,R2_es_span_cap,5052.133771071283,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2025-09-25,2025-10-27,16511.80053710938,ES_SPAN,True,default,False,R2_es_span_cap,5222.498667194202,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2025-10-02,2025-11-11,16788.37524414063,ES_SPAN,True,default,False,R2_es_span_cap,4678.94905133233,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2025-10-14,2025-11-11,16610.77514648438,ES_SPAN,True,default,False,R2_es_span_cap,6380.4686272916515,17.428896473265073
+HV_Ladder,HV Ladder (V2f),2025-10-27,2025-12-05,17187.900390625,ES_SPAN,True,default,False,R2_es_span_cap,3612.3962368136745,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2025-11-03,2025-12-12,17129.925537109375,ES_SPAN,True,default,True,,4130.204254113414,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2025-11-11,2025-12-22,17116.52465820313,ES_SPAN,True,default,False,R2_es_span_cap,5234.008751793653,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2025-11-26,2026-01-06,17031.524658203125,ES_SPAN,True,default,True,,5439.150934068437,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2025-12-05,2026-01-16,17175.999755859375,ES_SPAN,True,default,False,R2_es_span_cap,4025.926027040543,-7.701934015927186
+HV_Ladder,HV Ladder (V2f),2025-12-12,2026-01-26,17068.525390625,ES_SPAN,True,default,False,R2_es_span_cap,4483.568128210459,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2025-12-22,2026-02-03,17196.2255859375,ES_SPAN,True,default,False,R2_es_span_cap,1899.456812696576,-13.014789533560863
+HV_Ladder,HV Ladder (V2f),2026-01-06,2026-02-17,17362.049560546875,ES_SPAN,True,default,False,R2_es_span_cap,-1866.802077532816,-13.09442548350398
+HV_Ladder,HV Ladder (V2f),2026-01-16,2026-02-27,17350.0244140625,ES_SPAN,True,default,False,R2_es_span_cap,473.05410357289475,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2026-01-26,2026-03-06,17375.574951171875,ES_SPAN,True,default,False,R2_es_span_cap,-10435.604382366091,28.304891922639356
+HV_Ladder,HV Ladder (V2f),2026-02-03,2026-03-16,17294.525146484375,ES_SPAN,True,default,False,R2_es_span_cap,-4124.204623916262,16.302616609783847
+HV_Ladder,HV Ladder (V2f),2026-02-25,2026-04-07,17365.32470703125,ES_SPAN,True,default,True,,-10088.444505658072,15.028441410693963
+HV_Ladder,HV Ladder (V2f),2026-04-13,2026-05-01,17215.6005859375,ES_SPAN,True,default,True,,6107.593237206993,16.302616609783847

@@ -1,0 +1,7 @@
+split,stress_sleeve,n_entries,pct_with_hv_active,hv_slots_median,hv_slots_p75,hv_slots_max,hv_contracts_median,hv_avg_age_median_days,hv_bp_pct_median,hv_bp_pct_p75,hv_bp_pct_max
+full,DD_Overlay,40,90.0,4.0,4.0,4,4.0,23.6,23.07,39.69,60.58
+full,Aftermath,90,75.6,2.0,4.0,5,2.0,21.8,8.99,19.81,55.36
+post2020,DD_Overlay,18,88.9,3.5,4.0,4,3.5,23.9,41.77,46.97,60.58
+post2020,Aftermath,39,74.4,2.0,4.0,5,2.0,23.5,22.3,34.66,55.36
+recent2y,DD_Overlay,8,87.5,3.0,4.0,4,3.0,26.0,48.43,52.63,60.58
+recent2y,Aftermath,6,66.7,1.5,2.0,4,1.5,30.0,26.01,34.66,55.36

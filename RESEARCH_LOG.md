@@ -1,7 +1,63 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-14 (Q071 2nd Quant review 落地 + memo 修订完成。策略正式命名为 "ES High-Vol Sell Put Ladder"。Promote level：DRAFT SPEC + paper/shadow/small-cell，非立即 production。STOP=15 改为 "unused historical safeguard"；bootstrap sig 加 production fragility caveat；review obligation 改为 12mo AND ≥10 entries OR 24mo；Q072 IVP 增量判别为 OPTIONAL post-SPEC)
+Last Updated: 2026-05-15 (Q072 CLOSED — APPROVED with SPEC-103 proposal. Sleeve global evaluation 完整 6 阶段 P1-P4 + 2 轮 2nd Quant review。**Final verdict**: Augmented Default Cap (R1-R4 默认 + R5 stress episode SPX cap → 60% + R6 second-leg short-vol absolute block)。**Do not implement priority allocator** (19y ≡ FCFS) **/ static per-sleeve cap** (destroys $102k P&L)。SPEC-103 提议待 PM 批准。Deferred: P4B /ES rerun + P4C.7 full synthetic stress at Q071 lock)
 Owner: Planner or PM
+
+### R-20260515-01 — Q072: Sleeve Global Evaluation — P1-P3 完成，P4 启动
+
+- Topic: 三个 sleeve（Drawdown Overlay / Aftermath / HV Ladder）都在 high-vol / drawdown 时启动；评估组合层 BP 竞争、入场后回撤、co-loss、blocked entry，给出 priority allocator / sleeve cap / governance 建议。直接 follow-up Q050 portfolio-level shared-BP governance research seed
+- Method:
+  - 两轮 2nd Quant design review (PASS w/ revisions, both)：升级为 episode-level、Greek path 全 19y 重建（deferred）、blocked-entry counterfactual、scenario decomposition、P4C 改 eligibility-first + global rank-percentile + shrinkage + walk-forward + 合成 stress test
+  - P1: 71 个 tight stress episodes（VIX≥22 OR ddATH≥4% OR DD/Aftermath fires，排除 HV Ladder 结构性 always-on）+ 4-state daily flags + capital stack by pool（SPX PM / /ES SPAN / combined）
+  - P2: DD Overlay vs Aftermath entry feature comparison（VIX / VIX slope / ddATH / IVP / SPX 20d return）+ HV Ladder background-state overlay（DD/Aftermath 入场时 HV 已积累多少 short-put inventory），分 full / post-2020 / recent2y 三 split
+  - P3.1: 40 DD trades + 90 Aftermath windows 入场后路径（1/3/5/10/20d + MAE/MFE），按 HV BP at entry 桶分（low<20 / mid20-40 / heavy>40）
+  - P3.3: 4×4 daily P&L 相关矩阵（main / aftermath / dd / hv），4 个条件切片：all / stress / worst-5% portfolio / HV>40%；co-loss lift ratio
+  - P3.4: 71 episodes 分类（fast_recovery / sideways_crush / second_leg_selloff / pure_vol_spike）+ 每类 sleeve aggregate P&L
+  - P3.5: 2025-11-17 case study（P1 peak combined BP 榜首 62.78%）full path reconstruction
+- Findings:
+  - **HV Ladder 重分类**：active 65.5% of 19y days，不是 stress-period sleeve，是结构性持续 short-vol engine。Q072 后续口径全部按此调整
+  - **DD Overlay vs Aftermath 不冗余**：DD 在 VIX rising / shallow drawdown 触发（median VIX 22.6，slope +5.04），Aftermath 在 VIX post-peak / deeper drawdown（median VIX 29.4，slope +2.14）。4/5 features KS p<0.05。但 post-2020 收敛，只 VIX 显著
+  - **DD 触发时 HV 已重仓在场**：full sample HV BP median 23%，post-2020 **41.8%**，recent2y **48.4%**——理论 long-gamma × short-vol "互保"在当前规模严重不平衡（DD sizing 10% vs HV 40-50%）
+  - **Post-2020 sleeve co-loss lift 2-6x**（vs 独立基线 1.0x）：HV worst→aftermath 6.32x；main worst→HV 2.96x；DD worst→HV 2.26x。**"Greek 反向 → 分散"假设在 worst tail 不成立**
+  - **2022 second-leg backtest 暴露真实尾部**：单年组合 -$162k（HV Ladder -$158k 主导）；worst 20d -$80k。caveat：2022 期间 DD Overlay 与 HV Ladder 都未实际部署，是事后重放
+  - **19y 内无 "4-sleeve + 真实 second-leg" 实样本**：5/6 个 4-sleeve episode 全部 post-2020 V-shape recovery；2008/2022 真正 second-leg 期间 sleeve 都未部署。**历史 backtest 无法直接回答"当前架构在 2022-style stress 中会怎样"——必须靠 P4C.7 合成 stress test**
+  - **2025-11-17 case**：peak combined BP 62.78% 发生在 episode 收尾（12-22），不是 stress 高峰；所有 sleeve 同向盈利（fast-recovery V-shape）；Aftermath 未触发（符合 Q070）；cap 70% 不挡任何 entry——简单 cap 在 fast-recovery 场景无价值
+- Verdict: **P4 MUST LAUNCH**。PM 设的 5 个 P4 启动条件 3 个明确触发（post-2020 co-loss 显著 / second-leg multi-sleeve same-direction loss / worst-5% DD×HV positive corr），2 个被 V-shape 样本盲区"反向"但不能解读为安全
+- Recommendation:
+  - 立即启动 P4A SPX PM pool ablation（Main / +DD / +Aftermath permission / +both，3 splits）
+  - P4B /ES pool 等 Q071 final config lock 后重跑
+  - P4C 全套：eligibility filter (含 marginal CVaR) + global rank-percentile priority + shrinkage + walk-forward (2007-2018 train / 2019-2026 test) + 5 个对照组（含 static cap）+ blocked-entry counterfactual
+  - **新增 P4C.7 合成 stress test**：用 2008-09 / 2022 SPX/VIX path 重放，inject 当前 sleeve pack 配置，跑 4 个 ablation 组的 backtest，补充历史 N=0 样本
+  - P3.2 Greek 全 19y 重建 deferred to post-Q071 lock；P3 结论方向 robust
+- Confidence: 中高（P1-P3 结构性结论 robust；尾部统计样本受限是 caveat 而非弱点——这本身是发现）
+- Caveats:
+  - Linear-distribution daily P&L 近似（real MTM 在 P3.2 后做，会放大 worst-5% lift 但方向不变）
+  - DD Overlay / HV Ladder 19y backtest 是事后重放——实际 production 部署 2026-05 (DD) / TBD (HV)
+  - HV Ladder 用 V2f filtered placeholder，Q071 final lock 后须重跑 P3/P4 的 HV 相关部分
+- Next: P4A 立即启动；P4 全套 ~5-6 工作日
+- Related: SPEC-094 (DD Overlay), SPEC-064 (Aftermath), Q071 (HV Ladder / ES High-Vol Sell Put Ladder), Q050 (portfolio-level shared-BP governance — Q072 是其首次落到具体数据的 follow-up)
+- Output:
+  ```
+  research/q072/q072_research_brief_2026-05-15.md
+  research/q072/q072_p1_findings_2026-05-15.md
+  research/q072/q072_p2_findings_2026-05-15.md
+  research/q072/q072_p3_findings_2026-05-15.md
+  research/q072/q072_p3_5_case_2025_11_17.md
+  research/q072/q072_p1_episode_detection.py + 5 CSVs
+  research/q072/q072_p2_entry_profile.py + 5 CSVs
+  research/q072/q072_p3_1_post_entry_path.py + 3 CSVs
+  research/q072/q072_p3_3_coloss_matrix.py + 3 CSVs
+  research/q072/q072_p3_4_scenario_decomposition.py + 2 CSVs
+  research/q072/q072_hv_ladder_v2f_baseline_trades.csv (557 V2f filtered placeholder)
+  task/q072_sleeve_global_eval_design_review_2026-05-15.md + _Review.md
+  task/q072_priority_scoring_2nd_quant_review_packet_2026-05-15.md + _Review.md
+  ```
+
+**Update 2026-05-15 (P4A completed)**: SPX PM pool ablation shows DD Overlay is a material post-2020 alpha contributor (+$83k / +4.5pp Ann ROE post-2020; +$54k / +9.3pp recent2y), Aftermath remains positive but low recent marginal value (+$3.5k / +0.7pp recent2y), and DD+Aftermath are broadly additive in average P&L (D ≈ B + C). However, peak BP rises 57% → 67.9% and worst-20d worsens by ~$4.4k, confirming that average ablation does **not** resolve stress-path risk. Proceeding to P4B framework and P4C.0 eligibility filter. See `research/q072/q072_p4a_findings_2026-05-15.md`.
+
+**Update 2026-05-15 (Q072 CLOSED — APPROVED with SPEC-103 proposal)**: P4C.0–P4C.6 + closure complete. Key findings: (1) **Priority allocator ≡ FCFS in 19y simulation**——4 个非 static-cap allocator (main-first / sleeve-first / FCFS / priority) 给出完全一致的 total P&L $742k / max DD -$175k / Sharpe 3.36，因为 sleeve cadence 自然错开，无 BP 竞争实例。(2) **Static per-sleeve cap 反而减少 $102k P&L 且未改善 max DD**——destroys winners without protecting tail. (3) **R6 second-leg block 是真正高价值规则**——19y 仅 fire 26 天，但 2022 stress B_tight 比 default 减少 $11.6k 组合损失。(4) Walk-forward Spearman 0.704 (borderline overfit) — moot 因为 priority allocator 无价值。**Final verdict**: Augmented Default Cap（R1-R4 默认 + R5 stress episode SPX cap reduce to 60% + R6 second-leg short-vol absolute block）。**Do not implement priority allocator. Do not implement static per-sleeve caps.** Proposed **SPEC-103: Global Sleeve Stress Governance**（详见 `task/SPEC-103.md`，待 PM 批准）。Deferred validation: P4B /ES pool rerun + P4C.7 full synthetic stress test (2008/2022 inject sleeve pack)，待 Q071 HV Ladder final config lock 后做，但不阻塞 SPEC-103 closure。Q072 final memo: `research/q072/q072_final_memo_2026-05-15.md`. 2 rounds 2nd Quant review both PASS w/ revisions, final verdict APPROVE.
+
+---
 
 ### R-20260513-10 — Q070: Aftermath Peak VIX Threshold Sensitivity Sweep
 

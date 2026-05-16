@@ -1,0 +1,4 @@
+pool,avg_bp_pct,P90_bp_pct,P95_bp_pct,peak_bp_pct,peak_during_stress,days_gt_30pct,days_gt_40pct,days_gt_50pct
+SPX_PM_pool,16.53,30.0,41.7,67.9,67.9,403,274,63
+ES_pool,20.61,45.15,55.36,86.58,85.64,1144,741,349
+combined_economic,18.57,33.28,39.62,62.78,62.78,700,230,22

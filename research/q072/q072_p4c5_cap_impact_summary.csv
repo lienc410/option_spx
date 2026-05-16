@@ -1,0 +1,11 @@
+cap_config,split,n_total,n_passed,n_blocked,block_pct,missed_pnl,avoided_worst_trade,blocker_breakdown
+default,full,877,859,18,2.1,34942.0,-10436.0,"{'R2_es_span_cap': 14, 'R6_second_leg_short_vol_block': 2, 'R5_stress_episode_cap': 2}"
+default,post2020,317,300,17,5.4,33595.0,-10436.0,"{'R2_es_span_cap': 14, 'R5_stress_episode_cap': 2, 'R6_second_leg_short_vol_block': 1}"
+default,recent2y,127,112,15,11.8,28658.0,-10436.0,"{'R2_es_span_cap': 14, 'R5_stress_episode_cap': 1}"
+default,stress_2008,62,61,1,1.6,1347.0,1347.0,{'R6_second_leg_short_vol_block': 1}
+default,stress_2022,37,36,1,2.7,1807.0,1807.0,{'R6_second_leg_short_vol_block': 1}
+B_tight,full,877,788,89,10.1,131181.0,-20879.0,"{'R2_es_span_cap': 44, 'R4_short_vol_cap': 23, 'R5_stress_episode_cap': 11, 'R3_combined_economic_cap': 8, 'R1_spx_pm_pool_cap': 2, 'R6_second_leg_short_vol_block': 1}"
+B_tight,post2020,317,236,81,25.6,118376.0,-20879.0,"{'R2_es_span_cap': 44, 'R4_short_vol_cap': 23, 'R3_combined_economic_cap': 8, 'R5_stress_episode_cap': 4, 'R1_spx_pm_pool_cap': 2}"
+B_tight,recent2y,127,75,52,40.9,57413.0,-20879.0,"{'R2_es_span_cap': 44, 'R3_combined_economic_cap': 4, 'R5_stress_episode_cap': 3, 'R1_spx_pm_pool_cap': 1}"
+B_tight,stress_2008,62,61,1,1.6,1347.0,1347.0,{'R6_second_leg_short_vol_block': 1}
+B_tight,stress_2022,37,32,5,13.5,-11820.0,-15771.0,"{'R4_short_vol_cap': 4, 'R5_stress_episode_cap': 1}"

@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-14 (SPEC-101 DONE — ES High-Vol Sell Put Ladder deployed，Quant tie-out exact match，paper-trade 阶段开始；§9 Review Obligation 改为 PM 主导无时间锁)
+Last Updated: 2026-05-15 (Q072 CLOSED — APPROVED. Sleeve global evaluation 完整 P1-P4 + 2 轮 2nd Quant review。**Final verdict**: Augmented Default Cap (R1-R4 默认 + R5 stress episode SPX cap → 60% + R6 second-leg short-vol absolute block)。Priority allocator 实证 ≡ FCFS 不实施，static per-sleeve cap 实证 destroys winners 不实施。提议 **SPEC-103: Global Sleeve Stress Governance** 待 PM 批准。Deferred: P4B /ES rerun + P4C.7 synthetic stress at Q071 lock — `See: RESEARCH_LOG.md R-20260515-01`, `research/q072/q072_final_memo_2026-05-15.md`, `task/SPEC-103.md`)
 Owner: Planner or PM
 
 ## Current Phase
@@ -28,7 +28,7 @@ Owner: Planner or PM
 
 ## Active APPROVED Specs
 
-（无）
+- `SPEC-103` — Global Sleeve Stress Governance. **DRAFT 2026-05-15，待 PM 批准。** Augmented Default Cap 实施：R5（stress episode SPX cap 70%→60%）+ R6（second-leg short-vol absolute block）。F1-F6：portfolio state tracker / state flag computation / entry gate / logging / dashboard / override CLI。AC1-AC9，6 governance rules。来源：Q072 P4C 实证（priority allocator ≡ FCFS，static cap destroys $102k，R6 在 2022 节省 $11.6k）。Deferred 验证不阻塞实施 — `See: task/SPEC-103.md`, `research/q072/q072_final_memo_2026-05-15.md`
 
 ## Recently Closed Specs
 
@@ -74,6 +74,7 @@ Owner: Planner or PM
 
 ## Open Questions Summary
 
+- `Q072` — **CLOSED 2026-05-15（APPROVED，2 轮 2nd Quant review PASS）**. Global Sleeve Stress Governance 研究（P1-P4）。**三个关键实证**：①Priority allocator ≡ FCFS（19y 中 main-first/sleeve-first/FCFS 给出完全一致 PnL $742k，不实施）；②Static per-sleeve cap 减少 $102k P&L 无 tail 改善（不实施）；③R6 second-leg block 在 2022 stress 节省 $11.6k。**Final verdict：Augmented Default Cap** = R1-R4 默认 + R5（stress episode SPX cap 70%→60%）+ R6（second-leg short-vol absolute block）。**SPEC-103 提议** 待 PM 批准。Deferred（不阻塞）：P4B /ES rerun + P4C.7 full synthetic stress 待 HV Ladder final config lock — `See: research/q072/q072_final_memo_2026-05-15.md`, `task/SPEC-103.md`, `RESEARCH_LOG.md R-20260515-01`
 - `Q071` — **CLOSED 2026-05-14（PROMOTE，2nd Quant review 完成）**. ES Sell Put 整合策略研究（P0–P5）+ 2nd Quant review。**策略正式命名：ES High-Vol Sell Put Ladder**。核心：IVP 43-55 被实证驳斥（-0.98pp）；VIX ≥ 22 gate 数据驱动发现（ann_roe +1.14%，sharpe 0.34，MaxDD -9.7% vs baseline -33.3%，bootstrap 100% vs 0%，2020 +3.1%）。**2nd Quant 修订要点**：策略 rename、Q041 framing 改为"regime-quality concept 迁移"、STOP=15 改为"unused historical safeguard"、bootstrap sig 加 production fragility caveat、promote level 统一为 DRAFT SPEC + paper/shadow（非 production）、review obligation 改为 12mo AND ≥10 entries OR 24mo、Q072 IVP 增量判别为 OPTIONAL post-SPEC。**下一步：起草 SPEC-XXX ES High-Vol Sell Put Ladder** — `See: research/q071/q071_memo_2026-05-14.md`, `task/q071_2nd_quant_review_2026-05-14.md`, `RESEARCH_LOG.md R-20260514-01`
 - `Q070` — **CLOSED 2026-05-13**. Aftermath `AFTERMATH_PEAK_VIX_10D_MIN=28` 阈值敏感性 sweep。触发：PM 发现 2025-11-20 VIX 峰值 26.4 被门槛排除。P1 sweep（{22,24,25,26,27,28}）：threshold=25 处 LOW_VOL 污染率从 9.7% 跳升至 27.7%（分水岭）；threshold=27 新增 17 个 window 但 19yr 实际仅多 1 笔 BPS HV trade（n=1，无统计意义）。P3 Case Study：2025-11-20 瓶颈是同期 IC_HV 持仓占用，非 threshold 设计问题。额外结论：aftermath **不建议独立出去做 sleeve**（同向短 vega、尾部风险集中、持仓冲突未解）。**维持 28，置信度高** — `See: research/q070/q070_memo_2026-05-13.md`, `RESEARCH_LOG.md R-20260513-10`
 - `Q066` — **CLOSED 2026-05-12（2nd Quant review PASS WITH CAVEAT）**. Aftermath vs Q042 co-firing 频率实证（19yr）+ 2nd Quant review 4 项修订全部落地。Day-level 重叠 0.9%，事件级 74-86% 异步；Greek 四维度符号反向。**语言修订**：不再用"fully orthogonal"，改用"low-overlap / non-redundant"（Greek hedge 在 PnL 层未量化）。**Co-loss failure mode** 正式列入 portfolio failure modes：live 中若观察到一次 co-fire 同向亏损，立即触发 Q067。**Q067** 作为 standing monitoring 不主动启动（触发条件：Q042 paper→live / B 样本扩充 / cap 上调 / live co-fire co-loss 出现）。PM 无需立即行动——维持双 addon — `See: task/q066_cofiring_2nd_quant_review_packet_2026-05-12_Review.md`, `doc/addon_greek_orthogonality_2026-05-12.md`, `RESEARCH_LOG.md R-20260512-02`
@@ -145,6 +146,7 @@ Owner: Planner or PM
 
 ## Recent Meaningful Changes
 
+- 2026-05-15 — **Q072 CLOSED — APPROVED with SPEC-103 proposal**（R-20260515-01）。完整 P1-P4 + 2 轮 2nd Quant review。**关键 P4C 实证**：(1) **Priority allocator ≡ FCFS** in 19y simulation（main-first / sleeve-first / FCFS / priority 给出完全一致的 total P&L $742k / max DD -$175k）因为 sleeve cadence 自然错开；(2) **Static per-sleeve cap 减少 $102k P&L 无 max DD 改善**——destroys winners; (3) **R6 second-leg block** 2022 stress 真实 backtest 节省 $11.6k；(4) walk-forward Spearman 0.704 (moot)。**Final verdict**: Augmented Default Cap = R1-R4 默认 + R5 stress episode SPX 70→60% + R6 second-leg short-vol absolute block。**Do not implement priority allocator / static per-sleeve caps**。提议 **SPEC-103: Global Sleeve Stress Governance**（含 AC1-AC9 + 6 governance rules + portfolio state tracker + Telegram alerts + Web dashboard）待 PM 批准。Deferred validation（不阻塞 SPEC closure）: P4B /ES pool rerun + P4C.7 full synthetic 2008/2022 stress 待 Q071 HV Ladder final config lock — `See: RESEARCH_LOG.md R-20260515-01`, `research/q072/q072_final_memo_2026-05-15.md`, `task/SPEC-103.md`, `research/q072/q072_p3_findings_2026-05-15.md`
 - 2026-05-09 — **Q053 FINAL CLOSED**（R-20260509-07）。Tier-3+ 测试 8 个 VIX term structure / VIX-VIX3M spread variants 全部 fail；2nd Quant APPROVE。信号宇宙近场已穷尽——Tier-4（macro risk-off：HY spread / rates curve / VVIX / breadth）理论上更有针对性，但仅在 standing trigger 激活时开启。本 session 完整工作链闭合：/ES Q012/Q051/Q052（5 轮）→ absorption（5 principles + 7 actions）→ A1 stress test 工具 + A3 Q041 appendix → Q053 Tier 1-2-3-3+（全部穷尽）→ C2 engine bug 反转 + Trade.pnl_pct 修复 → 2nd Quant reviews × 2 → 7/7 governance actions 落地 — `See: RESEARCH_LOG.md R-20260509-07`
 - 2026-05-09 — **Q053 CLOSED — 2nd Quant APPROVE WITH ADJUSTMENTS 全部落地**（R-20260509-06）。最终结论：主策略 grinding-decline 弱点已量化实证（2022 亏损 −$26.8k），但简单信号家族无法 cleanly 分离（Tier 3 全候选 fail）。C3（put-side suppress on grinding regime）作为正确架构方向保留，4 条 revisit trigger 已写入索引。三项 2nd Quant 校正已应用：entry_credit consumer audit（5 个 consumers 文档化，2 个 display-side naming ⚠️）、C3 revisit trigger 条件修订（4 条 OR 逻辑，含 Planner 月度自动检查）、wording 校正（Principle 1/2 范围精确化，§6.1 豁免条款）。270/270 tests PASS，6 files changed。`/ES` 相关全线（Q012/Q051/Q052 + Q053）正式闭合 — `See: RESEARCH_LOG.md R-20260509-05/06`
 - 2026-05-10 — **SPEC-094 修订：SPX-only + F4 简化**（R-20260510-01）。XSP/SPX 双路径简化为 SPX-only（NLV ≥ $200k），减少 F2/F4/F5/F6/F8 实施工作量；F4 tie-out 从 5 日缩为 3 日（Mon/Wed/Fri 2026-05-11/13/15）+ Massive cross-check；单日 PASS 2.5%；XSP 路径保留为 NLV < $200k 时的未来 revisit。Quant 这一棒完成，待 Developer 实施。

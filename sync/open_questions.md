@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-05-11（Q063 CLOSED — IVP<55 gate robustness confirmed，PM hypothesis reversed；SPEC-099 DONE — bot profit-target alert Layer B+C）
+最后更新：2026-05-15（Q072 CLOSED — APPROVED with SPEC-103 proposal: Augmented Default Cap = R1-R4 默认 + R5 stress episode + R6 second-leg block。Priority allocator / static cap 实证不实施）
 
 ---
 
@@ -37,6 +37,28 @@
 ### Q012 — `/ES` short put 生产路径与共用 BP 管理
 
 - **状态**：ARCHIVED 2026-05-09 — See `doc/open_questions_archive.md#q012` and `RESEARCH_LOG.md` for full research record.
+
+---
+
+### Q072 — Sleeve Global Evaluation & Stress-Episode Governance
+
+- **状态**：**resolved** (Q072 CLOSED — APPROVED 2026-05-15) — pending SPEC-103 approval
+- **结论**：Augmented Default Cap = R1-R4 默认 caps + R5 stress episode SPX cap reduce to 60% + R6 second-leg state hard-stop new short-vol entries
+- **关键 P4C 实证**：
+  - **Priority allocator ≡ FCFS** in 19y simulation（5-allocator sim 给出完全一致的 total P&L $742k / max DD -$175k）—— 不实施
+  - **Static per-sleeve cap 减少 $102k P&L 无 max DD 改善** —— 不实施
+  - **R6 second-leg block** 2022 stress 真实 backtest 节省 $11.6k 组合损失（B_tight -$151k vs default -$163k）
+  - Walk-forward Spearman 0.704 (moot 因 priority allocator 无价值)
+- **回答 5 个原 P4 待答问题**：
+  1. 不砍任何 sleeve（DD/Aftermath/HV 都是 alpha 贡献者）
+  2. Static sleeve cap **比 main-first/FCFS 差**（损失 $102k 无 tail 保护）
+  3. Priority allocator **不优于 static cap**（19y 中 priority ≡ FCFS）
+  4. R6 second-leg block 处理"BP 紧张时谁让位"——short-vol 让位
+  5. 2022 backtest slice 已含 HV，2008 stress 与全合成 inject 待 Q071 lock 后做（不阻塞 SPEC closure）
+- **后续追踪项**（不阻塞 close）：
+  - SPEC-103 实施 R5/R6 + portfolio state tracker
+  - Q071 HV Ladder final config lock 后做 P4B /ES rerun + P4C.7 full synthetic stress
+- **来源**：Quant Researcher 2026-05-15；详见 `research/q072/q072_final_memo_2026-05-15.md`, `task/SPEC-103.md`, `RESEARCH_LOG.md R-20260515-01`
 
 ---
 
