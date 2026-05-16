@@ -220,16 +220,20 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
       </div>
       <div>
         <div class="rule-row">
+          <span class="rule-key">Entry</span>
+          <span class="rule-val">Each slot independently targets <strong style="color:var(--text)">49 DTE / δ0.20</strong> on its own signal date — strike BSM-fitted to δ0.20 at entry SPX level. Slots share no expiry; the ladder structure arises from time-staggered entries (min <strong style="color:var(--text)">5 TD</strong> apart).</span>
+        </div>
+        <div class="rule-row">
           <span class="rule-key">Size</span>
-          <span class="rule-val">Up to <strong style="color:var(--text)">5 concurrent slots</strong>; 1 contract per slot; SPAN ≤ <strong style="color:var(--text)">30% NLV</strong> cap (primary gate)</span>
+          <span class="rule-val">Up to <strong style="color:var(--text)">5 concurrent slots</strong>; 1 contract per slot; cadence ≥ 5 TD (10 TD when slots ≥ 4); SPAN ≤ <strong style="color:var(--text)">30% NLV</strong> cap</span>
         </div>
         <div class="rule-row">
           <span class="rule-key">Roll / Stop</span>
-          <span class="rule-val">Close at <strong style="color:var(--text)">21 DTE</strong>; take profit at <strong style="color:var(--text)">90% of credit</strong> (mark ≤ 10% of entry); stop at <strong style="color:var(--text)">3× credit</strong>; cadence ≥ <strong style="color:var(--text)">5 TD</strong> between entries (10 TD when slots ≥ 4)</span>
+          <span class="rule-val">Close at <strong style="color:var(--text)">21 DTE</strong>; profit at <strong style="color:var(--text)">90% of credit</strong> (mark ≤ 10% of entry); stop at <strong style="color:var(--text)">3× credit</strong></span>
         </div>
         <div class="rule-row">
           <span class="rule-key">Max Risk</span>
-          <span class="rule-val">Undefined downside (/ES naked put); entry blocked by <strong style="color:var(--orange)">VIX ≥ 22</strong> gate + trend <code style="font-family:var(--f-mono);font-size:0.65rem;background:var(--surface-hi);padding:1px 5px;border-radius:3px">BULLISH</code> + SPAN ≤ 30% NLV</span>
+          <span class="rule-val">Undefined downside (/ES naked put); entry gated by <strong style="color:var(--orange)">VIX ≥ 22</strong> + trend <code style="font-family:var(--f-mono);font-size:0.65rem;background:var(--surface-hi);padding:1px 5px;border-radius:3px">BULLISH</code> + SPAN ≤ 30% NLV</span>
         </div>
       </div>
       <div class="discipline-footnote">

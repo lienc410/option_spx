@@ -206,9 +206,10 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
       <span class="leg-chip leg-sell">SELL PUT · 49d · Δ0.20</span>
     </div>
     <div>
-      <div class="rule-row"><span class="rule-key">Size</span><span class="rule-val">Up to <strong style="color:var(--text)">5 concurrent slots</strong>; 1 contract per slot; SPAN ≤ 30% NLV cap</span></div>
-      <div class="rule-row"><span class="rule-key">Roll / Stop</span><span class="rule-val">Close at <strong style="color:var(--text)">21 DTE</strong>; take profit at <strong style="color:var(--text)">90% of credit</strong>; stop at <strong style="color:var(--text)">3× credit</strong>; <strong style="color:var(--orange)">VIX ≥ 22</strong> required at entry</span></div>
-      <div class="rule-row"><span class="rule-key">Max Risk</span><span class="rule-val">Undefined downside (/ES naked put); entry gated by VIX ≥ 22 + SPAN ≤ 30% NLV</span></div>
+      <div class="rule-row"><span class="rule-key">Entry</span><span class="rule-val">Each slot independently targets <strong style="color:var(--text)">49 DTE / δ0.20</strong> on its own signal date — strike BSM-fitted to δ0.20 at entry SPX. Slots share no expiry; the ladder arises from time-staggered entries (min <strong style="color:var(--text)">5 TD</strong> apart).</span></div>
+      <div class="rule-row"><span class="rule-key">Size</span><span class="rule-val">Up to <strong style="color:var(--text)">5 concurrent slots</strong>; 1 contract per slot; cadence ≥ 5 TD (10 TD when slots ≥ 4); SPAN ≤ 30% NLV cap</span></div>
+      <div class="rule-row"><span class="rule-key">Roll / Stop</span><span class="rule-val">Close at <strong style="color:var(--text)">21 DTE</strong>; profit at <strong style="color:var(--text)">90% of credit</strong> (mark ≤ 10% of entry); stop at <strong style="color:var(--text)">3× credit</strong>; <strong style="color:var(--orange)">VIX ≥ 22</strong> required at entry</span></div>
+      <div class="rule-row"><span class="rule-key">Max Risk</span><span class="rule-val">Undefined downside (/ES naked put); entry gated by VIX ≥ 22 + BULLISH trend + SPAN ≤ 30% NLV</span></div>
     </div>
   </section>
 
