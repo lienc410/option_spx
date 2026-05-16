@@ -2156,6 +2156,7 @@ def api_es_backtest_hvlad():
             "caveats": _default_hvlad_caveats(),
             "start_date": start_date,
             "end_date": end_date,
+            "backtest_signal_dates": sorted({t.entry_date for t in hv_result.trades}),
         }
         _purge_hvlad_cache_entries()
         _ES_BT_CACHE[cache_key] = payload
@@ -2254,14 +2255,28 @@ def api_hvladder_stats():
 
 @app.route("/api/hvladder/chart")
 def api_hvladder_chart():
-    """Daily SPX + VIX for the last 2 years, with paper signal dates marked."""
+    """Daily SPX + VIX for the last 2 years, with backtest signal entry dates marked."""
     cutoff = (datetime.now(_ET).date() - timedelta(days=730)).isoformat()
     vix = _get_vix_by_date()
     spx = _get_spx_by_date()
     dates = sorted(d for d in vix if d >= cutoff and d in spx)
+    date_set = set(dates)
+
+    # Prefer paper trades if available; fall back to cached backtest signal dates.
     paper = _load_hvlad_paper_trades()
-    signal_set = {str(r.get("signal_date") or "")[:10] for r in paper} - {""}
-    signal_dates = sorted(signal_set & set(dates))
+    paper_signals = {str(r.get("signal_date") or "")[:10] for r in paper} - {""}
+    if paper_signals:
+        signal_dates = sorted(paper_signals & date_set)
+    else:
+        # Read from the most recent disk-cached backtest result.
+        today = datetime.now(_ET).date().isoformat()
+        bt_cache = _load_es_disk_cache(f"hvlad:2000-01-01:{today}")
+        if bt_cache is None:
+            # Try without end date (older cache format).
+            bt_cache = _load_es_disk_cache("hvlad:2000-01-01:")
+        bt_signals = set(bt_cache.get("backtest_signal_dates", [])) if bt_cache else set()
+        signal_dates = sorted(bt_signals & date_set)
+
     return jsonify({
         "dates":         dates,
         "spx":           [spx[d] for d in dates],
