@@ -2282,11 +2282,20 @@ def api_hvladder_chart():
         else:
             spx_ma10.append(round(sum(spx_vals[i - 9: i + 1]) / 10, 2))
 
-    # Load backtest cache for entry/exit/curve data.
-    today = datetime.now(_ET).date().isoformat()
-    bt_cache = _load_es_disk_cache(f"hvlad:2000-01-01:{today}")
-    if bt_cache is None:
-        bt_cache = _load_es_disk_cache("hvlad:2000-01-01:")
+    # Load backtest cache — scan all hvlad keys, pick most recent date.
+    bt_cache = None
+    try:
+        with open(_ES_DISK_CACHE_PATH, "r") as _f:
+            _store = json.load(_f)
+        mtime = _es_script_mtime()
+        _hvlad_keys = sorted(
+            (k for k in _store if k.startswith("hvlad:2000-01-01:") and k.endswith(f"__{mtime}")),
+            reverse=True,
+        )
+        if _hvlad_keys:
+            bt_cache = _store[_hvlad_keys[0]]
+    except Exception:
+        pass
 
     # Prefer paper trades if they have signal_date; fall back to backtest.
     paper = _load_hvlad_paper_trades()
