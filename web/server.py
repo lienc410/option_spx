@@ -1235,7 +1235,10 @@ def _is_v2f_m1_payload(payload: dict | None) -> bool:
 
 
 def _is_hvlad_payload(payload: dict | None) -> bool:
-    return isinstance(payload, dict) and "hvlad_metrics" in payload and "hv_delta" in payload
+    return (isinstance(payload, dict)
+            and "hvlad_metrics" in payload
+            and "hv_delta" in payload
+            and "backtest_signal_dates" in payload)
 
 
 def _purge_hvlad_cache_entries() -> None:
