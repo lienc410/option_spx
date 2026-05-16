@@ -1238,7 +1238,8 @@ def _is_hvlad_payload(payload: dict | None) -> bool:
     return (isinstance(payload, dict)
             and "hvlad_metrics" in payload
             and "hv_delta" in payload
-            and "backtest_signal_dates" in payload)
+            and "backtest_signal_dates" in payload
+            and "daily_curve" in payload)
 
 
 def _purge_hvlad_cache_entries() -> None:
@@ -2160,6 +2161,14 @@ def api_es_backtest_hvlad():
             "start_date": start_date,
             "end_date": end_date,
             "backtest_signal_dates": sorted({t.entry_date for t in hv_result.trades}),
+            "backtest_exit_data": [
+                {"entry_date": t.entry_date, "exit_date": t.exit_date, "pnl": t.pnl}
+                for t in sorted(hv_result.trades, key=lambda t: t.exit_date)
+            ],
+            "daily_curve": [
+                {"date": r.date, "equity": round(r.cumulative_equity, 2), "drawdown": round(r.drawdown, 6)}
+                for r in hv_result.daily_rows
+            ],
         }
         _purge_hvlad_cache_entries()
         _ES_BT_CACHE[cache_key] = payload
@@ -2258,33 +2267,49 @@ def api_hvladder_stats():
 
 @app.route("/api/hvladder/chart")
 def api_hvladder_chart():
-    """Daily SPX + VIX for the last 2 years, with backtest signal entry dates marked."""
-    cutoff = (datetime.now(_ET).date() - timedelta(days=730)).isoformat()
+    """Full SPX+VIX history with backtest overlay data. Frontend handles time-window slicing."""
     vix = _get_vix_by_date()
     spx = _get_spx_by_date()
-    dates = sorted(d for d in vix if d >= cutoff and d in spx)
+    dates = sorted(d for d in vix if d in spx)
     date_set = set(dates)
 
-    # Prefer paper trades if available; fall back to cached backtest signal dates.
+    # SPX 10-day moving average
+    spx_vals = [spx[d] for d in dates]
+    spx_ma10: list[float | None] = []
+    for i in range(len(spx_vals)):
+        if i < 9:
+            spx_ma10.append(None)
+        else:
+            spx_ma10.append(round(sum(spx_vals[i - 9: i + 1]) / 10, 2))
+
+    # Load backtest cache for entry/exit/curve data.
+    today = datetime.now(_ET).date().isoformat()
+    bt_cache = _load_es_disk_cache(f"hvlad:2000-01-01:{today}")
+    if bt_cache is None:
+        bt_cache = _load_es_disk_cache("hvlad:2000-01-01:")
+
+    # Prefer paper trades if they have signal_date; fall back to backtest.
     paper = _load_hvlad_paper_trades()
     paper_signals = {str(r.get("signal_date") or "")[:10] for r in paper} - {""}
     if paper_signals:
-        signal_dates = sorted(paper_signals & date_set)
+        entry_dates = sorted(paper_signals & date_set)
+        exit_data: list[dict] = []
     else:
-        # Read from the most recent disk-cached backtest result.
-        today = datetime.now(_ET).date().isoformat()
-        bt_cache = _load_es_disk_cache(f"hvlad:2000-01-01:{today}")
-        if bt_cache is None:
-            # Try without end date (older cache format).
-            bt_cache = _load_es_disk_cache("hvlad:2000-01-01:")
         bt_signals = set(bt_cache.get("backtest_signal_dates", [])) if bt_cache else set()
-        signal_dates = sorted(bt_signals & date_set)
+        entry_dates = sorted(bt_signals & date_set)
+        exit_data = bt_cache.get("backtest_exit_data", []) if bt_cache else []
+
+    # Daily equity curve + drawdown from backtest.
+    daily_curve = bt_cache.get("daily_curve", []) if bt_cache else []
 
     return jsonify({
         "dates":         dates,
-        "spx":           [spx[d] for d in dates],
+        "spx":           spx_vals,
         "vix":           [vix[d] for d in dates],
-        "signal_dates":  signal_dates,
+        "spx_ma10":      spx_ma10,
+        "entry_dates":   entry_dates,
+        "exit_data":     exit_data,
+        "daily_curve":   daily_curve,
         "vix_threshold": 22.0,
     })
 
