@@ -6,153 +6,328 @@
 <title>HV Ladder · Live Monitor</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#080A13;--surface:#0D1020;--surface-hi:#131728;--border:#191E33;--border-2:#232A42;--text:#C4CEEC;--text-2:#606880;--muted:#363C52;--gold:#C9A840;--gold-bg:rgba(201,168,64,.07);--orange:#E08040;--orange-bg:rgba(224,128,64,.07);--orange-border:rgba(224,128,64,.25);--green:#42CC7C;--green-bg:rgba(66,204,124,.08);--red:#E04862;--red-bg:rgba(224,72,98,.08);--blue:#4888E8;--blue-bg:rgba(72,136,232,.08);--f-display:'Newsreader',Georgia,serif;--f-mono:'JetBrains Mono','Courier New',monospace;--f-ui:'DM Sans',system-ui,sans-serif}
-html{font-size:14px}body{font-family:var(--f-ui);background:radial-gradient(circle at 20% -10%,rgba(224,128,64,.12),transparent 34%),var(--bg);color:var(--text);min-height:100vh}
-.nav{position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:50px;background:rgba(8,10,19,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
-.nav-brand{font-family:var(--f-display);font-size:1.05rem;color:var(--gold)}.nav-brand em{font-style:italic}.nav-links{display:flex;gap:2px;align-items:center}.nav-link{font-size:.74rem;padding:5px 10px;border-radius:5px;color:var(--text-2);text-decoration:none;transition:.15s}.nav-link:hover{color:var(--text);background:var(--surface-hi)}.nav-link.active{color:var(--orange);background:var(--orange-bg)}.nav-right{font-family:var(--f-mono);font-size:.65rem;color:var(--text-2)}
-.page{max-width:1080px;margin:0 auto;padding:28px 24px 60px}.hero{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;margin-bottom:20px}.hero h1{font-family:var(--f-display);font-size:2rem;font-weight:400}.hero h1 em{color:var(--orange);font-style:italic}.meta{font-family:var(--f-mono);font-size:.68rem;color:var(--text-2);margin-top:6px}.pill{font-family:var(--f-ui);font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--orange-border);background:var(--orange-bg);color:var(--orange);border-radius:999px;padding:4px 9px;white-space:nowrap}.tabs{display:flex;gap:2px;margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid var(--border)}.tab{font-size:.72rem;padding:5px 14px;border-radius:5px;text-decoration:none;color:var(--text-2);border:1px solid transparent}.tab.active{color:var(--text);background:var(--surface-hi);border-color:var(--border-2)}
-.banner{border:1px solid var(--orange-border);background:linear-gradient(135deg,rgba(224,128,64,.12),rgba(201,168,64,.05));border-radius:12px;padding:14px 16px;margin-bottom:18px}.banner h2{font-family:var(--f-display);font-weight:400;font-size:1.15rem;color:var(--orange);margin-bottom:4px}.banner p{font-size:.76rem;color:var(--text-2);line-height:1.55}
-.grid{display:grid;grid-template-columns:1.1fr .9fr;gap:14px}.card{background:rgba(13,16,32,.92);border:1px solid var(--border);border-radius:12px;padding:16px}.card-title{font-size:.63rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-2);margin-bottom:12px}.vix-number{font-family:var(--f-mono);font-size:3rem;line-height:1;color:var(--text)}.vix-number.pass{color:var(--green)}.vix-number.near{color:var(--orange)}.vix-number.block{color:var(--text-2)}.subgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}.mini{background:var(--surface-hi);border:1px solid var(--border-2);border-radius:8px;padding:10px}.mini-k{font-size:.58rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text-2);margin-bottom:5px}.mini-v{font-family:var(--f-mono);font-size:.9rem}.ok{color:var(--green)}.bad{color:var(--red)}.warn{color:var(--orange)}.muted{color:var(--text-2)}
-.checklist{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:9px}.check{border:1px solid var(--border-2);background:var(--surface-hi);border-radius:9px;padding:11px}.check .mark{font-family:var(--f-mono);font-size:.72rem;margin-bottom:5px}.check.pass{border-color:rgba(66,204,124,.25);background:var(--green-bg)}.check.fail{border-color:rgba(224,72,98,.24);background:var(--red-bg)}.signal{margin-top:12px;padding:13px;border-radius:9px;border:1px solid var(--border-2);font-size:.82rem}.signal.live{border-color:rgba(66,204,124,.28);background:var(--green-bg)}.signal.block{border-color:rgba(224,128,64,.26);background:var(--orange-bg)}
-.table{width:100%;border-collapse:collapse;font-family:var(--f-mono);font-size:.68rem}.table th{font-family:var(--f-ui);font-size:.58rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-2);text-align:left;padding:8px;border-bottom:1px solid var(--border-2)}.table td{padding:8px;border-bottom:1px solid var(--border);color:var(--text-2)}.table td strong{color:var(--text)}.section{margin-top:14px}.empty{padding:22px;text-align:center;color:var(--text-muted);font-style:italic;border:1px dashed var(--border-2);border-radius:9px}.footer{margin-top:22px;text-align:center;font-size:.62rem;color:var(--muted)}
-@media(max-width:820px){.grid{grid-template-columns:1fr}.hero{display:block}.nav{padding:0 12px}.nav-links{overflow-x:auto}.subgrid{grid-template-columns:1fr}.page{padding:22px 14px 50px}}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:            #080A13;
+  --surface:       #0D1020;
+  --surface-hi:    #131728;
+  --border:        #191E33;
+  --border-2:      #232A42;
+  --text:          #C4CEEC;
+  --text-2:        #606880;
+  --text-muted:    #363C52;
+  --gold:          #C9A840;
+  --gold-bg:       rgba(201,168,64,0.07);
+  --gold-border:   rgba(201,168,64,0.22);
+  --green:         #42CC7C;
+  --green-bg:      rgba(66,204,124,0.07);
+  --green-border:  rgba(66,204,124,0.22);
+  --red:           #E04862;
+  --red-bg:        rgba(224,72,98,0.07);
+  --red-border:    rgba(224,72,98,0.22);
+  --orange:        #E08040;
+  --orange-bg:     rgba(224,128,64,0.07);
+  --orange-border: rgba(224,128,64,0.22);
+  --gray-bg:       rgba(96,104,128,0.08);
+  --gray-border:   rgba(96,104,128,0.2);
+  --f-display: 'Newsreader', Georgia, serif;
+  --f-mono:    'JetBrains Mono', 'Courier New', monospace;
+  --f-ui:      'DM Sans', system-ui, sans-serif;
+}
+
+html { font-size: 14px; }
+body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.55; }
+
+/* ── Nav ── */
+.nav {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px; height: 50px;
+  background: rgba(8,10,19,0.88); backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.nav-brand { font-family: var(--f-display); font-size: 1.05rem; color: var(--text); letter-spacing: 0.01em; user-select: none; }
+.nav-brand em { color: var(--gold); font-style: italic; }
+.nav-links { display: flex; gap: 2px; }
+.nav-link {
+  font-size: 0.76rem; font-weight: 500; color: var(--text-2);
+  text-decoration: none; padding: 5px 13px; border-radius: 5px;
+  letter-spacing: 0.03em; transition: color 0.15s, background 0.15s;
+}
+.nav-link:hover  { color: var(--text);  background: var(--surface-hi); }
+.nav-link.active { color: var(--gold);  background: var(--gold-bg); }
+.nav-right { display: flex; align-items: center; gap: 8px; font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-2); }
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 5px var(--green); animation: blink 2.4s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+/* ── Layout ── */
+.container { max-width: 880px; margin: 0 auto; padding: 26px 24px 72px; }
+
+/* ── Page tabs ── */
+.page-tabs { display: flex; gap: 2px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.page-tab { font-family: var(--f-ui); font-size: 0.72rem; padding: 5px 14px; border-radius: 5px; text-decoration: none; color: var(--text-2); border: 1px solid transparent; transition: 0.15s; }
+.page-tab.active { color: var(--text); background: var(--surface-hi); border-color: var(--border-2); }
+.page-tab:hover:not(.active) { color: var(--text-2); background: var(--surface); }
+
+/* ── Hero ── */
+.page-hero { margin-bottom: 20px; }
+.page-hero h1 { font-family: var(--f-display); font-size: 1.80rem; font-weight: 400; color: var(--text); }
+.page-hero h1 em { color: var(--orange); font-style: italic; }
+.page-meta { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-2); margin-top: 5px; }
+
+/* ── Banner ── */
+.banner {
+  border: 1px solid var(--orange-border); background: var(--orange-bg);
+  border-radius: 9px; padding: 12px 14px; margin-bottom: 16px;
+}
+.banner-title { font-family: var(--f-ui); font-size: 0.72rem; font-weight: 600; color: var(--orange); margin-bottom: 3px; }
+.banner-body  { font-size: 0.72rem; color: var(--text-2); line-height: 1.55; }
+
+/* ── Cards ── */
+.card-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 12px; margin-bottom: 12px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 16px; }
+.card-title { font-family: var(--f-ui); font-size: 0.62rem; font-weight: 600; letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-2); margin-bottom: 12px; }
+.card.full { grid-column: 1 / -1; }
+
+/* ── VIX display ── */
+.vix-big { font-family: var(--f-mono); font-size: 2.8rem; line-height: 1; }
+.vix-big.pass { color: var(--orange); }
+.vix-big.near { color: var(--text-2); }
+.vix-big.block { color: var(--text-muted); }
+.vix-meta { font-family: var(--f-mono); font-size: 0.65rem; color: var(--text-2); margin-top: 6px; }
+.vix-mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.mini-cell { background: var(--surface-hi); border: 1px solid var(--border-2); border-radius: 7px; padding: 9px 10px; }
+.mini-k { font-family: var(--f-ui); font-size: 0.58rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2); margin-bottom: 4px; }
+.mini-v { font-family: var(--f-mono); font-size: 0.84rem; }
+.ok   { color: var(--green); }
+.bad  { color: var(--red); }
+.warn { color: var(--orange); }
+
+/* ── Gate checklist ── */
+.check-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+.check { border: 1px solid var(--border-2); background: var(--surface-hi); border-radius: 8px; padding: 9px 10px; }
+.check.pass { border-color: var(--green-border); background: var(--green-bg); }
+.check.fail { border-color: var(--red-border);   background: var(--red-bg); }
+.check-label { font-family: var(--f-ui); font-size: 0.68rem; color: var(--text); margin-bottom: 2px; }
+.check-key   { font-family: var(--f-mono); font-size: 0.58rem; color: var(--text-muted); }
+.signal-bar { margin-top: 12px; padding: 11px 13px; border-radius: 8px; border: 1px solid var(--border-2); font-size: 0.78rem; }
+.signal-bar.live  { border-color: var(--green-border); background: var(--green-bg); }
+.signal-bar.block { border-color: var(--orange-border); background: var(--orange-bg); }
+.gate-meta { margin-top: 8px; font-family: var(--f-mono); font-size: 0.62rem; color: var(--text-2); }
+
+/* ── Table ── */
+.data-table { width: 100%; border-collapse: collapse; font-family: var(--f-mono); font-size: 0.68rem; }
+.data-table th { font-family: var(--f-ui); font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border-2); }
+.data-table td { padding: 7px 8px; border-bottom: 1px solid var(--border); color: var(--text-2); }
+.data-table td strong { color: var(--text); }
+.data-table tbody tr:last-child td { border-bottom: none; }
+.empty-state { padding: 20px; text-align: center; color: var(--text-muted); font-style: italic; font-size: 0.76rem; border: 1px dashed var(--border-2); border-radius: 8px; }
+.err-state { padding: 10px; color: var(--red); font-size: 0.72rem; font-family: var(--f-mono); }
+
+/* ── Stats sub-grid ── */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+
+/* ── Footer ── */
+.page-footer { margin-top: 24px; text-align: center; font-size: 0.62rem; color: var(--text-muted); }
+
+@media (max-width: 780px) {
+  .nav { padding: 0 14px; }
+  .nav-links { overflow-x: auto; }
+  .container { padding: 18px 14px 50px; }
+  .card-grid { grid-template-columns: 1fr; }
+  .vix-mini-grid { grid-template-columns: 1fr 1fr; }
+}
 </style>
 </head>
 <body>
 <nav class="nav">
   <span class="nav-brand">SPX <em>Strategy</em></span>
   <div class="nav-links">
-    <a href="/" class="nav-link">Portfolio</a>
-    <a href="/spx" class="nav-link">SPX</a>
-    <a href="/es" class="nav-link">/ES</a>
-    <a href="/hvladder" class="nav-link active">HV Ladder</a>
-    <a href="/aftermath" class="nav-link">Aftermath</a>
-    <a href="/q041" class="nav-link">Q041</a>
+    <a href="/"                   class="nav-link">Portfolio</a>
+    <a href="/spx"                class="nav-link">SPX</a>
+    <a href="/es"                 class="nav-link">/ES</a>
+    <a href="/hvladder"           class="nav-link active">HV Ladder</a>
+    <a href="/q042"               class="nav-link">Drawdown Overlay</a>
+    <a href="/aftermath"          class="nav-link">Aftermath</a>
+    <a href="/q041"               class="nav-link">Q041</a>
     <a href="/portfolio-backtest" class="nav-link">Port BT</a>
-    <a href="/performance" class="nav-link">Performance</a>
-    <a href="/margin" class="nav-link">Margin</a>
+    <a href="/performance"        class="nav-link">Performance</a>
+    <a href="/margin"             class="nav-link">Margin</a>
   </div>
-  <div class="nav-right" id="nav-date">—</div>
+  <div class="nav-right">
+    <span class="live-dot"></span>
+    <span id="nav-date">—</span>
+  </div>
 </nav>
 
-<main class="page">
-  <div class="hero">
-    <div>
-      <h1>HV <em>Ladder</em></h1>
-      <div class="meta">ES High-Vol Sell Put Ladder · VIX ≥ 22 · paper/shadow observation</div>
-    </div>
-    <span class="pill">paper only</span>
+<div class="container">
+  <div class="page-hero">
+    <h1>HV <em>Ladder</em></h1>
+    <div class="page-meta">ES High-Vol Sell Put Ladder · VIX ≥ 22 · paper/shadow observation</div>
   </div>
-  <div class="tabs">
-    <a href="/hvladder" class="tab active">Live Monitor</a>
-    <a href="/hvladder_backtest" class="tab">Backtest</a>
-    <a href="/es-backtest" class="tab">/ES Archive</a>
+
+  <div class="page-tabs">
+    <a href="/hvladder"          class="page-tab active">Live Monitor</a>
+    <a href="/hvladder_backtest" class="page-tab">Backtest</a>
+    <a href="/es-backtest"       class="page-tab">/ES Archive</a>
   </div>
+
   <div class="banner">
-    <h2>Paper/shadow mode only</h2>
-    <p>HV Ladder alerts are observation signals. They do not create broker orders, do not change SPEC-061 production /ES logic, and should be reviewed against paper entries before any production decision.</p>
+    <div class="banner-title">Paper / shadow mode only</div>
+    <div class="banner-body">HV Ladder 信号为观察性信号，不创建券商订单，不影响 SPEC-061 生产 /ES 逻辑。请在纸面入场后对照回测再作实盘决策。</div>
   </div>
 
-  <div class="grid">
-    <section class="card" id="vix-card"><div class="card-title">VIX Live Card</div><div class="empty">Loading VIX state…</div></section>
-    <section class="card" id="gate-card"><div class="card-title">Gate Status Checklist</div><div class="empty">Loading gates…</div></section>
-  </div>
-
-  <div class="grid section">
-    <section class="card">
-      <div class="card-title">Recent Paper Entries</div>
-      <div id="paper-entries"><div class="empty">Loading paper entries…</div></div>
+  <div class="card-grid">
+    <section class="card" id="vix-card">
+      <div class="card-title">VIX Live</div>
+      <div class="empty-state">Loading VIX state…</div>
     </section>
-    <section class="card">
-      <div class="card-title">Telegram Alert History</div>
-      <div id="alert-history"><div class="empty">Loading alerts…</div></div>
+    <section class="card" id="gate-card">
+      <div class="card-title">Gate Status</div>
+      <div class="empty-state">Loading gates…</div>
     </section>
   </div>
 
-  <section class="card section">
-    <div class="card-title">Mini Stats</div>
-    <div id="mini-stats" class="subgrid"></div>
+  <section class="card" style="margin-bottom:12px">
+    <div class="card-title">Paper Entries</div>
+    <div id="paper-entries"><div class="empty-state">Loading…</div></div>
   </section>
-  <div class="footer">Source: SPEC-101 / SPEC-102 · data/q071_hv_paper_trades.jsonl</div>
-</main>
+
+  <section class="card" style="margin-bottom:12px">
+    <div class="card-title">Stats</div>
+    <div id="mini-stats" class="stats-grid"></div>
+  </section>
+
+  <div class="page-footer">Source: SPEC-101 / SPEC-102 · data/q071_hv_paper_trades.jsonl · refreshes every 60s</div>
+</div>
 
 <script>
-const fmt = (n,d=1) => typeof n === 'number' ? n.toFixed(d) : '—';
-const pct = n => typeof n === 'number' ? (n*100).toFixed(1)+'%' : '—';
-document.getElementById('nav-date').textContent = new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+const fmt  = (n, d=1) => typeof n === 'number' ? n.toFixed(d) : '—';
+document.getElementById('nav-date').textContent =
+  new Date().toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
 
-function renderVix(live){
+function renderVix(live) {
   const dist = live.vix_gate_distance;
-  const cls = dist >= 0 ? 'pass' : dist >= -5 ? 'near' : 'block';
+  const cls  = dist != null && dist >= 0 ? 'pass' : dist != null && dist >= -5 ? 'near' : 'block';
   document.getElementById('vix-card').innerHTML = `
-    <div class="card-title">VIX Live Card</div>
-    <div class="vix-number ${cls}">${fmt(live.vix_current,1)}</div>
-    <div class="meta">Gate distance: <strong class="${dist>=0?'ok':'warn'}">${fmt(dist,1)}</strong> vs threshold 22 · source ${live.vix_source || '—'}</div>
-    <div class="subgrid">
-      <div class="mini"><div class="mini-k">5TD avg</div><div class="mini-v">${fmt(live.vix_5td_avg,1)}</div></div>
-      <div class="mini"><div class="mini-k">Latest close</div><div class="mini-v">${live.latest_close_date || '—'}</div></div>
-      <div class="mini"><div class="mini-k">Data</div><div class="mini-v ${live.vix_stale?'bad':'ok'}">${live.vix_stale?'stale':'fresh'}</div></div>
+    <div class="card-title">VIX Live</div>
+    <div class="vix-big ${cls}">${fmt(live.vix_current, 1)}</div>
+    <div class="vix-meta">
+      Distance to gate: <strong class="${dist >= 0 ? 'ok' : 'warn'}">${dist != null ? (dist >= 0 ? '+' : '') + fmt(dist, 1) : '—'}</strong>
+      vs threshold 22 · <span style="color:var(--text-muted)">${live.vix_source || '—'}</span>
+    </div>
+    <div class="vix-mini-grid">
+      <div class="mini-cell"><div class="mini-k">5TD Avg</div><div class="mini-v">${fmt(live.vix_5td_avg, 1)}</div></div>
+      <div class="mini-cell"><div class="mini-k">Latest Close</div><div class="mini-v" style="font-size:0.68rem">${live.latest_close_date || '—'}</div></div>
+      <div class="mini-cell"><div class="mini-k">Data</div><div class="mini-v ${live.vix_stale ? 'bad' : 'ok'}">${live.vix_stale ? 'stale' : 'fresh'}</div></div>
     </div>`;
 }
 
-function renderGates(live){
-  const labels = {warmed:'Warmed',trend_ok:'Trend BULLISH',cadence_ok:'Cadence OK',slots_ok:'Slots < 5',vix_ok:'VIX ≥ 22'};
-  const checks = Object.entries(labels).map(([key,label]) => {
+function renderGates(live) {
+  const defs = [
+    { key: 'warmed',     label: 'Warmed' },
+    { key: 'trend_ok',   label: 'Trend BULLISH' },
+    { key: 'cadence_ok', label: 'Cadence OK' },
+    { key: 'slots_ok',   label: 'Slots < 5' },
+    { key: 'vix_ok',     label: 'VIX ≥ 22' },
+  ];
+  const checks = defs.map(({ key, label }) => {
     const ok = !!live.gate_status?.[key];
-    return `<div class="check ${ok?'pass':'fail'}"><div class="mark">${ok?'☑':'☐'} ${label}</div><div class="mini-k">${key}</div></div>`;
+    return `<div class="check ${ok ? 'pass' : 'fail'}">
+      <div class="check-label">${label}</div>
+      <div class="check-key">${ok ? '✓' : '✗'} ${key}</div>
+    </div>`;
   }).join('');
   const blockers = (live.blockers || []).join(', ') || 'none';
   document.getElementById('gate-card').innerHTML = `
-    <div class="card-title">Gate Status Checklist</div>
-    <div class="checklist">${checks}</div>
-    <div class="signal ${live.signal_live?'live':'block'}">
-      <strong>${live.signal_live ? 'HV Ladder signal LIVE' : 'Blocked'}</strong><br>
-      ${live.signal_live ? 'All five gates are satisfied.' : 'Blocking gates: ' + blockers}
+    <div class="card-title">Gate Status</div>
+    <div class="check-grid">${checks}</div>
+    <div class="signal-bar ${live.signal_live ? 'live' : 'block'}">
+      <strong>${live.signal_live ? 'HV Ladder signal LIVE — all gates satisfied' : 'Blocked · ' + blockers}</strong>
     </div>
-    <div class="meta" style="margin-top:10px">Trend ${live.trend?.trend || '—'} · active slots ${live.active_slots}/${live.max_slots} · cadence elapsed ${live.cadence_elapsed_trading_days ?? '—'} TD</div>`;
+    <div class="gate-meta">
+      Trend ${live.trend?.trend || '—'} ·
+      Active slots ${live.active_slots ?? '—'}/${live.max_slots ?? 5} ·
+      Cadence elapsed ${live.cadence_elapsed_trading_days ?? '—'} TD
+    </div>`;
 }
 
-function table(rows, headers, mapper, emptyText){
-  if (!rows.length) return `<div class="empty">${emptyText}</div>`;
-  return `<table class="table"><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(mapper).join('')}</tbody></table>`;
-}
-
-function renderPaper(payload){
+function renderPaper(payload) {
   const rows = payload.trades || [];
-  document.getElementById('paper-entries').innerHTML = table(rows, ['Date','VIX','Strike','Premium','Status'], r => `
-    <tr><td><strong>${r.signal_date || '—'}</strong></td><td>${fmt(r.vix_at_signal,1)}</td><td>${fmt(r.est_strike,0)}</td><td>${fmt(r.est_premium,2)}</td><td>${r.status || 'paper'}</td></tr>`, 'No paper entries yet');
-  document.getElementById('alert-history').innerHTML = table(rows.slice(0,10), ['Pushed At','Gate','Slots','Signal'], r => `
-    <tr><td><strong>${(r.timestamp || r.signal_date || '—').slice(0,19)}</strong></td><td>VIX ≥22 ✓</td><td>${r.active_slots ?? '—'}/5</td><td>${r.signal_date || '—'}</td></tr>`, 'No alert history yet');
+  if (!rows.length) {
+    document.getElementById('paper-entries').innerHTML = '<div class="empty-state">No paper entries yet.</div>';
+    return;
+  }
+  const trs = rows.map(r => `<tr>
+    <td><strong>${r.signal_date || '—'}</strong></td>
+    <td>${fmt(r.vix_at_signal, 1)}</td>
+    <td>${r.est_strike != null ? fmt(r.est_strike, 0) : '—'}</td>
+    <td>${r.est_premium != null ? fmt(r.est_premium, 2) : '—'}</td>
+    <td>${r.active_slots ?? '—'}/${r.max_slots ?? 5}</td>
+    <td>${r.status || 'paper'}</td>
+  </tr>`).join('');
+  document.getElementById('paper-entries').innerHTML = `
+    <table class="data-table">
+      <thead><tr>
+        <th>Signal Date</th><th>VIX</th><th>Est. Strike</th><th>Est. Premium</th><th>Slots</th><th>Status</th>
+      </tr></thead>
+      <tbody>${trs}</tbody>
+    </table>`;
 }
 
-function renderStats(stats){
-  const days = stats.vix_days || {};
-  document.getElementById('mini-stats').innerHTML = `
-    <div class="mini"><div class="mini-k">Paper signals</div><div class="mini-v">${stats.paper_signal_count ?? 0}</div></div>
-    <div class="mini"><div class="mini-k">Max signal VIX</div><div class="mini-v">${fmt(stats.max_signal_vix,1)}</div></div>
-    <div class="mini"><div class="mini-k">Max VIX observed</div><div class="mini-v">${fmt(days.max_vix,1)}</div></div>
-    <div class="mini"><div class="mini-k">VIX≥22 · 30d</div><div class="mini-v">${days.days_30 ?? '—'}</div></div>
-    <div class="mini"><div class="mini-k">VIX≥22 · 90d</div><div class="mini-v">${days.days_90 ?? '—'}</div></div>
-    <div class="mini"><div class="mini-k">VIX≥22 · 365d</div><div class="mini-v">${days.days_365 ?? '—'}</div></div>`;
+function renderStats(stats) {
+  const d = stats.vix_days || {};
+  document.getElementById('mini-stats').innerHTML = [
+    ['Paper Signals',    stats.paper_signal_count ?? 0],
+    ['Max Signal VIX',   fmt(stats.max_signal_vix, 1)],
+    ['Max VIX (all)',    fmt(d.max_vix, 1)],
+    ['VIX ≥ 22 · 30d',  d.days_30  ?? '—'],
+    ['VIX ≥ 22 · 90d',  d.days_90  ?? '—'],
+    ['VIX ≥ 22 · 365d', d.days_365 ?? '—'],
+  ].map(([k, v]) => `
+    <div class="mini-cell">
+      <div class="mini-k">${k}</div>
+      <div class="mini-v">${v}</div>
+    </div>`).join('');
 }
 
-async function load(){
-  const [liveRes, paperRes, statsRes] = await Promise.all([
-    fetch('/api/hvladder/live'),
-    fetch('/api/hvladder/paper_trades?limit=20'),
-    fetch('/api/hvladder/stats'),
+async function load() {
+  const [liveR, paperR, statsR] = await Promise.allSettled([
+    fetch('/api/hvladder/live').then(r => r.json()),
+    fetch('/api/hvladder/paper_trades?limit=30').then(r => r.json()),
+    fetch('/api/hvladder/stats').then(r => r.json()),
   ]);
-  const live = await liveRes.json();
-  const paper = await paperRes.json();
-  const stats = await statsRes.json();
-  renderVix(live); renderGates(live); renderPaper(paper); renderStats(stats);
+
+  if (liveR.status === 'fulfilled') {
+    renderVix(liveR.value);
+    renderGates(liveR.value);
+  } else {
+    document.getElementById('vix-card').innerHTML =
+      `<div class="card-title">VIX Live</div><div class="err-state">VIX data unavailable: ${liveR.reason?.message || 'network error'}</div>`;
+    document.getElementById('gate-card').innerHTML =
+      `<div class="card-title">Gate Status</div><div class="err-state">Gate data unavailable</div>`;
+  }
+
+  if (paperR.status === 'fulfilled') {
+    renderPaper(paperR.value);
+  } else {
+    document.getElementById('paper-entries').innerHTML =
+      `<div class="err-state">Paper entries unavailable: ${paperR.reason?.message || 'network error'}</div>`;
+  }
+
+  if (statsR.status === 'fulfilled') {
+    renderStats(statsR.value);
+  } else {
+    document.getElementById('mini-stats').innerHTML =
+      `<div class="err-state">Stats unavailable</div>`;
+  }
 }
-load().catch(err => {
-  document.getElementById('vix-card').innerHTML = `<div class="empty">HV Ladder live data unavailable: ${err.message}</div>`;
-});
+
+load();
+setInterval(load, 60_000);
 </script>
 </body>
 </html>
