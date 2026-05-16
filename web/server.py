@@ -769,6 +769,20 @@ def api_portfolio_summary():
     return jsonify(portfolio_summary_payload())
 
 
+@app.route("/api/sleeve-governance/state")
+def api_sleeve_governance_state():
+    from strategy.sleeve_governance import governance_dashboard_payload
+
+    try:
+        return jsonify(governance_dashboard_payload())
+    except Exception as exc:
+        return jsonify({
+            "surface": "sleeve_governance",
+            "status": "unavailable",
+            "error": str(exc),
+        }), 200
+
+
 @app.route("/api/etrade/balances")
 def api_etrade_balances():
     from etrade.client import get_account_balances
@@ -2748,6 +2762,35 @@ def api_position_open():
     }
     account = str(body.get("account") or "schwab").strip().lower()
     add_tranche = bool(body.get("add_tranche", False))
+    try:
+        from strategy.sleeve_governance import evaluate_candidate, log_decision, maybe_alert_decision
+
+        governance_candidate = {
+            "sleeve": body.get("sleeve"),
+            "strategy_key": strategy_key,
+            "strategy": desc.name,
+            "underlying": body.get("underlying", desc.underlying),
+            "account": account,
+            "action": "open",
+            "short_strike": body.get("short_strike"),
+            "long_strike": body.get("long_strike"),
+            "contracts": body.get("contracts", 1),
+            "requested_bp_dollars": body.get("requested_bp_dollars") or body.get("bp_usage_dollars"),
+            "bp_preview": body.get("bp_preview"),
+            "paper_trade": paper_trade,
+        }
+        governance_decision = evaluate_candidate(governance_candidate)
+        log_decision(governance_decision)
+        if not governance_decision.accepted and not paper_trade:
+            maybe_alert_decision(governance_decision)
+            return jsonify({
+                "error": "Sleeve governance blocked entry",
+                "governance": governance_decision.as_dict(),
+            }), 400
+    except Exception as exc:
+        if not paper_trade:
+            return jsonify({"error": f"Sleeve governance unavailable: {exc}"}), 503
+
     write_state(desc.name, body.get("underlying", desc.underlying), strategy_key=strategy_key, account=account, add_tranche=add_tranche, **state_payload)
     append_event({
         "id": trade_id,

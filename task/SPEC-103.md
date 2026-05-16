@@ -1,6 +1,6 @@
 # SPEC-103: Global Sleeve Stress Governance
 
-Status: DRAFT (Quant-proposed 2026-05-15, awaiting PM approval)
+Status: DONE (Developer implementation 2026-05-15) — implementation review pending
 
 ## Design Source
 
@@ -223,3 +223,25 @@ SPEC-101 (HV Ladder / ES High-Vol Sell Put Ladder)   ← sleeve C (awaiting Q071
 SPEC-091 (VIX settling sidecar)                     ← dependency for stress flag
 SPEC-089/090 (Schwab/ETrade position read)          ← dependency for portfolio state
 ```
+
+---
+
+## Developer Implementation Record (2026-05-15)
+
+Implemented:
+- `strategy/sleeve_governance.py` centralizes R1-R6 caps, stress / second-leg replay validation, entry decision evaluation, decision logs, state snapshots, Telegram alert helpers, override handling, and dashboard payload.
+- `scripts/sleeve_governance_daemon.py` records one governance state snapshot per run for launchd scheduling.
+- `scripts/manage_governance.py` supports `--pause --rule R6 --duration 1d` and writes `data/sleeve_governance_overrides.jsonl`.
+- `/api/position/open` now runs a governance gate before production state writes; paper trades are not hard-blocked.
+- `/api/sleeve-governance/state` exposes the read-only dashboard carrier.
+- Portfolio Command Center includes a Sleeve Stress Governance panel.
+- `tests/test_spec_103.py` covers AC2/AC3/AC4/AC5/AC6/AC7/AC8.
+
+Validation:
+- `arch -arm64 venv/bin/python -m py_compile strategy/sleeve_governance.py scripts/sleeve_governance_daemon.py scripts/manage_governance.py web/server.py` → PASS
+- `arch -arm64 venv/bin/python -m unittest tests.test_spec_103 -v` → 8/8 PASS
+- Smoke API check: `/api/sleeve-governance/state`, `/api/portfolio/summary`, `/api/recommendation` → HTTP 200 JSON
+- Adjacent regression: `tests.test_spec_085` → PASS as part of grouped run.
+
+Known unrelated regression debt observed during adjacent run:
+- `tests.test_spec_089` still fails 2 existing E-Trade assertions unrelated to SPEC-103 (`portfolio_home` static text and existing market quote helper source scan).
