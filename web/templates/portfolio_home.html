@@ -1915,16 +1915,16 @@ function _renderGovernance() {
         <div class="governance-note">new short-vol entries</div>
       </div>
       <div class="governance-cell">
-        <div class="governance-label">SPX PM BP</div>
+        <div class="governance-label">Schwab Maint BP</div>
         <div class="governance-value">${fmtPct(pools.spx_pm_bp_pct)}</div>
         <div class="governance-note">cap ${fmtPct(caps.R1_spx_pm_pool_cap_pct)}${_govUtil(pools.spx_pm_bp_pct, caps.R1_spx_pm_pool_cap_pct)}</div>
       </div>
       ${esCell}
-      <div class="governance-cell">
+      ${view === 'all' ? `<div class="governance-cell">
         <div class="governance-label">Combined BP</div>
         <div class="governance-value">${fmtPct(pools.combined_bp_pct)}</div>
         <div class="governance-note">cap ${fmtPct(caps.R3_combined_cap_pct)}${_govUtil(pools.combined_bp_pct, caps.R3_combined_cap_pct)}</div>
-      </div>
+      </div>` : ''}
       <div class="governance-cell">
         <div class="governance-label">Short Vol BP</div>
         <div class="governance-value">${fmtPct(pools.short_vol_bp_pct)}</div>
