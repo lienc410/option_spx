@@ -2782,12 +2782,12 @@ def api_hvladder_draft():
     dte = 49
     target_delta = 0.20
 
-    # BSM fit as center for the chain scan (rounded to /ES 5-pt grid)
+    # BSM fit as center for the chain scan (rounded to /ES 25-pt monthly grid)
     try:
         k_raw = find_strike_for_delta(float(spx), dte, sigma, target_delta, False)
     except Exception as exc:
         return jsonify({"status": "error", "error": f"strike fit failed: {exc}"})
-    k_center = int(round(k_raw / 5.0) * 5)
+    k_center = int(round(k_raw / 25.0) * 25)
 
     # Live chain scan (Schwab futures)
     scan_rows: list[dict] = []

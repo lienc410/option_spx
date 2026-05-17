@@ -359,10 +359,13 @@ def get_futures_option_chain(
     target = int(target_dte)
     candidates = sorted(exps, key=lambda e: abs(int(e.get("daysToExpiration", 0)) - target))
 
-    # 3) Strike grid (shared across attempts)
+    # 3) Strike grid (shared across attempts). /ES monthlies use 25-pt grid
+    #    across the body of the chain (5-pt grids exist only at the
+    #    immediate money on some weeklies, so 25 is the safe default for
+    #    49-DTE targets).
     if center_strike is None or center_strike <= 0:
         center_strike = 5000.0
-    step = 5  # /ES standard strike increment
+    step = 25
     half = max(int(strike_window), 5)
     center_rounded = int(round(float(center_strike) / step) * step)
     strikes = list(range(center_rounded - half * step, center_rounded + (half + 1) * step, step))
