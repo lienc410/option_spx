@@ -230,11 +230,11 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
       <span style="color:var(--border-2)">|</span>
       <!-- Window -->
       <div class="btn-group" id="reg-window-group">
-        <button class="ctrl-btn" data-win="1">1yr</button>
+        <button class="ctrl-btn active" data-win="1">1yr</button>
         <button class="ctrl-btn" data-win="3">3yr</button>
         <button class="ctrl-btn" data-win="5">5yr</button>
         <button class="ctrl-btn" data-win="10">10yr</button>
-        <button class="ctrl-btn active" data-win="all">All</button>
+        <button class="ctrl-btn" data-win="all">All</button>
       </div>
       <span class="ctrl-spacer"></span>
       <!-- Legend -->
@@ -313,7 +313,7 @@ function fmtNum(n, d) { return typeof n === 'number' ? n.toFixed(d ?? 1) : '—'
 let _regimeChart = null;
 let _timelineData = null;
 let _regOverlay = 'none';
-let _regWindow  = 'all';
+let _regWindow  = 1;
 
 const regimeBandsPlugin = {
   id: 'regimeBands',
@@ -386,7 +386,7 @@ function _buildRegimeConfig(data, overlay, windowYrs) {
 
   const hvEntryPts     = dates.filter(d => hvEntries.has(d)).map(d => ({ x: d, y: allVix[allDates.indexOf(d)] }));
   const hvBlockPts     = dates.filter(d => hvBlocked.has(d)).map(d => ({ x: d, y: allVix[allDates.indexOf(d)] }));
-  const aftermathPts   = dates.filter(d => allAftermath.has(d)).map(d => ({ x: d, y: 8 }));
+  const aftermathPts   = dates.filter(d => allAftermath.has(d)).map(d => ({ x: d, y: 9.5 }));
 
   let overlayDs = null;
   let y1Label = '', y1Color = 'rgba(72,136,232,0.7)';
@@ -415,7 +415,7 @@ function _buildRegimeConfig(data, overlay, windowYrs) {
   datasets.push({ label: '▲ HV 入场', data: hvEntryPts, parsing: false, type: 'scatter', pointStyle: 'triangle', rotation: 0, pointRadius: 7, pointBackgroundColor: 'rgba(66,204,124,0.90)', pointBorderColor: 'rgba(66,204,124,1)', borderWidth: 0, yAxisID: 'y', order: 1 });
   datasets.push({ label: '✕ HV R6 阻断', data: hvBlockPts, parsing: false, type: 'scatter', pointStyle: 'crossRot', pointRadius: 5, pointBackgroundColor: 'transparent', pointBorderColor: 'rgba(224,72,98,0.85)', borderWidth: 1.5, yAxisID: 'y', order: 2 });
   if (aftermathPts.length > 0) {
-    datasets.push({ label: '▽ Aftermath', data: aftermathPts, parsing: false, type: 'scatter', pointStyle: 'triangle', rotation: 180, pointRadius: 4, pointBackgroundColor: 'rgba(201,168,64,0.70)', pointBorderColor: 'rgba(201,168,64,0.85)', borderWidth: 0, yAxisID: 'y', order: 3 });
+    datasets.push({ label: '▽ Aftermath', data: aftermathPts, parsing: false, type: 'scatter', pointStyle: 'triangle', rotation: 180, pointRadius: 5, pointBackgroundColor: 'rgba(201,168,64,0.80)', pointBorderColor: 'rgba(201,168,64,0.95)', borderWidth: 0, yAxisID: 'y', order: 3 });
   }
 
   const hasY1 = !!overlayDs;
@@ -478,9 +478,9 @@ document.getElementById('reg-window-group').addEventListener('click', e => {
   renderRegimeChart();
 });
 document.getElementById('reg-reset').addEventListener('click', () => {
-  _regOverlay = 'none'; _regWindow = 'all';
+  _regOverlay = 'none'; _regWindow = 1;
   document.querySelectorAll('#reg-overlay-group .ctrl-btn').forEach(b => b.classList.toggle('active', b.dataset.overlay === 'none'));
-  document.querySelectorAll('#reg-window-group .ctrl-btn').forEach(b => b.classList.toggle('active', b.dataset.win === 'all'));
+  document.querySelectorAll('#reg-window-group .ctrl-btn').forEach(b => b.classList.toggle('active', b.dataset.win === '1'));
   renderRegimeChart();
 });
 
