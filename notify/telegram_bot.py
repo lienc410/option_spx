@@ -460,14 +460,13 @@ def _format_es_hv_stale_alert(vix_quote: dict) -> str:
 
 def _format_es_hv_paper_signal(record: dict) -> str:
     return (
-        "🧪 <b>/ES HV Ladder — Paper Trade Signal</b>\n"
+        "📡 <b>/ES HV Ladder — Entry Signal</b>\n"
         f"Date: <code>{_h(record['signal_date'])}</code>\n"
         f"VIX: <code>{record['vix_at_signal']:.1f}</code> (gate ≥ {_ES_HV_VIX_MIN_ENTRY:.0f})\n"
         f"Trend: <code>{_h(record.get('trend', 'BULLISH'))}</code>\n"
         f"Active slots: <code>{record['active_slots']}/{_ES_HV_MAX_SLOTS}</code>\n"
         f"Entry DTE: <code>{_ES_HV_ENTRY_DTE}</code> · target |delta| <code>{_ES_HV_TARGET_DELTA:.2f}</code>\n"
-        f"Est. strike: <code>{record['est_strike']:.0f}</code> · est. premium: <code>{record['est_premium']:.2f}</code>\n"
-        "<i>Paper/shadow only. No auto-execution.</i>"
+        f"Est. strike: <code>{record['est_strike']:.0f}</code> · est. premium: <code>{record['est_premium']:.2f}</code>"
     )
 
 
@@ -528,7 +527,7 @@ def _check_es_hv_ladder_paper_signal(
         "est_strike": round(strike, 4),
         "est_premium": round(premium, 4),
         "trend": trend.signal.value,
-        "status": "paper",
+        "status": "signal",
     }
     _append_es_hv_paper_record(record, paper_log_path)
     _intraday_state["es_hv_signal_alerted_date"] = today_str
