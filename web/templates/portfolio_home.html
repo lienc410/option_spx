@@ -658,7 +658,7 @@ body {
 .rm-regime-name.r-second  { color: var(--red); }
 .rm-regime-dot { font-size: 0.65rem; margin: 3px 0 2px; }
 .rm-regime-cond {
-  font-family: var(--f-mono); font-size: 0.55rem; color: var(--text-muted); line-height: 1.5;
+  font-family: var(--f-mono); font-size: 0.55rem; color: var(--text-2); line-height: 1.5;
 }
 .rm-row-label {
   padding: 8px 11px;
@@ -667,21 +667,22 @@ body {
 }
 .rm-row-label:last-of-type { border-bottom: none; }
 .rm-strategy-name { font-family: var(--f-ui); font-size: 0.65rem; font-weight: 500; color: var(--text); }
-.rm-strategy-sub  { font-family: var(--f-ui); font-size: 0.58rem; color: var(--text-muted); margin-top: 1px; }
+.rm-strategy-sub  { font-family: var(--f-ui); font-size: 0.58rem; color: var(--text-2); margin-top: 1px; }
 .rm-cell {
   padding: 8px 11px;
   border-bottom: 1px solid var(--border);
   border-left: 1px solid var(--border);
 }
-.rm-cell.rc-active-normal   { background: rgba(196,206,236,0.03); }
+.rm-cell.rc-active-normal   { background: rgba(196,206,236,0.04); }
 .rm-cell.rc-active-stress   { background: var(--orange-bg); }
 .rm-cell.rc-active-second   { background: var(--red-bg); }
-.rm-cell.rc-dim             { opacity: 0.45; }
+.rm-cell.rc-dim .rm-val     { color: var(--text-2); }
+.rm-cell.rc-dim .rm-note    { color: var(--text-2); }
 .rm-val { font-family: var(--f-mono); font-size: 0.70rem; font-weight: 500; color: var(--text); }
 .rm-val.v-active  { color: var(--green); }
 .rm-val.v-blocked { color: var(--red); }
-.rm-val.v-wait    { color: var(--text-muted); }
-.rm-val.v-paper   { color: var(--text-muted); font-style: italic; }
+.rm-val.v-wait    { color: var(--text-2); }
+.rm-val.v-paper   { color: var(--text-2); font-style: italic; }
 .rm-note { font-family: var(--f-mono); font-size: 0.57rem; color: var(--text-2); margin-top: 2px; line-height: 1.4; }
 .rm-note.n-warn   { color: var(--orange); }
 .rm-note.n-block  { color: var(--red); }
@@ -1964,20 +1965,20 @@ function _renderGovernance() {
     if (r === 'second') return `<div class="rm-val v-blocked">✕ BLOCKED</div><div class="rm-note n-block">R6 全部 short-vol 阻断</div>`;
     const cap = r === 'stress' ? caps.R5_spx_pm_stress_cap_pct : caps.R1_spx_pm_pool_cap_pct;
     const bp = bpLine(pools.spx_pm_bp_pct, cap, r === regime);
+    const valCls = r === regime ? 'v-active' : '';
     const note = r === 'stress'
       ? `<div class="rm-note n-warn">R5: cap 收紧至 ${fmtPct(cap)}</div>`
       : `<div class="rm-note">R1: cap ${fmtPct(cap)}</div>`;
-    return `<div class="rm-val v-active">${bp}</div>${note}`;
+    return `<div class="rm-val ${valCls}">${bp}</div>${note}`;
   }
 
-  // HV NP Ladder (/ES, E-Trade SPAN)
   function hvContent(r) {
     if (r === 'second') return `<div class="rm-val v-blocked">✕ BLOCKED</div><div class="rm-note n-block">R6 全部 short-vol 阻断</div>`;
     if (r === 'normal') return `<div class="rm-val v-wait">○ 待机</div><div class="rm-note">需 VIX ≥ 22 解锁</div>`;
-    // stress: active
     const cap = caps.R2_es_span_cap_pct;
     const bp = bpLine(pools.es_span_bp_pct, cap, r === regime);
-    return `<div class="rm-val v-active">${bp}</div><div class="rm-note n-ok">VIX ≥ 22 已解锁 · R2</div>`;
+    const valCls = r === regime ? 'v-active' : '';
+    return `<div class="rm-val ${valCls}">${bp}</div><div class="rm-note n-ok">VIX ≥ 22 已解锁 · R2</div>`;
   }
 
   // DD Overlay (paper)
