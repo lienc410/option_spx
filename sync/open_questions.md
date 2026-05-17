@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-05-15（Q072 CLOSED — APPROVED with SPEC-103 proposal: Augmented Default Cap = R1-R4 默认 + R5 stress episode + R6 second-leg block。Priority allocator / static cap 实证不实施）
+最后更新：2026-05-16（SPEC-103 cap recalibration DONE — R1 cap 维持 70%，物理依据改为 PM-call 80%−10pp safety；sensitivity 表加入 SPEC-103.md；R3/R4 future-watch。E-Trade OAuth fix：`_build_oauth()` dev=False）
 
 ---
 
@@ -56,9 +56,10 @@
   4. R6 second-leg block 处理"BP 紧张时谁让位"——short-vol 让位
   5. 2022 backtest slice 已含 HV，2008 stress 与全合成 inject 待 Q071 lock 后做（不阻塞 SPEC closure）
 - **后续追踪项**（不阻塞 close）：
-  - SPEC-103 实施 R5/R6 + portfolio state tracker
-  - Q071 HV Ladder final config lock 后做 P4B /ES rerun + P4C.7 full synthetic stress
-- **来源**：Quant Researcher 2026-05-15；详见 `research/q072/q072_final_memo_2026-05-15.md`, `task/SPEC-103.md`, `RESEARCH_LOG.md R-20260515-01`
+  - ~~SPEC-103 实施 R5/R6 + portfolio state tracker~~ ✅ DONE 1c690cc
+  - Cap recalibration（63f8825）✅ DONE 2026-05-16：R1 维持 70%，依据改 PM-call safety；R3/R4 future-watch 1 个月
+  - Q071 HV Ladder final config lock 后做 P4B /ES rerun + P4C.7 full synthetic stress（仍待）
+- **来源**：Quant Researcher 2026-05-15；详见 `research/q072/q072_final_memo_2026-05-15.md`, `task/SPEC-103.md`, `research/q072/q072_p4_cap_recalibration_2026-05-16.md`, `RESEARCH_LOG.md R-20260515-01`
 
 ---
 

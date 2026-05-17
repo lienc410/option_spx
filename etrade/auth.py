@@ -199,7 +199,7 @@ def _oauth1_session_class():
 
 def _build_oauth():
     pyetrade = _load_pyetrade()
-    return pyetrade.ETradeOAuth(consumer_key(), consumer_secret())
+    return pyetrade.ETradeOAuth(consumer_key(), consumer_secret(), dev=False)
 
 
 def _extract_saved_request_parts(oauth: Any, request_url: str) -> dict:
