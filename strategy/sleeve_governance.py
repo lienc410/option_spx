@@ -371,14 +371,15 @@ def current_governance_state() -> dict:
 
         rails = summary.get("rails") or {}
         live_position = (rails.get("spx_live") or {}).get("current_position")
-        # ETrade position info: any current position info if available
         etrade_position = (rails.get("etrade_pm") or {}).get("current_position")
+        _spx_live_bp_pct = _num((rails.get("spx_live") or {}).get("bp_usage", {}).get("bp_usage_pct"))
 
         es_payload = es_stressed_span_payload()
         if es_payload.get("has_es_live_position"):
             es_dollars = _num(es_payload.get("current_estimated_stressed_span")) or _num(es_payload.get("entry_static_span")) or 0.0
     except Exception as exc:
         errors.append(str(exc))
+        _spx_live_bp_pct = None
 
     spx_is_sv = is_short_vol_candidate({
         "strategy_key": (live_position or {}).get("strategy_key"),
@@ -429,6 +430,7 @@ def current_governance_state() -> dict:
         "second_leg_active": second_leg,
         "market": market,
         "active_overrides": active_overrides(),
+        "spx_live_bp_pct": round(_spx_live_bp_pct, 2) if _spx_live_bp_pct is not None else None,
     }
 
 

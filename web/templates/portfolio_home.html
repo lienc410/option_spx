@@ -1941,6 +1941,7 @@ function _renderGovernance() {
   const stress = !!state.stress_episode_active;
   const second = !!state.second_leg_active;
   const regime = second ? 'second' : stress ? 'stress' : 'normal';
+  const spxLiveBP = state.spx_live_bp_pct;
   const viewLabel = view === 'schwab' ? 'Schwab' : view === 'etrade' ? 'E-Trade' : 'All';
   const denomStr = pools.nlv_basis ?? state.basis_dollars;
 
@@ -1961,17 +1962,19 @@ function _renderGovernance() {
 
   // ── per-strategy × per-regime cell content ──────────────────────────────────
   // 主策略 SPX (short put spread, Schwab PM)
-  // 主策略 SPX: activation status only (BP is account-level, shown in Schwab 账户 row)
+  // Fix 1: 主策略 SPX — show spx_live_bp_pct (PM max-loss only, not total Schwab maint)
   function spxContent(r) {
     if (r === 'second') return `<div class="rm-val v-blocked">✕ BLOCKED</div><div class="rm-note n-block">R6 全部 short-vol 阻断</div>`;
     const valCls = r === regime ? 'v-active' : '';
+    const usageLine = (r === regime && spxLiveBP != null)
+      ? ` · ${fmtPct(spxLiveBP)} PM max-loss` : '';
     const note = r === 'stress'
       ? `<div class="rm-note n-warn">R5: PM cap → ${fmtPct(caps.R5_stress_threshold_pct ?? caps.R5_spx_pm_stress_cap_pct)}</div>`
       : `<div class="rm-note">正常入场条件</div>`;
-    return `<div class="rm-val ${valCls}">● ACTIVE</div>${note}`;
+    return `<div class="rm-val ${valCls}">● ACTIVE${usageLine}</div>${note}`;
   }
 
-  // Schwab 账户 (R1): total account maint vs cap — the actual R1 governance metric
+  // Schwab 账户 (R1): total account maint vs cap
   function schwabAcctContent(r) {
     if (r === 'second') {
       const bp = bpLine(pools.spx_pm_bp_pct, caps.R1_spx_pm_pool_cap_pct, r === regime);
@@ -1983,29 +1986,34 @@ function _renderGovernance() {
     const bp = bpLine(pools.spx_pm_bp_pct, cap, r === regime);
     const note = r === 'stress'
       ? `<div class="rm-note n-warn">R5: cap 收紧至 ${fmtPct(cap)}</div>`
-      : `<div class="rm-note">R1 监控全账户 maint</div>`;
+      : `<div class="rm-note">R1: SPX + equity 合并</div>`;
     return `<div class="rm-val">${bp}</div>${note}`;
   }
 
+  // Fix 3: HV Ladder — clarify 80% is /ES SPAN (not PM), much smaller than notional
   function hvContent(r) {
     if (r === 'second') return `<div class="rm-val v-blocked">✕ BLOCKED</div><div class="rm-note n-block">R6 全部 short-vol 阻断</div>`;
     if (r === 'normal') return `<div class="rm-val v-wait">○ 待机</div><div class="rm-note">需 VIX ≥ 22 解锁</div>`;
     const cap = caps.R2_es_span_cap_pct;
     const bp = bpLine(pools.es_span_bp_pct, cap, r === regime);
     const valCls = r === regime ? 'v-active' : '';
-    return `<div class="rm-val ${valCls}">${bp}</div><div class="rm-note n-ok">VIX ≥ 22 已解锁 · R2</div>`;
+    return `<div class="rm-val ${valCls}">${bp}</div><div class="rm-note n-ok">/ES SPAN margin · R2 cap ${fmtPct(cap)}</div>`;
   }
 
-  // DD Overlay (paper)
+  // Fix 4: DD Overlay — remove "paper" label, show strategy status
   function ddContent(r) {
-    if (r === 'second') return `<div class="rm-val v-paper">○ paper</div><div class="rm-note">不受 R6 约束（long put）</div>`;
-    return `<div class="rm-val v-paper">○ paper</div><div class="rm-note">不占 real BP</div>`;
+    if (r === 'second') return `<div class="rm-val v-wait">○ 不受 R6 约束</div><div class="rm-note">long put hedge · 独立</div>`;
+    return `<div class="rm-val v-wait">○ 待激活</div><div class="rm-note">dd overlay 条件未触发</div>`;
   }
 
-  // Aftermath (condition modifier)
+  // Fix 5: Aftermath — list the three conditions explicitly
   function afterContent(r) {
-    if (r === 'normal') return `<div class="rm-val v-wait">○ 未激活</div><div class="rm-note">条件 modifier</div>`;
-    return `<div class="rm-val v-wait">○ modifier</div><div class="rm-note">影响主策略入场判断</div>`;
+    if (r === 'normal') {
+      return `<div class="rm-val v-wait">○ 未激活</div>
+        <div class="rm-note">10d peak VIX &lt; 28<br>或 VIX 未从峰值回落 ≥ 5%</div>`;
+    }
+    return `<div class="rm-val v-wait">○ 监测中</div>
+      <div class="rm-note">10d peak VIX ≥ 28 · 当前 VIX 已回落 ≥ 5%<br>且 VIX &lt; 40 → 修改主策略入场判断</div>`;
   }
 
   // ── footer rule lines ────────────────────────────────────────────────────────
@@ -2043,12 +2051,12 @@ function _renderGovernance() {
       <div class="rm-hdr ${hdrCls('normal')}">
         <div class="rm-regime-name r-normal">Normal</div>
         <div class="rm-regime-dot">${dot('normal')}</div>
-        <div class="rm-regime-cond">VIX &lt; 22<br>dd &gt; −4%</div>
+        <div class="rm-regime-cond">VIX &lt; 22<br>SPX 回撤 &lt; 4%</div>
       </div>
       <div class="rm-hdr ${hdrCls('stress')}">
         <div class="rm-regime-name r-stress">Stress Episode</div>
         <div class="rm-regime-dot">${dot('stress')}</div>
-        <div class="rm-regime-cond">VIX ≥ 22 or dd ≤ −4%<br>3 日持续不消散</div>
+        <div class="rm-regime-cond">VIX ≥ 22 or 回撤 ≥ 4%<br>3 日内持续</div>
       </div>
       <div class="rm-hdr ${hdrCls('second')}">
         <div class="rm-regime-name r-second">Second Leg / R6</div>
