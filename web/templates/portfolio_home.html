@@ -2007,14 +2007,19 @@ function _renderGovernance() {
       <div class="rm-note">Sleeve A: ddATH ≤ −4%<br>Sleeve B: ddATH ≤ −15% + MA10 收复</div>`;
   }
 
-  // Fix 5: Aftermath — list the three conditions explicitly
+  // Aftermath: regime gate that replaces 主策略 BPS → IC HV broken-wing when active
   function afterContent(r) {
     if (r === 'normal') {
       return `<div class="rm-val v-wait">○ 未激活</div>
         <div class="rm-note">10d peak VIX &lt; 28<br>或 VIX 未从峰值回落 ≥ 5%</div>`;
     }
+    if (r === 'second') {
+      return `<div class="rm-val v-blocked">✕ BLOCKED</div>
+        <div class="rm-note n-block">R6 阻断所有 short-vol</div>`;
+    }
+    // stress: potentially active
     return `<div class="rm-val v-wait">○ 监测中</div>
-      <div class="rm-note">10d peak VIX ≥ 28 · 当前 VIX 已回落 ≥ 5%<br>且 VIX &lt; 40 → 修改主策略入场判断</div>`;
+      <div class="rm-note">10d peak VIX ≥ 28 + 当前回落 ≥ 5% + VIX &lt; 40<br>→ 主策略切换为 IC HV · 缩减仓位</div>`;
   }
 
   // ── footer rule lines ────────────────────────────────────────────────────────
@@ -2095,7 +2100,7 @@ function _renderGovernance() {
       <!-- ── Aftermath ── -->
       <div class="rm-row-label">
         <div class="rm-strategy-name">Aftermath</div>
-        <div class="rm-strategy-sub">condition modifier</div>
+        <div class="rm-strategy-sub">regime gate · → IC HV broken-wing</div>
       </div>
       <div class="rm-cell ${cellCls('normal')}">${afterContent('normal')}</div>
       <div class="rm-cell ${cellCls('stress')}">${afterContent('stress')}</div>
