@@ -760,6 +760,274 @@ def api_strategy_catalog():
     return jsonify(strategy_catalog_payload())
 
 
+## ── Q041 Sleeves manual trade ledger ─────────────────────────────────────────
+
+Q041_ACTIVE_SLEEVES = {
+    "q041_tier2_googl_csp_d20_dte21": {
+        "underlying": "GOOGL", "strategy_type": "csp",
+        "target_delta": 0.20, "target_dte": 21,
+        "label": "GOOGL CSP · δ0.20 · 21d",
+    },
+    "q041_tier2_amzn_csp_d25_dte21": {
+        "underlying": "AMZN", "strategy_type": "csp",
+        "target_delta": 0.25, "target_dte": 21,
+        "label": "AMZN CSP · δ0.25 · 21d",
+    },
+}
+
+
+def _q041_ledger_path() -> Path:
+    return Path(__file__).parent.parent / "data" / "q041_paper_trades.jsonl"
+
+
+def _q041_load_rows() -> list[dict]:
+    path = _q041_ledger_path()
+    if not path.exists():
+        return []
+    rows: list[dict] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return rows
+
+
+def _q041_append(rec: dict) -> None:
+    path = _q041_ledger_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a") as f:
+        f.write(json.dumps(rec) + "\n")
+
+
+def _q041_open_trades(rows: list[dict]) -> list[dict]:
+    """Open trades (open event, no matching close), newest first."""
+    closed: set[str] = set()
+    opens: dict[str, dict] = {}
+    sorted_rows = sorted(rows, key=lambda r: str(r.get("timestamp") or ""))
+    for row in sorted_rows:
+        tid = row.get("trade_id")
+        if not tid:
+            continue
+        event = row.get("event") or "open"
+        if event == "open":
+            opens[tid] = row
+        elif event == "close":
+            closed.add(tid)
+    out = [r for tid, r in opens.items() if tid not in closed]
+    out.sort(key=lambda r: str(r.get("signal_date") or r.get("timestamp") or ""), reverse=True)
+    return out
+
+
+def _q041_next_trade_id(sleeve_id: str, signal_date: str) -> str:
+    rows = _q041_load_rows()
+    same = [r for r in rows
+            if r.get("sleeve_id") == sleeve_id
+            and str(r.get("signal_date") or "")[:10] == signal_date
+            and (r.get("event") or "open") == "open"]
+    ticker = (Q041_ACTIVE_SLEEVES.get(sleeve_id) or {}).get("underlying", "X")
+    return f"{ticker}-{signal_date}-{len(same) + 1:03d}"
+
+
+@app.route("/api/q041/sleeves")
+def api_q041_sleeves():
+    """List sleeves available for manual entry (Tier 2 CSP only in MVP)."""
+    out = [{"sleeve_id": sid, **meta} for sid, meta in Q041_ACTIVE_SLEEVES.items()]
+    return jsonify({"sleeves": out})
+
+
+@app.route("/api/q041/draft")
+def api_q041_draft():
+    """Open draft for a Q041 sleeve. Returns chain scan + recommended strike/premium."""
+    sleeve_id = flask_req.args.get("sleeve_id") or ""
+    meta = Q041_ACTIVE_SLEEVES.get(sleeve_id)
+    if not meta:
+        return jsonify({"status": "error", "error": f"unknown sleeve {sleeve_id}"}), 400
+    try:
+        from schwab.scanner import build_strike_scan
+    except Exception as exc:
+        return jsonify({"status": "error", "error": f"scanner import failed: {exc}"})
+
+    target_delta = float(meta["target_delta"])
+    dte = int(meta["target_dte"])
+    underlying = meta["underlying"]
+    scan_error: str | None = None
+    rows: list[dict] = []
+    try:
+        scan = build_strike_scan(
+            symbol=underlying,
+            option_type="PUT",
+            target_delta=-target_delta,  # short put = negative delta
+            target_dte=dte,
+        )
+        rows = scan.get("rows") or []
+    except Exception as exc:
+        scan_error = str(exc)
+
+    # Enrich with target/gap for UI consistency
+    enriched = []
+    for r in rows:
+        try:
+            lv_raw = float(r["delta"]) if r.get("delta") not in (None, "") else None
+        except (TypeError, ValueError):
+            lv_raw = None
+        lv = abs(lv_raw) if lv_raw is not None else None
+        enriched.append({
+            **r,
+            "target_delta": round(target_delta, 4),
+            "live_delta":   round(lv, 4) if lv is not None else None,
+            "delta_gap":    round(abs(lv - target_delta), 4) if lv is not None else None,
+        })
+
+    recommended = next((r for r in enriched if r.get("recommended")), None)
+    today = date.today()
+    signal_date = today.isoformat()
+    default_expiry = (today + timedelta(days=dte)).isoformat()
+    market_open = _is_market_hours()
+
+    if not enriched or recommended is None:
+        chain_message = (
+            f"Chain error: {scan_error}" if scan_error
+            else "Markets closed (no two-sided quotes)" if not market_open
+            else "No chain rows in window"
+        )
+        return jsonify({
+            "status":         "ok",
+            "sleeve_id":      sleeve_id,
+            "underlying":     underlying,
+            "strategy_type":  meta["strategy_type"],
+            "target_delta":   target_delta,
+            "dte":            dte,
+            "signal_date":    signal_date,
+            "expiry":         default_expiry,
+            "short_strike":   None,
+            "entry_premium":  None,
+            "market_open":    market_open,
+            "chain_message":  chain_message,
+            "strike_scan":    {"rows": enriched, "scan_fallback": True},
+        })
+
+    short_strike = float(recommended.get("strike") or 0.0)
+    mid = float(recommended["mid"]) if recommended.get("mid") not in (None, "") else None
+    expiry = str(recommended.get("expiry") or default_expiry)
+
+    return jsonify({
+        "status":         "ok",
+        "sleeve_id":      sleeve_id,
+        "underlying":     underlying,
+        "strategy_type":  meta["strategy_type"],
+        "target_delta":   target_delta,
+        "dte":            dte,
+        "signal_date":    signal_date,
+        "expiry":         expiry,
+        "short_strike":   short_strike,
+        "entry_premium":  round(mid, 2) if mid is not None else None,
+        "market_open":    market_open,
+        "chain_message":  None,
+        "strike_scan":    {
+            "rows":               enriched,
+            "scan_fallback":      False,
+            "recommended_strike": short_strike,
+        },
+    })
+
+
+@app.route("/api/q041/open-trades")
+def api_q041_open_trades():
+    return jsonify({"trades": _q041_open_trades(_q041_load_rows())})
+
+
+@app.route("/api/q041/position/open", methods=["POST"])
+def api_q041_position_open():
+    """Record a manual Q041 sleeve open. PM-decides paper vs real."""
+    data = flask_req.get_json(silent=True) or {}
+    now = datetime.now(_ET)
+    sleeve_id = data.get("sleeve_id") or ""
+    meta = Q041_ACTIVE_SLEEVES.get(sleeve_id)
+    if not meta:
+        return jsonify({"status": "error", "error": f"unknown sleeve {sleeve_id}"}), 400
+
+    required = ["short_strike", "contracts", "entry_premium", "expiry"]
+    missing = [k for k in required if data.get(k) in (None, "")]
+    if missing:
+        return jsonify({"status": "error", "error": f"missing fields: {', '.join(missing)}"}), 400
+
+    signal_date = data.get("signal_date") or now.date().isoformat()
+    rec = {
+        "trade_id":      _q041_next_trade_id(sleeve_id, signal_date),
+        "event":         "open",
+        "timestamp":     now.isoformat(timespec="seconds"),
+        "sleeve_id":     sleeve_id,
+        "source":        "manual",
+        "underlying":    meta["underlying"],
+        "strategy_type": meta["strategy_type"],
+        "signal_date":   signal_date,
+        "expiry":        data.get("expiry"),
+        "option_type":   "PUT",
+        "short_strike":  float(data["short_strike"]),
+        "contracts":     int(data["contracts"]),
+        "entry_premium": float(data["entry_premium"]),
+        "model_premium": float(data["model_premium"]) if data.get("model_premium") not in (None, "") else None,
+        "entry_underlying_price": float(data["entry_underlying_price"]) if data.get("entry_underlying_price") not in (None, "") else None,
+        "entry_iv":      float(data["entry_iv"]) if data.get("entry_iv") not in (None, "") else None,
+        "paper_trade":   bool(data.get("paper_trade", False)),
+        "note":          data.get("note", "") or "",
+    }
+    _q041_append(rec)
+    return jsonify({"status": "ok", "trade_id": rec["trade_id"], "record": rec})
+
+
+@app.route("/api/q041/position/close", methods=["POST"])
+def api_q041_position_close():
+    """Record a close event referencing an existing open trade_id."""
+    data = flask_req.get_json(silent=True) or {}
+    now = datetime.now(_ET)
+    tid = data.get("trade_id")
+    if not tid:
+        return jsonify({"status": "error", "error": "trade_id required"}), 400
+    if data.get("close_premium") in (None, ""):
+        return jsonify({"status": "error", "error": "close_premium required"}), 400
+
+    if not any(t.get("trade_id") == tid for t in _q041_open_trades(_q041_load_rows())):
+        return jsonify({"status": "error", "error": f"trade_id {tid} not in open trades"}), 400
+
+    rec = {
+        "trade_id":      tid,
+        "event":         "close",
+        "timestamp":     now.isoformat(timespec="seconds"),
+        "close_date":    data.get("close_date") or now.date().isoformat(),
+        "source":        "manual",
+        "close_premium": float(data["close_premium"]),
+        "exit_reason":   data.get("exit_reason", "discretionary"),
+        "note":          data.get("note", "") or "",
+    }
+    _q041_append(rec)
+    return jsonify({"status": "ok", "record": rec})
+
+
+@app.route("/api/q041/position/note", methods=["POST"])
+def api_q041_position_note():
+    """Append a note event, optionally linked to a trade_id or sleeve_id."""
+    data = flask_req.get_json(silent=True) or {}
+    now = datetime.now(_ET)
+    note = (data.get("note") or "").strip()
+    if not note:
+        return jsonify({"status": "error", "error": "note text required"}), 400
+    rec = {
+        "event":     "note",
+        "timestamp": now.isoformat(timespec="seconds"),
+        "sleeve_id": data.get("sleeve_id"),
+        "trade_id":  data.get("trade_id"),
+        "source":    "manual",
+        "note":      note,
+    }
+    _q041_append(rec)
+    return jsonify({"status": "ok", "record": rec})
+
+
 @app.route("/api/sleeve-candidates")
 def api_sleeve_candidates():
     from web.portfolio_surface import sleeve_candidates_payload
