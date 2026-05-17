@@ -56,7 +56,14 @@ def _already_recorded(date_str: str) -> bool:
 
 
 def _num(v):
-    return float(v) if isinstance(v, (int, float)) else None
+    if isinstance(v, (int, float)):
+        return float(v)
+    if isinstance(v, str):
+        try:
+            return float(v)
+        except ValueError:
+            return None
+    return None
 
 
 def _r(v, dec=2):
