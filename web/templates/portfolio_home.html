@@ -121,6 +121,45 @@ body {
   margin-bottom: 10px;
 }
 
+/* ── Regime banner (top-of-page) ── */
+.regime-banner {
+  margin-bottom: 20px;
+  padding: 9px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--surface);
+}
+.regime-banner .regime-chip {
+  font-family: var(--f-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 3px 9px;
+  border-radius: 5px;
+  border: 1px solid;
+}
+.regime-banner .regime-stat {
+  font-family: var(--f-mono);
+  font-size: 0.66rem;
+  color: var(--text);
+}
+.regime-banner .regime-stat .stat-key { color: var(--text-muted); margin-right: 4px; }
+.regime-banner .regime-note {
+  font-family: var(--f-ui);
+  font-size: 0.65rem;
+  color: var(--text-2);
+}
+.regime-banner .regime-meta {
+  font-family: var(--f-mono);
+  font-size: 0.58rem;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
 /* ── Strategy Cards (per-tier) ── */
 .strategy-card {
   background: var(--surface);
@@ -460,33 +499,32 @@ body {
   padding: 16px 20px;
   margin-bottom: 12px;
 }
-.snapshot-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-bottom: 18px;
-}
-.snapshot-cell {
-  display: flex; flex-direction: column; gap: 6px;
+.snapshot-strip {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
   background: var(--surface-hi);
   border: 1px solid var(--border-2);
   border-radius: 9px;
-  padding: 14px 16px;
+  padding: 10px 16px;
+  margin-bottom: 14px;
 }
-.snapshot-cell.cell-idle { border-color: var(--blue-border); background: var(--blue-bg); }
-.snapshot-cell.cell-idle .snapshot-val { color: var(--blue); }
-.snapshot-label {
+.snapshot-strip.has-idle { border-color: var(--blue-border); background: var(--blue-bg); }
+.snap-metric { display: inline-flex; align-items: baseline; gap: 6px; }
+.snap-lbl {
   font-family: var(--f-ui);
-  font-size: 0.60rem; font-weight: 600;
+  font-size: 0.58rem; font-weight: 600;
   letter-spacing: 0.10em; text-transform: uppercase;
   color: var(--text-2);
 }
-.snapshot-val {
+.snap-num {
   font-family: var(--f-mono);
-  font-size: 1.60rem; font-weight: 600;
+  font-size: 1.10rem; font-weight: 600;
   color: var(--text);
-  line-height: 1.1;
 }
+.snapshot-strip.has-idle #snap-val-idle { color: var(--blue); }
+.snap-sep { color: var(--text-muted); }
 
 /* ── Composite BP bar ── */
 .bp-composite-wrap { margin-bottom: 14px; }
@@ -840,9 +878,12 @@ body {
     <div class="page-meta">
       <span id="hero-date">—</span>
       <span class="meta-sep">·</span>
-      <span>SPX · /ES · Q041 Sleeves</span>
+      <span>SPX · /ES · Sleeves</span>
     </div>
   </div>
+
+  <!-- Regime banner -->
+  <div class="regime-banner" id="regime-banner" style="display:none"></div>
 
   <!-- Today's Actions section label -->
   <div class="section-label" style="margin-bottom:10px">Today's Actions</div>
@@ -864,12 +905,12 @@ body {
       <div class="pos-none" id="pos-spx-body">Loading…</div>
     </div>
     <div class="settling-panel" id="settling-panel-spx">
-      <div class="settling-header">
-        <div class="settling-title">Signal 2 · Settled VIX</div>
+      <div class="settling-header" style="cursor:pointer;user-select:none" onclick="toggleSettling()">
+        <div class="settling-title"><span id="settling-toggle">▸</span> Signal 2 · Settled VIX <span style="color:var(--text-muted);font-weight:400;font-size:0.58rem;margin-left:6px">research · click to expand</span></div>
         <span class="state-badge badge-readonly" id="settling-badge-spx">WAITING</span>
       </div>
-      <div class="settling-body" id="settling-body-spx">Loading settled-VIX state…</div>
-      <div class="settling-note" id="settling-note-spx">Forward-tracking observation only. Not an actionable trade recommendation.</div>
+      <div class="settling-body" id="settling-body-spx" style="display:none">Loading settled-VIX state…</div>
+      <div class="settling-note" id="settling-note-spx" style="display:none">Forward-tracking observation only. Not an actionable trade recommendation.</div>
     </div>
   </div>
 
@@ -889,13 +930,17 @@ body {
       <span id="es-monitor-pos">Loading…</span>
       <span class="es-span" id="es-monitor-span"></span>
     </div>
+    <div class="es-card-body" style="border-top:1px solid var(--border);margin-top:4px;padding-top:8px">
+      <span class="es-key">Stress Put Ladder</span>
+      <span id="es-ladder-status">Loading…</span>
+    </div>
   </div>
 
   <!-- ── Q041 Sleeve Card ── -->
   <div class="strategy-card tier-tertiary" id="card-q041" style="margin-bottom:20px">
     <div class="card-header">
       <div class="card-name-wrap">
-        <span class="card-name card-name-tertiary">Q041 Sleeves</span>
+        <span class="card-name card-name-tertiary">Sleeves</span>
         <span class="badge-obs">Observation</span>
       </div>
       <span class="state-badge badge-wait" id="badge-q041">WAIT</span>
@@ -921,22 +966,6 @@ body {
     </div>
     <div class="sleeve-list" id="sleeves-q042" style="margin-top:6px">
       <div class="pos-none">Loading…</div>
-    </div>
-  </div>
-
-  <!-- ── Aftermath Card (Addon, VIX peak回落 window) ── -->
-  <div class="strategy-card tier-tertiary" id="card-aftermath" style="margin-bottom:20px">
-    <div class="card-header">
-      <div class="card-name-wrap">
-        <a href="/aftermath" style="text-decoration:none">
-          <span class="card-name card-name-tertiary">Aftermath</span>
-        </a>
-        <span class="badge-obs">Observation</span>
-      </div>
-      <span class="state-badge badge-wait" id="badge-aftermath">WAIT</span>
-    </div>
-    <div id="aftermath-signals" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-family:var(--f-mono);font-size:0.68rem;padding:4px 0">
-      <span class="pos-none">Loading…</span>
     </div>
   </div>
 
@@ -1003,6 +1032,17 @@ body {
 <script>
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtPct(n) { return typeof n === 'number' ? n.toFixed(1) + '%' : '—'; }
+
+function toggleSettling() {
+  const body = document.getElementById('settling-body-spx');
+  const note = document.getElementById('settling-note-spx');
+  const tog  = document.getElementById('settling-toggle');
+  if (!body || !note || !tog) return;
+  const isHidden = body.style.display === 'none';
+  body.style.display = isHidden ? '' : 'none';
+  note.style.display = isHidden ? '' : 'none';
+  tog.textContent = isHidden ? '▾' : '▸';
+}
 function fmtDollars(n) { return typeof n === 'number' ? '$' + Math.round(n).toLocaleString() : '—'; }
 function fmtNum(n, dec) { return typeof n === 'number' ? n.toFixed(dec ?? 0) : '—'; }
 function fmtPrice(n) {
@@ -1112,6 +1152,9 @@ async function loadSpx() {
     const vix   = rec.vix_snapshot  || {};
     const iv    = rec.iv_snapshot   || {};
     const trend = rec.trend_snapshot || {};
+    if (vix.vix != null) _lastSpxVix = vix.vix;
+    if (trend.spx != null) _lastSpx = trend.spx;
+    _renderRegimeBanner();
     let chips = '';
     if (vix.vix != null)
       chips += sigChip('VIX', fmtNum(vix.vix, 1), vixCls(vix.regime), vix.regime || '');
@@ -1405,6 +1448,38 @@ async function loadEs() {
   }
 }
 
+// ── Stress Put Ladder (HV Ladder) state row in /ES card ──────────────────────
+async function loadStressPutLadder() {
+  const el = document.getElementById('es-ladder-status');
+  if (!el) return;
+  try {
+    const res = await fetch('/api/hvladder/live');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const d = await res.json();
+    const slotsTxt = `slots ${d.active_slots ?? 0}/${d.max_slots ?? 5}`;
+    const vix = d.vix_current;
+    const vixOk = vix != null && vix >= (d.threshold ?? 22);
+    const vixTxt = vix != null
+      ? `<span class="es-key">VIX</span> <span style="color:${vixOk ? 'var(--green)' : 'var(--text-2)'}">${vix.toFixed(1)}</span><span style="color:var(--text-muted)">/${(d.threshold ?? 22).toFixed(0)}</span>`
+      : '';
+    const gate = d.gate_status || {};
+    const blockers = d.blockers || [];
+    let stateTxt;
+    if (d.signal_live) {
+      stateTxt = `<span style="color:var(--green);font-weight:500">● SIGNAL LIVE</span>`;
+    } else if (blockers.length > 0) {
+      const blockMap = { vix_ok: 'VIX', trend_ok: 'trend', cadence_ok: 'cadence', slots_ok: 'slots', warmed: 'warmup' };
+      const blockLabel = blockers.map(b => blockMap[b] || b).join(' · ');
+      stateTxt = `<span style="color:var(--text-2)">blocked: ${blockLabel}</span>`;
+    } else {
+      stateTxt = `<span style="color:var(--text-muted)">—</span>`;
+    }
+    el.innerHTML = `${slotsTxt} &nbsp; ${vixTxt} &nbsp; ${stateTxt}`;
+  } catch (e) {
+    el.innerHTML = `<span class="pos-none">${e.message}</span>`;
+  }
+}
+
 // ── Q041 Card ─────────────────────────────────────────────────────────────────
 async function loadQ041() {
   const listEl = document.getElementById('sleeves-q041');
@@ -1572,51 +1647,9 @@ async function loadEtradeAuthBanner() {
 }
 
 // ── Aftermath Card ────────────────────────────────────────────────────────────
-async function loadAftermath() {
-  const sigEl = document.getElementById('aftermath-signals');
-  try {
-    const d = await fetch('/api/aftermath/state').then(r => r.json());
-    if (d.error) throw new Error(d.error);
-    const wasNull = !_aftermathCache;
-    _aftermathCache = d;
-    if (wasNull && _snapshotCache) {
-      try { _renderMarginAllocation(_snapshotCache); } catch (_) {}
-    }
-
-    // Badge: ACTIVE (green) if in window, else WAIT
-    const badge = d.active
-      ? { cls: 'badge-open', label: 'ACTIVE' }
-      : { cls: 'badge-wait', label: 'WAIT' };
-    applyBadge('badge-aftermath', badge);
-
-    const offPeakColor = d.off_peak_pct != null && d.off_peak_pct >= 10 ? 'var(--green)' : 'var(--text-2)';
-    const peakStr = d.vix_peak_10d != null ? d.vix_peak_10d.toFixed(1) : '—';
-    const vixStr = d.vix != null ? d.vix.toFixed(1) : '—';
-    const offStr = d.off_peak_pct != null ? d.off_peak_pct.toFixed(1) + '%' : '—';
-    const reasonTag = !d.active && d.reason
-      ? `<span style="color:var(--text-muted);margin-left:auto;font-size:0.62rem;font-style:italic">${d.reason}</span>`
-      : '';
-
-    sigEl.innerHTML =
-      `<span style="color:var(--text-muted)">VIX</span>` +
-      `<span style="color:var(--text)">${vixStr}</span>` +
-      `<span style="color:var(--text-muted)">10d Peak</span>` +
-      `<span>${peakStr}</span>` +
-      `<span style="color:var(--text-muted)">Off-peak</span>` +
-      `<span style="color:${offPeakColor};font-weight:500">${offStr}</span>` +
-      `<span style="color:var(--text-muted)">Min</span>` +
-      `<span style="color:var(--text-muted)">${d.threshold_off_peak_pct?.toFixed(0)}%</span>` +
-      reasonTag;
-  } catch (e) {
-    sigEl.innerHTML = `<span class="pos-none">${e.message}</span>`;
-    applyBadge('badge-aftermath', { cls: 'badge-unavail', label: 'N/A' });
-  }
-}
-
 // ── Portfolio Snapshot ────────────────────────────────────────────────────────
 let _snapshotCache = null;
 let _q042Cache = null;
-let _aftermathCache = null;
 let _accountView = 'all';
 
 function setAccountView(v) {
@@ -1717,15 +1750,17 @@ function _renderMarginAllocation(data) {
       <div class="bp-legend-item"><div class="bp-legend-dot dot-q041"></div>Q041 ${q041W.toFixed(1)}%</div>
       <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>`;
     const doBp_s = _q042Cache?.combined_bp_pct ?? 0;
-    const amActive_s = !!_aftermathCache?.active;
-    const amNote_s = `condition · ${amActive_s ? 'ACTIVE' : 'WAIT'}`;
+    const sT2 = buckets.q041_tier2_bp_pct || 0;
+    const sT3 = buckets.q041_tier3_bp_pct || 0;
+    const sleevesRows = (sT2 > 0.05 || sT3 > 0.05)
+      ? barHtml('Sleeves Tier 2', sT2, 'bar-q041', 'paper') +
+        barHtml('Sleeves Tier 3', sT3, 'bar-q041', 'paper')
+      : barHtml('Sleeves', sT2 + sT3, 'bar-q041', 'paper · idle');
     bucketRows =
-      barHtml('SPX Live', spxWs, 'bar-spx', 'PM max-loss') +
+      barHtml('SPX Spread', spxWs, 'bar-spx', 'PM max-loss') +
       barHtml('Equity Margin', eqWs, 'bar-equity', eqNote) +
-      barHtml('DD Overlay', doBp_s, 'bar-q041', 'paper · Q042') +
-      barHtml('Aftermath', 0, 'bar-q041', amNote_s) +
-      barHtml('Q041 Tier 2', buckets.q041_tier2_bp_pct, 'bar-q041', 'paper') +
-      barHtml('Q041 Tier 3', buckets.q041_tier3_bp_pct, 'bar-q041', 'paper');
+      barHtml('DD Overlay', doBp_s, 'bar-q041', 'paper') +
+      sleevesRows;
     railCards = `
       <div class="account-rail-card">
         <div class="account-rail-title">Schwab</div>
@@ -1733,7 +1768,7 @@ function _renderMarginAllocation(data) {
         <div class="account-rail-line"><span>Maint</span><span>${fmtDollars(accounts.schwab_maintenance_margin)}</span></div>
       </div>`;
     if (etradeNlv > 0) {
-      noteHtml = '<div class="snapshot-note">SPX/Equity % 基于 Schwab NLV；DD Overlay 是 paper · Aftermath 是 condition modifier（不持仓）。</div>';
+      noteHtml = '<div class="snapshot-note">SPX/Equity % 基于 Schwab NLV；DD Overlay 是 paper。</div>';
     }
 
   } else if (view === 'etrade') {
@@ -1753,7 +1788,7 @@ function _renderMarginAllocation(data) {
       <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>`;
     // Bucket rows show only the two leaf categories (parent "E-Trade PM" is implied by top card)
     const spxBpRow = etOptDollars > 0
-      ? barHtml('SPX 主策略 (max-loss)', etOptWeLocal, 'bar-spx', fmtDollars(etOptDollars))
+      ? barHtml('SPX Spread (max-loss)', etOptWeLocal, 'bar-spx', fmtDollars(etOptDollars))
       : '';
     const eqBpRow = etEqDollars > 0
       ? barHtml('Equity / other', etEqWeLocal, 'bar-equity', fmtDollars(etEqDollars))
@@ -1782,23 +1817,25 @@ function _renderMarginAllocation(data) {
       <div class="bp-legend-item"><div class="bp-legend-dot dot-q041"></div>Q041 ${q041W.toFixed(1)}%</div>
       <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>`;
     const doBp_a = _q042Cache?.combined_bp_pct ?? 0;
-    const amActive_a = !!_aftermathCache?.active;
-    const amNote_a = `condition · ${amActive_a ? 'ACTIVE' : 'WAIT'}`;
     const optionsNote = etOptW > 0 ? 'SPX spread + E-Trade options' : 'SPX spread';
     const optionsRow = etOptW > 0
       ? splitBarHtml('Options Margin', optionsW, spxW, etOptW,
           'rgba(201,168,64,0.85)', 'rgba(201,168,64,0.45)', optionsNote)
       : barHtml('Options Margin', optionsW, 'bar-spx', optionsNote);
+    const sT2a = buckets.q041_tier2_bp_pct || 0;
+    const sT3a = buckets.q041_tier3_bp_pct || 0;
+    const sleevesRowsA = (sT2a > 0.05 || sT3a > 0.05)
+      ? barHtml('Sleeves Tier 2', sT2a, 'bar-q041', 'paper') +
+        barHtml('Sleeves Tier 3', sT3a, 'bar-q041', 'paper')
+      : barHtml('Sleeves', sT2a + sT3a, 'bar-q041', 'paper · idle');
     bucketRows =
       optionsRow +
       (etEqW > 0
         ? splitBarHtml('Equity Margin', equityW, eqW, etEqW,
             'rgba(66,204,124,0.85)', 'rgba(66,204,124,0.38)', allEqNote)
         : barHtml('Equity Margin', equityW, 'bar-equity', allEqNote)) +
-      barHtml('DD Overlay', doBp_a, 'bar-q041', 'paper · Q042') +
-      barHtml('Aftermath', 0, 'bar-q041', amNote_a) +
-      barHtml('Q041 Tier 2', buckets.q041_tier2_bp_pct, 'bar-q041', 'paper') +
-      barHtml('Q041 Tier 3', buckets.q041_tier3_bp_pct, 'bar-q041', 'paper');
+      barHtml('DD Overlay', doBp_a, 'bar-q041', 'paper') +
+      sleevesRowsA;
     railCards = `
       <div class="account-rail-card">
         <div class="account-rail-title">Schwab</div>
@@ -1818,7 +1855,7 @@ function _renderMarginAllocation(data) {
         <div class="account-rail-line"><span>Maint</span><span>${fmtDollars(accounts.combined_maintenance_margin)}</span></div>
         <div class="account-rail-note">Read-only aggregate PM maintenance across both rails.</div>
       </div>`;
-    noteHtml = '<div class="snapshot-note">Options = SPX spread + E-Trade options · Equity = Schwab + E-Trade equity · DD Overlay 是 paper · Aftermath 是 condition modifier（不持仓）。</div>';
+    noteHtml = '<div class="snapshot-note">Options = SPX spread + E-Trade options · Equity = Schwab + E-Trade equity · DD Overlay 是 paper。</div>';
   }
 
   el.innerHTML = `
@@ -1847,11 +1884,11 @@ function _renderMarginAllocation(data) {
   }
   const mEl = document.getElementById('snap-val-margin');
   const iEl = document.getElementById('snap-val-idle');
-  const cEl = document.getElementById('snap-cell-idle');
+  const sEl = document.getElementById('snap-strip');
   if (mEl) mEl.textContent = viewMargin != null ? fmtPct(viewMargin) : '—';
   if (iEl) iEl.textContent = viewIdle   != null ? fmtPct(viewIdle)   : '—';
-  if (cEl) {
-    cEl.classList.toggle('cell-idle', viewIdle != null && viewIdle > 50);
+  if (sEl) {
+    sEl.classList.toggle('has-idle', viewIdle != null && viewIdle > 50);
   }
 }
 
@@ -1878,19 +1915,12 @@ async function loadSnapshot() {
     const basisFallback = data.bp_basis_source === "default_params";
 
     body.innerHTML = `
-      <div class="snapshot-grid">
-        <div class="snapshot-cell" id="snap-cell-margin">
-          <div class="snapshot-label">Total Margin</div>
-          <div class="snapshot-val" id="snap-val-margin">${basisFallback ? '—' : fmtPct(totalReal)}</div>
-        </div>
-        <div class="snapshot-cell${basisFallback ? '' : ' cell-idle'}" id="snap-cell-idle">
-          <div class="snapshot-label">Idle Capacity</div>
-          <div class="snapshot-val" id="snap-val-idle">${basisFallback ? '—' : fmtPct(idlePct)}</div>
-        </div>
-        <div class="snapshot-cell">
-          <div class="snapshot-label">Open Positions</div>
-          <div class="snapshot-val" id="snap-val-positions">${openCount}</div>
-        </div>
+      <div class="snapshot-strip${basisFallback ? '' : ' has-idle'}" id="snap-strip">
+        <span class="snap-metric"><span class="snap-lbl">Margin</span><span class="snap-num" id="snap-val-margin">${basisFallback ? '—' : fmtPct(totalReal)}</span></span>
+        <span class="snap-sep">·</span>
+        <span class="snap-metric"><span class="snap-lbl">Idle</span><span class="snap-num" id="snap-val-idle">${basisFallback ? '—' : fmtPct(idlePct)}</span></span>
+        <span class="snap-sep">·</span>
+        <span class="snap-metric"><span class="snap-lbl">Open</span><span class="snap-num" id="snap-val-positions">${openCount}</span></span>
       </div>
       <div id="margin-alloc"></div>`;
 
@@ -1921,10 +1951,57 @@ async function loadGovernance() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     _governanceCache = await res.json();
     _renderGovernance();
+    _renderRegimeBanner();
   } catch (e) {
     _governanceCache = null;
     body.innerHTML = `<div class="snapshot-unavail">Governance unavailable — ${e.message}</div>`;
   }
+}
+
+// ── Regime Banner (top of page) ──────────────────────────────────────────────
+let _lastSpxVix = null;
+let _lastSpx = null;
+
+function _renderRegimeBanner() {
+  const el = document.getElementById('regime-banner');
+  if (!el || !_governanceCache) return;
+  const state  = _governanceCache.state || {};
+  const counts = _governanceCache.recent_counts || {};
+  const stress = !!state.stress_episode_active;
+  const second = !!state.second_leg_active;
+  const regime = second ? 'second' : stress ? 'stress' : 'normal';
+
+  const conf = regime === 'second' ? {
+    label: 'SECOND LEG / R6',
+    color: 'var(--red)',
+    bg:    'var(--red-bg)',
+    border:'var(--red-border)',
+    note:  '全部 short-vol 入场阻断（R6）— 仅 DD Overlay 独立运行',
+  } : regime === 'stress' ? {
+    label: 'STRESS EPISODE',
+    color: 'var(--orange)',
+    bg:    'var(--orange-bg)',
+    border:'var(--orange-border)',
+    note:  'SPX PM cap 收紧 70% → 60% · Stress Put Ladder 可入场',
+  } : {
+    label: 'NORMAL',
+    color: 'var(--green)',
+    bg:    'var(--green-bg)',
+    border:'var(--green-border)',
+    note:  '所有策略入场条件正常',
+  };
+
+  el.style.background = conf.bg;
+  el.style.borderColor = conf.border;
+  const vixStr  = _lastSpxVix != null ? `<span class="regime-stat"><span class="stat-key">VIX</span>${_lastSpxVix.toFixed(1)}</span>` : '';
+  const spxStr  = _lastSpx != null ? `<span class="regime-stat"><span class="stat-key">SPX</span>${Math.round(_lastSpx).toLocaleString()}</span>` : '';
+  const meta = `<span class="regime-meta">Blocked 30D: ${counts.blocked_30d ?? 0} · 2nd-Leg 90D: ${counts.second_leg_days_90d ?? 0}d</span>`;
+  el.innerHTML = `
+    <span class="regime-chip" style="color:${conf.color};border-color:${conf.border};background:${conf.bg}">● ${conf.label}</span>
+    ${vixStr}${spxStr}
+    <span class="regime-note">${conf.note}</span>
+    ${meta}`;
+  el.style.display = 'flex';
 }
 
 function _renderGovernance() {
@@ -1953,11 +2030,18 @@ function _renderGovernance() {
   const hdrCls = r => r === regime ? `rh-active-${r}` : '';
   const cellCls = r => r === regime ? `rc-active-${r}` : 'rc-dim';
 
+  // Compact $ formatter for BP cells
+  const _fmtKBP = (d) => {
+    if (typeof d !== 'number' || d <= 0) return '';
+    return d >= 1e6 ? `$${(d/1e6).toFixed(2)}M` : d >= 1000 ? `$${Math.round(d/1000)}k` : `$${Math.round(d)}`;
+  };
+
   // BP line: "34.3% / cap 70.0% · 已用 49%"  — only show live BP in current regime col
-  function bpLine(val, cap, isLive) {
+  function bpLine(val, cap, isLive, dollars) {
     const bpStr = isLive && val != null ? fmtPct(val) : '—';
+    const dStr  = isLive && dollars ? ` <span style="color:var(--text-2);font-size:0.92em">(${_fmtKBP(dollars)})</span>` : '';
     const util  = isLive && val != null && cap ? ` · 已用 ${(val/cap*100).toFixed(0)}%` : '';
-    return `${bpStr} / ${fmtPct(cap)}${util}`;
+    return `${bpStr}${dStr} / ${fmtPct(cap)}${util}`;
   }
 
   // ── per-strategy × per-regime cell content ──────────────────────────────────
@@ -1966,8 +2050,10 @@ function _renderGovernance() {
   function spxContent(r) {
     if (r === 'second') return `<div class="rm-val v-blocked">✕ BLOCKED</div><div class="rm-note n-block">R6 全部 short-vol 阻断</div>`;
     const valCls = r === regime ? 'v-active' : '';
+    const spxDollars = pools.spx_pm_bp_dollars;
+    const dollarsTxt = (r === regime && spxDollars > 0) ? ` <span style="color:var(--text-2);font-size:0.92em">(${_fmtKBP(spxDollars)})</span>` : '';
     const usageLine = (r === regime && spxLiveBP != null)
-      ? ` · ${fmtPct(spxLiveBP)} PM max-loss` : '';
+      ? ` · ${fmtPct(spxLiveBP)}${dollarsTxt} PM max-loss` : '';
     const note = r === 'stress'
       ? `<div class="rm-note n-warn">R5: PM cap → ${fmtPct(caps.R5_stress_threshold_pct ?? caps.R5_spx_pm_stress_cap_pct)}</div>`
       : `<div class="rm-note">正常入场条件</div>`;
@@ -1977,13 +2063,13 @@ function _renderGovernance() {
   // Schwab 账户 (R1): total account maint vs cap
   function schwabAcctContent(r) {
     if (r === 'second') {
-      const bp = bpLine(pools.spx_pm_bp_pct, caps.R1_spx_pm_pool_cap_pct, r === regime);
+      const bp = bpLine(pools.spx_pm_bp_pct, caps.R1_spx_pm_pool_cap_pct, r === regime, pools.spx_pm_bp_dollars);
       return `<div class="rm-val">${bp}</div><div class="rm-note n-block">R6 阻断新入场 (BP 仍计)</div>`;
     }
     const cap = r === 'stress'
       ? (caps.R5_stress_threshold_pct ?? caps.R5_spx_pm_stress_cap_pct)
       : caps.R1_spx_pm_pool_cap_pct;
-    const bp = bpLine(pools.spx_pm_bp_pct, cap, r === regime);
+    const bp = bpLine(pools.spx_pm_bp_pct, cap, r === regime, pools.spx_pm_bp_dollars);
     const note = r === 'stress'
       ? `<div class="rm-note n-warn">R5: cap 收紧至 ${fmtPct(cap)}</div>`
       : `<div class="rm-note">R1: SPX + equity 合并</div>`;
@@ -1995,7 +2081,7 @@ function _renderGovernance() {
     if (r === 'second') return `<div class="rm-val v-blocked">✕ BLOCKED</div><div class="rm-note n-block">R6 全部 short-vol 阻断</div>`;
     if (r === 'normal') return `<div class="rm-val v-wait">○ 待机</div><div class="rm-note">需 VIX ≥ 22 解锁</div>`;
     const cap = caps.R2_es_span_cap_pct;
-    const bp = bpLine(pools.es_span_bp_pct, cap, r === regime);
+    const bp = bpLine(pools.es_span_bp_pct, cap, r === regime, pools.es_span_bp_dollars);
     const valCls = r === regime ? 'v-active' : '';
     return `<div class="rm-val ${valCls}">${bp}</div><div class="rm-note n-ok">/ES SPAN margin · R2 cap ${fmtPct(cap)}</div>`;
   }
@@ -2302,7 +2388,7 @@ function renderPositionBars() {
       const etPos  = (_spxPos?.positions || []).find(p => p.account === 'etrade');
       const strikes = etPos?.short_strike ? `${etPos.short_strike}/${etPos.long_strike||'?'}` : 'SPX';
       const qty    = spxOpts.reduce((s, p) => s + Math.abs(p.quantity || 0), 0) / 2;
-      const label  = `SPX 主策略 ${strikes} ×${qty}`;
+      const label  = `SPX Spread ${strikes} ×${qty}`;
       spxStratRow  = _posBarRow(label, netMv, netPnl,
         Math.abs(netMv) / maxAbs * 100, 'rgba(201,168,64,0.70)', nlv);
     }
@@ -2540,7 +2626,7 @@ async function syncPortfolio() {
   const ts  = document.getElementById('sync-ts');
   if (btn) { btn.textContent = '↻ Syncing…'; btn.disabled = true; }
   if (ts)  ts.textContent = '';
-  await Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadQ041(), loadQ042(), loadAftermath(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition()]);
+  await Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadStressPutLadder(), loadQ041(), loadQ042(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition()]);
   if (btn) { btn.textContent = '↻ Sync'; btn.disabled = false; }
   if (ts)  ts.textContent = 'synced ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
@@ -2568,12 +2654,12 @@ function _initDefaultView() {
 // ── Boot ──────────────────────────────────────────────────────────────────────
 (async () => {
   _initDefaultView();
-  await Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadQ041(), loadQ042(), loadAftermath(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition()]);
+  await Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadStressPutLadder(), loadQ041(), loadQ042(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition()]);
   const ts = document.getElementById('sync-ts');
   if (ts) ts.textContent = 'loaded ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
   // Auto-refresh: strategy cards (recommendation+position) every 60s — picks up close→re-entry transitions
-  setInterval(() => Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadQ041(), loadQ042(), loadAftermath(), loadEtradeAuthBanner()]), 60 * 1000);
+  setInterval(() => Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadStressPutLadder(), loadQ041(), loadQ042(), loadEtradeAuthBanner()]), 60 * 1000);
   // Snapshot + Schwab positions every 5min — heavier, less frequent
   setInterval(() => Promise.allSettled([loadSnapshot(), loadGovernance(), loadPositionComposition()]), 5 * 60 * 1000);
 })();
