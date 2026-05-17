@@ -581,6 +581,16 @@ body {
   gap: 8px;
   margin-top: 8px;
 }
+.governance-subheader {
+  font-family: var(--f-ui);
+  font-size: 0.54rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 0 2px 2px;
+  grid-column: span 2;
+}
 .governance-cell {
   background: var(--surface-hi);
   border: 1px solid var(--border-2);
@@ -606,9 +616,21 @@ body {
 .governance-note {
   margin-top: 3px;
   font-family: var(--f-mono);
-  font-size: 0.58rem;
+  font-size: 0.60rem;
   color: var(--text-2);
 }
+.governance-view-meta {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--f-ui); font-size: 0.58rem; color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.governance-view-badge {
+  font-size: 0.54rem; font-weight: 700; letter-spacing: 0.10em;
+  text-transform: uppercase; background: var(--gray-bg);
+  border: 1px solid var(--gray-border); border-radius: 3px;
+  padding: 1px 5px; color: var(--text-2);
+}
+.governance-view-denom { font-family: var(--f-mono); font-size: 0.60rem; color: var(--text-2); }
 .governance-blocks {
   margin-top: 10px;
   border-top: 1px solid var(--border);
@@ -616,14 +638,18 @@ body {
 }
 .governance-block-row {
   display: flex;
-  justify-content: space-between;
-  gap: 10px;
+  align-items: baseline;
+  gap: 8px;
   padding: 4px 0;
   font-family: var(--f-mono);
   font-size: 0.64rem;
   color: var(--text-2);
+  border-bottom: 1px solid var(--border);
 }
-.governance-block-row span:first-child { color: var(--text); }
+.governance-block-row:last-child { border-bottom: none; }
+.governance-block-row .gov-sleeve { color: var(--text); flex: 0 0 auto; min-width: 80px; }
+.governance-block-row .gov-rule   { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.governance-block-row .gov-ts     { flex: 0 0 auto; color: var(--text-muted); white-space: nowrap; }
 /* ── Position composition bars ── */
 .pos-comp-section { margin-top: 4px; }
 .pos-comp-header {
@@ -1857,17 +1883,23 @@ function _renderGovernance() {
   const blocksHtml = blocked.length
     ? blocked.slice(-5).reverse().map(row => {
         const c = row.candidate || {};
+        const ts = (row.timestamp || '').slice(0, 16).replace('T', ' ');
         return `<div class="governance-block-row">
-          <span>${c.sleeve || c.strategy_key || c.strategy || 'candidate'}</span>
-          <span>${row.rule || '—'} · ${row.timestamp || '—'}</span>
+          <span class="gov-sleeve">${c.sleeve || c.strategy_key || c.strategy || 'candidate'}</span>
+          <span class="gov-rule">${row.rule || '—'}</span>
+          <span class="gov-ts">${ts}</span>
         </div>`;
       }).join('')
     : '<div class="snapshot-unavail" style="padding:0">No blocked candidates logged.</div>';
+  const denomStr = pools.nlv_basis ?? state.basis_dollars;
   body.innerHTML = `
-    <div class="governance-view-label" style="font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);margin-bottom:6px">
-      View: <strong style="color:var(--text-2)">${viewLabel}</strong> · denominator: $${fmtNum(pools.nlv_basis ?? state.basis_dollars, 0)}
+    <div class="governance-view-meta">
+      <span class="governance-view-badge">${viewLabel}</span>
+      <span class="governance-view-denom">$${fmtNum(denomStr, 0)}</span>
     </div>
     <div class="governance-grid">
+      <div class="governance-subheader">Stress Status</div>
+      <div class="governance-subheader">BP &amp; Activity</div>
       <div class="governance-cell ${cellCls}">
         <div class="governance-label">Stress Episode</div>
         <div class="governance-value">${stress ? 'ACTIVE' : 'inactive'}</div>

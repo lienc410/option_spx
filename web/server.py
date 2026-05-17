@@ -783,6 +783,98 @@ def api_sleeve_governance_state():
         }), 200
 
 
+@app.route("/api/governance/backtest")
+def api_governance_backtest():
+    """SPEC-103 historical stress episode analysis from Q072 daily flags."""
+    try:
+        import pandas as pd
+        from strategy.sleeve_governance import (
+            Q072_DAILY_FLAGS,
+            DECISION_LOG_PATH,
+            _read_jsonl,
+            stress_episode_from_flags,
+            detect_second_leg_state,
+            governance_caps,
+        )
+
+        daily = pd.read_csv(Q072_DAILY_FLAGS, parse_dates=["date"]).set_index("date")
+        stress = stress_episode_from_flags(daily)
+        second_leg = detect_second_leg_state(daily)
+
+        total_days = len(daily)
+        stress_days = int(stress.sum())
+        second_leg_days = int(second_leg.sum())
+
+        # Build episode list: contiguous runs of stress=True
+        episodes = []
+        in_ep = False
+        ep_start = None
+        for d, s in stress.items():
+            if s and not in_ep:
+                in_ep = True
+                ep_start = d
+            elif not s and in_ep:
+                ep_end = d - pd.Timedelta(days=1)
+                dur = int((stress[ep_start:ep_end]).sum())
+                vix_col = "vix" if "vix" in daily.columns else None
+                max_vix = float(daily.loc[ep_start:ep_end, vix_col].max()) if vix_col else None
+                sl = bool(second_leg.loc[ep_start:ep_end].any())
+                episodes.append({
+                    "start": ep_start.strftime("%Y-%m-%d"),
+                    "end":   ep_end.strftime("%Y-%m-%d"),
+                    "trading_days": dur,
+                    "max_vix": round(max_vix, 1) if max_vix else None,
+                    "second_leg_triggered": sl,
+                })
+                in_ep = False
+        if in_ep and ep_start is not None:
+            ep_end = daily.index[-1]
+            dur = int((stress[ep_start:ep_end]).sum())
+            vix_col = "vix" if "vix" in daily.columns else None
+            max_vix = float(daily.loc[ep_start:ep_end, vix_col].max()) if vix_col else None
+            sl = bool(second_leg.loc[ep_start:ep_end].any())
+            episodes.append({
+                "start": ep_start.strftime("%Y-%m-%d"),
+                "end":   ep_end.strftime("%Y-%m-%d"),
+                "trading_days": dur,
+                "max_vix": round(max_vix, 1) if max_vix else None,
+                "second_leg_triggered": sl,
+                "ongoing": True,
+            })
+
+        # Blocked entry rate from decision log
+        decisions = _read_jsonl(DECISION_LOG_PATH, limit=5000)
+        total_decided = len(decisions)
+        total_blocked = sum(1 for r in decisions if r.get("accepted") is False)
+
+        # Caps snapshot — call with stress=True so R5 shows the actual tighter cap
+        caps = governance_caps(stress_episode_active=True)
+
+        return jsonify({
+            "status": "available",
+            "data_range": {
+                "start": daily.index[0].strftime("%Y-%m-%d"),
+                "end":   daily.index[-1].strftime("%Y-%m-%d"),
+                "total_trading_days": total_days,
+            },
+            "metrics": {
+                "stress_days": stress_days,
+                "stress_pct": round(stress_days / total_days * 100, 1) if total_days else 0,
+                "second_leg_days": second_leg_days,
+                "second_leg_pct": round(second_leg_days / total_days * 100, 1) if total_days else 0,
+                "n_episodes": len(episodes),
+                "avg_episode_days": round(stress_days / max(len(episodes), 1), 1),
+                "total_decided": total_decided,
+                "total_blocked": total_blocked,
+                "blocked_rate_pct": round(total_blocked / total_decided * 100, 1) if total_decided else 0,
+            },
+            "episodes": episodes,
+            "caps": caps,
+        })
+    except Exception as exc:
+        return jsonify({"status": "unavailable", "error": str(exc)}), 200
+
+
 @app.route("/api/etrade/balances")
 def api_etrade_balances():
     from etrade.client import get_account_balances

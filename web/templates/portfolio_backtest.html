@@ -77,11 +77,23 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .page-meta { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-2); letter-spacing: 0.02em; }
 .page-meta .meta-sep { color: var(--text-muted); margin: 0 6px; }
 
+/* ── Page tabs ── */
+.page-tabs { display: flex; gap: 2px; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.page-tab { font-family: var(--f-ui); font-size: 0.72rem; padding: 5px 14px; border-radius: 5px; text-decoration: none; color: var(--text-2); border: 1px solid transparent; transition: 0.15s; cursor: pointer; background: none; }
+.page-tab.active { color: var(--text); background: var(--surface-hi); border-color: var(--border-2); }
+.page-tab:hover:not(.active) { color: var(--text-2); background: var(--surface); }
+
+/* ── Banner ── */
+.banner { background: var(--orange-bg); border: 1px solid var(--orange-border); border-radius: 8px; padding: 10px 14px; margin-bottom: 18px; }
+.banner-title { font-family: var(--f-ui); font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--orange); margin-bottom: 3px; }
+.banner-body { font-family: var(--f-ui); font-size: 0.68rem; color: var(--text-2); }
+
 /* ── Section label ── */
 .section-label { font-family: var(--f-ui); font-size: 0.60rem; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-2); margin-bottom: 10px; }
 
 /* ── Metrics grid ── */
 .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+.metrics-grid-7 { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; margin-bottom: 20px; }
 .metric-cell {
   background: var(--surface); border: 1px solid var(--border-2);
   border-radius: 9px; padding: 14px 16px;
@@ -138,6 +150,30 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 
 .unavail { font-family: var(--f-ui); font-size: 0.72rem; color: var(--text-2); font-style: italic; padding: 24px 0; text-align: center; }
 
+/* ── Episode table ── */
+.ep-table { width: 100%; border-collapse: collapse; font-family: var(--f-mono); font-size: 0.68rem; }
+.ep-table th { font-family: var(--f-ui); font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); text-align: left; padding: 7px 10px; background: var(--surface-hi); border-bottom: 1px solid var(--border-2); }
+.ep-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); color: var(--text-2); }
+.ep-table tbody tr:last-child td { border-bottom: none; }
+.ep-table td.emph { color: var(--text); }
+.ep-table td.danger { color: var(--red); }
+.ep-table td.warn { color: var(--orange); }
+.ep-table td.ongoing { color: var(--gold); }
+.table-wrap { border: 1px solid var(--border); border-radius: 9px; overflow: hidden; margin-bottom: 18px; }
+
+/* ── Trading discipline ── */
+.discipline-section { margin-top: 24px; margin-bottom: 14px; }
+.discipline-title { font-family: var(--f-ui); font-size: 0.62rem; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.10em; margin-bottom: 14px; }
+.spec-card { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 14px 16px; margin-bottom: 12px; }
+.card-structure { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+.leg-chip { font-family: var(--f-mono); font-size: 0.65rem; color: var(--text-2); background: var(--surface-hi); border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px; }
+.leg-chip.rule { border-color: rgba(72,136,232,0.25); color: var(--blue); }
+.rule-row { display: flex; gap: 8px; align-items: flex-start; padding: 5px 0; border-bottom: 1px solid var(--border); }
+.rule-row:last-child { border-bottom: none; }
+.rule-key { font-family: var(--f-ui); font-size: 0.60rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); min-width: 100px; padding-top: 1px; }
+.rule-val { font-family: var(--f-ui); font-size: 0.68rem; color: var(--text-2); flex: 1; line-height: 1.5; }
+.rule-val strong { color: var(--text); font-weight: 500; }
+
 .footer { text-align: center; padding: 20px 0 0; font-size: 0.65rem; color: var(--text-muted); }
 </style>
 </head>
@@ -173,6 +209,15 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
       <span id="hero-sleeves">—</span>
     </div>
   </div>
+
+  <!-- Tab navigation -->
+  <div class="page-tabs">
+    <button class="page-tab active" id="tab-joint" onclick="switchTab('joint')">Joint Portfolio BT</button>
+    <button class="page-tab" id="tab-gov" onclick="switchTab('gov')">Stress Governance BT</button>
+  </div>
+
+  <!-- ═══ Panel: Joint Portfolio BT ═══ -->
+  <div id="panel-joint">
 
   <!-- Key metrics -->
   <div class="section-label">Joint Portfolio Metrics vs J3 Baseline</div>
@@ -217,6 +262,65 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   <!-- Research notes -->
   <div class="section-label">Research Notes</div>
   <div class="research-note" id="research-note">Loading…</div>
+
+  </div><!-- /panel-joint -->
+
+  <!-- ═══ Panel: Stress Governance BT ═══ -->
+  <div id="panel-gov" style="display:none">
+
+    <div class="banner">
+      <div class="banner-title">Research view — governance rule impact analysis</div>
+      <div class="banner-body">SPEC-103 历史 stress episode 分析。从 Q072 daily flags 重建各 episode 时间段；entry gate 决策来自实盘 decision log。</div>
+    </div>
+
+    <!-- 7-cell metrics row -->
+    <div class="section-label">Stress Governance Metrics</div>
+    <div class="metrics-grid-7" id="gov-metrics">
+      <div class="unavail" style="grid-column:1/-1">Loading…</div>
+    </div>
+
+    <!-- Episode analysis table -->
+    <div class="section-label">Historical Stress Episodes</div>
+    <div class="table-wrap">
+      <table class="ep-table">
+        <thead>
+          <tr>
+            <th>Start</th>
+            <th>End</th>
+            <th>Trading Days</th>
+            <th>Max VIX</th>
+            <th>Second Leg</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="gov-episodes"><tr><td colspan="6" class="unavail" style="text-align:center">Loading…</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- Trading Discipline -->
+    <div class="discipline-section">
+      <div class="discipline-title">Trading Discipline — SPEC-103 Governance Rules</div>
+      <div class="spec-card">
+        <div class="card-structure">
+          <span class="leg-chip rule">R1</span>
+          <span class="leg-chip rule">R2</span>
+          <span class="leg-chip rule">R3</span>
+          <span class="leg-chip rule">R4</span>
+          <span class="leg-chip rule">R5</span>
+          <span class="leg-chip rule">R6</span>
+        </div>
+        <div id="gov-rules-body">
+          <div class="rule-row"><span class="rule-key">R1 SPX PM</span><span class="rule-val">SPX sleeve PM BP ≤ cap of NLV</span></div>
+          <div class="rule-row"><span class="rule-key">R2 /ES SPAN</span><span class="rule-val">/ES SPAN margin ≤ cap of NLV</span></div>
+          <div class="rule-row"><span class="rule-key">R3 Combined</span><span class="rule-val">SPX + /ES combined BP ≤ cap of NLV</span></div>
+          <div class="rule-row"><span class="rule-key">R4 Short Vol</span><span class="rule-val">All short-vol BP combined ≤ cap of NLV</span></div>
+          <div class="rule-row"><span class="rule-key">R5 Stress</span><span class="rule-val">During stress episode: tighter SPX PM cap applies</span></div>
+          <div class="rule-row"><span class="rule-key">R6 2nd Leg</span><span class="rule-val">Second-leg active → BLOCK all new short-vol entries</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /panel-gov -->
 
 </div>
 
@@ -398,6 +502,97 @@ async function loadTimeline() {
   } catch (e) {
     document.getElementById('bp-chart').parentElement.innerHTML =
       `<div class="unavail">Timeline data unavailable: ${e.message}</div>`;
+  }
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+let _govLoaded = false;
+
+function switchTab(tab) {
+  document.getElementById('panel-joint').style.display = tab === 'joint' ? '' : 'none';
+  document.getElementById('panel-gov').style.display   = tab === 'gov'   ? '' : 'none';
+  document.getElementById('tab-joint').classList.toggle('active', tab === 'joint');
+  document.getElementById('tab-gov').classList.toggle('active', tab === 'gov');
+  if (tab === 'gov' && !_govLoaded) { _govLoaded = true; loadGovernanceBT(); }
+}
+
+// ── Governance BT loader ──────────────────────────────────────────────────────
+function fmtPct1(v) { return typeof v === 'number' ? v.toFixed(1) + '%' : '—'; }
+
+async function loadGovernanceBT() {
+  try {
+    const res = await fetch('/api/governance/backtest');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const d = await res.json();
+    if (d.status !== 'available') throw new Error(d.error || 'unavailable');
+    const m = d.metrics;
+    const dr = d.data_range || {};
+    const caps = d.caps || {};
+
+    // 7-cell metrics
+    document.getElementById('gov-metrics').innerHTML = `
+      <div class="metric-cell neutral">
+        <div class="metric-label">Stress Days %</div>
+        <div class="metric-val">${fmtPct1(m.stress_pct)}</div>
+        <div class="metric-sub">${m.stress_days} / ${dr.total_trading_days} trading days</div>
+      </div>
+      <div class="metric-cell neutral">
+        <div class="metric-label">Episodes</div>
+        <div class="metric-val">${m.n_episodes}</div>
+        <div class="metric-sub">Avg ${fmtNum(m.avg_episode_days, 0)} trading days each</div>
+      </div>
+      <div class="metric-cell warning">
+        <div class="metric-label">Second-Leg Days %</div>
+        <div class="metric-val orange">${fmtPct1(m.second_leg_pct)}</div>
+        <div class="metric-sub">${m.second_leg_days} days, all entries blocked</div>
+      </div>
+      <div class="metric-cell ${m.total_blocked > 0 ? 'warning' : 'positive'}">
+        <div class="metric-label">Blocked Rate</div>
+        <div class="metric-val ${m.total_blocked > 0 ? 'orange' : 'green'}">${fmtPct1(m.blocked_rate_pct)}</div>
+        <div class="metric-sub">${m.total_blocked} blocked / ${m.total_decided} decided</div>
+      </div>
+      <div class="metric-cell muted">
+        <div class="metric-label">R1 SPX PM Cap</div>
+        <div class="metric-val" style="font-size:1rem">${fmtPct1(caps.R1_spx_pm_pool_cap_pct != null ? caps.R1_spx_pm_pool_cap_pct * 100 : null)}</div>
+        <div class="metric-sub">normal regime</div>
+      </div>
+      <div class="metric-cell muted">
+        <div class="metric-label">R5 Stress Cap</div>
+        <div class="metric-val orange" style="font-size:1rem">${fmtPct1(caps.R5_spx_pm_stress_cap_pct != null ? caps.R5_spx_pm_stress_cap_pct * 100 : null)}</div>
+        <div class="metric-sub">during stress episode</div>
+      </div>
+      <div class="metric-cell muted">
+        <div class="metric-label">Data Range</div>
+        <div class="metric-val" style="font-size:0.68rem;font-family:var(--f-mono)">${dr.start || '—'}</div>
+        <div class="metric-sub">→ ${dr.end || '—'}</div>
+      </div>`;
+
+    // Episode table
+    const episodes = (d.episodes || []).slice().reverse();
+    document.getElementById('gov-episodes').innerHTML = episodes.length
+      ? episodes.map(ep => `
+          <tr>
+            <td class="emph">${ep.start}</td>
+            <td>${ep.end}</td>
+            <td class="emph">${ep.trading_days}d</td>
+            <td class="${ep.max_vix >= 30 ? 'danger' : ep.max_vix >= 22 ? 'warn' : ''}">${ep.max_vix != null ? ep.max_vix.toFixed(1) : '—'}</td>
+            <td class="${ep.second_leg_triggered ? 'danger' : ''}">${ep.second_leg_triggered ? 'YES ●' : 'no'}</td>
+            <td class="${ep.ongoing ? 'ongoing' : ''}">${ep.ongoing ? 'ONGOING' : 'closed'}</td>
+          </tr>`).join('')
+      : '<tr><td colspan="6" class="unavail" style="text-align:center">No stress episodes in data range.</td></tr>';
+
+    // Rules with actual cap values
+    document.getElementById('gov-rules-body').innerHTML = `
+      <div class="rule-row"><span class="rule-key">R1 SPX PM</span><span class="rule-val">Schwab SPX sleeve PM BP ≤ <strong>${fmtPct1(caps.R1_spx_pm_pool_cap_pct != null ? caps.R1_spx_pm_pool_cap_pct * 100 : null)}</strong> of account NLV</span></div>
+      <div class="rule-row"><span class="rule-key">R2 /ES SPAN</span><span class="rule-val">/ES SPAN margin ≤ <strong>${fmtPct1(caps.R2_es_span_cap_pct != null ? caps.R2_es_span_cap_pct * 100 : null)}</strong> of NLV (independent broker pool)</span></div>
+      <div class="rule-row"><span class="rule-key">R3 Combined</span><span class="rule-val">SPX + /ES combined BP ≤ <strong>${fmtPct1(caps.R3_combined_cap_pct != null ? caps.R3_combined_cap_pct * 100 : null)}</strong> of NLV</span></div>
+      <div class="rule-row"><span class="rule-key">R4 Short Vol</span><span class="rule-val">All short-vol positions BP ≤ <strong>${fmtPct1(caps.R4_short_vol_cap_pct != null ? caps.R4_short_vol_cap_pct * 100 : null)}</strong> of NLV</span></div>
+      <div class="rule-row"><span class="rule-key">R5 Stress</span><span class="rule-val">Stress episode active → SPX PM cap tightens to <strong style="color:var(--orange)">${fmtPct1(caps.R5_spx_pm_stress_cap_pct != null ? caps.R5_spx_pm_stress_cap_pct * 100 : null)}</strong></span></div>
+      <div class="rule-row"><span class="rule-key">R6 2nd Leg</span><span class="rule-val">Second-leg detected (dd_60d ≤ −8% AND VIX ≥ 25) → <strong style="color:var(--red)">BLOCK all new short-vol entries</strong></span></div>`;
+
+  } catch (e) {
+    document.getElementById('gov-metrics').innerHTML =
+      `<div class="unavail" style="grid-column:1/-1">Governance backtest unavailable: ${e.message}</div>`;
   }
 }
 
