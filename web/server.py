@@ -292,6 +292,11 @@ def performance_page():
     return render_template("performance.html")
 
 
+@app.route("/journal")
+def journal_page():
+    return render_template("journal.html")
+
+
 @app.route("/api/recommendation")
 def api_recommendation():
     from strategy.selector import get_recommendation
@@ -1283,6 +1288,57 @@ def api_portfolio_attribution():
     from web.portfolio_surface import attribution_payload
 
     return jsonify(attribution_payload())
+
+
+@app.route("/api/portfolio/daily-history")
+def api_portfolio_daily_history():
+    """Daily portfolio snapshot history for /journal page.
+
+    Query params:
+      days: limit to last N calendar days (default 90, 'all' for all records)
+    Returns full JSONL records (schema v2) for the requested window.
+    """
+    history_path = os.path.normpath(
+        os.path.join(os.path.dirname(__file__), "..", "data", "daily_snapshot.jsonl")
+    )
+    if not os.path.exists(history_path):
+        return jsonify({"status": "no_history", "records": [], "count": 0})
+
+    records: list[dict] = []
+    try:
+        with open(history_path) as f:
+            for line in f:
+                try:
+                    records.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    except Exception as exc:
+        return jsonify({"status": "error", "error": str(exc), "records": [], "count": 0})
+
+    if not records:
+        return jsonify({"status": "no_history", "records": [], "count": 0})
+
+    # Sort by date ascending (defensive — file is append-only but resilient)
+    records.sort(key=lambda r: r.get("date") or "")
+
+    days_arg = flask_req.args.get("days", "90")
+    if days_arg != "all":
+        try:
+            n_days = int(days_arg)
+            from datetime import date as _date, timedelta as _td
+            cutoff = (_date.today() - _td(days=n_days)).isoformat()
+            records = [r for r in records if (r.get("date") or "") >= cutoff]
+        except ValueError:
+            pass
+
+    status = "available" if len(records) >= 5 else "warming_up"
+    return jsonify({
+        "status": status,
+        "records": records,
+        "count": len(records),
+        "earliest": records[0].get("date") if records else None,
+        "latest": records[-1].get("date") if records else None,
+    })
 
 
 @app.route("/api/portfolio/nlv-change")
