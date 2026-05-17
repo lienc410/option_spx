@@ -1316,7 +1316,8 @@ def api_q042_draft():
     Returns suggested long/short call strikes (ATM and OTM) and expiry per
     SPEC-094.1: Sleeve A = +2.5% OTM at 30 DTE; Sleeve B = +5% OTM at 90 DTE.
     Strikes rounded to nearest $5 SPX grid. Est debit computed via BSM at
-    current SPX/VIX.
+    current SPX/VIX. Also pulls live SPX call chain for both legs so PM can
+    pick from real bid/ask/OI rows instead of relying on BSM alone.
     """
     sleeve = (flask_req.args.get("sleeve") or "A").upper()
     if sleeve not in ("A", "B"):
@@ -1324,8 +1325,9 @@ def api_q042_draft():
 
     try:
         from backtest.pricer import call_price
+        from schwab.client import _bsm_delta_put, get_spx_quote, get_vix_quote
+        from schwab.scanner import build_strike_scan
         from signals.trend import fetch_spx_history, get_current_trend
-        from schwab.client import get_spx_quote, get_vix_quote
     except Exception as exc:
         return jsonify({"status": "error", "error": f"pricer/data import failed: {exc}"})
 
@@ -1383,6 +1385,74 @@ def api_q042_draft():
     max_loss_per_contract = round(est_debit * 100.0, 2)
     max_gain_per_contract = round((float(width) - est_debit) * 100.0, 2)
 
+    # ── Live SPX call chain scan for both legs ─────────────────────────────
+    # Call delta = put_delta + 1 (using existing BSM helper)
+    long_delta_target  = _bsm_delta_put(float(spx), float(long_strike),  int(dte), float(sigma)) + 1.0
+    short_delta_target = _bsm_delta_put(float(spx), float(short_strike), int(dte), float(sigma)) + 1.0
+    long_scan = {"rows": [], "scan_fallback": True}
+    short_scan = {"rows": [], "scan_fallback": True}
+    scan_error: str | None = None
+    try:
+        long_scan = build_strike_scan(
+            symbol="SPX", option_type="CALL",
+            target_delta=float(long_delta_target),
+            target_dte=int(dte),
+            center_strike=float(long_strike),
+            spot=float(spx), sigma=float(sigma),
+        )
+        short_scan = build_strike_scan(
+            symbol="SPX", option_type="CALL",
+            target_delta=float(short_delta_target),
+            target_dte=int(dte),
+            center_strike=float(short_strike),
+            spot=float(spx), sigma=float(sigma),
+        )
+    except Exception as exc:
+        scan_error = str(exc)
+
+    def _enrich(rows: list[dict], target_delta: float) -> list[dict]:
+        out = []
+        for r in rows or []:
+            try:
+                lv_raw = float(r["delta"]) if r.get("delta") not in (None, "") else None
+            except (TypeError, ValueError):
+                lv_raw = None
+            lv = abs(lv_raw) if lv_raw is not None else None
+            out.append({
+                **r,
+                "target_delta": round(float(target_delta), 4),
+                "live_delta":   round(lv, 4) if lv is not None else None,
+                "delta_gap":    round(abs(lv - float(target_delta)), 4) if lv is not None else None,
+            })
+        return out
+
+    long_rows  = _enrich(long_scan.get("rows"),  long_delta_target)
+    short_rows = _enrich(short_scan.get("rows"), short_delta_target)
+
+    long_rec  = next((r for r in long_rows  if r.get("recommended")), None)
+    short_rec = next((r for r in short_rows if r.get("recommended")), None)
+
+    # Override strike + debit with live recommended when available
+    if long_rec and short_rec:
+        live_long  = int(round(float(long_rec["strike"])))
+        live_short = int(round(float(short_rec["strike"])))
+        long_mid  = float(long_rec["mid"])  if long_rec.get("mid")  not in (None, "") else None
+        short_mid = float(short_rec["mid"]) if short_rec.get("mid") not in (None, "") else None
+        if live_long < live_short and long_mid is not None and short_mid is not None:
+            long_strike  = live_long
+            short_strike = live_short
+            est_debit    = max(round(long_mid - short_mid, 2), 0.0)
+            width = short_strike - long_strike
+            max_loss_per_contract = round(est_debit * 100.0, 2)
+            max_gain_per_contract = round((float(width) - est_debit) * 100.0, 2)
+
+    market_open = _is_market_hours()
+    chain_message = None
+    if scan_error:
+        chain_message = f"SPX chain error — using BSM debit: {scan_error}"
+    elif not long_rows or not short_rows:
+        chain_message = "Markets closed (no two-sided SPX call quotes) — using BSM debit" if not market_open else "No SPX call quotes in window — using BSM debit"
+
     return jsonify({
         "status":            "ok",
         "sleeve":            sleeve,
@@ -1394,11 +1464,21 @@ def api_q042_draft():
         "short_strike":      short_strike,
         "width":             width,
         "est_debit":         est_debit,
+        "model_bsm":         round(float(call_price(float(spx), float(long_strike), int(dte), float(sigma)) - call_price(float(spx), float(short_strike), int(dte), float(sigma))), 2),
         "max_loss_per_contract":  max_loss_per_contract,
         "max_gain_per_contract":  max_gain_per_contract,
         "signal_date":       signal_date,
         "entry_target_date": entry_target_date,
         "expiry":            expiry,
+        "market_open":       market_open,
+        "chain_message":     chain_message,
+        "strike_scan":       {
+            "long_leg":         long_rows,
+            "short_leg":        short_rows,
+            "long_recommended": long_rec.get("strike") if long_rec else None,
+            "short_recommended": short_rec.get("strike") if short_rec else None,
+            "scan_fallback":    not (long_rows and short_rows),
+        },
     })
 
 

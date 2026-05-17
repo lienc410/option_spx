@@ -145,6 +145,25 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .modal-msg.hidden { display: none; }
 .modal-msg.error { color: var(--red); }
 .modal-msg.ok { color: var(--green); }
+
+/* Strike scan (cloned from /spx pattern) */
+.scan-wrap { display: grid; gap: 8px; }
+.scan-box { border: 1px solid var(--border); border-radius: 8px; background: linear-gradient(180deg, rgba(72,136,232,0.05), transparent 28%), var(--surface-hi); overflow: hidden; }
+.scan-head { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 0.60rem; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); }
+.scan-note { padding: 8px 10px; font-size: 0.7rem; color: var(--text-2); }
+.scan-table-wrap { max-height: 200px; overflow: auto; }
+.scan-table { width: 100%; border-collapse: collapse; font-family: var(--f-mono, 'JetBrains Mono', monospace); }
+.scan-table th { text-align: left; padding: 6px 8px; font-size: 0.55rem; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); border-bottom: 1px solid var(--border); }
+.scan-table td { padding: 6px 8px; font-size: 0.65rem; color: var(--text); border-bottom: 1px solid rgba(35,42,66,0.45); }
+.scan-table tr:last-child td { border-bottom: none; }
+.scan-row { cursor: pointer; transition: background .12s ease; }
+.scan-row:hover { background: rgba(201,168,64,0.06); }
+.scan-row.recommended { background: rgba(66,204,124,0.07); }
+.scan-row.selected { box-shadow: inset 0 0 0 1px var(--gold-border); background: rgba(201,168,64,0.08); }
+.scan-row.warn td { color: var(--orange); }
+.scan-row.gap-mid td { color: #d6c26a; }
+.scan-row.gap-high td { color: var(--red); }
+.scan-star { color: var(--gold); margin-right: 4px; }
 </style>
 </head>
 <body>
@@ -574,11 +593,11 @@ async function openQ042Modal(kind, sleeve) {
           <input id="q042-exp" class="modal-input" type="date">
         </div>
         <div class="modal-field">
-          <label class="modal-label">Long Strike (ATM)</label>
+          <label class="modal-label">Long Strike (ATM) <span style="color:var(--text-muted);font-size:0.55rem;text-transform:none;letter-spacing:0">click row to select</span></label>
           <input id="q042-long" class="modal-input" type="number" step="5">
         </div>
         <div class="modal-field">
-          <label class="modal-label">Short Strike (OTM)</label>
+          <label class="modal-label">Short Strike (OTM) <span style="color:var(--text-muted);font-size:0.55rem;text-transform:none;letter-spacing:0">click row to select</span></label>
           <input id="q042-short" class="modal-input" type="number" step="5">
         </div>
         <div class="modal-field">
@@ -586,8 +605,19 @@ async function openQ042Modal(kind, sleeve) {
           <input id="q042-contracts" class="modal-input" type="number" min="1" step="1" value="1">
         </div>
         <div class="modal-field">
-          <label class="modal-label">Est. Debit ($)</label>
-          <input id="q042-est-debit" class="modal-input" type="number" step="0.01" placeholder="BSM estimate">
+          <label class="modal-label">Est. Debit ($) <span style="color:var(--text-muted);font-size:0.55rem;text-transform:none;letter-spacing:0">live mid or BSM</span></label>
+          <input id="q042-est-debit" class="modal-input" type="number" step="0.01" placeholder="from chain or BSM">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Scan Rows</label>
+          <select id="q042-scan-limit" class="modal-select" onchange="_q042RenderScan()">
+            <option value="5" selected>Top 5</option>
+            <option value="10">Top 10</option>
+            <option value="all">All</option>
+          </select>
+        </div>
+        <div class="modal-field full">
+          <div class="scan-wrap" id="q042-scan-wrap"></div>
         </div>
         <div class="modal-field">
           <label class="modal-label">Fill Debit ($) <span style="color:var(--text-muted);font-size:0.55rem;text-transform:none;letter-spacing:0">leave blank until executed</span></label>
@@ -641,6 +671,8 @@ async function openQ042Modal(kind, sleeve) {
   }
 }
 
+let _q042Draft = null;
+
 async function _q042LoadDraft() {
   const sleeve = document.getElementById('q042-sleeve').value;
   const hint = document.getElementById('q042-draft-hint');
@@ -650,6 +682,7 @@ async function _q042LoadDraft() {
       if (hint) hint.textContent = 'Draft unavailable: ' + (d.reason || d.error || 'unknown') + ' — fill manually';
       return;
     }
+    _q042Draft = d;
     const $ = id => document.getElementById(id);
     $('q042-sd').value          = d.signal_date;
     $('q042-entry-date').value  = d.entry_target_date;
@@ -659,12 +692,88 @@ async function _q042LoadDraft() {
     $('q042-est-debit').value   = d.est_debit;
     $('q042-spx').value         = d.spx;
     $('q042-vix').value         = d.vix;
+    _q042RenderScan();
     if (hint) {
-      hint.innerHTML = `Sleeve <b>${d.sleeve}</b> · SPX <b>${d.spx.toLocaleString()}</b> · VIX <b>${d.vix.toFixed(2)}</b> · ATM <b>${d.long_strike}</b> / ${sleeve==='A'?'+2.5%':'+5%'} <b>${d.short_strike}</b> · width <b>${d.width}</b> · ${d.dte}d · BSM debit <b>$${d.est_debit.toFixed(2)}</b> · max loss <b>$${d.max_loss_per_contract.toFixed(0)}</b>/ct · max gain <b>$${d.max_gain_per_contract.toFixed(0)}</b>/ct. PM fills actual debit after execution.`;
+      const chainNote = d.chain_message
+        ? ` · <span style="color:var(--orange)">${d.chain_message}</span>`
+        : ` · live SPX chain (rows below)`;
+      const offsetLabel = sleeve === 'A' ? '+2.5%' : '+5%';
+      hint.innerHTML = `Sleeve <b>${d.sleeve}</b> · SPX <b>${d.spx.toLocaleString()}</b> · VIX <b>${d.vix.toFixed(2)}</b> · ATM <b>${d.long_strike}</b> / ${offsetLabel} <b>${d.short_strike}</b> · width <b>${d.width}</b> · ${d.dte}d · debit <b>$${d.est_debit.toFixed(2)}</b> (BSM ref $${(d.model_bsm ?? d.est_debit).toFixed(2)}) · max loss <b>$${d.max_loss_per_contract.toFixed(0)}</b>/ct · max gain <b>$${d.max_gain_per_contract.toFixed(0)}</b>/ct${chainNote}.`;
     }
   } catch (e) {
     if (hint) hint.textContent = 'Draft fetch failed: ' + e.message;
   }
+}
+
+function _q042RenderScan() {
+  const wrap = document.getElementById('q042-scan-wrap');
+  if (!wrap || !_q042Draft) return;
+  const limit = document.getElementById('q042-scan-limit')?.value || '5';
+
+  function box(legKey, label, selectedStrike) {
+    const rows = _q042Draft.strike_scan?.[legKey] || [];
+    if (!rows.length) {
+      return `<div class="scan-box"><div class="scan-head"><span>${label}</span><span>Fallback</span></div><div class="scan-note">${_q042Draft.chain_message || 'No live chain rows.'} Strike + debit prefilled from BSM.</div></div>`;
+    }
+    const visible = limit === 'all' ? rows : rows.slice(0, Number(limit));
+    const rowsHtml = visible.map((row, idx) => {
+      const isSel = Number(row.strike || 0) === Number(selectedStrike || 0);
+      const cls = [
+        'scan-row',
+        row.recommended ? 'recommended' : '',
+        isSel ? 'selected' : '',
+        Number(row.spread_pct || 0) > 0.30 ? 'warn' : '',
+        Number(row.delta_gap || 0) > 0.08 ? 'gap-high' : '',
+        Number(row.delta_gap || 0) > 0.03 && Number(row.delta_gap || 0) <= 0.08 ? 'gap-mid' : '',
+      ].filter(Boolean).join(' ');
+      return `<tr class="${cls}" onclick="_q042SelectScanRow('${legKey}', ${idx})">
+        <td>${row.recommended ? '<span class="scan-star">★</span>' : ''}${row.strike ?? '—'}</td>
+        <td>${row.bid == null ? '—' : Number(row.bid).toFixed(2)}</td>
+        <td>${row.ask == null ? '—' : Number(row.ask).toFixed(2)}</td>
+        <td>${row.mid == null ? '—' : Number(row.mid).toFixed(2)}</td>
+        <td>${row.spread_pct == null ? '—' : (Number(row.spread_pct) * 100).toFixed(1) + '%'}</td>
+        <td>${row.live_delta == null ? '—' : Number(row.live_delta).toFixed(2)}</td>
+        <td>${row.delta_gap == null ? '—' : Number(row.delta_gap).toFixed(3)}</td>
+        <td>${row.open_interest ?? '—'}</td>
+        <td>${row.score == null ? '—' : Number(row.score).toFixed(2)}</td>
+      </tr>`;
+    }).join('');
+    return `<div class="scan-box">
+      <div class="scan-head"><span>${label}</span><span>Showing ${visible.length}/${rows.length}</span></div>
+      <div class="scan-table-wrap">
+        <table class="scan-table">
+          <thead><tr><th>Strike</th><th>Bid</th><th>Ask</th><th>Mid</th><th>Spread</th><th>Live Δ</th><th>Δ Gap</th><th>OI</th><th>Score</th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }
+
+  const longSel  = document.getElementById('q042-long')?.value;
+  const shortSel = document.getElementById('q042-short')?.value;
+  wrap.innerHTML = box('long_leg',  'Long Leg (ATM) — SPX CALL · ' + _q042Draft.dte + ' DTE', longSel)
+                 + box('short_leg', 'Short Leg (OTM) — SPX CALL · ' + _q042Draft.dte + ' DTE', shortSel);
+}
+
+function _q042SelectScanRow(legKey, idx) {
+  const rows = _q042Draft?.strike_scan?.[legKey];
+  if (!rows) return;
+  const row = rows[idx];
+  if (!row) return;
+  const $ = id => document.getElementById(id);
+  if (legKey === 'long_leg') {
+    $('q042-long').value = row.strike != null ? Math.round(row.strike) : '';
+  } else {
+    $('q042-short').value = row.strike != null ? Math.round(row.strike) : '';
+  }
+  // Recompute net debit from live mids when both legs picked
+  const longRow  = (_q042Draft.strike_scan.long_leg  || []).find(r => Number(r.strike || 0) === Number($('q042-long').value || 0));
+  const shortRow = (_q042Draft.strike_scan.short_leg || []).find(r => Number(r.strike || 0) === Number($('q042-short').value || 0));
+  if (longRow?.mid != null && shortRow?.mid != null) {
+    const debit = Math.max(Number(longRow.mid) - Number(shortRow.mid), 0);
+    $('q042-est-debit').value = debit.toFixed(2);
+  }
+  _q042RenderScan();
 }
 
 function _q042Msg(text, kind) {
