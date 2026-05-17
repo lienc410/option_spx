@@ -76,6 +76,14 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .section-label { font-family: var(--f-ui); font-size: 0.60rem; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-2); margin-bottom: 10px; margin-top: 20px; }
 .section-label:first-of-type { margin-top: 0; }
 
+/* Account view tabs */
+.acct-view-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.acct-view-tabs { display: flex; gap: 3px; background: var(--surface); border: 1px solid var(--border-2); border-radius: 7px; padding: 3px; }
+.acct-view-tab { font-family: var(--f-mono); font-size: 0.62rem; padding: 4px 12px; border-radius: 4px; border: none; background: transparent; color: var(--text-2); cursor: pointer; transition: 0.15s; letter-spacing: 0.04em; }
+.acct-view-tab:hover { color: var(--text); }
+.acct-view-tab.active { background: var(--gold-bg); color: var(--gold); }
+.acct-view-note { font-family: var(--f-mono); font-size: 0.58rem; color: var(--text-muted); }
+
 /* Snapshot strip (latest record header) */
 .latest-strip { display: flex; flex-wrap: wrap; gap: 18px; align-items: baseline; background: var(--surface-hi); border: 1px solid var(--border-2); border-radius: 9px; padding: 12px 18px; margin-bottom: 18px; }
 .latest-metric { display: inline-flex; align-items: baseline; gap: 6px; }
@@ -173,6 +181,16 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     <div class="warmup-body" id="warmup-body">— records captured. Charts and analytics activate once 5+ days of data exist. Snapshot runs daily at 16:30 ET.</div>
   </div>
 
+  <!-- Account view selector -->
+  <div class="acct-view-bar">
+    <div class="acct-view-tabs">
+      <button class="acct-view-tab active" data-acct="all"    onclick="setAccountView('all')">All</button>
+      <button class="acct-view-tab"        data-acct="schwab" onclick="setAccountView('schwab')">Schwab</button>
+      <button class="acct-view-tab"        data-acct="etrade" onclick="setAccountView('etrade')">E-Trade</button>
+    </div>
+    <span class="acct-view-note" id="acct-view-note">NLV / positions / day records filter by selection. BP composition + market context are global.</span>
+  </div>
+
   <!-- Latest snapshot strip -->
   <div class="section-label">Latest Snapshot</div>
   <div class="latest-strip" id="latest-strip"><span class="unavail">Loading…</span></div>
@@ -247,6 +265,36 @@ function fmtNum(n, dec) { return typeof n === 'number' ? n.toFixed(dec ?? 1) : '
 let _records = [];
 let _nlvWindow = 90;
 let _charts = {};
+let _accountView = (typeof localStorage !== 'undefined' && localStorage.getItem('journal_account_view')) || 'all';
+
+// Pull NLV for the currently-selected account view (with fallback to combined)
+function _acctNlv(rec) {
+  if (!rec) return null;
+  if (_accountView === 'schwab') return rec.accounts?.schwab?.nlv ?? null;
+  if (_accountView === 'etrade') return rec.accounts?.etrade?.nlv ?? null;
+  return rec.combined_nlv ?? null;
+}
+function _acctMaint(rec) {
+  if (!rec) return null;
+  if (_accountView === 'schwab') return rec.accounts?.schwab?.maint ?? null;
+  if (_accountView === 'etrade') return rec.accounts?.etrade?.maint ?? null;
+  const s = rec.accounts?.schwab?.maint, e = rec.accounts?.etrade?.maint;
+  return (s || 0) + (e || 0);
+}
+function _acctLabel() {
+  return _accountView === 'schwab' ? 'Schwab' : _accountView === 'etrade' ? 'E-Trade' : 'All';
+}
+
+function setAccountView(v) {
+  _accountView = v;
+  try { localStorage.setItem('journal_account_view', v); } catch (_) {}
+  document.querySelectorAll('.acct-view-tab').forEach(b => b.classList.toggle('active', b.dataset.acct === v));
+  if (_records.length === 0) return;
+  _renderLatest();
+  _renderNlvChart();
+  _renderPositions();
+  _renderDayRecords();
+}
 
 // ── Load ─────────────────────────────────────────────────────────────────────
 async function loadJournal() {
@@ -304,19 +352,21 @@ function _renderAll(payload) {
 function _renderLatest() {
   const latest = _records[_records.length - 1];
   const prior  = _records.length > 1 ? _records[_records.length - 2] : null;
-  const nlv = latest.combined_nlv;
-  const change = prior ? nlv - (prior.combined_nlv || 0) : null;
-  const changePct = prior && prior.combined_nlv ? (change / prior.combined_nlv * 100) : null;
+  const nlv = _acctNlv(latest);
+  const prevNlv = prior ? _acctNlv(prior) : null;
+  const change = (nlv != null && prevNlv != null) ? nlv - prevNlv : null;
+  const changePct = (change != null && prevNlv) ? (change / prevNlv * 100) : null;
   const dCls = change == null ? '' : change >= 0 ? 'green' : 'red';
   const dSign = change == null ? '' : change >= 0 ? '+' : '−';
 
   const m = latest.market || {};
   const r = latest.regime || {};
   const regimeClass = `r-${r.name || 'normal'}`;
+  const maint = _acctMaint(latest);
 
   document.getElementById('latest-strip').innerHTML = `
     <div class="latest-metric">
-      <span class="lm-lbl">NLV</span>
+      <span class="lm-lbl">${_acctLabel()} NLV</span>
       <span class="lm-num">${fmt$(nlv)}</span>
     </div>
     ${change != null ? `
@@ -325,6 +375,10 @@ function _renderLatest() {
       <span class="lm-num ${dCls}">${dSign}${fmt$(Math.abs(change))}</span>
       <span class="lm-sub">${dSign}${Math.abs(changePct).toFixed(2)}%</span>
     </div>` : ''}
+    <div class="latest-metric">
+      <span class="lm-lbl">Maint</span>
+      <span class="lm-num" style="font-size:0.95rem">${fmt$(maint)}</span>
+    </div>
     <div class="latest-metric">
       <span class="lm-lbl">Regime</span>
       <span class="day-regime-chip ${regimeClass}" style="font-size:0.62rem">${(r.name||'—').toUpperCase()}</span>
@@ -357,21 +411,21 @@ function _windowSlice() {
 function _renderNlvChart() {
   const rows = _windowSlice();
   const labels = rows.map(r => r.date);
-  const values = rows.map(r => r.combined_nlv);
+  const values = rows.map(r => _acctNlv(r));
   const ctx = document.getElementById('nlv-chart').getContext('2d');
   if (_charts.nlv) _charts.nlv.destroy();
   _charts.nlv = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
-      datasets: [{ label: 'NLV', data: values, borderColor: 'rgba(201,168,64,0.85)', backgroundColor: 'rgba(201,168,64,0.08)', borderWidth: 1.5, pointRadius: rows.length < 20 ? 3 : 0, tension: 0.1, fill: true }],
+      datasets: [{ label: `${_acctLabel()} NLV`, data: values, borderColor: 'rgba(201,168,64,0.85)', backgroundColor: 'rgba(201,168,64,0.08)', borderWidth: 1.5, pointRadius: rows.length < 20 ? 3 : 0, tension: 0.1, fill: true }],
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
         zoom: { zoom: { drag: { enabled: true, backgroundColor: 'rgba(72,136,232,0.09)', borderColor: 'rgba(72,136,232,0.45)', borderWidth: 1 }, mode: 'x' } },
-        tooltip: { callbacks: { label: c => `  NLV: ${fmt$(c.parsed.y)}` } },
+        tooltip: { callbacks: { label: c => `  ${_acctLabel()} NLV: ${fmt$(c.parsed.y)}` } },
       },
       scales: {
         x: { ticks: { color: '#606880', font: { family: "'JetBrains Mono', monospace", size: 10 }, maxTicksLimit: 10 }, grid: { color: 'rgba(25,30,51,0.8)' } },
@@ -479,10 +533,14 @@ function _renderMarketChart() {
 
 function _renderPositions() {
   const latest = _records[_records.length - 1];
-  const positions = latest?.strategies?.spx_spread?.positions || [];
+  const all = latest?.strategies?.spx_spread?.positions || [];
+  const positions = _accountView === 'all' ? all : all.filter(p => p.account === _accountView);
   const body = document.getElementById('positions-body');
   if (!positions.length) {
-    body.innerHTML = '<tr><td colspan="9" class="unavail" style="text-align:center">No open positions in latest snapshot.</td></tr>';
+    const msg = _accountView === 'all'
+      ? 'No open positions in latest snapshot.'
+      : `No open positions on ${_acctLabel()} in latest snapshot.`;
+    body.innerHTML = `<tr><td colspan="9" class="unavail" style="text-align:center">${msg}</td></tr>`;
     return;
   }
   body.innerHTML = positions.map(p => {
@@ -513,12 +571,13 @@ function _renderDayRecords() {
   const rows = _records.slice().reverse();
   wrap.innerHTML = rows.map((r, idx) => {
     const regimeName = (r.regime?.name || 'normal');
-    const nlv = r.combined_nlv;
-    // Compute prev for that day
+    const nlv = _acctNlv(r);
+    // Compute prev for that day (using same account view)
     const origIdx = _records.length - 1 - idx;
     const prev = origIdx > 0 ? _records[origIdx - 1] : null;
-    const change = prev ? nlv - (prev.combined_nlv || 0) : null;
-    const changePct = prev && prev.combined_nlv ? (change / prev.combined_nlv * 100) : null;
+    const prevNlv = prev ? _acctNlv(prev) : null;
+    const change = (nlv != null && prevNlv != null) ? nlv - prevNlv : null;
+    const changePct = (change != null && prevNlv) ? (change / prevNlv * 100) : null;
     const cls = change == null ? '' : change >= 0 ? 'up' : 'dn';
     const sign = change == null ? '' : change >= 0 ? '+' : '−';
     const m = r.market || {};
@@ -557,6 +616,9 @@ const now = new Date();
 document.getElementById('nav-date').textContent = now.toLocaleDateString('en-US', {
   weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
 });
+
+// Restore persisted account view selection
+document.querySelectorAll('.acct-view-tab').forEach(b => b.classList.toggle('active', b.dataset.acct === _accountView));
 
 loadJournal();
 </script>
