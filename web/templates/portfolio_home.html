@@ -1961,16 +1961,30 @@ function _renderGovernance() {
 
   // ── per-strategy × per-regime cell content ──────────────────────────────────
   // 主策略 SPX (short put spread, Schwab PM)
+  // 主策略 SPX: activation status only (BP is account-level, shown in Schwab 账户 row)
   function spxContent(r) {
     if (r === 'second') return `<div class="rm-val v-blocked">✕ BLOCKED</div><div class="rm-note n-block">R6 全部 short-vol 阻断</div>`;
-    // Normal col: R1 cap. Stress col: always the fixed stress threshold (not regime-dependent).
-    const cap = r === 'stress' ? (caps.R5_stress_threshold_pct ?? caps.R5_spx_pm_stress_cap_pct) : caps.R1_spx_pm_pool_cap_pct;
-    const bp = bpLine(pools.spx_pm_bp_pct, cap, r === regime);
     const valCls = r === regime ? 'v-active' : '';
     const note = r === 'stress'
+      ? `<div class="rm-note n-warn">R5: PM cap → ${fmtPct(caps.R5_stress_threshold_pct ?? caps.R5_spx_pm_stress_cap_pct)}</div>`
+      : `<div class="rm-note">正常入场条件</div>`;
+    return `<div class="rm-val ${valCls}">● ACTIVE</div>${note}`;
+  }
+
+  // Schwab 账户 (R1): total account maint vs cap — the actual R1 governance metric
+  function schwabAcctContent(r) {
+    if (r === 'second') {
+      const bp = bpLine(pools.spx_pm_bp_pct, caps.R1_spx_pm_pool_cap_pct, r === regime);
+      return `<div class="rm-val">${bp}</div><div class="rm-note n-block">R6 阻断新入场 (BP 仍计)</div>`;
+    }
+    const cap = r === 'stress'
+      ? (caps.R5_stress_threshold_pct ?? caps.R5_spx_pm_stress_cap_pct)
+      : caps.R1_spx_pm_pool_cap_pct;
+    const bp = bpLine(pools.spx_pm_bp_pct, cap, r === regime);
+    const note = r === 'stress'
       ? `<div class="rm-note n-warn">R5: cap 收紧至 ${fmtPct(cap)}</div>`
-      : `<div class="rm-note">R1: cap ${fmtPct(cap)}</div>`;
-    return `<div class="rm-val ${valCls}">${bp}</div>${note}`;
+      : `<div class="rm-note">R1 监控全账户 maint</div>`;
+    return `<div class="rm-val">${bp}</div>${note}`;
   }
 
   function hvContent(r) {
@@ -2050,6 +2064,15 @@ function _renderGovernance() {
       <div class="rm-cell ${cellCls('normal')}">${spxContent('normal')}</div>
       <div class="rm-cell ${cellCls('stress')}">${spxContent('stress')}</div>
       <div class="rm-cell ${cellCls('second')}">${spxContent('second')}</div>
+
+      <!-- ── Schwab 账户 R1 ── -->
+      <div class="rm-row-label" style="padding-left:20px;border-left:2px solid var(--border-2)">
+        <div class="rm-strategy-name" style="font-size:0.60rem;color:var(--text-2)">Schwab 账户 (R1)</div>
+        <div class="rm-strategy-sub">总 maint · 含 equity</div>
+      </div>
+      <div class="rm-cell ${cellCls('normal')}">${schwabAcctContent('normal')}</div>
+      <div class="rm-cell ${cellCls('stress')}">${schwabAcctContent('stress')}</div>
+      <div class="rm-cell ${cellCls('second')}">${schwabAcctContent('second')}</div>
 
       <!-- ── HV NP Ladder ── -->
       <div class="rm-row-label">
