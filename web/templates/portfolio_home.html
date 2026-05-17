@@ -2065,15 +2065,6 @@ function _renderGovernance() {
       <div class="rm-cell ${cellCls('stress')}">${spxContent('stress')}</div>
       <div class="rm-cell ${cellCls('second')}">${spxContent('second')}</div>
 
-      <!-- ── Schwab 账户 R1 ── -->
-      <div class="rm-row-label" style="padding-left:20px;border-left:2px solid var(--border-2)">
-        <div class="rm-strategy-name" style="font-size:0.60rem;color:var(--text-2)">Schwab 账户 (R1)</div>
-        <div class="rm-strategy-sub">总 maint · 含 equity</div>
-      </div>
-      <div class="rm-cell ${cellCls('normal')}">${schwabAcctContent('normal')}</div>
-      <div class="rm-cell ${cellCls('stress')}">${schwabAcctContent('stress')}</div>
-      <div class="rm-cell ${cellCls('second')}">${schwabAcctContent('second')}</div>
-
       <!-- ── HV NP Ladder ── -->
       <div class="rm-row-label">
         <div class="rm-strategy-name">HV Ladder /ES</div>
@@ -2093,13 +2084,22 @@ function _renderGovernance() {
       <div class="rm-cell ${cellCls('second')}">${ddContent('second')}</div>
 
       <!-- ── Aftermath ── -->
-      <div class="rm-row-label" style="border-bottom:none">
+      <div class="rm-row-label">
         <div class="rm-strategy-name">Aftermath</div>
         <div class="rm-strategy-sub">condition modifier</div>
       </div>
-      <div class="rm-cell ${cellCls('normal')}" style="border-bottom:none">${afterContent('normal')}</div>
-      <div class="rm-cell ${cellCls('stress')}" style="border-bottom:none">${afterContent('stress')}</div>
-      <div class="rm-cell ${cellCls('second')}" style="border-bottom:none">${afterContent('second')}</div>
+      <div class="rm-cell ${cellCls('normal')}">${afterContent('normal')}</div>
+      <div class="rm-cell ${cellCls('stress')}">${afterContent('stress')}</div>
+      <div class="rm-cell ${cellCls('second')}">${afterContent('second')}</div>
+
+      <!-- ── Schwab 账户 R1 — summary row, bottom ── -->
+      <div class="rm-row-label" style="border-bottom:none;background:var(--surface);border-top:1px solid var(--border-2)">
+        <div class="rm-strategy-name" style="color:var(--text-2)">Schwab 账户 (R1)</div>
+        <div class="rm-strategy-sub">总 maint · 含 equity</div>
+      </div>
+      <div class="rm-cell ${cellCls('normal')}" style="border-bottom:none;background:var(--surface);border-top:1px solid var(--border-2)">${schwabAcctContent('normal')}</div>
+      <div class="rm-cell ${cellCls('stress')}" style="border-bottom:none;background:var(--surface);border-top:1px solid var(--border-2)">${schwabAcctContent('stress')}</div>
+      <div class="rm-cell ${cellCls('second')}" style="border-bottom:none;background:var(--surface);border-top:1px solid var(--border-2)">${schwabAcctContent('second')}</div>
 
       <!-- ── Footer: active rules ── -->
       <div class="rm-footer"><div class="rm-footer-rule" style="color:var(--text-muted)">Active rules</div></div>
