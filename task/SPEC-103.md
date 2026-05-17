@@ -35,12 +35,35 @@ Design substance:
 
 | Rule | Cap | 适用对象 |
 |---|---|---|
-| **R1** | SPX PM pool BP cap = **70% NLV** | SPX 账户内所有持仓总和 |
+| **R1** | SPX PM pool BP cap = **70% NLV** | SPX 账户内所有持仓总和（account-level maintenance margin） |
 | **R2** | /ES SPAN cap = **80% NLV** | /ES 账户内 HV Ladder SPAN 总和 |
 | **R3** | Combined economic cap = **60% combined NLV** | SPX BP + /ES SPAN 合计 |
 | **R4** | Max short-vol exposure = **50% combined NLV** | 所有短 vega/gamma sleeve（BPS_HV / IC_HV / Bear Call HV / HV Ladder）合计 |
 
-19y backtest 中 R1-R4 几乎不 bind（< 5 days each）。设这些 cap 主要是给极端 NLV 增长场景留 safety margin。
+**R1 cap = 70% 的物理依据**（refined 2026-05-16 per cap recalibration）：
+- Schwab PM 账户 margin call 触发线 ~80% → **70% = 10pp safety margin to PM call**
+- 不再以 Q072 P1 backtest 67.9% sleeve-only peak 作为唯一依据（口径错配，详见下文）
+
+**口径 caveat**（important — 添加 2026-05-16）：
+
+- **Q072 P1 backtest 算的 SPX_PM_pool peak 67.9% 是 sleeve-only 口径**（main strategy spread + DD Overlay account_pct），不含 PM 在 Schwab/ETrade 中的非 sleeve 持仓（股票、其他期权）的 maintenance margin
+- **SPEC-103 production governance 用的是 account-level maintenance margin** 口径（直接读 Schwab API `schwab_maintenance_margin`，含全账户持仓）
+- 两个口径不可直接比较——production 数字 = sleeve BP + non-sleeve baseline maintenance
+
+**Cap recalibration sensitivity** (详见 `research/q072/q072_p4_cap_recalibration_2026-05-16.md`)：
+
+| Non-sleeve baseline (Schwab equity % NLV) | Sleeve peak | Production peak | 70% cap bind days / 19y |
+|---|---|---|---|
+| 0% (空账户) | 67.9% | 67.9% | 0 |
+| **14.4% (2026-05-16 PM 当前持仓)** | 67.9% | **82.3%** | **5 days** |
+| 20% | 67.9% | 87.9% | 63 days |
+| 25% | 67.9% | 92.9% | 72 days |
+
+- 在当前 PM 持仓 baseline (Schwab equity 14.4% NLV) 下，sleeve peak 时 production view 会到 82.3%（> PM call 80%）—— **70% cap 会在历史 5 天 bind，cap 真的会工作**
+- 之前担心的 "70% 过松" 是基于 sleeve-only 数字 34.3 / 70 = 49% 用量的误判；sleeve peak 时配合 baseline 会显著推高
+- baseline 是 **动态测量**（governance daemon 实时读 Schwab maint），不是常量；PM 增减持股会自动反映到 effective sleeve 可用空间
+
+**重要**：如果 PM 未来显著增持股票（baseline > 20%），70% cap 会频繁 bind 影响 sleeve entry——建议 baseline > 25% 时重审 cap 与 sizing。
 
 ### Stress Episode Throttle — R5
 
