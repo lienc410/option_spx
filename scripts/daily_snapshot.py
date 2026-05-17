@@ -103,17 +103,38 @@ def build_record() -> dict | None:
     spx_positions = []
     if pos.get("open"):
         rows = pos.get("positions") if isinstance(pos.get("positions"), list) and pos["positions"] else [pos]
+        position_lives = pos.get("position_lives") or {}
+        today_date = datetime.now(ET).date()
         for p in rows:
             if not isinstance(p, dict):
                 continue
+            # Current DTE: derive from expiry (dte_at_entry is the original entry value)
+            expiry_str = p.get("expiry")
+            current_dte = None
+            if expiry_str:
+                try:
+                    exp = datetime.fromisoformat(expiry_str).date()
+                    current_dte = max(0, (exp - today_date).days)
+                except Exception:
+                    pass
+            # Unrealized P&L lives in pos.position_lives[trade_id]
+            pl = position_lives.get(p.get("trade_id")) or {}
             spx_positions.append({
                 "account":        p.get("account"),
+                "trade_id":       p.get("trade_id"),
                 "short_strike":   _num(p.get("short_strike")),
                 "long_strike":    _num(p.get("long_strike")),
-                "qty":            _num(p.get("quantity")),
-                "expiry":         p.get("expiry"),
-                "dte":            _num(p.get("dte")),
-                "unrealized_pnl": _r(p.get("unrealized_pnl"), 2),
+                "contracts":      _num(p.get("contracts")),
+                "expiry":         expiry_str,
+                "dte_current":    current_dte,
+                "dte_at_entry":   _num(p.get("dte_at_entry")),
+                "opened_at":      p.get("opened_at"),
+                "entry_premium":  _r(p.get("actual_premium") or p.get("model_premium"), 2),
+                "entry_spx":      _r(p.get("entry_spx"), 2),
+                "entry_vix":      _r(p.get("entry_vix"), 2),
+                "premium_source": p.get("premium_source"),
+                "mark":           _r(pl.get("mark"), 2),
+                "unrealized_pnl": _r(pl.get("unrealized_pnl"), 2),
             })
 
     sleeve_a = q042.get("sleeve_a") or {}
