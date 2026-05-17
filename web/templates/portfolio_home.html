@@ -631,6 +631,74 @@ body {
   padding: 1px 5px; color: var(--text-2);
 }
 .governance-view-denom { font-family: var(--f-mono); font-size: 0.60rem; color: var(--text-2); }
+/* ── Regime matrix ── */
+.regime-matrix {
+  display: grid;
+  grid-template-columns: 128px repeat(3, 1fr);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.rm-hdr {
+  padding: 9px 11px 8px;
+  background: var(--surface-hi);
+  border-bottom: 2px solid var(--border);
+}
+.rm-hdr + .rm-hdr { border-left: 1px solid var(--border-2); }
+.rm-hdr.rh-active-normal   { border-bottom-color: var(--text-2); }
+.rm-hdr.rh-active-stress   { border-bottom-color: var(--orange); background: var(--orange-bg); }
+.rm-hdr.rh-active-second   { border-bottom-color: var(--red);    background: var(--red-bg); }
+.rm-regime-name {
+  font-family: var(--f-ui); font-size: 0.56rem; font-weight: 700;
+  letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-2);
+}
+.rm-regime-name.r-normal  { color: var(--text-2); }
+.rm-regime-name.r-stress  { color: var(--orange); }
+.rm-regime-name.r-second  { color: var(--red); }
+.rm-regime-dot { font-size: 0.65rem; margin: 3px 0 2px; }
+.rm-regime-cond {
+  font-family: var(--f-mono); font-size: 0.55rem; color: var(--text-muted); line-height: 1.5;
+}
+.rm-row-label {
+  padding: 8px 11px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-hi);
+}
+.rm-row-label:last-of-type { border-bottom: none; }
+.rm-strategy-name { font-family: var(--f-ui); font-size: 0.65rem; font-weight: 500; color: var(--text); }
+.rm-strategy-sub  { font-family: var(--f-ui); font-size: 0.58rem; color: var(--text-muted); margin-top: 1px; }
+.rm-cell {
+  padding: 8px 11px;
+  border-bottom: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+}
+.rm-cell.rc-active-normal   { background: rgba(196,206,236,0.03); }
+.rm-cell.rc-active-stress   { background: var(--orange-bg); }
+.rm-cell.rc-active-second   { background: var(--red-bg); }
+.rm-cell.rc-dim             { opacity: 0.45; }
+.rm-val { font-family: var(--f-mono); font-size: 0.70rem; font-weight: 500; color: var(--text); }
+.rm-val.v-active  { color: var(--green); }
+.rm-val.v-blocked { color: var(--red); }
+.rm-val.v-wait    { color: var(--text-muted); }
+.rm-val.v-paper   { color: var(--text-muted); font-style: italic; }
+.rm-note { font-family: var(--f-mono); font-size: 0.57rem; color: var(--text-2); margin-top: 2px; line-height: 1.4; }
+.rm-note.n-warn   { color: var(--orange); }
+.rm-note.n-block  { color: var(--red); }
+.rm-note.n-ok     { color: var(--green); }
+.rm-footer-row {
+  display: contents;
+}
+.rm-footer {
+  padding: 7px 11px;
+  background: var(--surface-hi);
+  border-top: 1px solid var(--border-2);
+}
+.rm-footer + .rm-footer { border-left: 1px solid var(--border-2); }
+.rm-footer-rule { font-family: var(--f-mono); font-size: 0.60rem; color: var(--text-2); }
+.rm-footer-rule.fr-active { color: var(--orange); }
+.rm-footer-rule.fr-block  { color: var(--red); font-weight: 600; }
+/* ── Blocked log ── */
 .governance-blocks {
   margin-top: 10px;
   border-top: 1px solid var(--border);
@@ -1871,19 +1939,65 @@ function _renderGovernance() {
   const blocked = data.recent_blocked_candidates || [];
   const stress = !!state.stress_episode_active;
   const second = !!state.second_leg_active;
-  const cellCls = second ? 'danger' : (stress ? 'warn' : '');
-  const viewLabel = view === 'schwab' ? 'Schwab' : view === 'etrade' ? 'E-Trade' : 'All accounts';
-  const esCell = (view === 'all')
-    ? `<div class="governance-cell">
-        <div class="governance-label">/ES SPAN BP</div>
-        <div class="governance-value">${fmtPct(pools.es_span_bp_pct)}</div>
-        <div class="governance-note">cap ${fmtPct(caps.R2_es_span_cap_pct)}${_govUtil(pools.es_span_bp_pct, caps.R2_es_span_cap_pct)}</div>
-      </div>`
-    : `<div class="governance-cell" style="opacity:0.5">
-        <div class="governance-label">/ES SPAN BP</div>
-        <div class="governance-value">N/A</div>
-        <div class="governance-note">independent broker pool</div>
-      </div>`;
+  const regime = second ? 'second' : stress ? 'stress' : 'normal';
+  const viewLabel = view === 'schwab' ? 'Schwab' : view === 'etrade' ? 'E-Trade' : 'All';
+  const denomStr = pools.nlv_basis ?? state.basis_dollars;
+
+  // ── helpers ─────────────────────────────────────────────────────────────────
+  const dot = r => r === regime
+    ? `<span style="color:${r==='second'?'var(--red)':r==='stress'?'var(--orange)':'var(--green)'}">●</span>`
+    : `<span style="color:var(--text-muted)">○</span>`;
+
+  const hdrCls = r => r === regime ? `rh-active-${r}` : '';
+  const cellCls = r => r === regime ? `rc-active-${r}` : 'rc-dim';
+
+  // BP line: "34.3% / cap 70.0% · 已用 49%"  — only show live BP in current regime col
+  function bpLine(val, cap, isLive) {
+    const bpStr = isLive && val != null ? fmtPct(val) : '—';
+    const util  = isLive && val != null && cap ? ` · 已用 ${(val/cap*100).toFixed(0)}%` : '';
+    return `${bpStr} / ${fmtPct(cap)}${util}`;
+  }
+
+  // ── per-strategy × per-regime cell content ──────────────────────────────────
+  // 主策略 SPX (short put spread, Schwab PM)
+  function spxContent(r) {
+    if (r === 'second') return `<div class="rm-val v-blocked">✕ BLOCKED</div><div class="rm-note n-block">R6 全部 short-vol 阻断</div>`;
+    const cap = r === 'stress' ? caps.R5_spx_pm_stress_cap_pct : caps.R1_spx_pm_pool_cap_pct;
+    const bp = bpLine(pools.spx_pm_bp_pct, cap, r === regime);
+    const note = r === 'stress'
+      ? `<div class="rm-note n-warn">R5: cap 收紧至 ${fmtPct(cap)}</div>`
+      : `<div class="rm-note">R1: cap ${fmtPct(cap)}</div>`;
+    return `<div class="rm-val v-active">${bp}</div>${note}`;
+  }
+
+  // HV NP Ladder (/ES, E-Trade SPAN)
+  function hvContent(r) {
+    if (r === 'second') return `<div class="rm-val v-blocked">✕ BLOCKED</div><div class="rm-note n-block">R6 全部 short-vol 阻断</div>`;
+    if (r === 'normal') return `<div class="rm-val v-wait">○ 待机</div><div class="rm-note">需 VIX ≥ 22 解锁</div>`;
+    // stress: active
+    const cap = caps.R2_es_span_cap_pct;
+    const bp = bpLine(pools.es_span_bp_pct, cap, r === regime);
+    return `<div class="rm-val v-active">${bp}</div><div class="rm-note n-ok">VIX ≥ 22 已解锁 · R2</div>`;
+  }
+
+  // DD Overlay (paper)
+  function ddContent(r) {
+    if (r === 'second') return `<div class="rm-val v-paper">○ paper</div><div class="rm-note">不受 R6 约束（long put）</div>`;
+    return `<div class="rm-val v-paper">○ paper</div><div class="rm-note">不占 real BP</div>`;
+  }
+
+  // Aftermath (condition modifier)
+  function afterContent(r) {
+    if (r === 'normal') return `<div class="rm-val v-wait">○ 未激活</div><div class="rm-note">条件 modifier</div>`;
+    return `<div class="rm-val v-wait">○ modifier</div><div class="rm-note">影响主策略入场判断</div>`;
+  }
+
+  // ── footer rule lines ────────────────────────────────────────────────────────
+  const footerNormal = `<div class="rm-footer-rule">R1: PM cap ${fmtPct(caps.R1_spx_pm_pool_cap_pct)}</div>`;
+  const footerStress = `<div class="rm-footer-rule${regime==='stress'?' fr-active':''}">R5: PM cap → ${fmtPct(caps.R5_spx_pm_stress_cap_pct)}</div>`;
+  const footerSecond = `<div class="rm-footer-rule${regime==='second'?' fr-block':''}">R6: 全部 short-vol 阻断</div>`;
+
+  // ── blocked candidates ───────────────────────────────────────────────────────
   const blocksHtml = blocked.length
     ? blocked.slice(-5).reverse().map(row => {
         const c = row.candidate || {};
@@ -1895,52 +2009,81 @@ function _renderGovernance() {
         </div>`;
       }).join('')
     : '<div class="snapshot-unavail" style="padding:0">No blocked candidates logged.</div>';
-  const denomStr = pools.nlv_basis ?? state.basis_dollars;
+
   body.innerHTML = `
     <div class="governance-view-meta">
       <span class="governance-view-badge">${viewLabel}</span>
       <span class="governance-view-denom">$${fmtNum(denomStr, 0)}</span>
+      <span style="flex:1"></span>
+      <span style="font-family:var(--f-mono);font-size:0.58rem;color:var(--text-muted)">Blocked 30D: <strong style="color:var(--text-2)">${counts.blocked_30d ?? 0}</strong> &nbsp;·&nbsp; 2nd-Leg 90D: <strong style="color:var(--text-2)">${counts.second_leg_days_90d ?? 0}</strong>d</span>
     </div>
-    <div class="governance-grid">
-      <div class="governance-subheader">Stress Status</div>
-      <div class="governance-subheader">BP &amp; Activity</div>
-      <div class="governance-cell ${cellCls}">
-        <div class="governance-label">Stress Episode</div>
-        <div class="governance-value">${stress ? 'ACTIVE' : 'inactive'}</div>
-        <div class="governance-note">SPX cap ${fmtPct(caps.R5_spx_pm_stress_cap_pct)}</div>
+
+    <div class="regime-matrix">
+
+      <!-- ── Header row ── -->
+      <div class="rm-hdr" style="display:flex;align-items:center">
+        <span class="rm-regime-name" style="color:var(--text-muted)">Strategy &nbsp;/&nbsp; Regime</span>
       </div>
-      <div class="governance-cell ${second ? 'danger' : ''}">
-        <div class="governance-label">Second Leg / R6</div>
-        <div class="governance-value">${second ? 'BLOCKING' : 'clear'}</div>
-        <div class="governance-note">new short-vol entries</div>
+      <div class="rm-hdr ${hdrCls('normal')}">
+        <div class="rm-regime-name r-normal">Normal</div>
+        <div class="rm-regime-dot">${dot('normal')}</div>
+        <div class="rm-regime-cond">VIX &lt; 22<br>dd &gt; −4%</div>
       </div>
-      <div class="governance-cell">
-        <div class="governance-label">Schwab Maint BP</div>
-        <div class="governance-value">${fmtPct(pools.spx_pm_bp_pct)}</div>
-        <div class="governance-note">cap ${fmtPct(caps.R1_spx_pm_pool_cap_pct)}${_govUtil(pools.spx_pm_bp_pct, caps.R1_spx_pm_pool_cap_pct)}</div>
+      <div class="rm-hdr ${hdrCls('stress')}">
+        <div class="rm-regime-name r-stress">Stress Episode</div>
+        <div class="rm-regime-dot">${dot('stress')}</div>
+        <div class="rm-regime-cond">VIX ≥ 22 or dd ≤ −4%<br>3 日持续不消散</div>
       </div>
-      ${esCell}
-      ${view === 'all' ? `<div class="governance-cell">
-        <div class="governance-label">Combined BP</div>
-        <div class="governance-value">${fmtPct(pools.combined_bp_pct)}</div>
-        <div class="governance-note">cap ${fmtPct(caps.R3_combined_cap_pct)}${_govUtil(pools.combined_bp_pct, caps.R3_combined_cap_pct)}</div>
-      </div>` : ''}
-      <div class="governance-cell">
-        <div class="governance-label">Short Vol BP</div>
-        <div class="governance-value">${fmtPct(pools.short_vol_bp_pct)}</div>
-        <div class="governance-note">cap ${fmtPct(caps.R4_short_vol_cap_pct)}${_govUtil(pools.short_vol_bp_pct, caps.R4_short_vol_cap_pct)}</div>
+      <div class="rm-hdr ${hdrCls('second')}">
+        <div class="rm-regime-name r-second">Second Leg / R6</div>
+        <div class="rm-regime-dot">${dot('second')}</div>
+        <div class="rm-regime-cond">dd60d ≤ −8% + VIX ≥ 25<br>反弹后再破低 + &gt;14d</div>
       </div>
-      <div class="governance-cell">
-        <div class="governance-label">Blocked 30D</div>
-        <div class="governance-value">${counts.blocked_30d ?? 0}</div>
-        <div class="governance-note">entry gate decisions</div>
+
+      <!-- ── 主策略 SPX ── -->
+      <div class="rm-row-label">
+        <div class="rm-strategy-name">主策略 SPX</div>
+        <div class="rm-strategy-sub">#1 · short put spread</div>
       </div>
-      <div class="governance-cell">
-        <div class="governance-label">Second-Leg 90D</div>
-        <div class="governance-value">${counts.second_leg_days_90d ?? 0}</div>
-        <div class="governance-note">state tracker rows</div>
+      <div class="rm-cell ${cellCls('normal')}">${spxContent('normal')}</div>
+      <div class="rm-cell ${cellCls('stress')}">${spxContent('stress')}</div>
+      <div class="rm-cell ${cellCls('second')}">${spxContent('second')}</div>
+
+      <!-- ── HV NP Ladder ── -->
+      <div class="rm-row-label">
+        <div class="rm-strategy-name">HV Ladder /ES</div>
+        <div class="rm-strategy-sub">#2 · short put naked</div>
       </div>
+      <div class="rm-cell ${cellCls('normal')}">${hvContent('normal')}</div>
+      <div class="rm-cell ${cellCls('stress')}">${hvContent('stress')}</div>
+      <div class="rm-cell ${cellCls('second')}">${hvContent('second')}</div>
+
+      <!-- ── DD Overlay ── -->
+      <div class="rm-row-label">
+        <div class="rm-strategy-name">DD Overlay</div>
+        <div class="rm-strategy-sub">#3 · long put hedge</div>
+      </div>
+      <div class="rm-cell ${cellCls('normal')}">${ddContent('normal')}</div>
+      <div class="rm-cell ${cellCls('stress')}">${ddContent('stress')}</div>
+      <div class="rm-cell ${cellCls('second')}">${ddContent('second')}</div>
+
+      <!-- ── Aftermath ── -->
+      <div class="rm-row-label" style="border-bottom:none">
+        <div class="rm-strategy-name">Aftermath</div>
+        <div class="rm-strategy-sub">condition modifier</div>
+      </div>
+      <div class="rm-cell ${cellCls('normal')}" style="border-bottom:none">${afterContent('normal')}</div>
+      <div class="rm-cell ${cellCls('stress')}" style="border-bottom:none">${afterContent('stress')}</div>
+      <div class="rm-cell ${cellCls('second')}" style="border-bottom:none">${afterContent('second')}</div>
+
+      <!-- ── Footer: active rules ── -->
+      <div class="rm-footer"><div class="rm-footer-rule" style="color:var(--text-muted)">Active rules</div></div>
+      <div class="rm-footer">${footerNormal}</div>
+      <div class="rm-footer">${footerStress}</div>
+      <div class="rm-footer">${footerSecond}</div>
+
     </div>
+
     <div class="governance-blocks">
       <div class="governance-label" style="margin-bottom:5px">Recent Blocked Candidates</div>
       ${blocksHtml}
