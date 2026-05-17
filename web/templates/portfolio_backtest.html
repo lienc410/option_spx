@@ -146,6 +146,51 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 
 /* ── Research note ── */
 .research-note { font-family: var(--f-ui); font-size: 0.65rem; color: var(--text-2); line-height: 1.6; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 14px 18px; }
+
+/* ── Regime history columns (mirrors live governance matrix) ── */
+.regime-hist {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.rh-col {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 9px; overflow: hidden;
+}
+.rh-col-hdr {
+  padding: 11px 14px 9px;
+  background: var(--surface-hi);
+  border-bottom: 2px solid var(--border);
+}
+.rh-col.rh-normal .rh-col-hdr  { border-bottom-color: var(--text-2); }
+.rh-col.rh-stress .rh-col-hdr  { border-bottom-color: var(--orange); background: var(--orange-bg); }
+.rh-col.rh-second .rh-col-hdr  { border-bottom-color: var(--red);    background: var(--red-bg); }
+.rh-regime-name {
+  font-family: var(--f-ui); font-size: 0.58rem; font-weight: 700;
+  letter-spacing: 0.10em; text-transform: uppercase;
+}
+.rh-normal .rh-regime-name { color: var(--text-2); }
+.rh-stress .rh-regime-name { color: var(--orange); }
+.rh-second .rh-regime-name { color: var(--red); }
+.rh-regime-cond { font-family: var(--f-mono); font-size: 0.56rem; color: var(--text-2); margin-top: 4px; line-height: 1.5; }
+.rh-col-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.rh-stat-big { font-family: var(--f-mono); font-size: 1.30rem; font-weight: 600; color: var(--text); line-height: 1.1; }
+.rh-stat-sub { font-family: var(--f-ui); font-size: 0.60rem; color: var(--text-2); margin-top: 2px; }
+.rh-divider  { border: none; border-top: 1px solid var(--border); margin: 0; }
+.rh-strategy-row { display: flex; flex-direction: column; gap: 3px; }
+.rh-strategy-name { font-family: var(--f-ui); font-size: 0.62rem; font-weight: 500; color: var(--text); }
+.rh-strategy-status { font-family: var(--f-mono); font-size: 0.60rem; }
+.rh-strategy-status.s-active  { color: var(--green); }
+.rh-strategy-status.s-locked  { color: var(--text-2); }
+.rh-strategy-status.s-blocked { color: var(--red); }
+.rh-strategy-status.s-wait    { color: var(--text-2); }
+.rh-rule-badge {
+  display: inline-block; font-family: var(--f-mono); font-size: 0.56rem;
+  padding: 2px 6px; border-radius: 4px; margin-top: 4px;
+}
+.rh-rule-badge.rb-warn  { background: var(--orange-bg); color: var(--orange); border: 1px solid var(--orange-border); }
+.rh-rule-badge.rb-block { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red-border); }
 .research-note strong { color: var(--text-2); font-weight: 600; }
 
 .unavail { font-family: var(--f-ui); font-size: 0.72rem; color: var(--text-2); font-style: italic; padding: 24px 0; text-align: center; }
@@ -269,18 +314,18 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   <div id="panel-gov" style="display:none">
 
     <div class="banner">
-      <div class="banner-title">Research view — governance rule impact analysis</div>
-      <div class="banner-body">SPEC-103 历史 stress episode 分析。从 Q072 daily flags 重建各 episode 时间段；entry gate 决策来自实盘 decision log。</div>
+      <div class="banner-title">Research view — SPEC-103 governance rule backtest</div>
+      <div class="banner-body">从 Q072 daily flags 重建历史 stress regime 分布。回答：各 regime 发生了多少次、各策略受到什么影响。</div>
     </div>
 
-    <!-- 7-cell metrics row -->
-    <div class="section-label">Stress Governance Metrics</div>
-    <div class="metrics-grid-7" id="gov-metrics">
+    <!-- Regime history: 3-column layout mirrors live governance matrix -->
+    <div class="section-label">Historical Regime Distribution</div>
+    <div class="regime-hist" id="gov-regime-hist">
       <div class="unavail" style="grid-column:1/-1">Loading…</div>
     </div>
 
     <!-- Episode analysis table -->
-    <div class="section-label">Historical Stress Episodes</div>
+    <div class="section-label">Stress Episode Log</div>
     <div class="table-wrap">
       <table class="ep-table">
         <thead>
@@ -289,7 +334,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
             <th>End</th>
             <th>Trading Days</th>
             <th>Max VIX</th>
-            <th>Second Leg</th>
+            <th>Escalated to R6</th>
             <th>Status</th>
           </tr>
         </thead>
@@ -300,22 +345,19 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     <!-- Trading Discipline -->
     <div class="discipline-section">
       <div class="discipline-title">Trading Discipline — SPEC-103 Governance Rules</div>
-      <div class="spec-card">
+      <div class="spec-card" id="gov-rules-card">
         <div class="card-structure">
-          <span class="leg-chip rule">R1</span>
-          <span class="leg-chip rule">R2</span>
-          <span class="leg-chip rule">R3</span>
-          <span class="leg-chip rule">R4</span>
-          <span class="leg-chip rule">R5</span>
-          <span class="leg-chip rule">R6</span>
+          <span class="leg-chip rule">R1</span><span class="leg-chip rule">R2</span>
+          <span class="leg-chip rule">R3</span><span class="leg-chip rule">R4</span>
+          <span class="leg-chip rule">R5</span><span class="leg-chip rule">R6</span>
         </div>
         <div id="gov-rules-body">
-          <div class="rule-row"><span class="rule-key">R1 SPX PM</span><span class="rule-val">SPX sleeve PM BP ≤ cap of NLV</span></div>
-          <div class="rule-row"><span class="rule-key">R2 /ES SPAN</span><span class="rule-val">/ES SPAN margin ≤ cap of NLV</span></div>
-          <div class="rule-row"><span class="rule-key">R3 Combined</span><span class="rule-val">SPX + /ES combined BP ≤ cap of NLV</span></div>
-          <div class="rule-row"><span class="rule-key">R4 Short Vol</span><span class="rule-val">All short-vol BP combined ≤ cap of NLV</span></div>
-          <div class="rule-row"><span class="rule-key">R5 Stress</span><span class="rule-val">During stress episode: tighter SPX PM cap applies</span></div>
-          <div class="rule-row"><span class="rule-key">R6 2nd Leg</span><span class="rule-val">Second-leg active → BLOCK all new short-vol entries</span></div>
+          <div class="rule-row"><span class="rule-key">R1 SPX PM</span><span class="rule-val">Schwab 账户全量 maint BP ≤ cap of NLV（含 equity）</span></div>
+          <div class="rule-row"><span class="rule-key">R2 /ES SPAN</span><span class="rule-val">/ES SPAN margin ≤ cap of NLV（独立券商）</span></div>
+          <div class="rule-row"><span class="rule-key">R3 Combined</span><span class="rule-val">SPX + /ES 合并 BP ≤ cap of NLV</span></div>
+          <div class="rule-row"><span class="rule-key">R4 Short Vol</span><span class="rule-val">全部 short-vol 策略合并 BP ≤ cap of NLV</span></div>
+          <div class="rule-row"><span class="rule-key">R5 Stress</span><span class="rule-val">Stress episode 期间 SPX PM cap 收紧（Normal cap → Stress cap）</span></div>
+          <div class="rule-row"><span class="rule-key">R6 Second Leg</span><span class="rule-val">dd60d ≤ −8% + VIX ≥ 25 + 反弹后再破低 + >14d → 全部 short-vol 入场阻断</span></div>
         </div>
       </div>
     </div>
@@ -518,6 +560,7 @@ function switchTab(tab) {
 
 // ── Governance BT loader ──────────────────────────────────────────────────────
 function fmtPct1(v) { return typeof v === 'number' ? v.toFixed(1) + '%' : '—'; }
+function capPct(v)  { return v != null ? fmtPct1(v * 100) : '—'; }
 
 async function loadGovernanceBT() {
   try {
@@ -525,49 +568,113 @@ async function loadGovernanceBT() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const d = await res.json();
     if (d.status !== 'available') throw new Error(d.error || 'unavailable');
-    const m = d.metrics;
+    const m  = d.metrics;
     const dr = d.data_range || {};
     const caps = d.caps || {};
+    const tot  = dr.total_trading_days || 1;
 
-    // 7-cell metrics
-    document.getElementById('gov-metrics').innerHTML = `
-      <div class="metric-cell neutral">
-        <div class="metric-label">Stress Days %</div>
-        <div class="metric-val">${fmtPct1(m.stress_pct)}</div>
-        <div class="metric-sub">${m.stress_days} / ${dr.total_trading_days} trading days</div>
+    // ── 3-column Regime History ──────────────────────────────────────────────
+    document.getElementById('gov-regime-hist').innerHTML = `
+      <!-- Normal -->
+      <div class="rh-col rh-normal">
+        <div class="rh-col-hdr">
+          <div class="rh-regime-name">Normal</div>
+          <div class="rh-regime-cond">VIX &lt; 22 · SPX 回撤 &lt; 4%</div>
+        </div>
+        <div class="rh-col-body">
+          <div>
+            <div class="rh-stat-big">${fmtPct1(m.normal_pct)}</div>
+            <div class="rh-stat-sub">${m.normal_days} trading days</div>
+          </div>
+          <hr class="rh-divider">
+          <div class="rh-strategy-row">
+            <div class="rh-strategy-name">主策略 SPX</div>
+            <div class="rh-strategy-status s-active">● ACTIVE · cap ${capPct(caps.R1_spx_pm_pool_cap_pct)}</div>
+          </div>
+          <div class="rh-strategy-row">
+            <div class="rh-strategy-name">HV Ladder /ES</div>
+            <div class="rh-strategy-status s-locked">○ 锁定 — 需 VIX ≥ 22</div>
+          </div>
+          <div class="rh-strategy-row">
+            <div class="rh-strategy-name">DD Overlay</div>
+            <div class="rh-strategy-status s-wait">○ 待 ddATH 触发</div>
+          </div>
+          <div class="rh-strategy-row">
+            <div class="rh-strategy-name">Aftermath</div>
+            <div class="rh-strategy-status s-wait">○ 未激活</div>
+          </div>
+        </div>
       </div>
-      <div class="metric-cell neutral">
-        <div class="metric-label">Episodes</div>
-        <div class="metric-val">${m.n_episodes}</div>
-        <div class="metric-sub">Avg ${fmtNum(m.avg_episode_days, 0)} trading days each</div>
+
+      <!-- Stress Episode -->
+      <div class="rh-col rh-stress">
+        <div class="rh-col-hdr">
+          <div class="rh-regime-name">Stress Episode</div>
+          <div class="rh-regime-cond">VIX ≥ 22 or 回撤 ≥ 4% · 3 日持续</div>
+        </div>
+        <div class="rh-col-body">
+          <div>
+            <div class="rh-stat-big">${fmtPct1(m.stress_pct)}</div>
+            <div class="rh-stat-sub">${m.stress_days} days · ${m.n_episodes} episodes · avg ${fmtNum(m.avg_episode_days, 0)}d</div>
+          </div>
+          <div>
+            <span class="rh-rule-badge rb-warn">R5: cap → ${capPct(caps.R5_stress_threshold_pct)}</span>
+          </div>
+          <hr class="rh-divider">
+          <div class="rh-strategy-row">
+            <div class="rh-strategy-name">主策略 SPX</div>
+            <div class="rh-strategy-status s-active">● ACTIVE · cap 收紧至 ${capPct(caps.R5_stress_threshold_pct)}</div>
+          </div>
+          <div class="rh-strategy-row">
+            <div class="rh-strategy-name">HV Ladder /ES</div>
+            <div class="rh-strategy-status s-active">● 解锁 · cap ${capPct(caps.R2_es_span_cap_pct)}</div>
+          </div>
+          <div class="rh-strategy-row">
+            <div class="rh-strategy-name">DD Overlay</div>
+            <div class="rh-strategy-status s-wait">○ 待 ddATH 触发</div>
+          </div>
+          <div class="rh-strategy-row">
+            <div class="rh-strategy-name">Aftermath</div>
+            <div class="rh-strategy-status s-wait">○ 监测中 (→ IC HV)</div>
+          </div>
+        </div>
       </div>
-      <div class="metric-cell warning">
-        <div class="metric-label">Second-Leg Days %</div>
-        <div class="metric-val orange">${fmtPct1(m.second_leg_pct)}</div>
-        <div class="metric-sub">${m.second_leg_days} days, all entries blocked</div>
-      </div>
-      <div class="metric-cell ${m.total_blocked > 0 ? 'warning' : 'positive'}">
-        <div class="metric-label">Blocked Rate</div>
-        <div class="metric-val ${m.total_blocked > 0 ? 'orange' : 'green'}">${fmtPct1(m.blocked_rate_pct)}</div>
-        <div class="metric-sub">${m.total_blocked} blocked / ${m.total_decided} decided</div>
-      </div>
-      <div class="metric-cell muted">
-        <div class="metric-label">R1 SPX PM Cap</div>
-        <div class="metric-val" style="font-size:1rem">${fmtPct1(caps.R1_spx_pm_pool_cap_pct != null ? caps.R1_spx_pm_pool_cap_pct * 100 : null)}</div>
-        <div class="metric-sub">normal regime</div>
-      </div>
-      <div class="metric-cell muted">
-        <div class="metric-label">R5 Stress Cap</div>
-        <div class="metric-val orange" style="font-size:1rem">${fmtPct1(caps.R5_spx_pm_stress_cap_pct != null ? caps.R5_spx_pm_stress_cap_pct * 100 : null)}</div>
-        <div class="metric-sub">during stress episode</div>
-      </div>
-      <div class="metric-cell muted">
-        <div class="metric-label">Data Range</div>
-        <div class="metric-val" style="font-size:0.68rem;font-family:var(--f-mono)">${dr.start || '—'}</div>
-        <div class="metric-sub">→ ${dr.end || '—'}</div>
+
+      <!-- Second Leg / R6 -->
+      <div class="rh-col rh-second">
+        <div class="rh-col-hdr">
+          <div class="rh-regime-name">Second Leg / R6</div>
+          <div class="rh-regime-cond">dd60d ≤ −8% · VIX ≥ 25 · retest · &gt;14d</div>
+        </div>
+        <div class="rh-col-body">
+          <div>
+            <div class="rh-stat-big">${fmtPct1(m.second_leg_pct)}</div>
+            <div class="rh-stat-sub">${m.second_leg_days} days · ${m.n_second_leg_episodes ?? '—'} episodes</div>
+          </div>
+          <div>
+            <span class="rh-rule-badge rb-block">R6: 全部 short-vol BLOCKED</span>
+          </div>
+          <hr class="rh-divider">
+          <div class="rh-strategy-row">
+            <div class="rh-strategy-name">主策略 SPX</div>
+            <div class="rh-strategy-status s-blocked">✕ BLOCKED by R6</div>
+          </div>
+          <div class="rh-strategy-row">
+            <div class="rh-strategy-name">HV Ladder /ES</div>
+            <div class="rh-strategy-status s-blocked">✕ BLOCKED by R6</div>
+          </div>
+          <div class="rh-strategy-row">
+            <div class="rh-strategy-name">DD Overlay</div>
+            <div class="rh-strategy-status s-active">○ 不受 R6 约束</div>
+          </div>
+          <div class="rh-strategy-row">
+            <div class="rh-strategy-name">Aftermath (IC HV)</div>
+            <div class="rh-strategy-status s-blocked">✕ BLOCKED by R6</div>
+          </div>
+        </div>
       </div>`;
 
-    // Episode table
+    // ── Episode table ────────────────────────────────────────────────────────
     const episodes = (d.episodes || []).slice().reverse();
     document.getElementById('gov-episodes').innerHTML = episodes.length
       ? episodes.map(ep => `
@@ -575,23 +682,27 @@ async function loadGovernanceBT() {
             <td class="emph">${ep.start}</td>
             <td>${ep.end}</td>
             <td class="emph">${ep.trading_days}d</td>
-            <td class="${ep.max_vix >= 30 ? 'danger' : ep.max_vix >= 22 ? 'warn' : ''}">${ep.max_vix != null ? ep.max_vix.toFixed(1) : '—'}</td>
-            <td class="${ep.second_leg_triggered ? 'danger' : ''}">${ep.second_leg_triggered ? 'YES ●' : 'no'}</td>
+            <td class="${ep.max_vix >= 30 ? 'danger' : ep.max_vix >= 22 ? 'warn' : ''}">
+              ${ep.max_vix != null ? ep.max_vix.toFixed(1) : '—'}
+            </td>
+            <td class="${ep.second_leg_triggered ? 'danger' : ''}">
+              ${ep.second_leg_triggered ? '✕ YES — R6 阻断' : '—'}
+            </td>
             <td class="${ep.ongoing ? 'ongoing' : ''}">${ep.ongoing ? 'ONGOING' : 'closed'}</td>
           </tr>`).join('')
-      : '<tr><td colspan="6" class="unavail" style="text-align:center">No stress episodes in data range.</td></tr>';
+      : '<tr><td colspan="6" class="unavail" style="text-align:center">No stress episodes.</td></tr>';
 
-    // Rules with actual cap values
+    // ── Rules with actual cap values ─────────────────────────────────────────
     document.getElementById('gov-rules-body').innerHTML = `
-      <div class="rule-row"><span class="rule-key">R1 SPX PM</span><span class="rule-val">Schwab SPX sleeve PM BP ≤ <strong>${fmtPct1(caps.R1_spx_pm_pool_cap_pct != null ? caps.R1_spx_pm_pool_cap_pct * 100 : null)}</strong> of account NLV</span></div>
-      <div class="rule-row"><span class="rule-key">R2 /ES SPAN</span><span class="rule-val">/ES SPAN margin ≤ <strong>${fmtPct1(caps.R2_es_span_cap_pct != null ? caps.R2_es_span_cap_pct * 100 : null)}</strong> of NLV (independent broker pool)</span></div>
-      <div class="rule-row"><span class="rule-key">R3 Combined</span><span class="rule-val">SPX + /ES combined BP ≤ <strong>${fmtPct1(caps.R3_combined_cap_pct != null ? caps.R3_combined_cap_pct * 100 : null)}</strong> of NLV</span></div>
-      <div class="rule-row"><span class="rule-key">R4 Short Vol</span><span class="rule-val">All short-vol positions BP ≤ <strong>${fmtPct1(caps.R4_short_vol_cap_pct != null ? caps.R4_short_vol_cap_pct * 100 : null)}</strong> of NLV</span></div>
-      <div class="rule-row"><span class="rule-key">R5 Stress</span><span class="rule-val">Stress episode active → SPX PM cap tightens to <strong style="color:var(--orange)">${fmtPct1(caps.R5_spx_pm_stress_cap_pct != null ? caps.R5_spx_pm_stress_cap_pct * 100 : null)}</strong></span></div>
-      <div class="rule-row"><span class="rule-key">R6 2nd Leg</span><span class="rule-val">Second-leg detected (dd_60d ≤ −8% AND VIX ≥ 25) → <strong style="color:var(--red)">BLOCK all new short-vol entries</strong></span></div>`;
+      <div class="rule-row"><span class="rule-key">R1 Schwab Maint</span><span class="rule-val">Schwab 账户全量 maint BP ≤ <strong>${capPct(caps.R1_spx_pm_pool_cap_pct)}</strong> NLV（含 equity）</span></div>
+      <div class="rule-row"><span class="rule-key">R2 /ES SPAN</span><span class="rule-val">/ES SPAN margin ≤ <strong>${capPct(caps.R2_es_span_cap_pct)}</strong> NLV（独立券商）</span></div>
+      <div class="rule-row"><span class="rule-key">R3 Combined</span><span class="rule-val">SPX + /ES 合并 BP ≤ <strong>${capPct(caps.R3_combined_cap_pct)}</strong> NLV</span></div>
+      <div class="rule-row"><span class="rule-key">R4 Short Vol</span><span class="rule-val">全部 short-vol 合并 BP ≤ <strong>${capPct(caps.R4_short_vol_cap_pct)}</strong> NLV</span></div>
+      <div class="rule-row"><span class="rule-key">R5 Stress</span><span class="rule-val">Stress episode → Schwab Maint cap 收紧 ${capPct(caps.R1_spx_pm_pool_cap_pct)} → <strong style="color:var(--orange)">${capPct(caps.R5_stress_threshold_pct)}</strong></span></div>
+      <div class="rule-row"><span class="rule-key">R6 Second Leg</span><span class="rule-val">dd60d ≤ −8% + VIX ≥ 25 + retest + >14d → <strong style="color:var(--red)">全部 short-vol 入场阻断</strong></span></div>`;
 
   } catch (e) {
-    document.getElementById('gov-metrics').innerHTML =
+    document.getElementById('gov-regime-hist').innerHTML =
       `<div class="unavail" style="grid-column:1/-1">Governance backtest unavailable: ${e.message}</div>`;
   }
 }

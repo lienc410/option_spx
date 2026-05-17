@@ -850,6 +850,11 @@ def api_governance_backtest():
         # Caps snapshot — call with stress=True so R5 shows the actual tighter cap
         caps = governance_caps(stress_episode_active=True)
 
+        normal_days = total_days - stress_days
+        n_second_leg_episodes = sum(1 for e in episodes if e.get("second_leg_triggered"))
+        n_stress_only_episodes = len(episodes) - n_second_leg_episodes
+        stress_only_days = stress_days - second_leg_days
+
         return jsonify({
             "status": "available",
             "data_range": {
@@ -858,11 +863,17 @@ def api_governance_backtest():
                 "total_trading_days": total_days,
             },
             "metrics": {
+                "normal_days": normal_days,
+                "normal_pct": round(normal_days / total_days * 100, 1) if total_days else 0,
                 "stress_days": stress_days,
                 "stress_pct": round(stress_days / total_days * 100, 1) if total_days else 0,
+                "stress_only_days": stress_only_days,
+                "stress_only_pct": round(stress_only_days / total_days * 100, 1) if total_days else 0,
                 "second_leg_days": second_leg_days,
                 "second_leg_pct": round(second_leg_days / total_days * 100, 1) if total_days else 0,
                 "n_episodes": len(episodes),
+                "n_stress_only_episodes": n_stress_only_episodes,
+                "n_second_leg_episodes": n_second_leg_episodes,
                 "avg_episode_days": round(stress_days / max(len(episodes), 1), 1),
                 "total_decided": total_decided,
                 "total_blocked": total_blocked,
