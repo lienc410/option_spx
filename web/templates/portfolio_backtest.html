@@ -147,13 +147,22 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 /* ── Research note ── */
 .research-note { font-family: var(--f-ui); font-size: 0.65rem; color: var(--text-2); line-height: 1.6; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 14px 18px; }
 
-/* ── Chart controls (reuse HV Ladder pattern) ── */
+/* ── Chart controls ── */
 .chart-controls {
   display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
   padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid var(--border);
 }
 .ctrl-label { font-family: var(--f-ui); font-size: 0.60rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); }
 .ctrl-spacer { flex: 1; }
+.btn-group { display: flex; gap: 3px; }
+.ctrl-btn {
+  font-family: var(--f-mono); font-size: 0.62rem; padding: 3px 9px;
+  background: var(--surface-hi); border: 1px solid var(--border-2);
+  border-radius: 4px; color: var(--text-2); cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.ctrl-btn:hover { background: var(--border); color: var(--text); }
+.ctrl-btn.active { background: var(--gold-bg); border-color: var(--gold-border); color: var(--gold); }
 .regime-chart-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 16px; margin-bottom: 18px; }
 
 /* ── Regime history columns (mirrors live governance matrix) ── */
