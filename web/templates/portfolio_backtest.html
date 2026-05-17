@@ -3,13 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Portfolio Backtest · Joint Attribution</title>
-<script src="{{ url_for('static', filename='spec072_helpers.js') }}"></script>
+<title>Governance &amp; Regime Backtest</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -77,12 +75,6 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .page-meta { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-2); letter-spacing: 0.02em; }
 .page-meta .meta-sep { color: var(--text-muted); margin: 0 6px; }
 
-/* ── Page tabs ── */
-.page-tabs { display: flex; gap: 2px; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
-.page-tab { font-family: var(--f-ui); font-size: 0.72rem; padding: 5px 14px; border-radius: 5px; text-decoration: none; color: var(--text-2); border: 1px solid transparent; transition: 0.15s; cursor: pointer; background: none; }
-.page-tab.active { color: var(--text); background: var(--surface-hi); border-color: var(--border-2); }
-.page-tab:hover:not(.active) { color: var(--text-2); background: var(--surface); }
-
 /* ── Banner ── */
 .banner { background: var(--orange-bg); border: 1px solid var(--orange-border); border-radius: 8px; padding: 10px 14px; margin-bottom: 18px; }
 .banner-title { font-family: var(--f-ui); font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--orange); margin-bottom: 3px; }
@@ -90,62 +82,6 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 
 /* ── Section label ── */
 .section-label { font-family: var(--f-ui); font-size: 0.60rem; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-2); margin-bottom: 10px; }
-
-/* ── Metrics grid ── */
-.metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
-.metrics-grid-7 { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; margin-bottom: 20px; }
-.metric-cell {
-  background: var(--surface); border: 1px solid var(--border-2);
-  border-radius: 9px; padding: 14px 16px;
-  display: flex; flex-direction: column; gap: 5px;
-}
-.metric-cell.positive { border-top: 2px solid var(--green); }
-.metric-cell.neutral  { border-top: 2px solid var(--blue); }
-.metric-cell.warning  { border-top: 2px solid var(--orange); }
-.metric-cell.muted    { border-top: 2px solid var(--text-muted); }
-.metric-label { font-family: var(--f-ui); font-size: 0.58rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); }
-.metric-val   { font-family: var(--f-mono); font-size: 1.40rem; font-weight: 600; color: var(--text); line-height: 1.1; }
-.metric-val.green  { color: var(--green); }
-.metric-val.blue   { color: var(--blue); }
-.metric-val.orange { color: var(--orange); }
-.metric-sub   { font-family: var(--f-ui); font-size: 0.62rem; color: var(--text-2); }
-
-/* ── Chart panel ── */
-.chart-panel {
-  background: var(--surface); border: 1px solid var(--border-2);
-  border-radius: 9px; padding: 18px 20px; margin-bottom: 12px;
-}
-.chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-.chart-title { font-family: var(--f-ui); font-size: 0.80rem; font-weight: 600; color: var(--text); }
-.chart-legend { display: flex; gap: 16px; }
-.legend-item { display: flex; align-items: center; gap: 6px; font-family: var(--f-mono); font-size: 0.65rem; color: var(--text-2); }
-.legend-dot { width: 10px; height: 3px; border-radius: 9999px; }
-.chart-wrap { position: relative; height: 280px; }
-
-/* ── Two-col grid for lower panels ── */
-.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
-
-/* ── Stat row panel ── */
-.stat-panel {
-  background: var(--surface); border: 1px solid var(--border-2);
-  border-radius: 9px; padding: 16px 20px;
-}
-.stat-panel-title { font-family: var(--f-ui); font-size: 0.72rem; font-weight: 600; color: var(--text); margin-bottom: 12px; }
-.stat-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); }
-.stat-row:last-child { border-bottom: none; }
-.stat-key { font-family: var(--f-ui); font-size: 0.65rem; color: var(--text-2); }
-.stat-val { font-family: var(--f-mono); font-size: 0.72rem; color: var(--text); }
-.stat-val.green  { color: var(--green); }
-.stat-val.orange { color: var(--orange); }
-
-/* ── Sleeves strip ── */
-.sleeve-strip { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
-.sleeve-chip { display: flex; align-items: center; gap: 6px; background: var(--surface-hi); border: 1px solid var(--border-2); border-radius: 5px; padding: 4px 10px; }
-.sleeve-ticker { font-family: var(--f-mono); font-size: 0.72rem; font-weight: 500; color: var(--text); }
-.sleeve-detail { font-family: var(--f-ui); font-size: 0.62rem; color: var(--text-2); }
-
-/* ── Research note ── */
-.research-note { font-family: var(--f-ui); font-size: 0.65rem; color: var(--text-2); line-height: 1.6; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 14px 18px; }
 
 /* ── Chart controls ── */
 .chart-controls {
@@ -165,7 +101,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .ctrl-btn.active { background: var(--gold-bg); border-color: var(--gold-border); color: var(--gold); }
 .regime-chart-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 16px; margin-bottom: 18px; }
 
-/* ── Regime history columns (mirrors live governance matrix) ── */
+/* ── Regime history columns ── */
 .regime-hist {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -209,7 +145,6 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 }
 .rh-rule-badge.rb-warn  { background: var(--orange-bg); color: var(--orange); border: 1px solid var(--orange-border); }
 .rh-rule-badge.rb-block { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red-border); }
-.research-note strong { color: var(--text-2); font-weight: 600; }
 
 .unavail { font-family: var(--f-ui); font-size: 0.72rem; color: var(--text-2); font-style: italic; padding: 24px 0; text-align: center; }
 
@@ -250,7 +185,8 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     <a href="/es" class="nav-link">/ES</a>
     <a href="/hvladder"           class="nav-link">HV Ladder</a>
     <a href="/q042"               class="nav-link">Drawdown Overlay</a>
-    <a href="/aftermath"          class="nav-link">Aftermath</a>    <a href="/q041"               class="nav-link">Q041</a>
+    <a href="/aftermath"          class="nav-link">Aftermath</a>
+    <a href="/q041"               class="nav-link">Q041</a>
     <a href="/portfolio-backtest" class="nav-link active">Port BT</a>
     <a href="/performance" class="nav-link">Performance</a>
     <a href="/margin" class="nav-link">Margin</a>
@@ -263,360 +199,115 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   <!-- Page hero -->
   <div class="page-hero">
     <h1 class="page-title">
-      Portfolio Backtest
+      Governance &amp; Regime Backtest
       <span class="page-tier-badge">Research artifact</span>
     </h1>
     <div class="page-meta">
-      <span id="hero-window">—</span>
+      <span id="hero-range">—</span>
       <span class="meta-sep">·</span>
-      <span id="hero-sleeves">—</span>
+      <span>SPEC-103 · Q072 daily flags</span>
     </div>
   </div>
 
-  <!-- Tab navigation -->
-  <div class="page-tabs">
-    <button class="page-tab active" id="tab-joint" onclick="switchTab('joint')">Joint Portfolio BT</button>
-    <button class="page-tab" id="tab-gov" onclick="switchTab('gov')">Stress Governance BT</button>
+  <div class="banner">
+    <div class="banner-title">Research view — SPEC-103 governance rule backtest</div>
+    <div class="banner-body">从 Q072 daily flags 重建历史 stress regime 分布。回答：各 regime 发生了多少次、各策略受到什么影响。</div>
   </div>
 
-  <!-- ═══ Panel: Joint Portfolio BT ═══ -->
-  <div id="panel-joint">
-
-  <!-- Key metrics -->
-  <div class="section-label">Joint Portfolio Metrics vs J3 Baseline</div>
-  <div class="metrics-grid" id="metrics-grid">
-    <div class="unavail">Loading…</div>
+  <!-- Regime Timeline Chart -->
+  <div class="section-label">Regime &amp; Trade Signal Timeline</div>
+  <div class="regime-chart-wrap">
+    <div class="chart-controls">
+      <!-- Overlay -->
+      <span class="ctrl-label">Overlay</span>
+      <div class="btn-group" id="reg-overlay-group">
+        <button class="ctrl-btn active" data-overlay="none">None</button>
+        <button class="ctrl-btn" data-overlay="spx">SPX</button>
+        <button class="ctrl-btn" data-overlay="pnl">Cum. P&amp;L</button>
+        <button class="ctrl-btn" data-overlay="dd">Drawdown</button>
+        <button class="ctrl-btn" data-overlay="ma10">SPX MA10</button>
+      </div>
+      <span style="color:var(--border-2)">|</span>
+      <!-- Window -->
+      <div class="btn-group" id="reg-window-group">
+        <button class="ctrl-btn" data-win="1">1yr</button>
+        <button class="ctrl-btn" data-win="3">3yr</button>
+        <button class="ctrl-btn" data-win="5">5yr</button>
+        <button class="ctrl-btn" data-win="10">10yr</button>
+        <button class="ctrl-btn active" data-win="all">All</button>
+      </div>
+      <span class="ctrl-spacer"></span>
+      <!-- Legend -->
+      <span style="font-family:var(--f-mono);font-size:0.60rem;color:var(--text-2)">
+        <span style="color:var(--green)">▲</span> HV 入场 &nbsp;
+        <span style="color:var(--red)">✕</span> HV R6 阻断 &nbsp;
+        <span style="color:var(--gold)">●</span> 主策略入场
+      </span>
+      <button class="ctrl-btn" id="reg-reset" style="margin-left:4px">↩ 全局</button>
+    </div>
+    <canvas id="regime-chart" height="90"></canvas>
   </div>
 
-  <!-- BP Timeline chart -->
-  <div class="section-label">Buying Power Utilization Timeline</div>
-  <div class="chart-panel">
-    <div class="chart-header">
-      <span class="chart-title">Daily BP % — J0 (SPX only) vs J3 (Joint multi-sleeve)</span>
-      <div class="chart-legend">
-        <div class="legend-item"><div class="legend-dot" style="background:var(--text-muted)"></div>J0 SPX only</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>J3 Joint</div>
-      </div>
+  <!-- Regime history: 3-column layout mirrors live governance matrix -->
+  <div class="section-label">Historical Regime Distribution</div>
+  <div class="regime-hist" id="gov-regime-hist">
+    <div class="unavail" style="grid-column:1/-1">Loading…</div>
+  </div>
+
+  <!-- Episode analysis table -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+    <div class="section-label" style="margin-bottom:0">Stress Episode Log</div>
+    <div class="btn-group" id="ep-window-group">
+      <button class="ctrl-btn active" data-epwin="1">1yr</button>
+      <button class="ctrl-btn" data-epwin="3">3yr</button>
+      <button class="ctrl-btn" data-epwin="5">5yr</button>
+      <button class="ctrl-btn" data-epwin="all">All</button>
     </div>
-    <div class="chart-wrap">
-      <canvas id="bp-chart"></canvas>
-      <div style="text-align:right;margin-top:6px">
-        <button onclick="if(bpChart)bpChart.resetZoom()" style="font-family:var(--f-mono);font-size:0.60rem;padding:2px 9px;border-radius:4px;border:1px solid var(--border-2);background:none;color:var(--text-muted);cursor:pointer" title="Reset drag-zoom">↩ 全局</button>
+  </div>
+  <div class="table-wrap">
+    <table class="ep-table">
+      <thead>
+        <tr>
+          <th>Start</th>
+          <th>End</th>
+          <th>Trading Days</th>
+          <th>Max VIX</th>
+          <th>Escalated to R6</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="gov-episodes"><tr><td colspan="6" class="unavail" style="text-align:center">Loading…</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- Trading Discipline -->
+  <div class="discipline-section">
+    <div class="discipline-title">Trading Discipline — SPEC-103 Governance Rules</div>
+    <div class="spec-card" id="gov-rules-card">
+      <div class="card-structure">
+        <span class="leg-chip rule">R1</span><span class="leg-chip rule">R2</span>
+        <span class="leg-chip rule">R3</span><span class="leg-chip rule">R4</span>
+        <span class="leg-chip rule">R5</span><span class="leg-chip rule">R6</span>
+      </div>
+      <div id="gov-rules-body">
+        <div class="rule-row"><span class="rule-key">R1 SPX PM</span><span class="rule-val">Schwab 账户全量 maint BP ≤ cap of NLV（含 equity）</span></div>
+        <div class="rule-row"><span class="rule-key">R2 /ES SPAN</span><span class="rule-val">/ES SPAN margin ≤ cap of NLV（独立券商）</span></div>
+        <div class="rule-row"><span class="rule-key">R3 Combined</span><span class="rule-val">SPX + /ES 合并 BP ≤ cap of NLV</span></div>
+        <div class="rule-row"><span class="rule-key">R4 Short Vol</span><span class="rule-val">全部 short-vol 策略合并 BP ≤ cap of NLV</span></div>
+        <div class="rule-row"><span class="rule-key">R5 Stress</span><span class="rule-val">Stress episode 期间 SPX PM cap 收紧（Normal cap → Stress cap）</span></div>
+        <div class="rule-row"><span class="rule-key">R6 Second Leg</span><span class="rule-val">dd60d ≤ −8% + VIX ≥ 25 + 反弹后再破低 + >14d → 全部 short-vol 入场阻断</span></div>
       </div>
     </div>
   </div>
-
-  <!-- Lower two-col panels -->
-  <div class="two-col">
-    <div class="stat-panel" id="overlap-panel">
-      <div class="stat-panel-title">Worst-Day Overlap Analysis</div>
-      <div class="unavail" style="padding:12px 0">Loading…</div>
-    </div>
-    <div class="stat-panel" id="diag-panel">
-      <div class="stat-panel-title">Joint BP Distribution</div>
-      <div class="unavail" style="padding:12px 0">Loading…</div>
-    </div>
-  </div>
-
-  <!-- Sleeves simulated -->
-  <div class="section-label">Sleeves Simulated</div>
-  <div class="sleeve-strip" id="sleeve-strip"><div class="unavail">Loading…</div></div>
-
-  <!-- Research notes -->
-  <div class="section-label">Research Notes</div>
-  <div class="research-note" id="research-note">Loading…</div>
-
-  </div><!-- /panel-joint -->
-
-  <!-- ═══ Panel: Stress Governance BT ═══ -->
-  <div id="panel-gov" style="display:none">
-
-    <div class="banner">
-      <div class="banner-title">Research view — SPEC-103 governance rule backtest</div>
-      <div class="banner-body">从 Q072 daily flags 重建历史 stress regime 分布。回答：各 regime 发生了多少次、各策略受到什么影响。</div>
-    </div>
-
-    <!-- Regime Timeline Chart -->
-    <div class="section-label">Regime & Trade Signal Timeline</div>
-    <div class="regime-chart-wrap">
-      <div class="chart-controls">
-        <!-- Overlay -->
-        <span class="ctrl-label">Overlay</span>
-        <div class="btn-group" id="reg-overlay-group">
-          <button class="ctrl-btn active" data-overlay="none">None</button>
-          <button class="ctrl-btn" data-overlay="spx">SPX</button>
-          <button class="ctrl-btn" data-overlay="pnl">Cum. P&amp;L</button>
-          <button class="ctrl-btn" data-overlay="dd">Drawdown</button>
-          <button class="ctrl-btn" data-overlay="ma10">SPX MA10</button>
-        </div>
-        <span style="color:var(--border-2)">|</span>
-        <!-- Window -->
-        <div class="btn-group" id="reg-window-group">
-          <button class="ctrl-btn" data-win="1">1yr</button>
-          <button class="ctrl-btn" data-win="3">3yr</button>
-          <button class="ctrl-btn" data-win="5">5yr</button>
-          <button class="ctrl-btn" data-win="10">10yr</button>
-          <button class="ctrl-btn active" data-win="all">All</button>
-        </div>
-        <span class="ctrl-spacer"></span>
-        <!-- Legend -->
-        <span style="font-family:var(--f-mono);font-size:0.60rem;color:var(--text-2)">
-          <span style="color:var(--green)">▲</span> HV 入场 &nbsp;
-          <span style="color:var(--red)">✕</span> HV R6 阻断 &nbsp;
-          <span style="color:var(--gold)">●</span> 主策略入场
-        </span>
-        <button class="ctrl-btn" id="reg-reset" style="margin-left:4px">↩ 全局</button>
-      </div>
-      <canvas id="regime-chart" height="90"></canvas>
-    </div>
-
-    <!-- Regime history: 3-column layout mirrors live governance matrix -->
-    <div class="section-label">Historical Regime Distribution</div>
-    <div class="regime-hist" id="gov-regime-hist">
-      <div class="unavail" style="grid-column:1/-1">Loading…</div>
-    </div>
-
-    <!-- Episode analysis table -->
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <div class="section-label" style="margin-bottom:0">Stress Episode Log</div>
-      <div class="btn-group" id="ep-window-group">
-        <button class="ctrl-btn active" data-epwin="1">1yr</button>
-        <button class="ctrl-btn" data-epwin="3">3yr</button>
-        <button class="ctrl-btn" data-epwin="5">5yr</button>
-        <button class="ctrl-btn" data-epwin="all">All</button>
-      </div>
-    </div>
-    <div class="table-wrap">
-      <table class="ep-table">
-        <thead>
-          <tr>
-            <th>Start</th>
-            <th>End</th>
-            <th>Trading Days</th>
-            <th>Max VIX</th>
-            <th>Escalated to R6</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody id="gov-episodes"><tr><td colspan="6" class="unavail" style="text-align:center">Loading…</td></tr></tbody>
-      </table>
-    </div>
-
-    <!-- Trading Discipline -->
-    <div class="discipline-section">
-      <div class="discipline-title">Trading Discipline — SPEC-103 Governance Rules</div>
-      <div class="spec-card" id="gov-rules-card">
-        <div class="card-structure">
-          <span class="leg-chip rule">R1</span><span class="leg-chip rule">R2</span>
-          <span class="leg-chip rule">R3</span><span class="leg-chip rule">R4</span>
-          <span class="leg-chip rule">R5</span><span class="leg-chip rule">R6</span>
-        </div>
-        <div id="gov-rules-body">
-          <div class="rule-row"><span class="rule-key">R1 SPX PM</span><span class="rule-val">Schwab 账户全量 maint BP ≤ cap of NLV（含 equity）</span></div>
-          <div class="rule-row"><span class="rule-key">R2 /ES SPAN</span><span class="rule-val">/ES SPAN margin ≤ cap of NLV（独立券商）</span></div>
-          <div class="rule-row"><span class="rule-key">R3 Combined</span><span class="rule-val">SPX + /ES 合并 BP ≤ cap of NLV</span></div>
-          <div class="rule-row"><span class="rule-key">R4 Short Vol</span><span class="rule-val">全部 short-vol 策略合并 BP ≤ cap of NLV</span></div>
-          <div class="rule-row"><span class="rule-key">R5 Stress</span><span class="rule-val">Stress episode 期间 SPX PM cap 收紧（Normal cap → Stress cap）</span></div>
-          <div class="rule-row"><span class="rule-key">R6 Second Leg</span><span class="rule-val">dd60d ≤ −8% + VIX ≥ 25 + 反弹后再破低 + >14d → 全部 short-vol 入场阻断</span></div>
-        </div>
-      </div>
-    </div>
-
-  </div><!-- /panel-gov -->
 
 </div>
 
 <div class="footer">
-  Research artifact — backtest prototype output. Not live-validated. SPEC-085 forward-tracking surface is the primary evidence source.
+  Research artifact — SPEC-103 governance rule backtest from Q072 daily flags. Not live-validated.
 </div>
 
 <script>
 function fmtNum(n, d) { return typeof n === 'number' ? n.toFixed(d ?? 1) : '—'; }
-
-let bpChart = null;
-
-// ── Load attribution summary ──────────────────────────────────────────────────
-async function loadAttribution() {
-  try {
-    const res = await fetch('/api/portfolio/attribution');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const d = await res.json();
-    if (d.error || d.status !== 'available') throw new Error(d.error || 'unavailable');
-
-    const win  = d.window || {};
-    const bp   = d.joint_bp_diagnostics || {};
-    const idle = d.idle_day_capture || {};
-    const j3   = d.j3_baseline || {};
-    const wdo  = d.worst_day_overlap || {};
-    const sims = d.sleeves_simulated || [];
-
-    // Hero meta
-    document.getElementById('hero-window').textContent = `${win.start || '—'} → ${win.end || '—'} · ${win.trading_days || '—'} trading days`;
-    document.getElementById('hero-sleeves').textContent = sims.map(s => s.symbol).join(' + ');
-
-    // Metrics grid
-    document.getElementById('metrics-grid').innerHTML = `
-      <div class="metric-cell positive">
-        <div class="metric-label">Δ Avg BP vs J3</div>
-        <div class="metric-val green">+${fmtNum(d.delta_avg_bp?.value, 2)} pp</div>
-        <div class="metric-sub">J3 baseline ${fmtNum(j3.mean_bp_pct, 1)}% → joint ${fmtNum(bp.mean_pct, 1)}%</div>
-      </div>
-      <div class="metric-cell neutral">
-        <div class="metric-label">Idle Day Capture</div>
-        <div class="metric-val blue">${fmtNum(idle.value, 0)}d</div>
-        <div class="metric-sub">${fmtNum(idle.share_of_j3_idle_pct, 1)}% of J3 idle days captured</div>
-      </div>
-      <div class="metric-cell neutral">
-        <div class="metric-label">Joint Mean BP</div>
-        <div class="metric-val">${fmtNum(bp.mean_pct, 1)}%</div>
-        <div class="metric-sub">Max ${fmtNum(bp.max_pct, 0)}% · >35%: ${bp.days_above_35_pct || '—'}d · >50%: ${bp.days_above_50_pct || '—'}d</div>
-      </div>
-      <div class="metric-cell warning">
-        <div class="metric-label">Worst-Day Excess</div>
-        <div class="metric-val orange">+${fmtNum(wdo.excess_overlap_vs_occupancy_pp, 1)} pp</div>
-        <div class="metric-sub">Overlap ${fmtNum(wdo.value, 1)}% vs occ. ${fmtNum(wdo.q041_open_occupancy_pct, 1)}%</div>
-      </div>`;
-
-    // Worst-day overlap panel
-    document.getElementById('overlap-panel').innerHTML = `
-      <div class="stat-panel-title">Worst-Day Overlap Analysis</div>
-      <div class="stat-row"><span class="stat-key">Tail days (bottom 5% SPX daily returns)</span><span class="stat-val">${wdo.n_tail_days || '—'}</span></div>
-      <div class="stat-row"><span class="stat-key">Q041 open during tail days</span><span class="stat-val orange">${fmtNum(wdo.value, 1)}%</span></div>
-      <div class="stat-row"><span class="stat-key">Q041 avg occupancy (all days)</span><span class="stat-val">${fmtNum(wdo.q041_open_occupancy_pct, 1)}%</span></div>
-      <div class="stat-row"><span class="stat-key">Excess overlap vs occupancy</span><span class="stat-val ${wdo.excess_overlap_vs_occupancy_pp > 10 ? 'orange' : ''}">+${fmtNum(wdo.excess_overlap_vs_occupancy_pp, 1)} pp</span></div>
-      <div class="stat-row" style="margin-top:8px"><span class="stat-key" style="font-style:italic;font-size:0.60rem">${wdo.interpretation || ''}</span></div>`;
-
-    // BP diagnostics panel
-    document.getElementById('diag-panel').innerHTML = `
-      <div class="stat-panel-title">Joint BP Distribution</div>
-      <div class="stat-row"><span class="stat-key">Mean BP utilization</span><span class="stat-val">${fmtNum(bp.mean_pct, 1)}%</span></div>
-      <div class="stat-row"><span class="stat-key">Max BP utilization</span><span class="stat-val">${fmtNum(bp.max_pct, 0)}%</span></div>
-      <div class="stat-row"><span class="stat-key">Days above 35%</span><span class="stat-val">${bp.days_above_35_pct || '—'}</span></div>
-      <div class="stat-row"><span class="stat-key">Days above 50%</span><span class="stat-val ${bp.days_above_50_pct > 100 ? 'orange' : ''}">${bp.days_above_50_pct || '—'}</span></div>
-      <div class="stat-row"><span class="stat-key">J3 baseline fully-idle days</span><span class="stat-val">${j3.fully_idle_days || '—'} (${fmtNum(j3.fully_idle_share_pct, 1)}%)</span></div>
-      <div class="stat-row"><span class="stat-key">Idle days captured by joint</span><span class="stat-val green">${fmtNum(idle.value, 0)} (${fmtNum(idle.share_of_j3_idle_pct, 1)}%)</span></div>`;
-
-    // Sleeves strip
-    document.getElementById('sleeve-strip').innerHTML = sims.map(s => `
-      <div class="sleeve-chip">
-        <span class="sleeve-ticker">${s.symbol}</span>
-        <span class="sleeve-detail">${(s.id || '').replace(/_/g,' ')} · ${s.dte}d Δ${Number(s.target_delta).toFixed(2)} · BP${s.bp_cap_pct}% · ${s.n_cycles} cycles</span>
-      </div>`).join('');
-
-    // Research note
-    document.getElementById('research-note').innerHTML = (d.notes || '')
-      .replace(/SPEC-\d+/g, m => `<strong>${m}</strong>`)
-      .replace(/Q041|J3|COVID|2022/g, m => `<strong>${m}</strong>`);
-
-  } catch (e) {
-    document.getElementById('metrics-grid').innerHTML = `<div class="unavail" style="grid-column:1/-1">Attribution data unavailable: ${e.message}</div>`;
-  }
-}
-
-// ── Load BP timeline chart ────────────────────────────────────────────────────
-async function loadTimeline() {
-  try {
-    const res = await fetch('/api/portfolio/bp-timeline');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const { rows, error } = await res.json();
-    if (error) throw new Error(error);
-    if (!rows || rows.length === 0) throw new Error('no data');
-
-    // Sample every 5 trading days to keep chart readable (~174 points)
-    const sampled = rows.filter((_, i) => i % 5 === 0);
-    const labels  = sampled.map(r => r.date);
-    const j0Data  = sampled.map(r => r.j0_bp_pct);
-    const j3Data  = sampled.map(r => r.j3_bp_pct);
-
-    const ctx = document.getElementById('bp-chart').getContext('2d');
-    if (bpChart) bpChart.destroy();
-    bpChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [
-          {
-            label: 'J3 Joint',
-            data: j3Data,
-            borderColor: '#4888E8',
-            backgroundColor: 'rgba(72,136,232,0.08)',
-            borderWidth: 1.5,
-            pointRadius: 0,
-            fill: true,
-            tension: 0.2,
-            order: 1,
-          },
-          {
-            label: 'J0 SPX only',
-            data: j0Data,
-            borderColor: 'rgba(96,104,128,0.6)',
-            backgroundColor: 'transparent',
-            borderWidth: 1,
-            pointRadius: 0,
-            fill: false,
-            tension: 0.2,
-            borderDash: [4, 3],
-            order: 2,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: { duration: 450 },
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-          zoom: { zoom: { drag: { enabled:true, backgroundColor:'rgba(72,136,232,0.09)', borderColor:'rgba(72,136,232,0.45)', borderWidth:1 }, mode:'x' } },
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: '#0D1020',
-            borderColor: '#232A42',
-            borderWidth: 1,
-            titleColor: '#606880',
-            bodyColor: '#C4CEEC',
-            titleFont: { family: "'JetBrains Mono'", size: 11 },
-            bodyFont:  { family: "'JetBrains Mono'", size: 11 },
-            callbacks: {
-              label: ctx => ` ${ctx.dataset.label}: ${Number(ctx.raw).toFixed(1)}%`,
-            },
-          },
-        },
-        scales: {
-          x: {
-            grid: { color: 'rgba(25,30,51,0.8)', drawBorder: false },
-            ticks: {
-              color: '#363C52', font: { family: "'JetBrains Mono'", size: 10 },
-              maxTicksLimit: 10, maxRotation: 0,
-            },
-          },
-          y: {
-            grid: { color: 'rgba(25,30,51,0.8)', drawBorder: false },
-            ticks: {
-              color: '#363C52', font: { family: "'JetBrains Mono'", size: 10 },
-              callback: v => v + '%',
-            },
-            min: 0,
-            suggestedMax: 100,
-          },
-        },
-      },
-    });
-  } catch (e) {
-    document.getElementById('bp-chart').parentElement.innerHTML =
-      `<div class="unavail">Timeline data unavailable: ${e.message}</div>`;
-  }
-}
-
-// ── Tab switching ─────────────────────────────────────────────────────────────
-let _govLoaded = false;
-
-function switchTab(tab) {
-  document.getElementById('panel-joint').style.display = tab === 'joint' ? '' : 'none';
-  document.getElementById('panel-gov').style.display   = tab === 'gov'   ? '' : 'none';
-  document.getElementById('tab-joint').classList.toggle('active', tab === 'joint');
-  document.getElementById('tab-gov').classList.toggle('active', tab === 'gov');
-  if (tab === 'gov' && !_govLoaded) { _govLoaded = true; loadGovernanceBT(); }
-}
 
 // ── Regime Timeline Chart ─────────────────────────────────────────────────────
 let _regimeChart = null;
@@ -624,7 +315,6 @@ let _timelineData = null;
 let _regOverlay = 'none';
 let _regWindow  = 'all';
 
-// Background regime bands plugin (draws before datasets)
 const regimeBandsPlugin = {
   id: 'regimeBands',
   beforeDraw(chart) {
@@ -634,7 +324,6 @@ const regimeBandsPlugin = {
     const {dates, regimes} = _timelineData;
     if (!dates || !regimes) return;
 
-    // Apply time window slice
     const cutoff = _regWindow === 'all' ? null : (() => {
       const d = new Date(); d.setFullYear(d.getFullYear() - _regWindow);
       return d.toISOString().slice(0, 10);
@@ -675,7 +364,6 @@ function _buildRegimeConfig(data, overlay, windowYrs) {
   const hvEntries  = new Set(data.hv_entries || []);
   const hvBlocked  = new Set(data.hv_blocked || []);
 
-  // Time window slice
   let startIdx = 0;
   if (windowYrs !== 'all') {
     const cut = new Date(); cut.setFullYear(cut.getFullYear() - windowYrs);
@@ -687,7 +375,6 @@ function _buildRegimeConfig(data, overlay, windowYrs) {
   const spx    = allSpx.slice(startIdx);
   const ma10   = allMa10.slice(startIdx);
 
-  // Build curve lookup
   const curveByDate = {};
   let initEq = null;
   for (const r of allCurve) {
@@ -695,11 +382,9 @@ function _buildRegimeConfig(data, overlay, windowYrs) {
     if (initEq === null) initEq = r.equity;
   }
 
-  // Scatter points
   const hvEntryPts  = dates.filter(d => hvEntries.has(d)).map(d => ({ x: d, y: allVix[allDates.indexOf(d)] }));
   const hvBlockPts  = dates.filter(d => hvBlocked.has(d)).map(d => ({ x: d, y: allVix[allDates.indexOf(d)] }));
 
-  // Overlay dataset (right Y)
   let overlayDs = null;
   let y1Label = '', y1Color = 'rgba(72,136,232,0.7)';
   if (overlay === 'spx') {
@@ -719,16 +404,12 @@ function _buildRegimeConfig(data, overlay, windowYrs) {
   }
 
   const datasets = [
-    // VIX line
     { label: 'VIX', data: vix, borderColor: 'rgba(72,136,232,0.55)', backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [3,3], pointRadius: 0, tension: 0, yAxisID: 'y', order: 5 },
-    // Threshold lines
     { label: 'VIX 22', data: dates.map(() => 22), borderColor: 'rgba(224,128,64,0.40)', backgroundColor: 'transparent', borderWidth: 1, borderDash: [6,4], pointRadius: 0, yAxisID: 'y', order: 7 },
     { label: 'VIX 25', data: dates.map(() => 25), borderColor: 'rgba(224,72,98,0.35)', backgroundColor: 'transparent', borderWidth: 1, borderDash: [4,4], pointRadius: 0, yAxisID: 'y', order: 7 },
   ];
   if (overlayDs) datasets.push(overlayDs);
-  // HV entries ▲
   datasets.push({ label: '▲ HV 入场', data: hvEntryPts, parsing: false, type: 'scatter', pointStyle: 'triangle', rotation: 0, pointRadius: 7, pointBackgroundColor: 'rgba(66,204,124,0.90)', pointBorderColor: 'rgba(66,204,124,1)', borderWidth: 0, yAxisID: 'y', order: 1 });
-  // HV blocked ✕
   datasets.push({ label: '✕ HV R6 阻断', data: hvBlockPts, parsing: false, type: 'scatter', pointStyle: 'crossRot', pointRadius: 5, pointBackgroundColor: 'transparent', pointBorderColor: 'rgba(224,72,98,0.85)', borderWidth: 1.5, yAxisID: 'y', order: 2 });
 
   const hasY1 = !!overlayDs;
@@ -775,7 +456,6 @@ function renderRegimeChart() {
   _regimeChart = new Chart(ctx, _buildRegimeConfig(_timelineData, _regOverlay, _regWindow));
 }
 
-// Control wiring
 document.getElementById('reg-overlay-group').addEventListener('click', e => {
   const btn = e.target.closest('.ctrl-btn[data-overlay]');
   if (!btn) return;
@@ -807,7 +487,6 @@ async function loadGovernanceBT() {
     fetch('/api/governance/timeline').then(r => r.json()),
   ]);
 
-  // Timeline chart (independent of backtest stats)
   if (tlR.status === 'fulfilled' && tlR.value.status === 'available') {
     _timelineData = tlR.value;
     renderRegimeChart();
@@ -823,7 +502,12 @@ async function loadGovernanceBT() {
     const m  = d.metrics;
     const dr = d.data_range || {};
     const caps = d.caps || {};
-    const tot  = dr.total_trading_days || 1;
+
+    // Hero range
+    if (dr.start && dr.end) {
+      document.getElementById('hero-range').textContent =
+        `${dr.start} → ${dr.end} · ${dr.total_trading_days} trading days`;
+    }
 
     // ── 3-column Regime History ──────────────────────────────────────────────
     document.getElementById('gov-regime-hist').innerHTML = `
@@ -957,7 +641,7 @@ async function loadGovernanceBT() {
         : '<tr><td colspan="6" class="unavail" style="text-align:center">No episodes in this window.</td></tr>';
     }
 
-    _renderEpisodeTable(1);  // default 1yr
+    _renderEpisodeTable(1);
 
     document.getElementById('ep-window-group').addEventListener('click', e => {
       const btn = e.target.closest('.ctrl-btn[data-epwin]');
@@ -980,7 +664,7 @@ async function loadGovernanceBT() {
     document.getElementById('gov-regime-hist').innerHTML =
       `<div class="unavail" style="grid-column:1/-1">Governance backtest unavailable: ${e.message}</div>`;
   }
-}  // end loadGovernanceBT
+}
 
 // ── Date + boot ───────────────────────────────────────────────────────────────
 const now = new Date();
@@ -988,7 +672,7 @@ document.getElementById('nav-date').textContent = now.toLocaleDateString('en-US'
   weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
 });
 
-(async () => { await Promise.allSettled([loadAttribution(), loadTimeline()]); })();
+loadGovernanceBT();
 </script>
 </body>
 </html>
