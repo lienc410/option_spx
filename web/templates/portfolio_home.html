@@ -2000,10 +2000,11 @@ function _renderGovernance() {
     return `<div class="rm-val ${valCls}">${bp}</div><div class="rm-note n-ok">/ES SPAN margin · R2 cap ${fmtPct(cap)}</div>`;
   }
 
-  // Fix 4: DD Overlay — remove "paper" label, show strategy status
+  // Fix 4: DD Overlay — show entry conditions explicitly
   function ddContent(r) {
-    if (r === 'second') return `<div class="rm-val v-wait">○ 不受 R6 约束</div><div class="rm-note">long put hedge · 独立</div>`;
-    return `<div class="rm-val v-wait">○ 待激活</div><div class="rm-note">dd overlay 条件未触发</div>`;
+    if (r === 'second') return `<div class="rm-val v-wait">○ 独立运行</div><div class="rm-note">long put · 不受 R6 约束</div>`;
+    return `<div class="rm-val v-wait">○ 待触发</div>
+      <div class="rm-note">Sleeve A: ddATH ≤ −4%<br>Sleeve B: ddATH ≤ −15% + MA10 收复</div>`;
   }
 
   // Fix 5: Aftermath — list the three conditions explicitly

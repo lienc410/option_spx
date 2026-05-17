@@ -372,14 +372,23 @@ def current_governance_state() -> dict:
         rails = summary.get("rails") or {}
         live_position = (rails.get("spx_live") or {}).get("current_position")
         etrade_position = (rails.get("etrade_pm") or {}).get("current_position")
-        _spx_live_bp_pct = _num((rails.get("spx_live") or {}).get("bp_usage", {}).get("bp_usage_pct"))
+        # Use Schwab NLV as denominator (matches Margin Allocation display, not combined NLV)
+        _spx_live_bp_dollars = _num((rails.get("spx_live") or {}).get("bp_usage", {}).get("bp_usage_dollars"))
+        _spx_live_bp_pct = None  # computed after schwab_nlv is set
 
         es_payload = es_stressed_span_payload()
         if es_payload.get("has_es_live_position"):
             es_dollars = _num(es_payload.get("current_estimated_stressed_span")) or _num(es_payload.get("entry_static_span")) or 0.0
     except Exception as exc:
         errors.append(str(exc))
-        _spx_live_bp_pct = None
+        _spx_live_bp_dollars = None
+
+    # Denominate SPX live BP against Schwab NLV (same basis as Margin Allocation display)
+    _spx_live_bp_pct = (
+        round(_spx_live_bp_dollars / schwab_nlv * 100.0, 2)
+        if _spx_live_bp_dollars is not None and schwab_nlv > 0
+        else None
+    )
 
     spx_is_sv = is_short_vol_candidate({
         "strategy_key": (live_position or {}).get("strategy_key"),
