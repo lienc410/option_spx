@@ -987,13 +987,13 @@ body {
     <span id="sync-ts" style="font-family:var(--f-mono);font-size:0.55rem;color:var(--text-muted)"></span>
   </div>
   <div class="snapshot-zone">
-    <!-- Schwab re-auth alert (refresh token expired — needs CLI re-auth) -->
+    <!-- Schwab re-auth alert (refresh token expired) -->
     <div id="schwab-reauth-banner" style="display:none;background:var(--red-bg);border:1px solid var(--red-border);border-radius:9px;padding:10px 16px;margin-bottom:14px;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;font-family:var(--f-ui);font-size:0.70rem;color:var(--red)">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <span style="font-family:var(--f-mono);font-size:0.58rem;letter-spacing:0.10em;text-transform:uppercase;padding:2px 8px;border-radius:4px;background:rgba(224,72,98,0.18)">SCHWAB</span>
         <span class="schwab-banner-label" id="schwab-banner-label">Schwab token expired — SPX live + chain scans degraded.</span>
       </div>
-      <code style="font-family:var(--f-mono);font-size:0.62rem;color:var(--text);background:rgba(224,72,98,0.10);border:1px solid var(--red-border);padding:5px 10px;border-radius:5px;white-space:nowrap">python3 scripts/schwab_reauth.py</code>
+      <a href="/schwab/reauth" style="font-family:var(--f-ui);font-size:0.65rem;color:var(--red);text-decoration:none;border:1px solid var(--red-border);background:rgba(224,72,98,0.10);padding:5px 12px;border-radius:5px;white-space:nowrap">→ 重新连接</a>
     </div>
 
     <!-- E-Trade re-auth alert (shown when token configured-but-invalid or API failing) -->

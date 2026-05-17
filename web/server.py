@@ -4527,6 +4527,91 @@ def api_schwab_status():
     return jsonify(token_status())
 
 
+# ── Schwab web OAuth flow (in-dashboard button replaces local CLI script) ────
+
+_SCHWAB_REAUTH_STATE: dict[str, float] = {}  # state -> created_at_epoch
+
+
+def _schwab_result_page(success: bool, message: str, account: str | None = None) -> str:
+    """Minimal success/error page styled to match the dashboard."""
+    color = "#42CC7C" if success else "#E04862"
+    icon = "✓" if success else "✕"
+    title = "Schwab Authentication Complete" if success else "Schwab Authentication Failed"
+    acct_block = ""
+    if success and account:
+        acct_block = f'<div style="font-family:monospace;color:#606880;margin-top:8px;font-size:0.85rem">Account: ...{account[-4:]}</div>'
+    return f"""<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>{title}</title>
+<style>
+  body {{ background:#080A13; color:#C4CEEC; font-family:'DM Sans',system-ui,sans-serif;
+         margin:0; padding:60px 30px; display:flex; flex-direction:column;
+         align-items:center; justify-content:flex-start; min-height:100vh; }}
+  .card {{ background:#0D1020; border:1px solid #232A42; border-radius:12px;
+           padding:36px 40px; max-width:540px; text-align:center; }}
+  .icon {{ font-size:3rem; color:{color}; line-height:1; margin-bottom:14px; }}
+  h1 {{ font-size:1.2rem; font-weight:500; margin:0 0 14px 0; color:#C4CEEC; }}
+  .msg {{ color:#606880; font-size:0.9rem; line-height:1.5; }}
+  .cta {{ margin-top:28px; }}
+  .btn {{ display:inline-block; padding:9px 22px; border-radius:6px;
+          font-family:'DM Sans',sans-serif; font-size:0.85rem;
+          background:rgba(201,168,64,0.10); border:1px solid rgba(201,168,64,0.22);
+          color:#C9A840; text-decoration:none; }}
+  .btn:hover {{ background:rgba(201,168,64,0.18); }}
+</style></head><body>
+<div class="card">
+  <div class="icon">{icon}</div>
+  <h1>{title}</h1>
+  <div class="msg">{message}</div>
+  {acct_block}
+  <div class="cta"><a href="/" class="btn">← Back to dashboard</a></div>
+</div>
+</body></html>"""
+
+
+@app.route("/schwab/reauth")
+def schwab_reauth_start():
+    """Start Schwab OAuth flow: generate state + redirect to Schwab login."""
+    from schwab.auth import build_authorize_url, is_configured
+    if not is_configured():
+        return _schwab_result_page(False, "Schwab client credentials not configured on server."), 500
+    try:
+        url, state = build_authorize_url()
+    except Exception as exc:
+        return _schwab_result_page(False, f"Failed to build authorize URL: {exc}"), 500
+    # Track state for CSRF defense; cleanup entries older than 10 min
+    now = time.time()
+    _SCHWAB_REAUTH_STATE[state] = now
+    cutoff = now - 600
+    for s in list(_SCHWAB_REAUTH_STATE):
+        if _SCHWAB_REAUTH_STATE[s] < cutoff:
+            del _SCHWAB_REAUTH_STATE[s]
+    return redirect(url, code=302)
+
+
+@app.route("/schwab/oauth/callback")
+def schwab_oauth_callback():
+    """Schwab redirects here after PM authorizes. Exchange code -> token."""
+    from schwab.auth import exchange_code_for_token
+    code = flask_req.args.get("code")
+    state = flask_req.args.get("state")
+    err = flask_req.args.get("error")
+    if err:
+        desc = flask_req.args.get("error_description") or err
+        return _schwab_result_page(False, f"Schwab denied authorization: {desc}"), 400
+    if not code:
+        return _schwab_result_page(False, "No authorization code in callback URL."), 400
+    if state and state not in _SCHWAB_REAUTH_STATE:
+        return _schwab_result_page(False, "Authorization state expired or invalid — please click the banner button again."), 400
+    _SCHWAB_REAUTH_STATE.pop(state, None)
+    try:
+        payload = exchange_code_for_token(code)
+    except Exception as exc:
+        return _schwab_result_page(False, f"Token exchange failed: {exc}"), 500
+    acct = payload.get("account_number")
+    msg = "Token saved. Dashboard will auto-refresh and the Schwab banner will disappear within 60 seconds."
+    return _schwab_result_page(True, msg, account=acct)
+
+
 @app.route("/api/schwab/chain-debug")
 def api_schwab_chain_debug():
     """Debug: show raw chain rows for current open position's strikes."""
