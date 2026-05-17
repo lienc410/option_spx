@@ -1287,9 +1287,9 @@ def api_portfolio_attribution():
 
 @app.route("/api/portfolio/nlv-change")
 def api_portfolio_nlv_change():
-    """Today's combined NLV vs prior snapshot. Fed by scripts/nlv_snapshot.py."""
+    """Today's combined NLV vs prior snapshot. Fed by scripts/daily_snapshot.py."""
     history_path = os.path.normpath(
-        os.path.join(os.path.dirname(__file__), "..", "data", "nlv_history.jsonl")
+        os.path.join(os.path.dirname(__file__), "..", "data", "daily_snapshot.jsonl")
     )
     if not os.path.exists(history_path):
         return jsonify({"status": "no_history"})

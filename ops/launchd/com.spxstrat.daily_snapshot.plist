@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.spxstrat.nlv_snapshot</string>
+  <string>com.spxstrat.daily_snapshot</string>
   <key>ProgramArguments</key>
   <array>
     <string>/Users/macbook/SPX_strat/venv/bin/python</string>
-    <string>/Users/macbook/SPX_strat/scripts/nlv_snapshot.py</string>
+    <string>/Users/macbook/SPX_strat/scripts/daily_snapshot.py</string>
   </array>
   <key>WorkingDirectory</key>
   <string>/Users/macbook/SPX_strat</string>
@@ -26,8 +26,8 @@
     <string>1</string>
   </dict>
   <key>StandardOutPath</key>
-  <string>/Users/macbook/SPX_strat/logs/nlv_snapshot.out.log</string>
+  <string>/Users/macbook/SPX_strat/logs/daily_snapshot.out.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/macbook/SPX_strat/logs/nlv_snapshot.err.log</string>
+  <string>/Users/macbook/SPX_strat/logs/daily_snapshot.err.log</string>
 </dict>
 </plist>
