@@ -1285,6 +1285,87 @@ def api_portfolio_attribution():
     return jsonify(attribution_payload())
 
 
+@app.route("/api/portfolio/nlv-change")
+def api_portfolio_nlv_change():
+    """Today's combined NLV vs prior snapshot. Fed by scripts/nlv_snapshot.py."""
+    history_path = os.path.normpath(
+        os.path.join(os.path.dirname(__file__), "..", "data", "nlv_history.jsonl")
+    )
+    if not os.path.exists(history_path):
+        return jsonify({"status": "no_history"})
+
+    records: list[dict] = []
+    try:
+        with open(history_path) as f:
+            for line in f:
+                try:
+                    records.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    except Exception as exc:
+        return jsonify({"status": "error", "error": str(exc)})
+
+    if not records:
+        return jsonify({"status": "no_history"})
+
+    today_iso = datetime.now(_ET).date().isoformat()
+
+    # Live current NLV: reuse portfolio summary aggregation
+    try:
+        from schwab.client import live_position_snapshot
+        from strategy.state import read_state
+        from web.portfolio_surface import portfolio_summary_payload
+
+        summary = portfolio_summary_payload()
+        accounts = summary.get("account_breakdown") or {}
+        schwab_nlv = float(accounts.get("schwab_nlv") or 0.0)
+        etrade_nlv = float(accounts.get("etrade_nlv") or 0.0) if accounts.get("etrade_nlv") else 0.0
+        today_combined = schwab_nlv + etrade_nlv
+    except Exception:
+        # Fall back to most recent recorded value
+        today_combined = float(records[-1].get("combined_nlv") or 0.0)
+
+    prior = [r for r in records if r.get("date") and r["date"] < today_iso]
+    if not prior:
+        return jsonify({
+            "status": "first_day",
+            "today_nlv": round(today_combined, 2),
+            "history_days": len(records),
+        })
+    prev = prior[-1]
+    prev_nlv = float(prev.get("combined_nlv") or 0.0)
+    change_dollars = today_combined - prev_nlv
+    change_pct = (change_dollars / prev_nlv * 100.0) if prev_nlv > 0 else 0.0
+
+    # MTD / YTD
+    from datetime import date as _date
+    today_date = _date.fromisoformat(today_iso)
+    mtd_start = today_date.replace(day=1).isoformat()
+    ytd_start = today_date.replace(month=1, day=1).isoformat()
+    mtd_rows = [r for r in records if r.get("date") and r["date"] >= mtd_start and r["date"] < today_iso]
+    ytd_rows = [r for r in records if r.get("date") and r["date"] >= ytd_start and r["date"] < today_iso]
+
+    def _pct_from(rows):
+        if not rows:
+            return None
+        anchor = float(rows[0].get("combined_nlv") or 0.0)
+        if anchor <= 0:
+            return None
+        return round((today_combined - anchor) / anchor * 100.0, 2)
+
+    return jsonify({
+        "status": "available",
+        "today_nlv": round(today_combined, 2),
+        "prev_nlv": round(prev_nlv, 2),
+        "prev_date": prev.get("date"),
+        "change_dollars": round(change_dollars, 2),
+        "change_pct": round(change_pct, 3),
+        "mtd_pct": _pct_from(mtd_rows),
+        "ytd_pct": _pct_from(ytd_rows),
+        "history_days": len(records),
+    })
+
+
 @app.route("/api/q041/overview")
 def api_q041_overview():
     try:

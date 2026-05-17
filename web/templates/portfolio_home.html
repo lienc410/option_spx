@@ -879,6 +879,8 @@ body {
       <span id="hero-date">—</span>
       <span class="meta-sep">·</span>
       <span>SPX · /ES · Sleeves</span>
+      <span class="meta-sep">·</span>
+      <span id="hero-nlv">—</span>
     </div>
   </div>
 
@@ -1445,6 +1447,46 @@ async function loadEs() {
   } catch (_) {
     posEl.textContent = '—';
     applyBadge('badge-es', { cls: 'badge-unavail', label: 'N/A' });
+  }
+}
+
+// ── NLV change in hero ───────────────────────────────────────────────────────
+async function loadNLVChange() {
+  const el = document.getElementById('hero-nlv');
+  if (!el) return;
+  try {
+    const d = await fetch('/api/portfolio/nlv-change').then(r => r.json());
+    if (d.status === 'no_history') {
+      el.innerHTML = `<span style="color:var(--text-muted)">NLV history pending — first snapshot at 16:30 ET</span>`;
+      return;
+    }
+    if (d.status === 'first_day') {
+      el.innerHTML = `<span style="color:var(--text-muted)">NLV</span> <span style="color:var(--text)">${fmtDollars(d.today_nlv)}</span> <span style="color:var(--text-muted)">· baseline set</span>`;
+      return;
+    }
+    if (d.status !== 'available') {
+      el.innerHTML = `<span style="color:var(--text-muted)">NLV change unavailable</span>`;
+      return;
+    }
+    const up = (d.change_dollars ?? 0) >= 0;
+    const color = up ? 'var(--green)' : 'var(--red)';
+    const sign  = up ? '+' : '−';
+    const dlrs  = Math.abs(d.change_dollars ?? 0);
+    const pct   = Math.abs(d.change_pct ?? 0);
+    const mtd = d.mtd_pct != null
+      ? `<span style="color:var(--text-muted)"> · MTD</span> <span style="color:${d.mtd_pct>=0?'var(--green)':'var(--red)'}">${d.mtd_pct>=0?'+':'−'}${Math.abs(d.mtd_pct).toFixed(1)}%</span>`
+      : '';
+    const ytd = d.ytd_pct != null
+      ? `<span style="color:var(--text-muted)"> · YTD</span> <span style="color:${d.ytd_pct>=0?'var(--green)':'var(--red)'}">${d.ytd_pct>=0?'+':'−'}${Math.abs(d.ytd_pct).toFixed(1)}%</span>`
+      : '';
+    el.innerHTML =
+      `<span style="color:var(--text-muted)">NLV</span> ` +
+      `<span style="color:var(--text)">${fmtDollars(d.today_nlv)}</span> ` +
+      `<span style="color:${color};font-weight:500">${sign}$${Math.round(dlrs).toLocaleString()} (${sign}${pct.toFixed(2)}%)</span>` +
+      ` <span style="color:var(--text-muted);font-size:0.92em">vs ${d.prev_date}</span>` +
+      mtd + ytd;
+  } catch (e) {
+    el.innerHTML = `<span style="color:var(--text-muted)">NLV unavailable</span>`;
   }
 }
 
@@ -2626,7 +2668,7 @@ async function syncPortfolio() {
   const ts  = document.getElementById('sync-ts');
   if (btn) { btn.textContent = '↻ Syncing…'; btn.disabled = true; }
   if (ts)  ts.textContent = '';
-  await Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadStressPutLadder(), loadQ041(), loadQ042(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition()]);
+  await Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition()]);
   if (btn) { btn.textContent = '↻ Sync'; btn.disabled = false; }
   if (ts)  ts.textContent = 'synced ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
@@ -2654,12 +2696,12 @@ function _initDefaultView() {
 // ── Boot ──────────────────────────────────────────────────────────────────────
 (async () => {
   _initDefaultView();
-  await Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadStressPutLadder(), loadQ041(), loadQ042(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition()]);
+  await Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition()]);
   const ts = document.getElementById('sync-ts');
   if (ts) ts.textContent = 'loaded ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
   // Auto-refresh: strategy cards (recommendation+position) every 60s — picks up close→re-entry transitions
-  setInterval(() => Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadStressPutLadder(), loadQ041(), loadQ042(), loadEtradeAuthBanner()]), 60 * 1000);
+  setInterval(() => Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadEtradeAuthBanner()]), 60 * 1000);
   // Snapshot + Schwab positions every 5min — heavier, less frequent
   setInterval(() => Promise.allSettled([loadSnapshot(), loadGovernance(), loadPositionComposition()]), 5 * 60 * 1000);
 })();
