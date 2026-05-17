@@ -325,7 +325,15 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     </div>
 
     <!-- Episode analysis table -->
-    <div class="section-label">Stress Episode Log</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="section-label" style="margin-bottom:0">Stress Episode Log</div>
+      <div class="btn-group" id="ep-window-group">
+        <button class="ctrl-btn active" data-epwin="1">1yr</button>
+        <button class="ctrl-btn" data-epwin="3">3yr</button>
+        <button class="ctrl-btn" data-epwin="5">5yr</button>
+        <button class="ctrl-btn" data-epwin="all">All</button>
+      </div>
+    </div>
     <div class="table-wrap">
       <table class="ep-table">
         <thead>
@@ -674,23 +682,46 @@ async function loadGovernanceBT() {
         </div>
       </div>`;
 
-    // ── Episode table ────────────────────────────────────────────────────────
-    const episodes = (d.episodes || []).slice().reverse();
-    document.getElementById('gov-episodes').innerHTML = episodes.length
-      ? episodes.map(ep => `
-          <tr>
-            <td class="emph">${ep.start}</td>
-            <td>${ep.end}</td>
-            <td class="emph">${ep.trading_days}d</td>
-            <td class="${ep.max_vix >= 30 ? 'danger' : ep.max_vix >= 22 ? 'warn' : ''}">
-              ${ep.max_vix != null ? ep.max_vix.toFixed(1) : '—'}
-            </td>
-            <td class="${ep.second_leg_triggered ? 'danger' : ''}">
-              ${ep.second_leg_triggered ? '✕ YES — R6 阻断' : '—'}
-            </td>
-            <td class="${ep.ongoing ? 'ongoing' : ''}">${ep.ongoing ? 'ONGOING' : 'closed'}</td>
-          </tr>`).join('')
-      : '<tr><td colspan="6" class="unavail" style="text-align:center">No stress episodes.</td></tr>';
+    // ── Episode table with time-window filter ────────────────────────────────
+    const _allEpisodes = (d.episodes || []).slice().reverse();
+
+    function _epRow(ep) {
+      return `<tr>
+        <td class="emph">${ep.start}</td>
+        <td>${ep.end}</td>
+        <td class="emph">${ep.trading_days}d</td>
+        <td class="${ep.max_vix >= 30 ? 'danger' : ep.max_vix >= 22 ? 'warn' : ''}">
+          ${ep.max_vix != null ? ep.max_vix.toFixed(1) : '—'}
+        </td>
+        <td class="${ep.second_leg_triggered ? 'danger' : ''}">
+          ${ep.second_leg_triggered ? '✕ YES — R6 阻断' : '—'}
+        </td>
+        <td class="${ep.ongoing ? 'ongoing' : ''}">${ep.ongoing ? 'ONGOING' : 'closed'}</td>
+      </tr>`;
+    }
+
+    function _renderEpisodeTable(winYrs) {
+      let eps = _allEpisodes;
+      if (winYrs !== 'all') {
+        const cutoff = new Date();
+        cutoff.setFullYear(cutoff.getFullYear() - winYrs);
+        const cutStr = cutoff.toISOString().slice(0, 10);
+        eps = eps.filter(ep => (ep.end || ep.start) >= cutStr);
+      }
+      document.getElementById('gov-episodes').innerHTML = eps.length
+        ? eps.map(_epRow).join('')
+        : '<tr><td colspan="6" class="unavail" style="text-align:center">No episodes in this window.</td></tr>';
+    }
+
+    _renderEpisodeTable(1);  // default 1yr
+
+    document.getElementById('ep-window-group').addEventListener('click', e => {
+      const btn = e.target.closest('.ctrl-btn[data-epwin]');
+      if (!btn) return;
+      document.querySelectorAll('#ep-window-group .ctrl-btn').forEach(b => b.classList.toggle('active', b === btn));
+      const w = btn.dataset.epwin;
+      _renderEpisodeTable(w === 'all' ? 'all' : parseInt(w, 10));
+    });
 
     // ── Rules with actual cap values ─────────────────────────────────────────
     document.getElementById('gov-rules-body').innerHTML = `
