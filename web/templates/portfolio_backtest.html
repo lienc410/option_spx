@@ -239,10 +239,11 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
       </div>
       <span class="ctrl-spacer"></span>
       <!-- Legend -->
-      <span style="font-family:var(--f-mono);font-size:0.60rem;color:var(--text-2)">
-        <span style="color:var(--green)">▲</span> HV 入场 &nbsp;
-        <span style="color:var(--red)">✕</span> HV R6 阻断 &nbsp;
-        <span style="color:var(--gold)">▽</span> <span id="aftermath-legend">Aftermath (BPS_HV)</span>
+      <span style="font-family:var(--f-mono);font-size:0.60rem;color:var(--text-2);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span><span style="color:var(--green)">▲</span> HV 入场</span>
+        <span><span style="color:var(--red)">✕</span> HV R6 阻断</span>
+        <span><span style="display:inline-block;width:12px;height:5px;background:rgba(201,168,64,0.65);border-radius:1px;vertical-align:middle;margin-right:3px"></span><span id="aftermath-legend">Aftermath</span></span>
+        <span><span style="display:inline-block;width:12px;height:5px;background:rgba(72,136,232,0.55);border-radius:1px;vertical-align:middle;margin-right:3px"></span><span id="dd-overlay-legend">DD Overlay</span></span>
       </span>
       <button class="ctrl-btn" id="reg-reset" style="margin-left:4px">↩ 全局</button>
     </div>
@@ -322,7 +323,7 @@ const regimeBandsPlugin = {
     if (!_timelineData) return;
     const {ctx, chartArea: ca, scales: {x}} = chart;
     if (!x || !ca) return;
-    const {dates, regimes} = _timelineData;
+    const {dates, regimes, aftermath_flags, dd_overlay_flags} = _timelineData;
     if (!dates || !regimes) return;
 
     const cutoff = _regWindow === 'all' ? null : (() => {
@@ -330,10 +331,14 @@ const regimeBandsPlugin = {
       return d.toISOString().slice(0, 10);
     })();
     const startIdx = cutoff ? Math.max(0, dates.findIndex(d => d >= cutoff)) : 0;
-    const slicedDates = dates.slice(startIdx);
+    const slicedDates   = dates.slice(startIdx);
     const slicedRegimes = regimes.slice(startIdx);
+    const slicedAF = (aftermath_flags    || []).slice(startIdx);
+    const slicedDD = (dd_overlay_flags   || []).slice(startIdx);
 
     ctx.save();
+
+    // ── Regime background bands ───────────────────────────────────────────
     let bandStart = null, bandRegime = null;
     const drawBand = (endDate) => {
       if (!bandStart || bandRegime === 'normal') return;
@@ -352,6 +357,39 @@ const regimeBandsPlugin = {
       }
     }
     if (bandRegime !== null) drawBand(slicedDates[slicedDates.length - 1]);
+
+    // ── Bottom annotation strips (5px each, 1px gap) ─────────────────────
+    const BAND_H = 5;
+    const halfCat = slicedDates.length > 1
+      ? Math.abs(x.getPixelForValue(slicedDates[1]) - x.getPixelForValue(slicedDates[0])) / 2
+      : 3;
+
+    const drawAnnotStrip = (flags, color, yFromBottom) => {
+      if (!flags || flags.length === 0) return;
+      const y = ca.bottom - yFromBottom - BAND_H;
+      ctx.fillStyle = color;
+      let runStart = null;
+      for (let i = 0; i < slicedDates.length; i++) {
+        if (flags[i] && runStart === null) { runStart = i; }
+        if (!flags[i] && runStart !== null) {
+          const px0 = x.getPixelForValue(slicedDates[runStart]) - halfCat;
+          const px1 = x.getPixelForValue(slicedDates[i - 1])   + halfCat;
+          ctx.fillRect(px0, y, px1 - px0, BAND_H);
+          runStart = null;
+        }
+      }
+      if (runStart !== null) {
+        const px0 = x.getPixelForValue(slicedDates[runStart]) - halfCat;
+        const px1 = x.getPixelForValue(slicedDates[slicedDates.length - 1]) + halfCat;
+        ctx.fillRect(px0, y, px1 - px0, BAND_H);
+      }
+    };
+
+    // Row 0 (bottom):  DD Overlay — blue
+    drawAnnotStrip(slicedDD, 'rgba(72,136,232,0.55)',  0);
+    // Row 1 (above):   Aftermath  — amber
+    drawAnnotStrip(slicedAF, 'rgba(201,168,64,0.65)',  BAND_H + 1);
+
     ctx.restore();
   }
 };
@@ -387,7 +425,6 @@ function _buildRegimeConfig(data, overlay, windowYrs) {
 
   const hvEntryPts     = dates.filter(d => hvEntries.has(d)).map(d => ({ x: d, y: allVix[allDates.indexOf(d)] }));
   const hvBlockPts     = dates.filter(d => hvBlocked.has(d)).map(d => ({ x: d, y: allVix[allDates.indexOf(d)] }));
-  const aftermathPts   = dates.filter(d => allAftermath.has(d)).map(d => ({ x: d, y: 9.5 }));
 
   let overlayDs = null;
   let y1Label = '', y1Color = 'rgba(72,136,232,0.7)';
@@ -415,9 +452,6 @@ function _buildRegimeConfig(data, overlay, windowYrs) {
   if (overlayDs) datasets.push(overlayDs);
   datasets.push({ label: '▲ HV 入场', data: hvEntryPts, parsing: false, type: 'scatter', pointStyle: 'triangle', rotation: 0, pointRadius: 7, pointBackgroundColor: 'rgba(66,204,124,0.90)', pointBorderColor: 'rgba(66,204,124,1)', borderWidth: 0, yAxisID: 'y', order: 1 });
   datasets.push({ label: '✕ HV R6 阻断', data: hvBlockPts, parsing: false, type: 'scatter', pointStyle: 'crossRot', pointRadius: 5, pointBackgroundColor: 'transparent', pointBorderColor: 'rgba(224,72,98,0.85)', borderWidth: 1.5, yAxisID: 'y', order: 2 });
-  if (aftermathPts.length > 0) {
-    datasets.push({ label: '▽ Aftermath', data: aftermathPts, parsing: false, type: 'scatter', pointStyle: 'triangle', rotation: 180, pointRadius: 5, pointBackgroundColor: 'rgba(201,168,64,0.80)', pointBorderColor: 'rgba(201,168,64,0.95)', borderWidth: 0, yAxisID: 'y', order: 3 });
-  }
 
   const hasY1 = !!overlayDs;
   return {
@@ -439,7 +473,6 @@ function _buildRegimeConfig(data, overlay, windowYrs) {
               const v = ctx.parsed.y; if (v == null) return null;
               const l = ctx.dataset.label || '';
               if (l.includes('入场') || l.includes('阻断')) return `  ${l} @ VIX ${v.toFixed(1)}`;
-              if (l === '▽ Aftermath') return `  Aftermath — BPS_HV permission active (SPEC-064)`;
               if (l.startsWith('VIX 2')) return null;
               if (l === 'Drawdown %') return `  DD: ${v.toFixed(2)}%`;
               if (l === 'Cum. P&L') return `  P&L: $${v.toFixed(0)}k`;
@@ -450,7 +483,7 @@ function _buildRegimeConfig(data, overlay, windowYrs) {
       },
       scales: {
         x: { ticks: { color: '#606880', font: { family: "'JetBrains Mono', monospace", size: 10 }, maxTicksLimit: 14 }, grid: { color: 'rgba(25,30,51,0.8)' } },
-        y: { position: 'left', ticks: { color: 'rgba(72,136,232,0.7)', font: { family: "'JetBrains Mono', monospace", size: 10 } }, grid: { color: 'rgba(25,30,51,0.8)' }, title: { display: true, text: 'VIX', color: 'rgba(72,136,232,0.7)', font: { size: 10 } }, min: 8 },
+        y: { position: 'left', ticks: { color: 'rgba(72,136,232,0.7)', font: { family: "'JetBrains Mono', monospace", size: 10 } }, grid: { color: 'rgba(25,30,51,0.8)' }, title: { display: true, text: 'VIX', color: 'rgba(72,136,232,0.7)', font: { size: 10 } }, suggestedMin: 10 },
         y1: { display: hasY1, position: 'right', ticks: { color: y1Color, font: { family: "'JetBrains Mono', monospace", size: 10 } }, grid: { drawOnChartArea: false }, title: { display: !!y1Label, text: y1Label, color: y1Color, font: { size: 10 } } },
       },
     },
@@ -500,11 +533,15 @@ async function loadGovernanceBT() {
   if (tlR.status === 'fulfilled' && tlR.value.status === 'available') {
     _timelineData = tlR.value;
     renderRegimeChart();
-    // Update aftermath legend with live stats
-    const afDates = tlR.value.aftermath_dates || [];
+    const afDates = tlR.value.aftermath_dates   || [];
+    const ddDates = tlR.value.dd_overlay_dates  || [];
     if (afDates.length > 0) {
       const el = document.getElementById('aftermath-legend');
-      if (el) el.textContent = `Aftermath (BPS_HV) · ${afDates.length} days`;
+      if (el) el.textContent = `Aftermath · ${afDates.length}d`;
+    }
+    if (ddDates.length > 0) {
+      const el = document.getElementById('dd-overlay-legend');
+      if (el) el.textContent = `DD Overlay · ${ddDates.length}d`;
     }
   } else {
     document.getElementById('regime-chart').closest('.regime-chart-wrap').innerHTML =
@@ -519,12 +556,19 @@ async function loadGovernanceBT() {
     const dr = d.data_range || {};
     const caps = d.caps || {};
 
-    // Aftermath legend — enrich with % of stress once stress_days is known
-    const afDaysFinal = (tlR.status === 'fulfilled' ? tlR.value.aftermath_dates || [] : []).length;
-    if (afDaysFinal > 0 && m.stress_days > 0) {
-      const afPct = ((afDaysFinal / m.stress_days) * 100).toFixed(0);
+    // Enrich annotation strip legends with % of stress once stress_days is known
+    const tlVal = tlR.status === 'fulfilled' ? tlR.value : {};
+    const afDaysFinal = (tlVal.aftermath_dates  || []).length;
+    const ddDaysFinal = (tlVal.dd_overlay_dates || []).length;
+    const stDays = m.stress_days || 0;
+    if (afDaysFinal > 0) {
+      const pct = stDays > 0 ? ' · ' + ((afDaysFinal / stDays) * 100).toFixed(0) + '% of stress' : '';
       const el = document.getElementById('aftermath-legend');
-      if (el) el.textContent = `Aftermath (BPS_HV) · ${afDaysFinal}d · ${afPct}% of stress`;
+      if (el) el.textContent = `Aftermath · ${afDaysFinal}d${pct}`;
+    }
+    if (ddDaysFinal > 0) {
+      const el = document.getElementById('dd-overlay-legend');
+      if (el) el.textContent = `DD Overlay · ${ddDaysFinal}d`;
     }
 
     // Hero range

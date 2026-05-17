@@ -922,6 +922,14 @@ def api_governance_timeline():
             aftermath_flags = [False] * len(dates)
             aftermath_dates = []
 
+        # DD Overlay active flag (Q042 — ddATH ≤ -4% Sleeve A / deeper Sleeve B)
+        if "dd_overlay_active" in daily.columns:
+            dd_overlay_flags = [bool(v) for v in daily["dd_overlay_active"].astype(bool).values]
+            dd_overlay_dates = [d for d, f in zip(dates, dd_overlay_flags) if f]
+        else:
+            dd_overlay_flags = [False] * len(dates)
+            dd_overlay_dates = []
+
         # HV blocked dates: VIX ≥ 22 AND second_leg active
         hv_blocked = [d for d, r, v in zip(dates, regimes, vix_vals)
                       if r == "second" and v is not None and v >= 22.0]
@@ -967,8 +975,10 @@ def api_governance_timeline():
             "hv_entries":       hv_entries,
             "hv_blocked":       hv_blocked,
             "daily_curve":      daily_curve,
-            "aftermath_flags":  aftermath_flags,   # bool per date, parallel to dates
-            "aftermath_dates":  aftermath_dates,   # date list of days where aftermath fired
+            "aftermath_flags":   aftermath_flags,    # bool per date, parallel to dates
+            "aftermath_dates":   aftermath_dates,    # date list of days where aftermath fired
+            "dd_overlay_flags":  dd_overlay_flags,   # bool per date, parallel to dates
+            "dd_overlay_dates":  dd_overlay_dates,   # date list of DD Overlay active days
         })
     except Exception as exc:
         return jsonify({"status": "unavailable", "error": str(exc)}), 200
