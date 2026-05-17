@@ -298,52 +298,132 @@ def _latest_market_stress() -> dict:
         return {"status": "unavailable", "reason": str(exc)}
 
 
+def _pools_for_view(*, view: str, schwab_maint: float, etrade_maint: float,
+                    schwab_nlv: float, etrade_nlv: float,
+                    es_dollars: float, spx_is_short_vol: bool,
+                    etrade_is_short_vol: bool) -> dict | None:
+    """Compute pool BP % under a given account-view (all / schwab / etrade).
+
+    R1 uses the account's full maintenance margin (not just SPX spread max-loss)
+    per SPEC-103 §R1 "SPX 账户内所有持仓总和". Each view denominates against the
+    NLV(s) selected by that view. /ES is an independent SPAN pool (separate
+    broker) — it appears only in the 'all' view; in 'schwab'/'etrade' views the
+    /ES row is N/A.
+    """
+    if view == "schwab":
+        nlv = schwab_nlv
+        spx_maint = schwab_maint
+        es = 0.0
+        short_vol = schwab_maint if spx_is_short_vol else 0.0
+    elif view == "etrade":
+        nlv = etrade_nlv
+        spx_maint = etrade_maint
+        es = 0.0
+        short_vol = etrade_maint if etrade_is_short_vol else 0.0
+    else:  # all
+        nlv = schwab_nlv + etrade_nlv
+        spx_maint = schwab_maint + etrade_maint
+        es = es_dollars
+        sv_schwab = schwab_maint if spx_is_short_vol else 0.0
+        sv_etrade = etrade_maint if etrade_is_short_vol else 0.0
+        short_vol = sv_schwab + sv_etrade + es  # /ES HV Ladder is short-vol
+
+    if nlv <= 0:
+        return None
+
+    return {
+        "view": view,
+        "nlv_basis": round(nlv, 2),
+        "spx_pm_bp_pct": round(spx_maint / nlv * 100.0, 2),
+        "spx_pm_bp_dollars": round(spx_maint, 2),
+        "es_span_bp_pct": round(es / nlv * 100.0, 2) if view == "all" else None,
+        "es_span_bp_dollars": round(es, 2) if view == "all" else None,
+        "combined_bp_pct": round((spx_maint + es) / nlv * 100.0, 2),
+        "short_vol_bp_pct": round(short_vol / nlv * 100.0, 2),
+    }
+
+
 def current_governance_state() -> dict:
-    """Build current read-only governance snapshot from existing portfolio surfaces."""
+    """Build current read-only governance snapshot from existing portfolio surfaces.
+
+    SPEC-103 口径 (refined 2026-05-16 per PM):
+      R1 SPX PM pool BP uses account-level maintenance margin (Schwab maint or
+      ETrade maint or sum, depending on view), not just SPX option spread
+      max-loss. View filter (all / schwab / etrade) parallels Portfolio Snapshot
+      view toggle.
+    """
     errors: list[str] = []
-    basis = COMBINED_NLV
-    spx_pct = es_pct = combined_pct = short_vol_pct = 0.0
-    spx_dollars = es_dollars = 0.0
+    schwab_nlv = etrade_nlv = 0.0
+    schwab_maint = etrade_maint = 0.0
+    es_dollars = 0.0
     live_position = None
+    etrade_position = None
 
     try:
         from web.portfolio_surface import es_stressed_span_payload, portfolio_summary_payload
 
         summary = portfolio_summary_payload()
-        basis = _num(summary.get("bp_basis")) or basis
-        buckets = summary.get("bp_usage_by_bucket") or {}
-        spx_pct = _num(buckets.get("spx_live_bp_pct")) or 0.0
-        spx_dollars = basis * spx_pct / 100.0
-        live_position = ((summary.get("rails") or {}).get("spx_live") or {}).get("current_position")
+        accounts = summary.get("account_breakdown") or {}
+        schwab_nlv = _num(accounts.get("schwab_nlv")) or 0.0
+        etrade_nlv = _num(accounts.get("etrade_nlv")) or 0.0
+        schwab_maint = _num(accounts.get("schwab_maintenance_margin")) or 0.0
+        etrade_maint = _num(accounts.get("etrade_maintenance_margin")) or 0.0
+
+        rails = summary.get("rails") or {}
+        live_position = (rails.get("spx_live") or {}).get("current_position")
+        # ETrade position info: any current position info if available
+        etrade_position = (rails.get("etrade_pm") or {}).get("current_position")
+
         es_payload = es_stressed_span_payload()
         if es_payload.get("has_es_live_position"):
             es_dollars = _num(es_payload.get("current_estimated_stressed_span")) or _num(es_payload.get("entry_static_span")) or 0.0
-            es_pct = es_dollars / basis * 100.0 if basis else 0.0
-        combined_pct = (spx_dollars + es_dollars) / basis * 100.0 if basis else 0.0
-        if is_short_vol_candidate({"strategy_key": (live_position or {}).get("strategy_key"), "strategy": (live_position or {}).get("strategy")}):
-            short_vol_pct += spx_pct
-        if es_dollars > 0:
-            short_vol_pct += es_pct
     except Exception as exc:
         errors.append(str(exc))
+
+    spx_is_sv = is_short_vol_candidate({
+        "strategy_key": (live_position or {}).get("strategy_key"),
+        "strategy": (live_position or {}).get("strategy"),
+    })
+    etrade_is_sv = is_short_vol_candidate({
+        "strategy_key": (etrade_position or {}).get("strategy_key"),
+        "strategy": (etrade_position or {}).get("strategy"),
+    }) if etrade_position else False
+
+    pools_by_view: dict[str, dict | None] = {}
+    for v in ("all", "schwab", "etrade"):
+        pools_by_view[v] = _pools_for_view(
+            view=v,
+            schwab_maint=schwab_maint,
+            etrade_maint=etrade_maint,
+            schwab_nlv=schwab_nlv,
+            etrade_nlv=etrade_nlv,
+            es_dollars=es_dollars,
+            spx_is_short_vol=spx_is_sv,
+            etrade_is_short_vol=etrade_is_sv,
+        )
 
     market = _latest_market_stress()
     stress_active = bool(market.get("stress_episode_active")) if market.get("status") == "available" else False
     second_leg = bool(market.get("second_leg_active")) if market.get("status") == "available" else False
+
+    # Back-compat: 'pools' = 'all' view (existing consumers don't break).
+    pools_default = pools_by_view.get("all") or {
+        "spx_pm_bp_pct": 0.0,
+        "spx_pm_bp_dollars": 0.0,
+        "es_span_bp_pct": 0.0,
+        "es_span_bp_dollars": 0.0,
+        "combined_bp_pct": 0.0,
+        "short_vol_bp_pct": 0.0,
+    }
+    basis = (pools_default.get("nlv_basis") or 0.0) or COMBINED_NLV
 
     return {
         "timestamp": _iso_now(),
         "status": "available" if not errors else "partial",
         "errors": errors,
         "basis_dollars": round(basis, 2),
-        "pools": {
-            "spx_pm_bp_pct": round(spx_pct, 2),
-            "spx_pm_bp_dollars": round(spx_dollars, 2),
-            "es_span_bp_pct": round(es_pct, 2),
-            "es_span_bp_dollars": round(es_dollars, 2),
-            "combined_bp_pct": round(combined_pct, 2),
-            "short_vol_bp_pct": round(short_vol_pct, 2),
-        },
+        "pools": pools_default,
+        "pools_by_view": pools_by_view,
         "caps": governance_caps(stress_active),
         "stress_episode_active": stress_active,
         "second_leg_active": second_leg,

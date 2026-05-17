@@ -141,6 +141,55 @@ class Spec103Tests(unittest.TestCase):
         data = res.get_json()
         self.assertEqual(data["governance"]["rule"], "R6")
 
+    def test_pools_by_view_account_filter(self):
+        """Verify R1/R3/R4 口径 refinement: per-account-view BP using maintenance."""
+        fake_summary = {
+            "bp_basis": 200_000.0,
+            "rails": {
+                "spx_live": {"current_position": {"strategy_key": "bull_put_spread"}},
+                "etrade_pm": {"current_position": None},
+            },
+            "account_breakdown": {
+                "schwab_nlv": 120_000.0,
+                "schwab_maintenance_margin": 24_000.0,   # 20% of Schwab NLV
+                "etrade_nlv": 80_000.0,
+                "etrade_maintenance_margin": 8_000.0,    # 10% of ETrade NLV
+            },
+        }
+        fake_es = {"has_es_live_position": False}
+
+        with patch("web.portfolio_surface.portfolio_summary_payload", return_value=fake_summary), \
+             patch("web.portfolio_surface.es_stressed_span_payload", return_value=fake_es), \
+             patch("strategy.sleeve_governance._latest_market_stress",
+                   return_value={"status": "available", "stress_episode_active": False,
+                                 "second_leg_active": False}):
+            state = gov.current_governance_state()
+
+        pbv = state["pools_by_view"]
+        self.assertIn("all", pbv)
+        self.assertIn("schwab", pbv)
+        self.assertIn("etrade", pbv)
+
+        # all view: combined maint / combined NLV = 32k / 200k = 16%
+        self.assertAlmostEqual(pbv["all"]["spx_pm_bp_pct"], 16.0, places=1)
+        self.assertEqual(pbv["all"]["nlv_basis"], 200_000.0)
+        # /ES has no live position, so es_span = 0 in 'all'
+        self.assertEqual(pbv["all"]["es_span_bp_pct"], 0.0)
+
+        # schwab view: 24k / 120k = 20%
+        self.assertAlmostEqual(pbv["schwab"]["spx_pm_bp_pct"], 20.0, places=1)
+        self.assertEqual(pbv["schwab"]["nlv_basis"], 120_000.0)
+        # schwab view: /ES is independent broker pool — should be None
+        self.assertIsNone(pbv["schwab"]["es_span_bp_pct"])
+
+        # etrade view: 8k / 80k = 10%
+        self.assertAlmostEqual(pbv["etrade"]["spx_pm_bp_pct"], 10.0, places=1)
+        self.assertEqual(pbv["etrade"]["nlv_basis"], 80_000.0)
+        self.assertIsNone(pbv["etrade"]["es_span_bp_pct"])
+
+        # Back-compat: 'pools' field equals 'all' view
+        self.assertEqual(state["pools"]["spx_pm_bp_pct"], pbv["all"]["spx_pm_bp_pct"])
+
 
 if __name__ == "__main__":
     unittest.main()

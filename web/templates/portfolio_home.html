@@ -1530,6 +1530,7 @@ function setAccountView(v) {
     el.classList.toggle('active', el.dataset.av === v));
   if (_snapshotCache) _renderMarginAllocation(_snapshotCache);
   renderPositionBars();
+  if (typeof _renderGovernance === 'function') _renderGovernance();
 }
 
 function _renderMarginAllocation(data) {
@@ -1811,80 +1812,103 @@ async function loadSnapshot() {
   }
 }
 
+let _governanceCache = null;
+
 async function loadGovernance() {
   const body = document.getElementById('governance-body');
   if (!body) return;
   try {
     const res = await fetch('/api/sleeve-governance/state');
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    const state = data.state || {};
-    const pools = state.pools || {};
-    const caps = state.caps || {};
-    const counts = data.recent_counts || {};
-    const blocked = data.recent_blocked_candidates || [];
-    const stress = !!state.stress_episode_active;
-    const second = !!state.second_leg_active;
-    const cellCls = second ? 'danger' : (stress ? 'warn' : '');
-    const blocksHtml = blocked.length
-      ? blocked.slice(-5).reverse().map(row => {
-          const c = row.candidate || {};
-          return `<div class="governance-block-row">
-            <span>${c.sleeve || c.strategy_key || c.strategy || 'candidate'}</span>
-            <span>${row.rule || '—'} · ${row.timestamp || '—'}</span>
-          </div>`;
-        }).join('')
-      : '<div class="snapshot-unavail" style="padding:0">No blocked candidates logged.</div>';
-    body.innerHTML = `
-      <div class="governance-grid">
-        <div class="governance-cell ${cellCls}">
-          <div class="governance-label">Stress Episode</div>
-          <div class="governance-value">${stress ? 'ACTIVE' : 'inactive'}</div>
-          <div class="governance-note">SPX cap ${fmtPct(caps.R5_spx_pm_stress_cap_pct)}</div>
-        </div>
-        <div class="governance-cell ${second ? 'danger' : ''}">
-          <div class="governance-label">Second Leg / R6</div>
-          <div class="governance-value">${second ? 'BLOCKING' : 'clear'}</div>
-          <div class="governance-note">new short-vol entries</div>
-        </div>
-        <div class="governance-cell">
-          <div class="governance-label">SPX PM BP</div>
-          <div class="governance-value">${fmtPct(pools.spx_pm_bp_pct)}</div>
-          <div class="governance-note">cap ${fmtPct(caps.R1_spx_pm_pool_cap_pct)}</div>
-        </div>
-        <div class="governance-cell">
-          <div class="governance-label">/ES SPAN BP</div>
-          <div class="governance-value">${fmtPct(pools.es_span_bp_pct)}</div>
-          <div class="governance-note">cap ${fmtPct(caps.R2_es_span_cap_pct)}</div>
-        </div>
-        <div class="governance-cell">
-          <div class="governance-label">Combined BP</div>
-          <div class="governance-value">${fmtPct(pools.combined_bp_pct)}</div>
-          <div class="governance-note">cap ${fmtPct(caps.R3_combined_cap_pct)}</div>
-        </div>
-        <div class="governance-cell">
-          <div class="governance-label">Short Vol BP</div>
-          <div class="governance-value">${fmtPct(pools.short_vol_bp_pct)}</div>
-          <div class="governance-note">cap ${fmtPct(caps.R4_short_vol_cap_pct)}</div>
-        </div>
-        <div class="governance-cell">
-          <div class="governance-label">Blocked 30D</div>
-          <div class="governance-value">${counts.blocked_30d ?? 0}</div>
-          <div class="governance-note">entry gate decisions</div>
-        </div>
-        <div class="governance-cell">
-          <div class="governance-label">Second-Leg 90D</div>
-          <div class="governance-value">${counts.second_leg_days_90d ?? 0}</div>
-          <div class="governance-note">state tracker rows</div>
-        </div>
-      </div>
-      <div class="governance-blocks">
-        <div class="governance-label" style="margin-bottom:5px">Recent Blocked Candidates</div>
-        ${blocksHtml}
-      </div>`;
+    _governanceCache = await res.json();
+    _renderGovernance();
   } catch (e) {
+    _governanceCache = null;
     body.innerHTML = `<div class="snapshot-unavail">Governance unavailable — ${e.message}</div>`;
   }
+}
+
+function _renderGovernance() {
+  const body = document.getElementById('governance-body');
+  if (!body || !_governanceCache) return;
+  const data = _governanceCache;
+  const state = data.state || {};
+  const view = (_accountView || 'all');
+  const poolsByView = state.pools_by_view || {};
+  const pools = poolsByView[view] || state.pools || {};
+  const caps = state.caps || {};
+  const counts = data.recent_counts || {};
+  const blocked = data.recent_blocked_candidates || [];
+  const stress = !!state.stress_episode_active;
+  const second = !!state.second_leg_active;
+  const cellCls = second ? 'danger' : (stress ? 'warn' : '');
+  const viewLabel = view === 'schwab' ? 'Schwab' : view === 'etrade' ? 'E-Trade' : 'All accounts';
+  const esCell = (view === 'all')
+    ? `<div class="governance-cell">
+        <div class="governance-label">/ES SPAN BP</div>
+        <div class="governance-value">${fmtPct(pools.es_span_bp_pct)}</div>
+        <div class="governance-note">cap ${fmtPct(caps.R2_es_span_cap_pct)}</div>
+      </div>`
+    : `<div class="governance-cell" style="opacity:0.5">
+        <div class="governance-label">/ES SPAN BP</div>
+        <div class="governance-value">N/A</div>
+        <div class="governance-note">independent broker pool</div>
+      </div>`;
+  const blocksHtml = blocked.length
+    ? blocked.slice(-5).reverse().map(row => {
+        const c = row.candidate || {};
+        return `<div class="governance-block-row">
+          <span>${c.sleeve || c.strategy_key || c.strategy || 'candidate'}</span>
+          <span>${row.rule || '—'} · ${row.timestamp || '—'}</span>
+        </div>`;
+      }).join('')
+    : '<div class="snapshot-unavail" style="padding:0">No blocked candidates logged.</div>';
+  body.innerHTML = `
+    <div class="governance-view-label" style="font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);margin-bottom:6px">
+      View: <strong style="color:var(--text-2)">${viewLabel}</strong> · denominator: $${fmtNum(pools.nlv_basis ?? state.basis_dollars, 0)}
+    </div>
+    <div class="governance-grid">
+      <div class="governance-cell ${cellCls}">
+        <div class="governance-label">Stress Episode</div>
+        <div class="governance-value">${stress ? 'ACTIVE' : 'inactive'}</div>
+        <div class="governance-note">SPX cap ${fmtPct(caps.R5_spx_pm_stress_cap_pct)}</div>
+      </div>
+      <div class="governance-cell ${second ? 'danger' : ''}">
+        <div class="governance-label">Second Leg / R6</div>
+        <div class="governance-value">${second ? 'BLOCKING' : 'clear'}</div>
+        <div class="governance-note">new short-vol entries</div>
+      </div>
+      <div class="governance-cell">
+        <div class="governance-label">SPX PM BP</div>
+        <div class="governance-value">${fmtPct(pools.spx_pm_bp_pct)}</div>
+        <div class="governance-note">cap ${fmtPct(caps.R1_spx_pm_pool_cap_pct)}</div>
+      </div>
+      ${esCell}
+      <div class="governance-cell">
+        <div class="governance-label">Combined BP</div>
+        <div class="governance-value">${fmtPct(pools.combined_bp_pct)}</div>
+        <div class="governance-note">cap ${fmtPct(caps.R3_combined_cap_pct)}</div>
+      </div>
+      <div class="governance-cell">
+        <div class="governance-label">Short Vol BP</div>
+        <div class="governance-value">${fmtPct(pools.short_vol_bp_pct)}</div>
+        <div class="governance-note">cap ${fmtPct(caps.R4_short_vol_cap_pct)}</div>
+      </div>
+      <div class="governance-cell">
+        <div class="governance-label">Blocked 30D</div>
+        <div class="governance-value">${counts.blocked_30d ?? 0}</div>
+        <div class="governance-note">entry gate decisions</div>
+      </div>
+      <div class="governance-cell">
+        <div class="governance-label">Second-Leg 90D</div>
+        <div class="governance-value">${counts.second_leg_days_90d ?? 0}</div>
+        <div class="governance-note">state tracker rows</div>
+      </div>
+    </div>
+    <div class="governance-blocks">
+      <div class="governance-label" style="margin-bottom:5px">Recent Blocked Candidates</div>
+      ${blocksHtml}
+    </div>`;
 }
 
 // ── Date ──────────────────────────────────────────────────────────────────────
