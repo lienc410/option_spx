@@ -2757,11 +2757,17 @@ def api_hvladder_position_note():
 
 @app.route("/api/hvladder/draft")
 def api_hvladder_draft():
-    """Suggested open parameters: BSM-fit short strike at δ0.20 + model premium at current VIX/SPX."""
+    """Open draft for Stress Put Ladder: live /ES chain scan ranked by spread + OI + delta gap.
+
+    Falls back to BSM-only fit if Schwab futures chain is unavailable. Response
+    mirrors /api/es/position/open-draft shape so the frontend can render the
+    same scan table for row selection.
+    """
     try:
         from backtest.pricer import find_strike_for_delta, put_price
+        from schwab.scanner import build_strike_scan
     except Exception as exc:
-        return jsonify({"status": "error", "error": f"pricer unavailable: {exc}"})
+        return jsonify({"status": "error", "error": f"pricer/scanner unavailable: {exc}"})
 
     vix_ctx = _hvlad_vix_context()
     trend = _hvlad_trend_status()
@@ -2772,35 +2778,88 @@ def api_hvladder_draft():
     if not isinstance(spx, (int, float)) or spx <= 0:
         return jsonify({"status": "unavailable", "reason": "spx not available"})
 
-    sigma = vix / 100.0
+    sigma = max(float(vix) / 100.0, 0.01)
     dte = 49
     target_delta = 0.20
+
+    # BSM fit as center for the chain scan (rounded to /ES 5-pt grid)
     try:
-        k_raw = find_strike_for_delta(spx, dte, sigma, target_delta, False)
+        k_raw = find_strike_for_delta(float(spx), dte, sigma, target_delta, False)
     except Exception as exc:
         return jsonify({"status": "error", "error": f"strike fit failed: {exc}"})
-    # Round to nearest 5 (typical /ES weekly strike grid)
-    short_strike = round(k_raw / 5.0) * 5.0
+    k_center = int(round(k_raw / 5.0) * 5)
+
+    # Live chain scan (Schwab futures)
+    scan_rows: list[dict] = []
+    scan_fallback = True
+    scan_error: str | None = None
     try:
-        model_premium = put_price(spx, short_strike, dte, sigma)
+        scan = build_strike_scan(
+            symbol="/ES",
+            option_type="PUT",
+            target_delta=-target_delta,  # scanner convention: negative for puts
+            target_dte=dte,
+            center_strike=float(k_center),
+        )
+        scan_rows = scan.get("rows") or []
+        scan_fallback = bool(scan.get("scan_fallback"))
     except Exception as exc:
-        return jsonify({"status": "error", "error": f"put_price failed: {exc}"})
+        scan_error = str(exc)
 
     today = date.today()
-    default_expiry = (today + timedelta(days=dte)).isoformat()
+    bsm_premium = round(float(put_price(float(spx), float(k_center), dte, sigma)), 2)
+    base_payload = {
+        "status":          "ok",
+        "spx":             round(float(spx), 2),
+        "vix":             round(float(vix), 2),
+        "sigma":           round(float(sigma), 4),
+        "dte":             dte,
+        "target_delta":    target_delta,
+        "strike_raw":      round(float(k_raw), 2),
+        "signal_date":     today.isoformat(),
+        "default_expiry": (today + timedelta(days=dte)).isoformat(),
+    }
+
+    recommended = next((r for r in scan_rows if r.get("recommended")), None)
+    if scan_fallback or recommended is None:
+        return jsonify({
+            **base_payload,
+            "short_strike":   k_center,
+            "expiry":         base_payload["default_expiry"],
+            "model_premium":  bsm_premium,
+            "model_bsm":      bsm_premium,
+            "strike_scan":    {"rows": [], "scan_fallback": True, "error": scan_error},
+            "scan_message":   "Live /ES chain unavailable — using BSM model fit at rounded strike",
+        })
+
+    # Enrich rows with target_delta + live_delta + delta_gap
+    enriched = []
+    for r in scan_rows:
+        lv = abs(float(r["delta"])) if r.get("delta") not in (None, "") else None
+        enriched.append({
+            **r,
+            "target_delta": target_delta,
+            "live_delta":   round(lv, 3) if lv is not None else None,
+            "delta_gap":    round(abs(lv - target_delta), 3) if lv is not None else None,
+        })
+
+    final_strike = int(round(float(recommended["strike"])))
+    final_mid = float(recommended["mid"]) if recommended.get("mid") not in (None, "") else None
+    final_premium = round(final_mid, 2) if final_mid is not None else bsm_premium
+    expiry = str(recommended.get("expiry") or base_payload["default_expiry"])
 
     return jsonify({
-        "status":        "ok",
-        "spx":           round(float(spx), 2),
-        "vix":           round(float(vix), 2),
-        "sigma":         round(float(sigma), 4),
-        "dte":           dte,
-        "target_delta":  target_delta,
-        "strike_raw":    round(float(k_raw), 2),
-        "short_strike":  short_strike,
-        "model_premium": round(float(model_premium), 2),
-        "signal_date":   today.isoformat(),
-        "default_expiry": default_expiry,
+        **base_payload,
+        "short_strike":   final_strike,
+        "expiry":         expiry,
+        "model_premium":  final_premium,
+        "model_bsm":      bsm_premium,
+        "strike_scan":    {
+            "rows":               enriched,
+            "scan_fallback":      False,
+            "center_strike":      k_center,
+            "recommended_strike": final_strike,
+        },
     })
 
 

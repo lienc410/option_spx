@@ -175,6 +175,25 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .modal-msg.hidden { display: none; }
 .modal-msg.error { color: var(--red); }
 .modal-msg.ok { color: var(--green); }
+
+/* Strike scan (cloned from /spx pattern) */
+.scan-wrap { display: grid; gap: 6px; }
+.scan-box { border: 1px solid var(--border); border-radius: 8px; background: linear-gradient(180deg, rgba(72,136,232,0.05), transparent 28%), var(--surface-hi); overflow: hidden; }
+.scan-head { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 0.62rem; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); }
+.scan-note { padding: 8px 10px; font-size: 0.7rem; color: var(--text-2); }
+.scan-table-wrap { max-height: 240px; overflow: auto; }
+.scan-table { width: 100%; border-collapse: collapse; font-family: var(--f-mono, 'JetBrains Mono', monospace); }
+.scan-table th { text-align: left; padding: 7px 8px; font-size: 0.58rem; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); border-bottom: 1px solid var(--border); }
+.scan-table td { padding: 8px 8px; font-size: 0.67rem; color: var(--text); border-bottom: 1px solid rgba(35,42,66,0.45); }
+.scan-table tr:last-child td { border-bottom: none; }
+.scan-row { cursor: pointer; transition: background .12s ease; }
+.scan-row:hover { background: rgba(201,168,64,0.06); }
+.scan-row.recommended { background: rgba(66,204,124,0.07); }
+.scan-row.selected { box-shadow: inset 0 0 0 1px var(--gold-border); background: rgba(201,168,64,0.08); }
+.scan-row.warn td { color: var(--orange); }
+.scan-row.gap-mid td { color: #d6c26a; }
+.scan-row.gap-high td { color: var(--red); }
+.scan-star { color: var(--gold); margin-right: 4px; }
 </style>
 </head>
 <body>
@@ -441,16 +460,16 @@ function openHvlModal(kind) {
           <input id="hvl-exp" class="modal-input" type="date" value="${exp}">
         </div>
         <div class="modal-field">
-          <label class="modal-label">Short Strike <span style="color:var(--text-muted);font-size:0.55rem;text-transform:none;letter-spacing:0">δ0.20 BSM-fit</span></label>
-          <input id="hvl-strike" class="modal-input" type="number" step="5" placeholder="loading…">
+          <label class="modal-label">Short Strike <span style="color:var(--text-muted);font-size:0.55rem;text-transform:none;letter-spacing:0">click row to select</span></label>
+          <input id="hvl-strike" class="modal-input" type="number" step="5" placeholder="select row below…">
         </div>
         <div class="modal-field">
           <label class="modal-label">Contracts</label>
           <input id="hvl-contracts" class="modal-input" type="number" min="1" step="1" value="1">
         </div>
         <div class="modal-field">
-          <label class="modal-label">Model Premium ($) <span style="color:var(--text-muted);font-size:0.55rem;text-transform:none;letter-spacing:0">BSM @ strike</span></label>
-          <input id="hvl-model-prem" class="modal-input" type="number" step="0.01" placeholder="loading…" onchange="_hvlSyncEntryFromModel()">
+          <label class="modal-label">Model Premium ($) <span style="color:var(--text-muted);font-size:0.55rem;text-transform:none;letter-spacing:0">live mid or BSM</span></label>
+          <input id="hvl-model-prem" class="modal-input" type="number" step="0.01" placeholder="from chain" onchange="_hvlSyncEntryFromModel()">
         </div>
         <div class="modal-field">
           <label class="modal-label">Actual Premium ($)</label>
@@ -468,12 +487,23 @@ function openHvlModal(kind) {
           <label class="modal-label">Mark as Paper</label>
           <label class="modal-check"><input id="hvl-paper" type="checkbox"> Paper trade</label>
         </div>
+        <div class="modal-field">
+          <label class="modal-label">Scan Rows</label>
+          <select id="hvl-scan-limit" class="modal-select" onchange="_hvlRenderScan()">
+            <option value="5" selected>Top 5</option>
+            <option value="10">Top 10</option>
+            <option value="all">All</option>
+          </select>
+        </div>
+        <div class="modal-field full">
+          <div class="scan-wrap" id="hvl-scan-wrap"></div>
+        </div>
         <div class="modal-field full">
           <label class="modal-label">Note</label>
           <textarea id="hvl-note" class="modal-textarea" placeholder="optional entry note"></textarea>
         </div>
         <div class="modal-field full">
-          <div class="modal-hint" id="hvl-draft-hint">Loading BSM draft (strike + model premium)…</div>
+          <div class="modal-hint" id="hvl-draft-hint">Loading /ES chain scan…</div>
         </div>
       </div>
       <div class="modal-cta">
@@ -481,7 +511,7 @@ function openHvlModal(kind) {
         <button class="action-btn primary" onclick="submitHvlOpen()">Open Slot</button>
       </div>
       <div id="hvl-modal-msg" class="modal-msg hidden"></div>`;
-    // Fetch BSM draft and prefill
+    // Fetch chain scan and prefill
     _hvlLoadDraft();
   } else if (kind === 'close') {
     title.textContent = 'Close Slot';
@@ -589,28 +619,105 @@ async function _hvlPost(path, payload) {
   }
 }
 
+let _hvlDraft = null;
+
 async function _hvlLoadDraft() {
   const hint = document.getElementById('hvl-draft-hint');
   try {
     const d = await fetch('/api/hvladder/draft').then(r => r.json());
     if (d.status !== 'ok') {
-      if (hint) hint.textContent = `BSM draft unavailable: ${d.reason || d.error || 'unknown'} — fill manually`;
+      if (hint) hint.textContent = `Draft unavailable: ${d.reason || d.error || 'unknown'} — fill manually`;
       return;
     }
+    _hvlDraft = d;
     const $ = id => document.getElementById(id);
-    if ($('hvl-strike')    && !$('hvl-strike').value)    $('hvl-strike').value    = d.short_strike;
-    if ($('hvl-model-prem')&& !$('hvl-model-prem').value)$('hvl-model-prem').value= d.model_premium;
-    if ($('hvl-prem')      && !$('hvl-prem').value)      $('hvl-prem').value      = d.model_premium;
-    if ($('hvl-vix')       && !$('hvl-vix').value)       $('hvl-vix').value       = d.vix;
-    if ($('hvl-spx')       && !$('hvl-spx').value)       $('hvl-spx').value       = d.spx;
-    if ($('hvl-sd')) $('hvl-sd').value = d.signal_date;
-    if ($('hvl-exp')) $('hvl-exp').value = d.default_expiry;
+    if ($('hvl-strike'))     $('hvl-strike').value     = d.short_strike;
+    if ($('hvl-model-prem')) $('hvl-model-prem').value = d.model_premium;
+    if ($('hvl-prem') && !$('hvl-prem').value) $('hvl-prem').value = d.model_premium;
+    if ($('hvl-vix'))        $('hvl-vix').value        = d.vix;
+    if ($('hvl-spx'))        $('hvl-spx').value        = d.spx;
+    if ($('hvl-sd'))         $('hvl-sd').value         = d.signal_date;
+    if ($('hvl-exp'))        $('hvl-exp').value        = d.expiry || d.default_expiry;
+    _hvlRenderScan();
     if (hint) {
-      hint.innerHTML = `Draft: SPX <strong>${d.spx.toLocaleString()}</strong> · VIX <strong>${d.vix.toFixed(2)}</strong> · δ${d.target_delta} BSM-fit → strike <strong>${d.short_strike}</strong> (raw ${d.strike_raw.toFixed(1)}) · model premium <strong>$${d.model_premium.toFixed(2)}</strong> @ ${d.dte} DTE. PM 在 execution 后填 Actual Premium。`;
+      if (d.scan_message) {
+        hint.innerHTML = `SPX <strong>${d.spx.toLocaleString()}</strong> · VIX <strong>${d.vix.toFixed(2)}</strong> · ${d.scan_message}. Strike <strong>${d.short_strike}</strong> · model premium <strong>$${d.model_premium.toFixed(2)}</strong>.`;
+      } else {
+        const rec = d.strike_scan?.recommended_strike;
+        hint.innerHTML = `SPX <strong>${d.spx.toLocaleString()}</strong> · VIX <strong>${d.vix.toFixed(2)}</strong> · /ES chain scan (δ${d.target_delta}, ${d.dte} DTE) · recommended strike <strong>${rec}</strong> · mid <strong>$${d.model_premium.toFixed(2)}</strong> · BSM ref $${d.model_bsm?.toFixed(2) ?? '—'}. PM fills Actual Premium after execution.`;
+      }
     }
   } catch (e) {
-    if (hint) hint.textContent = `BSM draft fetch failed: ${e.message}`;
+    if (hint) hint.textContent = `Draft fetch failed: ${e.message}`;
   }
+}
+
+function _hvlRenderScan() {
+  const wrap = document.getElementById('hvl-scan-wrap');
+  if (!wrap) return;
+  const d = _hvlDraft;
+  if (!d) { wrap.innerHTML = ''; return; }
+  const rows = d.strike_scan?.rows || [];
+  if (!rows.length) {
+    wrap.innerHTML = `<div class="scan-box"><div class="scan-head"><span>/ES Put Chain</span><span>Fallback</span></div><div class="scan-note">${d.scan_message || 'No live chain rows.'} Strike + model premium prefilled from BSM.</div></div>`;
+    return;
+  }
+  const limit = document.getElementById('hvl-scan-limit')?.value || '5';
+  const visible = limit === 'all' ? rows : rows.slice(0, Number(limit));
+  const selectedStrike = Number(document.getElementById('hvl-strike')?.value || 0);
+  const rowsHtml = visible.map((row, idx) => {
+    const isSel = Number(row.strike || 0) === selectedStrike;
+    const cls = [
+      'scan-row',
+      row.recommended ? 'recommended' : '',
+      isSel ? 'selected' : '',
+      Number(row.spread_pct || 0) > 0.30 ? 'warn' : '',
+      Number(row.delta_gap || 0) > 0.08 ? 'gap-high' : '',
+      Number(row.delta_gap || 0) > 0.03 && Number(row.delta_gap || 0) <= 0.08 ? 'gap-mid' : '',
+    ].filter(Boolean).join(' ');
+    return `
+      <tr class="${cls}" onclick="_hvlSelectScanRow(${idx})">
+        <td>${row.recommended ? '<span class="scan-star">★</span>' : ''}${row.strike ?? '—'}</td>
+        <td>${row.expiry || '—'}</td>
+        <td>${row.bid == null ? '—' : Number(row.bid).toFixed(2)}</td>
+        <td>${row.ask == null ? '—' : Number(row.ask).toFixed(2)}</td>
+        <td>${row.mid == null ? '—' : Number(row.mid).toFixed(2)}</td>
+        <td>${row.spread_pct == null ? '—' : (Number(row.spread_pct) * 100).toFixed(1) + '%'}</td>
+        <td>${row.live_delta == null ? '—' : Number(row.live_delta).toFixed(2)}</td>
+        <td>${row.delta_gap == null ? '—' : Number(row.delta_gap).toFixed(3)}</td>
+        <td>${row.open_interest ?? '—'}</td>
+        <td>${row.score == null ? '—' : Number(row.score).toFixed(2)}</td>
+      </tr>`;
+  }).join('');
+  wrap.innerHTML = `
+    <div class="scan-box">
+      <div class="scan-head"><span>/ES Put Chain — δ${d.target_delta} · ${d.dte} DTE</span><span>Showing ${visible.length}/${rows.length}</span></div>
+      <div class="scan-table-wrap">
+        <table class="scan-table">
+          <thead><tr><th>Strike</th><th>Expiry</th><th>Bid</th><th>Ask</th><th>Mid</th><th>Spread</th><th>Live Δ</th><th>Δ Gap</th><th>OI</th><th>Score</th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function _hvlSelectScanRow(idx) {
+  if (!_hvlDraft?.strike_scan?.rows) return;
+  const row = _hvlDraft.strike_scan.rows[idx];
+  if (!row) return;
+  const $ = id => document.getElementById(id);
+  if ($('hvl-strike'))     $('hvl-strike').value     = row.strike != null ? Math.round(row.strike) : '';
+  if ($('hvl-model-prem')) $('hvl-model-prem').value = row.mid != null ? Number(row.mid).toFixed(2) : '';
+  if ($('hvl-prem') && !_hvlPremOverridden()) $('hvl-prem').value = row.mid != null ? Number(row.mid).toFixed(2) : '';
+  if ($('hvl-exp') && row.expiry) $('hvl-exp').value = row.expiry;
+  _hvlRenderScan();
+}
+
+// Track if user manually typed an actual premium so row-click doesn't overwrite
+function _hvlPremOverridden() {
+  const m = document.getElementById('hvl-model-prem')?.value;
+  const a = document.getElementById('hvl-prem')?.value;
+  return a && m && Number(a).toFixed(2) !== Number(m).toFixed(2);
 }
 
 // If user only typed model premium and not actual, mirror model→actual as a convenience
