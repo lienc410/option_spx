@@ -147,6 +147,15 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 /* ── Research note ── */
 .research-note { font-family: var(--f-ui); font-size: 0.65rem; color: var(--text-2); line-height: 1.6; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 14px 18px; }
 
+/* ── Chart controls (reuse HV Ladder pattern) ── */
+.chart-controls {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+  padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid var(--border);
+}
+.ctrl-label { font-family: var(--f-ui); font-size: 0.60rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); }
+.ctrl-spacer { flex: 1; }
+.regime-chart-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 16px; margin-bottom: 18px; }
+
 /* ── Regime history columns (mirrors live governance matrix) ── */
 .regime-hist {
   display: grid;
@@ -316,6 +325,40 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     <div class="banner">
       <div class="banner-title">Research view — SPEC-103 governance rule backtest</div>
       <div class="banner-body">从 Q072 daily flags 重建历史 stress regime 分布。回答：各 regime 发生了多少次、各策略受到什么影响。</div>
+    </div>
+
+    <!-- Regime Timeline Chart -->
+    <div class="section-label">Regime & Trade Signal Timeline</div>
+    <div class="regime-chart-wrap">
+      <div class="chart-controls">
+        <!-- Overlay -->
+        <span class="ctrl-label">Overlay</span>
+        <div class="btn-group" id="reg-overlay-group">
+          <button class="ctrl-btn active" data-overlay="none">None</button>
+          <button class="ctrl-btn" data-overlay="spx">SPX</button>
+          <button class="ctrl-btn" data-overlay="pnl">Cum. P&amp;L</button>
+          <button class="ctrl-btn" data-overlay="dd">Drawdown</button>
+          <button class="ctrl-btn" data-overlay="ma10">SPX MA10</button>
+        </div>
+        <span style="color:var(--border-2)">|</span>
+        <!-- Window -->
+        <div class="btn-group" id="reg-window-group">
+          <button class="ctrl-btn" data-win="1">1yr</button>
+          <button class="ctrl-btn" data-win="3">3yr</button>
+          <button class="ctrl-btn" data-win="5">5yr</button>
+          <button class="ctrl-btn" data-win="10">10yr</button>
+          <button class="ctrl-btn active" data-win="all">All</button>
+        </div>
+        <span class="ctrl-spacer"></span>
+        <!-- Legend -->
+        <span style="font-family:var(--f-mono);font-size:0.60rem;color:var(--text-2)">
+          <span style="color:var(--green)">▲</span> HV 入场 &nbsp;
+          <span style="color:var(--red)">✕</span> HV R6 阻断 &nbsp;
+          <span style="color:var(--gold)">●</span> 主策略入场
+        </span>
+        <button class="ctrl-btn" id="reg-reset" style="margin-left:4px">↩ 全局</button>
+      </div>
+      <canvas id="regime-chart" height="90"></canvas>
     </div>
 
     <!-- Regime history: 3-column layout mirrors live governance matrix -->
@@ -566,15 +609,207 @@ function switchTab(tab) {
   if (tab === 'gov' && !_govLoaded) { _govLoaded = true; loadGovernanceBT(); }
 }
 
+// ── Regime Timeline Chart ─────────────────────────────────────────────────────
+let _regimeChart = null;
+let _timelineData = null;
+let _regOverlay = 'none';
+let _regWindow  = 'all';
+
+// Background regime bands plugin (draws before datasets)
+const regimeBandsPlugin = {
+  id: 'regimeBands',
+  beforeDraw(chart) {
+    if (!_timelineData) return;
+    const {ctx, chartArea: ca, scales: {x}} = chart;
+    if (!x || !ca) return;
+    const {dates, regimes} = _timelineData;
+    if (!dates || !regimes) return;
+
+    // Apply time window slice
+    const cutoff = _regWindow === 'all' ? null : (() => {
+      const d = new Date(); d.setFullYear(d.getFullYear() - _regWindow);
+      return d.toISOString().slice(0, 10);
+    })();
+    const startIdx = cutoff ? Math.max(0, dates.findIndex(d => d >= cutoff)) : 0;
+    const slicedDates = dates.slice(startIdx);
+    const slicedRegimes = regimes.slice(startIdx);
+
+    ctx.save();
+    let bandStart = null, bandRegime = null;
+    const drawBand = (endDate) => {
+      if (!bandStart || bandRegime === 'normal') return;
+      const x0 = x.getPixelForValue(bandStart);
+      const x1 = x.getPixelForValue(endDate);
+      ctx.fillStyle = bandRegime === 'second'
+        ? 'rgba(224,72,98,0.13)'
+        : 'rgba(224,128,64,0.10)';
+      ctx.fillRect(Math.min(x0, x1), ca.top, Math.abs(x1 - x0), ca.height);
+    };
+    for (let i = 0; i < slicedDates.length; i++) {
+      const r = slicedRegimes[i];
+      if (r !== bandRegime) {
+        if (bandRegime !== null) drawBand(slicedDates[i]);
+        bandStart = slicedDates[i]; bandRegime = r;
+      }
+    }
+    if (bandRegime !== null) drawBand(slicedDates[slicedDates.length - 1]);
+    ctx.restore();
+  }
+};
+
+function _buildRegimeConfig(data, overlay, windowYrs) {
+  const allDates   = data.dates   || [];
+  const allVix     = data.vix     || [];
+  const allSpx     = data.spx     || [];
+  const allMa10    = data.spx_ma10 || [];
+  const allCurve   = data.daily_curve || [];
+  const hvEntries  = new Set(data.hv_entries || []);
+  const hvBlocked  = new Set(data.hv_blocked || []);
+
+  // Time window slice
+  let startIdx = 0;
+  if (windowYrs !== 'all') {
+    const cut = new Date(); cut.setFullYear(cut.getFullYear() - windowYrs);
+    const cutStr = cut.toISOString().slice(0, 10);
+    startIdx = Math.max(0, allDates.findIndex(d => d >= cutStr));
+  }
+  const dates  = allDates.slice(startIdx);
+  const vix    = allVix.slice(startIdx);
+  const spx    = allSpx.slice(startIdx);
+  const ma10   = allMa10.slice(startIdx);
+
+  // Build curve lookup
+  const curveByDate = {};
+  let initEq = null;
+  for (const r of allCurve) {
+    curveByDate[r.date] = r;
+    if (initEq === null) initEq = r.equity;
+  }
+
+  // Scatter points
+  const hvEntryPts  = dates.filter(d => hvEntries.has(d)).map(d => ({ x: d, y: allVix[allDates.indexOf(d)] }));
+  const hvBlockPts  = dates.filter(d => hvBlocked.has(d)).map(d => ({ x: d, y: allVix[allDates.indexOf(d)] }));
+
+  // Overlay dataset (right Y)
+  let overlayDs = null;
+  let y1Label = '', y1Color = 'rgba(72,136,232,0.7)';
+  if (overlay === 'spx') {
+    y1Label = 'SPX'; y1Color = 'rgba(196,206,236,0.7)';
+    overlayDs = { label: 'SPX', data: spx, borderColor: 'rgba(196,206,236,0.65)', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, tension: 0, yAxisID: 'y1', order: 6 };
+  } else if (overlay === 'ma10') {
+    y1Label = 'SPX MA10'; y1Color = 'rgba(201,168,64,0.7)';
+    overlayDs = { label: 'SPX MA10', data: ma10, borderColor: 'rgba(201,168,64,0.55)', backgroundColor: 'transparent', borderWidth: 1, borderDash: [4,3], pointRadius: 0, tension: 0, yAxisID: 'y1', order: 6 };
+  } else if (overlay === 'pnl') {
+    y1Label = 'Cum. P&L ($k)'; y1Color = 'rgba(66,204,124,0.7)';
+    const pnlVals = dates.map(d => { const r = curveByDate[d]; return r && initEq != null ? +((r.equity - initEq)/1000).toFixed(1) : null; });
+    overlayDs = { label: 'Cum. P&L', data: pnlVals, borderColor: 'rgba(66,204,124,0.6)', backgroundColor: 'rgba(66,204,124,0.06)', fill: true, borderWidth: 1.5, pointRadius: 0, tension: 0, yAxisID: 'y1', order: 6 };
+  } else if (overlay === 'dd') {
+    y1Label = 'Drawdown'; y1Color = 'rgba(224,72,98,0.7)';
+    const ddVals = dates.map(d => { const r = curveByDate[d]; return r ? +(r.drawdown * 100).toFixed(2) : null; });
+    overlayDs = { label: 'Drawdown %', data: ddVals, borderColor: 'rgba(224,72,98,0.55)', backgroundColor: 'rgba(224,72,98,0.07)', fill: true, borderWidth: 1, pointRadius: 0, tension: 0, yAxisID: 'y1', order: 6 };
+  }
+
+  const datasets = [
+    // VIX line
+    { label: 'VIX', data: vix, borderColor: 'rgba(72,136,232,0.55)', backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [3,3], pointRadius: 0, tension: 0, yAxisID: 'y', order: 5 },
+    // Threshold lines
+    { label: 'VIX 22', data: dates.map(() => 22), borderColor: 'rgba(224,128,64,0.40)', backgroundColor: 'transparent', borderWidth: 1, borderDash: [6,4], pointRadius: 0, yAxisID: 'y', order: 7 },
+    { label: 'VIX 25', data: dates.map(() => 25), borderColor: 'rgba(224,72,98,0.35)', backgroundColor: 'transparent', borderWidth: 1, borderDash: [4,4], pointRadius: 0, yAxisID: 'y', order: 7 },
+  ];
+  if (overlayDs) datasets.push(overlayDs);
+  // HV entries ▲
+  datasets.push({ label: '▲ HV 入场', data: hvEntryPts, parsing: false, type: 'scatter', pointStyle: 'triangle', rotation: 0, pointRadius: 7, pointBackgroundColor: 'rgba(66,204,124,0.90)', pointBorderColor: 'rgba(66,204,124,1)', borderWidth: 0, yAxisID: 'y', order: 1 });
+  // HV blocked ✕
+  datasets.push({ label: '✕ HV R6 阻断', data: hvBlockPts, parsing: false, type: 'scatter', pointStyle: 'crossRot', pointRadius: 5, pointBackgroundColor: 'transparent', pointBorderColor: 'rgba(224,72,98,0.85)', borderWidth: 1.5, yAxisID: 'y', order: 2 });
+
+  const hasY1 = !!overlayDs;
+  return {
+    type: 'line',
+    data: { labels: dates, datasets },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0D1020', borderColor: '#232A42', borderWidth: 1,
+          titleColor: '#C4CEEC', bodyColor: '#606880',
+          titleFont: { family: "'JetBrains Mono', monospace", size: 11 },
+          bodyFont:  { family: "'JetBrains Mono', monospace", size: 10 },
+          callbacks: {
+            label: ctx => {
+              const v = ctx.parsed.y; if (v == null) return null;
+              const l = ctx.dataset.label || '';
+              if (l.includes('入场') || l.includes('阻断')) return `  ${l} @ VIX ${v.toFixed(1)}`;
+              if (l.startsWith('VIX 2')) return null;
+              if (l === 'Drawdown %') return `  DD: ${v.toFixed(2)}%`;
+              if (l === 'Cum. P&L') return `  P&L: $${v.toFixed(0)}k`;
+              return `  ${l}: ${v.toFixed(l === 'VIX' ? 1 : 0)}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: { ticks: { color: '#606880', font: { family: "'JetBrains Mono', monospace", size: 10 }, maxTicksLimit: 14 }, grid: { color: 'rgba(25,30,51,0.8)' } },
+        y: { position: 'left', ticks: { color: 'rgba(72,136,232,0.7)', font: { family: "'JetBrains Mono', monospace", size: 10 } }, grid: { color: 'rgba(25,30,51,0.8)' }, title: { display: true, text: 'VIX', color: 'rgba(72,136,232,0.7)', font: { size: 10 } }, suggestedMin: 10 },
+        y1: { display: hasY1, position: 'right', ticks: { color: y1Color, font: { family: "'JetBrains Mono', monospace", size: 10 } }, grid: { drawOnChartArea: false }, title: { display: !!y1Label, text: y1Label, color: y1Color, font: { size: 10 } } },
+      },
+    },
+    plugins: [regimeBandsPlugin],
+  };
+}
+
+function renderRegimeChart() {
+  if (!_timelineData) return;
+  if (_regimeChart) { _regimeChart.destroy(); _regimeChart = null; }
+  const ctx = document.getElementById('regime-chart').getContext('2d');
+  _regimeChart = new Chart(ctx, _buildRegimeConfig(_timelineData, _regOverlay, _regWindow));
+}
+
+// Control wiring
+document.getElementById('reg-overlay-group').addEventListener('click', e => {
+  const btn = e.target.closest('.ctrl-btn[data-overlay]');
+  if (!btn) return;
+  _regOverlay = btn.dataset.overlay;
+  document.querySelectorAll('#reg-overlay-group .ctrl-btn').forEach(b => b.classList.toggle('active', b === btn));
+  renderRegimeChart();
+});
+document.getElementById('reg-window-group').addEventListener('click', e => {
+  const btn = e.target.closest('.ctrl-btn[data-win]');
+  if (!btn) return;
+  _regWindow = btn.dataset.win === 'all' ? 'all' : parseInt(btn.dataset.win, 10);
+  document.querySelectorAll('#reg-window-group .ctrl-btn').forEach(b => b.classList.toggle('active', b === btn));
+  renderRegimeChart();
+});
+document.getElementById('reg-reset').addEventListener('click', () => {
+  _regOverlay = 'none'; _regWindow = 'all';
+  document.querySelectorAll('#reg-overlay-group .ctrl-btn').forEach(b => b.classList.toggle('active', b.dataset.overlay === 'none'));
+  document.querySelectorAll('#reg-window-group .ctrl-btn').forEach(b => b.classList.toggle('active', b.dataset.win === 'all'));
+  renderRegimeChart();
+});
+
 // ── Governance BT loader ──────────────────────────────────────────────────────
 function fmtPct1(v) { return typeof v === 'number' ? v.toFixed(1) + '%' : '—'; }
 function capPct(v)  { return v != null ? fmtPct1(v * 100) : '—'; }
 
 async function loadGovernanceBT() {
+  const [btR, tlR] = await Promise.allSettled([
+    fetch('/api/governance/backtest').then(r => r.json()),
+    fetch('/api/governance/timeline').then(r => r.json()),
+  ]);
+
+  // Timeline chart (independent of backtest stats)
+  if (tlR.status === 'fulfilled' && tlR.value.status === 'available') {
+    _timelineData = tlR.value;
+    renderRegimeChart();
+  } else {
+    document.getElementById('regime-chart').closest('.regime-chart-wrap').innerHTML =
+      `<div class="unavail">Timeline unavailable: ${tlR.reason?.message || tlR.value?.error || 'error'}</div>`;
+  }
+
   try {
-    const res = await fetch('/api/governance/backtest');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const d = await res.json();
+    if (btR.status !== 'fulfilled') throw new Error(btR.reason?.message || 'network error');
+    const d = btR.value;
     if (d.status !== 'available') throw new Error(d.error || 'unavailable');
     const m  = d.metrics;
     const dr = d.data_range || {};
@@ -736,7 +971,7 @@ async function loadGovernanceBT() {
     document.getElementById('gov-regime-hist').innerHTML =
       `<div class="unavail" style="grid-column:1/-1">Governance backtest unavailable: ${e.message}</div>`;
   }
-}
+}  // end loadGovernanceBT
 
 // ── Date + boot ───────────────────────────────────────────────────────────────
 const now = new Date();

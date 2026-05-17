@@ -886,6 +886,82 @@ def api_governance_backtest():
         return jsonify({"status": "unavailable", "error": str(exc)}), 200
 
 
+@app.route("/api/governance/timeline")
+def api_governance_timeline():
+    """Daily VIX + SPX + regime flags for the governance regime chart."""
+    try:
+        import pandas as pd
+        from strategy.sleeve_governance import (
+            Q072_DAILY_FLAGS, DECISION_LOG_PATH, _read_jsonl,
+            stress_episode_from_flags, detect_second_leg_state,
+        )
+
+        daily = pd.read_csv(Q072_DAILY_FLAGS, parse_dates=["date"]).set_index("date")
+        stress = stress_episode_from_flags(daily)
+        second_leg = detect_second_leg_state(daily)
+
+        # Per-date regime string
+        def _regime(s, sl):
+            if sl: return "second"
+            if s:  return "stress"
+            return "normal"
+
+        dates = [d.strftime("%Y-%m-%d") for d in daily.index]
+        vix_vals = [round(float(v), 2) if not pd.isna(v) else None
+                    for v in daily["vix"]] if "vix" in daily.columns else [None] * len(dates)
+        regimes = [_regime(bool(s), bool(sl))
+                   for s, sl in zip(stress.values, second_leg.values)]
+
+        # HV blocked dates: VIX ≥ 22 AND second_leg active
+        hv_blocked = [d for d, r, v in zip(dates, regimes, vix_vals)
+                      if r == "second" and v is not None and v >= 22.0]
+
+        # HV Ladder entries from backtest cache
+        today = datetime.now(_ET).date().isoformat()
+        bt_cache = None
+        try:
+            with open(_ES_DISK_CACHE_PATH, "r") as _f:
+                _store = json.load(_f)
+            mtime = _es_script_mtime()
+            _keys = sorted(
+                (k for k in _store if k.startswith("hvlad:2000-01-01:") and k.endswith(f"__{mtime}")),
+                reverse=True,
+            )
+            if _keys:
+                bt_cache = _store[_keys[0]]
+        except Exception:
+            pass
+
+        hv_entries   = bt_cache.get("backtest_signal_dates", []) if bt_cache else []
+        daily_curve  = bt_cache.get("daily_curve", []) if bt_cache else []
+
+        # SPX from market cache (reuse existing helper)
+        spx_by_date = _get_spx_by_date()
+        spx_vals = [spx_by_date.get(d) for d in dates]
+
+        # SPX MA10
+        spx_ma10: list[float | None] = []
+        for i, v in enumerate(spx_vals):
+            if i < 9 or any(spx_vals[i-9:i+1][j] is None for j in range(10)):
+                spx_ma10.append(None)
+            else:
+                spx_ma10.append(round(sum(spx_vals[i-9:i+1]) / 10, 2))  # type: ignore
+
+        return jsonify({
+            "status": "available",
+            "dates":        dates,
+            "vix":          vix_vals,
+            "regimes":      regimes,
+            "spx":          spx_vals,
+            "spx_ma10":     spx_ma10,
+            "hv_entries":   hv_entries,
+            "hv_blocked":   hv_blocked,
+            "daily_curve":  daily_curve,
+        })
+    except Exception as exc:
+        return jsonify({"status": "unavailable", "error": str(exc)}), 200
+
+
 @app.route("/api/etrade/balances")
 def api_etrade_balances():
     from etrade.client import get_account_balances
