@@ -353,35 +353,73 @@ def get_futures_option_chain(
         _cache_put(cache_key, [])
         return []
 
-    # 2) Pick best expiry: closest to target DTE within dte_range
+    # 2) Sort candidates by DTE distance to target — try in order, first one
+    #    with at least one valid quote wins (some expirations are reported by
+    #    Schwab but options don't actually exist for them).
     target = int(target_dte)
-    eligible = [e for e in exps if abs(int(e.get("daysToExpiration", 0)) - target) <= int(dte_range)]
-    if not eligible:
-        # Widen: pick globally closest
-        eligible = exps
-    best = min(eligible, key=lambda e: abs(int(e.get("daysToExpiration", 0)) - target))
-    expiry_iso = best.get("expirationDate")
-    actual_dte = int(best.get("daysToExpiration", target))
-    future_root = best.get("optionRoots") or symbol.lstrip("/").split()[0] or "ES"
+    candidates = sorted(exps, key=lambda e: abs(int(e.get("daysToExpiration", 0)) - target))
 
-    # 3) Build strike grid around center
+    # 3) Strike grid (shared across attempts)
     if center_strike is None or center_strike <= 0:
-        # Default: use 5050 as a placeholder (caller usually provides BSM-fit)
         center_strike = 5000.0
     step = 5  # /ES standard strike increment
     half = max(int(strike_window), 5)
     center_rounded = int(round(float(center_strike) / step) * step)
     strikes = list(range(center_rounded - half * step, center_rounded + (half + 1) * step, step))
 
-    # 4) Bulk quote
-    symbols = [_futures_option_symbol(future_root, expiry_iso, option_type, k) for k in strikes]
-    q = requests.get(
-        f"{BASE_URL}/marketdata/v1/quotes",
-        params={"symbols": ",".join(symbols), "fields": "quote"},
-        headers=_headers(), timeout=20,
-    )
-    q.raise_for_status()
-    quotes = q.json() or {}
+    # 4) Probe candidates until one returns valid quotes
+    expiry_iso = None
+    actual_dte = target
+    future_root = "ES"
+    quotes: dict = {}
+    symbols: list[str] = []
+    for cand in candidates:
+        cand_expiry = cand.get("expirationDate")
+        cand_dte = int(cand.get("daysToExpiration", target))
+        cand_root = cand.get("optionRoots") or symbol.lstrip("/").split()[0] or "ES"
+        # Skip if DTE too far from target unless we've exhausted closer options
+        if abs(cand_dte - target) > int(dte_range) and expiry_iso is not None:
+            break
+        cand_symbols = [_futures_option_symbol(cand_root, cand_expiry, option_type, k) for k in strikes]
+        # Probe: quote just the center strike first (cheap canary)
+        canary = cand_symbols[len(cand_symbols) // 2]
+        try:
+            cq = requests.get(
+                f"{BASE_URL}/marketdata/v1/quotes",
+                params={"symbols": canary, "fields": "quote"},
+                headers=_headers(), timeout=15,
+            )
+            cq.raise_for_status()
+            cjson = cq.json() or {}
+        except Exception:
+            continue
+        if not (isinstance(cjson.get(canary), dict) and "quote" in cjson[canary]):
+            continue
+        # Canary valid → bulk-quote full grid
+        try:
+            q = requests.get(
+                f"{BASE_URL}/marketdata/v1/quotes",
+                params={"symbols": ",".join(cand_symbols), "fields": "quote"},
+                headers=_headers(), timeout=20,
+            )
+            q.raise_for_status()
+            full_quotes = q.json() or {}
+        except Exception:
+            continue
+        # Check how many valid
+        valid_count = sum(1 for s in cand_symbols if isinstance(full_quotes.get(s), dict) and "quote" in full_quotes[s])
+        if valid_count == 0:
+            continue
+        expiry_iso = cand_expiry
+        actual_dte = cand_dte
+        future_root = cand_root
+        symbols = cand_symbols
+        quotes = full_quotes
+        break
+
+    if not symbols or not quotes:
+        _cache_put(cache_key, [])
+        return []
 
     # 5) Parse rows
     rows: list[dict] = []
