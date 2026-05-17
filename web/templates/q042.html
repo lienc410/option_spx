@@ -120,6 +120,31 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .spec-guard { font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);line-height:1.5;padding-top:6px;border-top:1px solid var(--border);margin-top:2px; }
 
 @media (max-width:700px) { .sleeve-grid,.spec-sleeve-grid { grid-template-columns:1fr; } }
+
+/* ── Action buttons + modal (cloned from /spx pattern) ── */
+.page-actions { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.action-btn { padding: 7px 12px; border-radius: 6px; border: 1px solid var(--border-2); background: var(--surface); color: var(--text); cursor: pointer; font-size: 0.74rem; transition: all .15s; }
+.action-btn:hover { border-color: var(--gold); color: var(--gold); }
+.action-btn.primary { background: var(--gold-bg); border-color: var(--gold-border); color: var(--gold); }
+.modal-wrap { position: fixed; inset: 0; background: rgba(8,10,19,0.72); display: flex; align-items: flex-start; justify-content: center; padding: 20px; z-index: 300; overflow-y: auto; }
+.modal-wrap.hidden { display: none; }
+.modal { width: min(580px, 100%); background: var(--surface); border: 1px solid var(--border-2); border-radius: 12px; padding: 20px 22px; max-height: calc(100vh - 40px); overflow-y: auto; margin: auto 0; }
+.modal-hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.modal-title { font-family: var(--f-display, 'Newsreader', Georgia, serif); font-style: italic; font-size: 1.15rem; }
+.modal-close { background: transparent; border: none; color: var(--text-2); cursor: pointer; font-size: 1.2rem; }
+.modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.modal-field { display: grid; gap: 5px; }
+.modal-field.full { grid-column: 1 / -1; }
+.modal-label { font-size: 0.62rem; color: var(--text-2); text-transform: uppercase; letter-spacing: .09em; }
+.modal-input, .modal-select, .modal-textarea { width: 100%; background: var(--surface-hi); border: 1px solid var(--border-2); color: var(--text); border-radius: 6px; padding: 9px 11px; font-family: inherit; font-size: 0.82rem; }
+.modal-textarea { min-height: 70px; resize: vertical; }
+.modal-check { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--text); }
+.modal-hint { font-size: 0.7rem; color: var(--text-2); }
+.modal-cta { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.modal-msg { margin-top: 10px; font-size: 0.76rem; }
+.modal-msg.hidden { display: none; }
+.modal-msg.error { color: var(--red); }
+.modal-msg.ok { color: var(--green); }
 </style>
 </head>
 <body>
@@ -144,7 +169,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 
   <div class="page-hero">
     <h1>Q042 <em>DD Overlay</em></h1>
-    <div class="page-meta">SPX put spread · ddATH trigger · Sleeve A (dd4) / Sleeve B (dd15+MA10)</div>
+    <div class="page-meta">SPX call vertical (debit) · ddATH trigger · Sleeve A (dd4, 30d) / Sleeve B (dd15+MA10, 90d)</div>
   </div>
 
   <div class="page-tabs">
@@ -152,8 +177,11 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
     <a href="/q042/backtest" class="page-tab">Backtest</a>
   </div>
 
-  <div class="caveat-banner">
-    Q042 is paper-trading only. Triggers generate Telegram alerts for manual execution. No automatic order placement.
+  <!-- Action buttons — PM 自主决定 paper 还是 real -->
+  <div class="page-actions">
+    <button class="action-btn primary" onclick="openQ042Modal('open','A')">+ Open Sleeve A</button>
+    <button class="action-btn primary" onclick="openQ042Modal('open','B')">+ Open Sleeve B</button>
+    <button class="action-btn"         onclick="openQ042Modal('note')">Add Note</button>
   </div>
 
   <!-- C1: Sleeve Status Cards -->
@@ -507,6 +535,215 @@ async function loadSpxChart() {
 
 loadState();
 loadSpxChart();
+
+// ── Trade modal (Open / Note) ────────────────────────────────────────────────
+function closeQ042Modal() {
+  document.getElementById('q042-modal-wrap').classList.add('hidden');
+}
+
+async function openQ042Modal(kind, sleeve) {
+  const wrap  = document.getElementById('q042-modal-wrap');
+  const body  = document.getElementById('q042-modal-body');
+  const title = document.getElementById('q042-modal-title');
+  wrap.classList.remove('hidden');
+
+  if (kind === 'open') {
+    title.textContent = `Open DD Overlay · Sleeve ${sleeve}`;
+    body.innerHTML = `
+      <div class="modal-grid">
+        <div class="modal-field full">
+          <div class="modal-hint" id="q042-draft-hint">Loading draft…</div>
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Sleeve</label>
+          <select id="q042-sleeve" class="modal-select" onchange="_q042LoadDraft()">
+            <option value="A" ${sleeve==='A'?'selected':''}>A · dd4 · 30d · +2.5%</option>
+            <option value="B" ${sleeve==='B'?'selected':''}>B · dd15+MA10 · 90d · +5%</option>
+          </select>
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Signal Date</label>
+          <input id="q042-sd" class="modal-input" type="date">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Entry Target Date</label>
+          <input id="q042-entry-date" class="modal-input" type="date">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Expiry</label>
+          <input id="q042-exp" class="modal-input" type="date">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Long Strike (ATM)</label>
+          <input id="q042-long" class="modal-input" type="number" step="5">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Short Strike (OTM)</label>
+          <input id="q042-short" class="modal-input" type="number" step="5">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Contracts</label>
+          <input id="q042-contracts" class="modal-input" type="number" min="1" step="1" value="1">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Est. Debit ($)</label>
+          <input id="q042-est-debit" class="modal-input" type="number" step="0.01" placeholder="BSM estimate">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Fill Debit ($) <span style="color:var(--text-muted);font-size:0.55rem;text-transform:none;letter-spacing:0">leave blank until executed</span></label>
+          <input id="q042-fill-debit" class="modal-input" type="number" step="0.01" placeholder="actual fill">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Entry SPX</label>
+          <input id="q042-spx" class="modal-input" type="number" step="1">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Entry VIX</label>
+          <input id="q042-vix" class="modal-input" type="number" step="0.01">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Mark as Paper</label>
+          <label class="modal-check"><input id="q042-paper" type="checkbox"> Paper trade</label>
+        </div>
+        <div class="modal-field full">
+          <label class="modal-label">Note</label>
+          <textarea id="q042-note" class="modal-textarea" placeholder="optional entry note"></textarea>
+        </div>
+      </div>
+      <div class="modal-cta">
+        <button class="action-btn" onclick="closeQ042Modal()">Cancel</button>
+        <button class="action-btn primary" onclick="_q042SubmitOpen()">Open Sleeve</button>
+      </div>
+      <div id="q042-modal-msg" class="modal-msg hidden"></div>`;
+    _q042LoadDraft();
+  } else if (kind === 'note') {
+    title.textContent = 'Add Note';
+    body.innerHTML = `
+      <div class="modal-grid">
+        <div class="modal-field">
+          <label class="modal-label">Link to Sleeve (optional)</label>
+          <select id="q042-note-sleeve" class="modal-select">
+            <option value="">— general (no sleeve)</option>
+            <option value="A">Sleeve A</option>
+            <option value="B">Sleeve B</option>
+          </select>
+        </div>
+        <div class="modal-field full">
+          <label class="modal-label">Note</label>
+          <textarea id="q042-note-text" class="modal-textarea" placeholder="discretionary note"></textarea>
+        </div>
+      </div>
+      <div class="modal-cta">
+        <button class="action-btn" onclick="closeQ042Modal()">Cancel</button>
+        <button class="action-btn primary" onclick="_q042SubmitNote()">Save Note</button>
+      </div>
+      <div id="q042-modal-msg" class="modal-msg hidden"></div>`;
+  }
+}
+
+async function _q042LoadDraft() {
+  const sleeve = document.getElementById('q042-sleeve').value;
+  const hint = document.getElementById('q042-draft-hint');
+  try {
+    const d = await fetch('/api/q042/draft?sleeve=' + sleeve).then(r => r.json());
+    if (d.status !== 'ok') {
+      if (hint) hint.textContent = 'Draft unavailable: ' + (d.reason || d.error || 'unknown') + ' — fill manually';
+      return;
+    }
+    const $ = id => document.getElementById(id);
+    $('q042-sd').value          = d.signal_date;
+    $('q042-entry-date').value  = d.entry_target_date;
+    $('q042-exp').value         = d.expiry;
+    $('q042-long').value        = d.long_strike;
+    $('q042-short').value       = d.short_strike;
+    $('q042-est-debit').value   = d.est_debit;
+    $('q042-spx').value         = d.spx;
+    $('q042-vix').value         = d.vix;
+    if (hint) {
+      hint.innerHTML = `Sleeve <b>${d.sleeve}</b> · SPX <b>${d.spx.toLocaleString()}</b> · VIX <b>${d.vix.toFixed(2)}</b> · ATM <b>${d.long_strike}</b> / ${sleeve==='A'?'+2.5%':'+5%'} <b>${d.short_strike}</b> · width <b>${d.width}</b> · ${d.dte}d · BSM debit <b>$${d.est_debit.toFixed(2)}</b> · max loss <b>$${d.max_loss_per_contract.toFixed(0)}</b>/ct · max gain <b>$${d.max_gain_per_contract.toFixed(0)}</b>/ct. PM fills actual debit after execution.`;
+    }
+  } catch (e) {
+    if (hint) hint.textContent = 'Draft fetch failed: ' + e.message;
+  }
+}
+
+function _q042Msg(text, kind) {
+  const el = document.getElementById('q042-modal-msg');
+  if (!el) return;
+  el.className = 'modal-msg ' + (kind || '');
+  el.textContent = text;
+}
+
+async function _q042Post(path, payload) {
+  _q042Msg('Submitting…', '');
+  try {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok || data.status === 'error') {
+      _q042Msg('Error: ' + (data.error || res.status), 'error');
+      return null;
+    }
+    _q042Msg('✓ Saved. Refreshing…', 'ok');
+    setTimeout(() => { closeQ042Modal(); loadState(); }, 700);
+    return data;
+  } catch (e) {
+    _q042Msg('Network error: ' + e.message, 'error');
+    return null;
+  }
+}
+
+function _q042SubmitOpen() {
+  const $ = id => document.getElementById(id).value;
+  const num = v => v === '' ? null : Number(v);
+  const sleeve = $('q042-sleeve');
+  const long_strike  = num($('q042-long'));
+  const short_strike = num($('q042-short'));
+  const contracts    = num($('q042-contracts'));
+  const expiry       = $('q042-exp');
+  if (!sleeve || !long_strike || !short_strike || !contracts || !expiry) {
+    _q042Msg('Fill sleeve / strikes / contracts / expiry', 'error'); return;
+  }
+  if (long_strike >= short_strike) {
+    _q042Msg('Long strike must be less than short strike for call debit spread', 'error'); return;
+  }
+  _q042Post('/api/q042/position/open', {
+    sleeve_id:         sleeve,
+    signal_date:       $('q042-sd'),
+    entry_target_date: $('q042-entry-date'),
+    expiry:            expiry,
+    long_strike:       long_strike,
+    short_strike:      short_strike,
+    contracts:         contracts,
+    est_debit:         num($('q042-est-debit')),
+    fill_debit:        num($('q042-fill-debit')),
+    entry_spx:         num($('q042-spx')),
+    entry_vix:         num($('q042-vix')),
+    paper_trade:       document.getElementById('q042-paper').checked,
+    note:              $('q042-note'),
+  });
+}
+
+function _q042SubmitNote() {
+  const sleeve = document.getElementById('q042-note-sleeve').value || null;
+  const text   = document.getElementById('q042-note-text').value.trim();
+  if (!text) { _q042Msg('Note text required', 'error'); return; }
+  _q042Post('/api/q042/position/note', { sleeve_id: sleeve, note: text });
+}
 </script>
+
+<!-- Trade modal -->
+<div id="q042-modal-wrap" class="modal-wrap hidden" onclick="if(event.target===this)closeQ042Modal()">
+  <div class="modal">
+    <div class="modal-hd">
+      <div class="modal-title" id="q042-modal-title">Trade Action</div>
+      <button class="modal-close" onclick="closeQ042Modal()">×</button>
+    </div>
+    <div id="q042-modal-body"></div>
+  </div>
+</div>
 </body>
 </html>

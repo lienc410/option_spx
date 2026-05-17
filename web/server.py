@@ -1266,6 +1266,203 @@ def api_q042_bt():
         return jsonify({"error": str(e)}), 500
 
 
+def _q042_ledger_path() -> Path:
+    return Path(__file__).parent.parent / "data" / "q042_paper_trades.jsonl"
+
+
+def _q042_append(rec: dict) -> None:
+    path = _q042_ledger_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a") as f:
+        f.write(json.dumps(rec) + "\n")
+
+
+def _q042_load_rows() -> list[dict]:
+    path = _q042_ledger_path()
+    if not path.exists():
+        return []
+    rows: list[dict] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return rows
+
+
+def _q042_next_trade_id(sleeve: str, signal_date: str) -> str:
+    """Trade ID: {SLEEVE}-{SIGNAL_DATE}-{NNN}.
+
+    Existing daemon writes use 'A-YYYY-MM-DD' (no suffix). Append suffix when
+    a same-sleeve+date entry already exists, so manual entries don't collide
+    with auto entries.
+    """
+    rows = _q042_load_rows()
+    same = [r for r in rows
+            if r.get("sleeve_id") == sleeve
+            and str(r.get("signal_date") or r.get("entry_target_date") or "")[:10] == signal_date
+            and (r.get("event") or "open") == "open"]
+    nth = len(same) + 1
+    return f"{sleeve}-{signal_date}-{nth:03d}"
+
+
+@app.route("/api/q042/draft")
+def api_q042_draft():
+    """Open draft for DD Overlay sleeve A or B.
+
+    Returns suggested long/short call strikes (ATM and OTM) and expiry per
+    SPEC-094.1: Sleeve A = +2.5% OTM at 30 DTE; Sleeve B = +5% OTM at 90 DTE.
+    Strikes rounded to nearest $5 SPX grid. Est debit computed via BSM at
+    current SPX/VIX.
+    """
+    sleeve = (flask_req.args.get("sleeve") or "A").upper()
+    if sleeve not in ("A", "B"):
+        return jsonify({"status": "error", "error": "sleeve must be A or B"}), 400
+
+    try:
+        from backtest.pricer import call_price
+        from signals.trend import fetch_spx_history, get_current_trend
+        from schwab.client import get_spx_quote, get_vix_quote
+    except Exception as exc:
+        return jsonify({"status": "error", "error": f"pricer/data import failed: {exc}"})
+
+    # Live SPX
+    spx = None
+    try:
+        q = get_spx_quote()
+        if q.get("last") not in (None, ""):
+            spx = float(q["last"])
+    except Exception:
+        pass
+    if spx is None:
+        try:
+            df = fetch_spx_history(period="6mo")
+            trend = get_current_trend(df, current_spx=None)
+            spx = float(trend.spx)
+        except Exception as exc:
+            return jsonify({"status": "unavailable", "reason": f"spx not available: {exc}"})
+
+    # Live VIX → sigma
+    sigma = None
+    try:
+        q = get_vix_quote()
+        v = q.get("last")
+        if v not in (None, ""):
+            sigma = max(float(v) / 100.0, 0.05)
+    except Exception:
+        pass
+    if sigma is None:
+        sigma = 0.18  # conservative default
+
+    # Strikes per sleeve
+    long_strike = int(round(float(spx) / 5.0) * 5)
+    if sleeve == "A":
+        short_pct = 1.025
+        dte = 30
+    else:
+        short_pct = 1.05
+        dte = 90
+    short_strike = int(round(float(spx) * short_pct / 5.0) * 5)
+
+    # BSM debit estimate: long call - short call
+    try:
+        long_p = call_price(float(spx), float(long_strike), int(dte), float(sigma))
+        short_p = call_price(float(spx), float(short_strike), int(dte), float(sigma))
+        est_debit = max(round(float(long_p) - float(short_p), 2), 0.0)
+    except Exception as exc:
+        return jsonify({"status": "error", "error": f"bsm failed: {exc}"})
+
+    today = date.today()
+    signal_date = today.isoformat()
+    entry_target_date = (today + timedelta(days=1)).isoformat()
+    expiry = (today + timedelta(days=int(dte))).isoformat()
+    width = short_strike - long_strike
+    max_loss_per_contract = round(est_debit * 100.0, 2)
+    max_gain_per_contract = round((float(width) - est_debit) * 100.0, 2)
+
+    return jsonify({
+        "status":            "ok",
+        "sleeve":            sleeve,
+        "spx":               round(float(spx), 2),
+        "vix":               round(float(sigma) * 100.0, 2),
+        "sigma":             round(float(sigma), 4),
+        "dte":               dte,
+        "long_strike":       long_strike,
+        "short_strike":      short_strike,
+        "width":             width,
+        "est_debit":         est_debit,
+        "max_loss_per_contract":  max_loss_per_contract,
+        "max_gain_per_contract":  max_gain_per_contract,
+        "signal_date":       signal_date,
+        "entry_target_date": entry_target_date,
+        "expiry":            expiry,
+    })
+
+
+@app.route("/api/q042/position/open", methods=["POST"])
+def api_q042_position_open():
+    """Record a manual DD Overlay open. PM-decides paper vs real."""
+    data = flask_req.get_json(silent=True) or {}
+    now = datetime.now(_ET)
+    sleeve = (data.get("sleeve_id") or "").upper()
+    if sleeve not in ("A", "B"):
+        return jsonify({"status": "error", "error": "sleeve_id must be A or B"}), 400
+
+    required = ["long_strike", "short_strike", "contracts", "expiry"]
+    missing = [k for k in required if data.get(k) in (None, "")]
+    if missing:
+        return jsonify({"status": "error", "error": f"missing fields: {', '.join(missing)}"}), 400
+
+    signal_date = data.get("signal_date") or now.date().isoformat()
+    rec = {
+        "trade_id":          _q042_next_trade_id(sleeve, signal_date),
+        "event":             "open",
+        "timestamp":         now.isoformat(timespec="seconds"),
+        "sleeve_id":         sleeve,
+        "source":            "manual",
+        "signal_date":       signal_date,
+        "entry_target_date": data.get("entry_target_date") or (datetime.fromisoformat(signal_date).date() + timedelta(days=1)).isoformat(),
+        "expiry":            data.get("expiry"),
+        "option_type":       "CALL",
+        "long_strike":       int(data.get("long_strike")),
+        "short_strike":      int(data.get("short_strike")),
+        "contracts":         int(data.get("contracts")),
+        "est_debit":         float(data.get("est_debit") or 0.0),
+        "fill_debit":        float(data["fill_debit"]) if data.get("fill_debit") not in (None, "") else None,
+        "entry_spx":         float(data["entry_spx"]) if data.get("entry_spx") not in (None, "") else None,
+        "entry_vix":         float(data["entry_vix"]) if data.get("entry_vix") not in (None, "") else None,
+        "paper_trade":       bool(data.get("paper_trade", False)),
+        "settled":           False,
+        "exit_pnl":          None,
+        "note":              data.get("note", "") or "",
+    }
+    _q042_append(rec)
+    return jsonify({"status": "ok", "trade_id": rec["trade_id"], "record": rec})
+
+
+@app.route("/api/q042/position/note", methods=["POST"])
+def api_q042_position_note():
+    """Append a free-form note, optionally linked to a sleeve and/or trade_id."""
+    data = flask_req.get_json(silent=True) or {}
+    now = datetime.now(_ET)
+    note = (data.get("note") or "").strip()
+    if not note:
+        return jsonify({"status": "error", "error": "note text required"}), 400
+    rec = {
+        "event":     "note",
+        "timestamp": now.isoformat(timespec="seconds"),
+        "sleeve_id": (data.get("sleeve_id") or None) and str(data["sleeve_id"]).upper(),
+        "trade_id":  data.get("trade_id"),
+        "source":    "manual",
+        "note":      note,
+    }
+    _q042_append(rec)
+    return jsonify({"status": "ok", "record": rec})
+
+
 @app.route("/api/q042/paper")
 def api_q042_paper():
     path = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "data", "q042_paper_trades.jsonl"))
