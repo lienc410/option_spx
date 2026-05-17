@@ -235,9 +235,9 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     <a href="/"                  class="nav-link">Portfolio</a>
     <a href="/spx"               class="nav-link">SPX</a>
     <a href="/es"                class="nav-link active">/ES</a>
-    <a href="/hvladder"          class="nav-link">HV Ladder</a>
-    <a href="/q042"               class="nav-link">Drawdown Overlay</a>
-    <a href="/aftermath"          class="nav-link">Aftermath</a>    <a href="/q041"               class="nav-link">Q041</a>
+    <a href="/hvladder"          class="nav-link">Stress Put Ladder</a>
+    <a href="/q042"               class="nav-link">DD Overlay</a>
+    <a href="/aftermath"          class="nav-link">Aftermath</a>    <a href="/q041"               class="nav-link">Sleeves</a>
     <a href="/portfolio-backtest" class="nav-link">Port BT</a>
     <a href="/performance"       class="nav-link">Performance</a>
     <a href="/margin"            class="nav-link">Margin</a>
@@ -746,9 +746,9 @@ function renderV2fPanel(v0Summary, v2fPayload) {
 function renderHvLadderPanel(hvPayload) {
   return `
     <div class="caveat-banner">
-      <h3>HV Ladder [archived tab]</h3>
+      <h3>Stress Put Ladder [archived tab]</h3>
       <ul>
-        <li>HV Ladder has moved to a dedicated live page and research page.</li>
+        <li>Stress Put Ladder has moved to a dedicated live page and research page.</li>
         <li>This archive tab is retained for old bookmarks and PM review continuity.</li>
       </ul>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
@@ -917,7 +917,7 @@ async function _renderBacktestResult(data, start) {
     <div class="tab-strip">
       <button class="tab-btn active" data-es-tab-btn="v0" onclick="setEsResearchTab('v0')">V0</button>
       <button class="tab-btn" data-es-tab-btn="v2f" onclick="setEsResearchTab('v2f')">V2f</button>
-      <button class="tab-btn" data-es-tab-btn="hvlad" onclick="setEsResearchTab('hvlad')">HV Ladder [archived]</button>
+      <button class="tab-btn" data-es-tab-btn="hvlad" onclick="setEsResearchTab('hvlad')">Stress Put Ladder [archived]</button>
     </div>
     <div id="es-tab-v0" class="tab-panel active">
       ${v0Content}

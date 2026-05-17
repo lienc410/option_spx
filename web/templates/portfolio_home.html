@@ -821,10 +821,10 @@ body {
     <a href="/" class="nav-link active">Portfolio</a>
     <a href="/spx" class="nav-link">SPX</a>
     <a href="/es" class="nav-link">/ES</a>
-    <a href="/hvladder" class="nav-link">HV Ladder</a>
-    <a href="/q042"               class="nav-link">Drawdown Overlay</a>
+    <a href="/hvladder" class="nav-link">Stress Put Ladder</a>
+    <a href="/q042"               class="nav-link">DD Overlay</a>
     <a href="/aftermath"          class="nav-link">Aftermath</a>
-    <a href="/q041"               class="nav-link">Q041</a>
+    <a href="/q041"               class="nav-link">Sleeves</a>
     <a href="/portfolio-backtest" class="nav-link">Port BT</a>
     <a href="/performance" class="nav-link">Performance</a>
     <a href="/margin" class="nav-link">Margin</a>
@@ -905,12 +905,12 @@ body {
     </div>
   </div>
 
-  <!-- ── Q042 Drawdown Overlay Card ── -->
+  <!-- ── Q042 DD Overlay Card ── -->
   <div class="strategy-card tier-tertiary" id="card-q042" style="margin-bottom:14px">
     <div class="card-header">
       <div class="card-name-wrap">
         <a href="/q042" style="text-decoration:none">
-          <span class="card-name card-name-tertiary">Drawdown Overlay</span>
+          <span class="card-name card-name-tertiary">DD Overlay</span>
         </a>
         <span class="badge-obs">Paper</span>
       </div>
@@ -1456,7 +1456,7 @@ async function loadQ041() {
   }
 }
 
-// ── Q042 Drawdown Overlay Card ────────────────────────────────────────────────
+// ── Q042 DD Overlay Card ────────────────────────────────────────────────
 async function loadQ042() {
   const sigEl  = document.getElementById('q042-signals');
   const listEl = document.getElementById('sleeves-q042');
@@ -1466,7 +1466,7 @@ async function loadQ042() {
     const wasNull = !_q042Cache;
     _q042Cache = data;
     // If snapshot already rendered (with null _q042Cache), trigger re-render
-    // of the bucket bars so the Drawdown Overlay row picks up the BP %.
+    // of the bucket bars so the DD Overlay row picks up the BP %.
     if (wasNull && _snapshotCache) {
       try { _renderMarginAllocation(_snapshotCache); } catch (_) {}
     }
@@ -1722,7 +1722,7 @@ function _renderMarginAllocation(data) {
     bucketRows =
       barHtml('SPX Live', spxWs, 'bar-spx', 'PM max-loss') +
       barHtml('Equity Margin', eqWs, 'bar-equity', eqNote) +
-      barHtml('Drawdown Overlay', doBp_s, 'bar-q041', 'paper · Q042') +
+      barHtml('DD Overlay', doBp_s, 'bar-q041', 'paper · Q042') +
       barHtml('Aftermath', 0, 'bar-q041', amNote_s) +
       barHtml('Q041 Tier 2', buckets.q041_tier2_bp_pct, 'bar-q041', 'paper') +
       barHtml('Q041 Tier 3', buckets.q041_tier3_bp_pct, 'bar-q041', 'paper');
@@ -1733,7 +1733,7 @@ function _renderMarginAllocation(data) {
         <div class="account-rail-line"><span>Maint</span><span>${fmtDollars(accounts.schwab_maintenance_margin)}</span></div>
       </div>`;
     if (etradeNlv > 0) {
-      noteHtml = '<div class="snapshot-note">SPX/Equity % 基于 Schwab NLV；Drawdown Overlay 是 paper · Aftermath 是 condition modifier（不持仓）。</div>';
+      noteHtml = '<div class="snapshot-note">SPX/Equity % 基于 Schwab NLV；DD Overlay 是 paper · Aftermath 是 condition modifier（不持仓）。</div>';
     }
 
   } else if (view === 'etrade') {
@@ -1795,7 +1795,7 @@ function _renderMarginAllocation(data) {
         ? splitBarHtml('Equity Margin', equityW, eqW, etEqW,
             'rgba(66,204,124,0.85)', 'rgba(66,204,124,0.38)', allEqNote)
         : barHtml('Equity Margin', equityW, 'bar-equity', allEqNote)) +
-      barHtml('Drawdown Overlay', doBp_a, 'bar-q041', 'paper · Q042') +
+      barHtml('DD Overlay', doBp_a, 'bar-q041', 'paper · Q042') +
       barHtml('Aftermath', 0, 'bar-q041', amNote_a) +
       barHtml('Q041 Tier 2', buckets.q041_tier2_bp_pct, 'bar-q041', 'paper') +
       barHtml('Q041 Tier 3', buckets.q041_tier3_bp_pct, 'bar-q041', 'paper');
@@ -1818,7 +1818,7 @@ function _renderMarginAllocation(data) {
         <div class="account-rail-line"><span>Maint</span><span>${fmtDollars(accounts.combined_maintenance_margin)}</span></div>
         <div class="account-rail-note">Read-only aggregate PM maintenance across both rails.</div>
       </div>`;
-    noteHtml = '<div class="snapshot-note">Options = SPX spread + E-Trade options · Equity = Schwab + E-Trade equity · Drawdown Overlay 是 paper · Aftermath 是 condition modifier（不持仓）。</div>';
+    noteHtml = '<div class="snapshot-note">Options = SPX spread + E-Trade options · Equity = Schwab + E-Trade equity · DD Overlay 是 paper · Aftermath 是 condition modifier（不持仓）。</div>';
   }
 
   el.innerHTML = `
@@ -1961,8 +1961,8 @@ function _renderGovernance() {
   }
 
   // ── per-strategy × per-regime cell content ──────────────────────────────────
-  // 主策略 SPX (short put spread, Schwab PM)
-  // Fix 1: 主策略 SPX — show spx_live_bp_pct (PM max-loss only, not total Schwab maint)
+  // SPX Spread (short put spread, Schwab PM)
+  // Fix 1: SPX Spread — show spx_live_bp_pct (PM max-loss only, not total Schwab maint)
   function spxContent(r) {
     if (r === 'second') return `<div class="rm-val v-blocked">✕ BLOCKED</div><div class="rm-note n-block">R6 全部 short-vol 阻断</div>`;
     const valCls = r === regime ? 'v-active' : '';
@@ -1990,7 +1990,7 @@ function _renderGovernance() {
     return `<div class="rm-val">${bp}</div>${note}`;
   }
 
-  // Fix 3: HV Ladder — clarify 80% is /ES SPAN (not PM), much smaller than notional
+  // Fix 3: Stress Put Ladder — clarify 80% is /ES SPAN (not PM), much smaller than notional
   function hvContent(r) {
     if (r === 'second') return `<div class="rm-val v-blocked">✕ BLOCKED</div><div class="rm-note n-block">R6 全部 short-vol 阻断</div>`;
     if (r === 'normal') return `<div class="rm-val v-wait">○ 待机</div><div class="rm-note">需 VIX ≥ 22 解锁</div>`;
@@ -2070,9 +2070,9 @@ function _renderGovernance() {
         <div class="rm-regime-cond">dd60d ≤ −8% + VIX ≥ 25<br>反弹后再破低 + &gt;14d</div>
       </div>
 
-      <!-- ── 主策略 SPX ── -->
+      <!-- ── SPX Spread ── -->
       <div class="rm-row-label">
-        <div class="rm-strategy-name">主策略 SPX</div>
+        <div class="rm-strategy-name">SPX Spread</div>
         <div class="rm-strategy-sub">#1 · short put spread</div>
       </div>
       <div class="rm-cell ${cellCls('normal')}">${spxContent('normal')}</div>
@@ -2081,7 +2081,7 @@ function _renderGovernance() {
 
       <!-- ── HV NP Ladder ── -->
       <div class="rm-row-label">
-        <div class="rm-strategy-name">HV Ladder /ES</div>
+        <div class="rm-strategy-name">Stress Put Ladder /ES</div>
         <div class="rm-strategy-sub">#2 · short put naked</div>
       </div>
       <div class="rm-cell ${cellCls('normal')}">${hvContent('normal')}</div>

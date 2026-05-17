@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HV Ladder · Backtest</title>
+<title>Stress Put Ladder · Backtest</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
@@ -194,10 +194,10 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     <a href="/"                   class="nav-link">Portfolio</a>
     <a href="/spx"                class="nav-link">SPX</a>
     <a href="/es"                 class="nav-link">/ES</a>
-    <a href="/hvladder"           class="nav-link active">HV Ladder</a>
-    <a href="/q042"               class="nav-link">Drawdown Overlay</a>
+    <a href="/hvladder"           class="nav-link active">Stress Put Ladder</a>
+    <a href="/q042"               class="nav-link">DD Overlay</a>
     <a href="/aftermath"          class="nav-link">Aftermath</a>
-    <a href="/q041"               class="nav-link">Q041</a>
+    <a href="/q041"               class="nav-link">Sleeves</a>
     <a href="/portfolio-backtest" class="nav-link">Port BT</a>
     <a href="/performance"        class="nav-link">Performance</a>
     <a href="/margin"             class="nav-link">Margin</a>
@@ -207,7 +207,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 
 <div class="container">
   <div class="page-hero">
-    <h1>HV Ladder <em>Backtest</em></h1>
+    <h1>Stress Put Ladder <em>Backtest</em></h1>
     <div class="page-meta">V2f baseline vs VIX ≥ 22 gated ladder · Q071 P5 crisis review</div>
   </div>
 
@@ -223,13 +223,13 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   </div>
 
   <!-- ① Key Metrics Row (required per DESIGN.md) -->
-  <div class="section-label">HV Ladder Performance Metrics</div>
+  <div class="section-label">Stress Put Ladder Performance Metrics</div>
   <div class="metric-grid" id="metrics-row">
     <div class="empty-state">Loading metrics…</div>
   </div>
 
   <!-- ② SPX Price + VIX overlay chart (required per DESIGN.md) -->
-  <div class="section-label">SPX Price — HV Ladder Signal Events</div>
+  <div class="section-label">SPX Price — Stress Put Ladder Signal Events</div>
   <div class="chart-wrap">
     <div class="chart-controls">
       <!-- Legend -->
@@ -264,8 +264,8 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     <canvas id="spx-chart" height="90"></canvas>
   </div>
 
-  <!-- V2f Base vs HV Ladder comparison -->
-  <div class="section-label">V2f Base vs HV Ladder</div>
+  <!-- V2f Base vs Stress Put Ladder comparison -->
+  <div class="section-label">V2f Base vs Stress Put Ladder</div>
   <div class="compare-grid" id="compare-cards">
     <div class="empty-state">Loading comparison…</div>
   </div>
@@ -353,7 +353,7 @@ function renderCompare(b, m, d) {
       ['Bootstrap Sig', fmtPct(b.bootstrap_sig_rate, 0), colorCls(b.bootstrap_sig_rate)],
       ['2020 COVID', fmtPct(b.covid_2020_pct_nlv, 2), colorCls(b.covid_2020_pct_nlv)],
     ]),
-    compareCard('HV Ladder · VIX ≥ 22', [
+    compareCard('Stress Put Ladder · VIX ≥ 22', [
       ['Ann ROE', fmtPct(m.ann_roe_geometric, 2), colorCls(m.ann_roe_geometric)],
       ['Sharpe',  fmt(m.sharpe, 2),               colorCls(m.sharpe)],
       ['Max DD',  fmtPct(m.max_dd, 2),            colorCls(m.max_dd, false)],

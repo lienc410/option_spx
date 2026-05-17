@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Q042 Backtest · Drawdown Overlay</title>
+<title>Q042 Backtest · DD Overlay</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
@@ -103,9 +103,9 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
     <a href="/"                   class="nav-link">Portfolio</a>
     <a href="/spx"                class="nav-link">SPX</a>
     <a href="/es"                 class="nav-link">/ES</a>
-    <a href="/hvladder"           class="nav-link">HV Ladder</a>
-    <a href="/q042"               class="nav-link active">Drawdown Overlay</a>
-    <a href="/aftermath"          class="nav-link">Aftermath</a>    <a href="/q041"               class="nav-link">Q041</a>
+    <a href="/hvladder"           class="nav-link">Stress Put Ladder</a>
+    <a href="/q042"               class="nav-link active">DD Overlay</a>
+    <a href="/aftermath"          class="nav-link">Aftermath</a>    <a href="/q041"               class="nav-link">Sleeves</a>
     <a href="/portfolio-backtest" class="nav-link">Port BT</a>
     <a href="/performance"        class="nav-link">Performance</a>
     <a href="/margin"             class="nav-link">Margin</a>
@@ -389,7 +389,7 @@ function render(bt, spxHist, paper, vixHist) {
           <div class="discipline-key">Sizing</div>
           <div class="discipline-val">
             每次入场 <code>10%</code> 账户；A+B 合并上限 <code>20%</code>。
-            Joint BP gate: <code>min(20%, max(0%, 60% − main_bp%))</code> — main SPX 策略 BP 占用越高，可分给 Drawdown Overlay 越少。
+            Joint BP gate: <code>min(20%, max(0%, 60% − main_bp%))</code> — main SPX 策略 BP 占用越高，可分给 DD Overlay 越少。
           </div>
         </div>
         <div class="discipline-row">
