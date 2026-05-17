@@ -2824,6 +2824,13 @@ def api_hvladder_draft():
 
     recommended = next((r for r in scan_rows if r.get("recommended")), None)
     if scan_fallback or recommended is None:
+        market_open = _is_market_hours()
+        if scan_error:
+            msg = f"Live /ES chain error — using BSM model fit: {scan_error}"
+        elif not market_open:
+            msg = "Markets closed (no two-sided /ES quotes) — using BSM model fit"
+        else:
+            msg = "No /ES quotes in target DTE window — using BSM model fit"
         return jsonify({
             **base_payload,
             "short_strike":   k_center,
@@ -2831,7 +2838,8 @@ def api_hvladder_draft():
             "model_premium":  bsm_premium,
             "model_bsm":      bsm_premium,
             "strike_scan":    {"rows": [], "scan_fallback": True, "error": scan_error},
-            "scan_message":   "Live /ES chain unavailable — using BSM model fit at rounded strike",
+            "scan_message":   msg,
+            "market_open":    market_open,
         })
 
     # Enrich rows with target_delta + live_delta + delta_gap
