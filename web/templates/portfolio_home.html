@@ -1963,7 +1963,8 @@ function _renderGovernance() {
   // 主策略 SPX (short put spread, Schwab PM)
   function spxContent(r) {
     if (r === 'second') return `<div class="rm-val v-blocked">✕ BLOCKED</div><div class="rm-note n-block">R6 全部 short-vol 阻断</div>`;
-    const cap = r === 'stress' ? caps.R5_spx_pm_stress_cap_pct : caps.R1_spx_pm_pool_cap_pct;
+    // Normal col: R1 cap. Stress col: always the fixed stress threshold (not regime-dependent).
+    const cap = r === 'stress' ? (caps.R5_stress_threshold_pct ?? caps.R5_spx_pm_stress_cap_pct) : caps.R1_spx_pm_pool_cap_pct;
     const bp = bpLine(pools.spx_pm_bp_pct, cap, r === regime);
     const valCls = r === regime ? 'v-active' : '';
     const note = r === 'stress'
@@ -1995,7 +1996,7 @@ function _renderGovernance() {
 
   // ── footer rule lines ────────────────────────────────────────────────────────
   const footerNormal = `<div class="rm-footer-rule">R1: PM cap ${fmtPct(caps.R1_spx_pm_pool_cap_pct)}</div>`;
-  const footerStress = `<div class="rm-footer-rule${regime==='stress'?' fr-active':''}">R5: PM cap → ${fmtPct(caps.R5_spx_pm_stress_cap_pct)}</div>`;
+  const footerStress = `<div class="rm-footer-rule${regime==='stress'?' fr-active':''}">R5: PM cap → ${fmtPct(caps.R5_stress_threshold_pct ?? caps.R5_spx_pm_stress_cap_pct)}</div>`;
   const footerSecond = `<div class="rm-footer-rule${regime==='second'?' fr-block':''}">R6: 全部 short-vol 阻断</div>`;
 
   // ── blocked candidates ───────────────────────────────────────────────────────

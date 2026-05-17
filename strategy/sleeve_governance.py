@@ -438,7 +438,10 @@ def governance_caps(stress_episode_active: bool = False) -> dict:
         "R2_es_span_cap_pct": CAP_ES_SPAN,
         "R3_combined_cap_pct": CAP_COMBINED,
         "R4_short_vol_cap_pct": CAP_SHORT_VOL,
+        # Effective cap for current regime (used for live BP display)
         "R5_spx_pm_stress_cap_pct": CAP_STRESS_EPISODE if stress_episode_active else CAP_SPX_PM,
+        # Fixed stress threshold — always CAP_STRESS_EPISODE regardless of current regime
+        "R5_stress_threshold_pct": CAP_STRESS_EPISODE,
         "R6_second_leg_short_vol_block": True,
     }
 
