@@ -987,6 +987,15 @@ body {
     <span id="sync-ts" style="font-family:var(--f-mono);font-size:0.55rem;color:var(--text-muted)"></span>
   </div>
   <div class="snapshot-zone">
+    <!-- Schwab re-auth alert (refresh token expired — needs CLI re-auth) -->
+    <div id="schwab-reauth-banner" style="display:none;background:var(--red-bg);border:1px solid var(--red-border);border-radius:9px;padding:10px 16px;margin-bottom:14px;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;font-family:var(--f-ui);font-size:0.70rem;color:var(--red)">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-family:var(--f-mono);font-size:0.58rem;letter-spacing:0.10em;text-transform:uppercase;padding:2px 8px;border-radius:4px;background:rgba(224,72,98,0.18)">SCHWAB</span>
+        <span class="schwab-banner-label" id="schwab-banner-label">Schwab token expired — SPX live + chain scans degraded.</span>
+      </div>
+      <code style="font-family:var(--f-mono);font-size:0.62rem;color:var(--text);background:rgba(224,72,98,0.10);border:1px solid var(--red-border);padding:5px 10px;border-radius:5px;white-space:nowrap">python3 scripts/schwab_reauth.py</code>
+    </div>
+
     <!-- E-Trade re-auth alert (shown when token configured-but-invalid or API failing) -->
     <div id="etrade-reauth-banner" style="display:none;background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:9px;padding:10px 16px;margin-bottom:14px;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;font-family:var(--f-ui);font-size:0.70rem;color:var(--orange)">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -1618,8 +1627,35 @@ async function loadQ042() {
   }
 }
 
+// ── Schwab auth banner ───────────────────────────────────────────────────────
+async function loadSchwabAuthBanner() {
+  const banner = document.getElementById('schwab-reauth-banner');
+  if (!banner) return;
+  try {
+    const s = await fetch('/api/schwab/status').then(r => r.json());
+    // Show banner when configured but not authenticated (refresh token expired)
+    if (s.configured && !s.authenticated) {
+      const labelEl = document.getElementById('schwab-banner-label');
+      if (labelEl) {
+        const refreshIn = s.refresh_expires_in;
+        const ageHrs = refreshIn != null && refreshIn < 0
+          ? Math.round(-refreshIn / 3600)
+          : null;
+        labelEl.textContent = ageHrs != null
+          ? `Schwab refresh token 已过期 ${ageHrs}h — SPX live + chain scans degraded.`
+          : 'Schwab token 失效 — SPX live + chain scans degraded.';
+      }
+      banner.style.display = 'flex';
+    } else {
+      banner.style.display = 'none';
+    }
+  } catch (_) {
+    // Network failure — silently leave banner hidden
+  }
+}
+
 // ── E-Trade auth banner ──────────────────────────────────────────────────────
-async function loadEtradeAuthBanner() {
+async function loadSchwabAuthBanner(), loadEtradeAuthBanner() {
   const banner = document.getElementById('etrade-reauth-banner');
   if (!banner) return;
   try {
@@ -2630,7 +2666,7 @@ async function syncPortfolio() {
   const ts  = document.getElementById('sync-ts');
   if (btn) { btn.textContent = '↻ Syncing…'; btn.disabled = true; }
   if (ts)  ts.textContent = '';
-  await Promise.allSettled([loadSpx(), loadSettling(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition()]);
+  await Promise.allSettled([loadSpx(), loadSettling(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadSchwabAuthBanner(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition()]);
   if (btn) { btn.textContent = '↻ Sync'; btn.disabled = false; }
   if (ts)  ts.textContent = 'synced ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
@@ -2658,12 +2694,12 @@ function _initDefaultView() {
 // ── Boot ──────────────────────────────────────────────────────────────────────
 (async () => {
   _initDefaultView();
-  await Promise.allSettled([loadSpx(), loadSettling(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition()]);
+  await Promise.allSettled([loadSpx(), loadSettling(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadSchwabAuthBanner(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition()]);
   const ts = document.getElementById('sync-ts');
   if (ts) ts.textContent = 'loaded ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
   // Auto-refresh: strategy cards (recommendation+position) every 60s — picks up close→re-entry transitions
-  setInterval(() => Promise.allSettled([loadSpx(), loadSettling(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadEtradeAuthBanner()]), 60 * 1000);
+  setInterval(() => Promise.allSettled([loadSpx(), loadSettling(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadSchwabAuthBanner(), loadEtradeAuthBanner()]), 60 * 1000);
   // Snapshot + Schwab positions every 5min — heavier, less frequent
   setInterval(() => Promise.allSettled([loadSnapshot(), loadGovernance(), loadPositionComposition()]), 5 * 60 * 1000);
 })();
