@@ -1839,6 +1839,10 @@ async function loadSnapshot() {
 }
 
 let _governanceCache = null;
+function _govUtil(val, cap) {
+  if (typeof val !== 'number' || typeof cap !== 'number' || cap <= 0) return '';
+  return ` · 已用 ${(val / cap * 100).toFixed(0)}%`;
+}
 
 async function loadGovernance() {
   const body = document.getElementById('governance-body');
@@ -1873,7 +1877,7 @@ function _renderGovernance() {
     ? `<div class="governance-cell">
         <div class="governance-label">/ES SPAN BP</div>
         <div class="governance-value">${fmtPct(pools.es_span_bp_pct)}</div>
-        <div class="governance-note">cap ${fmtPct(caps.R2_es_span_cap_pct)}</div>
+        <div class="governance-note">cap ${fmtPct(caps.R2_es_span_cap_pct)}${_govUtil(pools.es_span_bp_pct, caps.R2_es_span_cap_pct)}</div>
       </div>`
     : `<div class="governance-cell" style="opacity:0.5">
         <div class="governance-label">/ES SPAN BP</div>
@@ -1913,18 +1917,18 @@ function _renderGovernance() {
       <div class="governance-cell">
         <div class="governance-label">SPX PM BP</div>
         <div class="governance-value">${fmtPct(pools.spx_pm_bp_pct)}</div>
-        <div class="governance-note">cap ${fmtPct(caps.R1_spx_pm_pool_cap_pct)}</div>
+        <div class="governance-note">cap ${fmtPct(caps.R1_spx_pm_pool_cap_pct)}${_govUtil(pools.spx_pm_bp_pct, caps.R1_spx_pm_pool_cap_pct)}</div>
       </div>
       ${esCell}
       <div class="governance-cell">
         <div class="governance-label">Combined BP</div>
         <div class="governance-value">${fmtPct(pools.combined_bp_pct)}</div>
-        <div class="governance-note">cap ${fmtPct(caps.R3_combined_cap_pct)}</div>
+        <div class="governance-note">cap ${fmtPct(caps.R3_combined_cap_pct)}${_govUtil(pools.combined_bp_pct, caps.R3_combined_cap_pct)}</div>
       </div>
       <div class="governance-cell">
         <div class="governance-label">Short Vol BP</div>
         <div class="governance-value">${fmtPct(pools.short_vol_bp_pct)}</div>
-        <div class="governance-note">cap ${fmtPct(caps.R4_short_vol_cap_pct)}</div>
+        <div class="governance-note">cap ${fmtPct(caps.R4_short_vol_cap_pct)}${_govUtil(pools.short_vol_bp_pct, caps.R4_short_vol_cap_pct)}</div>
       </div>
       <div class="governance-cell">
         <div class="governance-label">Blocked 30D</div>
