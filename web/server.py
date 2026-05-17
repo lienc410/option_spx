@@ -912,6 +912,16 @@ def api_governance_timeline():
         regimes = [_regime(bool(s), bool(sl))
                    for s, sl in zip(stress.values, second_leg.values)]
 
+        # Aftermath signal (SPEC-064 / Q070 BPS_HV permission gate) — separate
+        # annotation layer, NOT a SPEC-103 governance regime. Can coexist with
+        # stress/second-leg regimes. Sourced from q072_p1_daily_flags column.
+        if "aftermath_active" in daily.columns:
+            aftermath_flags = [bool(v) for v in daily["aftermath_active"].astype(bool).values]
+            aftermath_dates = [d for d, f in zip(dates, aftermath_flags) if f]
+        else:
+            aftermath_flags = [False] * len(dates)
+            aftermath_dates = []
+
         # HV blocked dates: VIX ≥ 22 AND second_leg active
         hv_blocked = [d for d, r, v in zip(dates, regimes, vix_vals)
                       if r == "second" and v is not None and v >= 22.0]
@@ -949,14 +959,16 @@ def api_governance_timeline():
 
         return jsonify({
             "status": "available",
-            "dates":        dates,
-            "vix":          vix_vals,
-            "regimes":      regimes,
-            "spx":          spx_vals,
-            "spx_ma10":     spx_ma10,
-            "hv_entries":   hv_entries,
-            "hv_blocked":   hv_blocked,
-            "daily_curve":  daily_curve,
+            "dates":            dates,
+            "vix":              vix_vals,
+            "regimes":          regimes,
+            "spx":              spx_vals,
+            "spx_ma10":         spx_ma10,
+            "hv_entries":       hv_entries,
+            "hv_blocked":       hv_blocked,
+            "daily_curve":      daily_curve,
+            "aftermath_flags":  aftermath_flags,   # bool per date, parallel to dates
+            "aftermath_dates":  aftermath_dates,   # date list of days where aftermath fired
         })
     except Exception as exc:
         return jsonify({"status": "unavailable", "error": str(exc)}), 200
