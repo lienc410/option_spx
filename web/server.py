@@ -1661,8 +1661,43 @@ def _hvlad_business_days_between(start: date, end: date) -> int:
 
 
 def _hvlad_active_slots(rows: list[dict], today: date) -> int:
-    active = 0
+    """Count open slots that are: open event present, not yet closed, within 49d signal window.
+
+    Legacy rows without `event` field are treated as event="open" for back-compat.
+    Trade lifecycle keyed by trade_id; rows without trade_id fall back to legacy
+    signal_date-only counting (one row = one slot).
+    """
+    # Build trade lifecycle state
+    by_tid: dict[str, dict] = {}
+    legacy_rows: list[dict] = []
     for row in rows:
+        event = row.get("event") or "open"
+        if event == "note":
+            continue
+        tid = row.get("trade_id")
+        if not tid:
+            legacy_rows.append(row)
+            continue
+        st = by_tid.setdefault(tid, {"open_date": None, "closed": False})
+        if event == "open":
+            raw = row.get("signal_date")
+            if raw:
+                try:
+                    st["open_date"] = date.fromisoformat(str(raw)[:10])
+                except ValueError:
+                    pass
+        elif event == "close":
+            st["closed"] = True
+
+    active = 0
+    for st in by_tid.values():
+        if st["closed"] or not st["open_date"]:
+            continue
+        if 0 <= (today - st["open_date"]).days <= 49:
+            active += 1
+
+    # Legacy rows (no trade_id): each row counted as one slot if within window
+    for row in legacy_rows:
         raw = row.get("signal_date")
         if not raw:
             continue
@@ -2587,6 +2622,143 @@ def api_hvladder_live():
             "trend": trend.get("error"),
         },
     })
+
+
+def _hvlad_open_trades(rows: list[dict]) -> list[dict]:
+    """Return open trades (open event, no matching close), newest first.
+
+    Each entry includes the merged state {trade_id, signal_date, expiry,
+    short_strike, contracts, entry_premium, entry_spx, entry_vix, opened_at, note}.
+    """
+    closed_tids: set[str] = set()
+    open_records: dict[str, dict] = {}
+    # Iterate rows oldest first to capture open then potential close
+    sorted_rows = sorted(rows, key=lambda r: str(r.get("timestamp") or r.get("signal_date") or ""))
+    for row in sorted_rows:
+        tid = row.get("trade_id")
+        if not tid:
+            continue
+        event = row.get("event") or "open"
+        if event == "open":
+            open_records[tid] = row
+        elif event == "close":
+            closed_tids.add(tid)
+    out = [r for tid, r in open_records.items() if tid not in closed_tids]
+    out.sort(key=lambda r: str(r.get("signal_date") or r.get("timestamp") or ""), reverse=True)
+    return out
+
+
+def _hvlad_ledger_path() -> Path:
+    return Path(__file__).parent.parent / "data" / "q071_hv_paper_trades.jsonl"
+
+
+def _hvlad_next_trade_id() -> str:
+    today_iso = datetime.now(_ET).date().isoformat()
+    rows = _load_hvlad_paper_trades()
+    same_day_opens = [
+        r for r in rows
+        if str(r.get("trade_id", "")).startswith(today_iso + "_hvl_")
+        and (r.get("event") or "open") == "open"
+    ]
+    return f"{today_iso}_hvl_{len(same_day_opens) + 1:03d}"
+
+
+def _hvlad_append(rec: dict) -> None:
+    path = _hvlad_ledger_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a") as f:
+        f.write(json.dumps(rec) + "\n")
+
+
+@app.route("/api/hvladder/position/open", methods=["POST"])
+def api_hvladder_position_open():
+    """Record a manual Stress Put Ladder slot open. PM decides paper vs real."""
+    data = flask_req.get_json(silent=True) or {}
+    now = datetime.now(_ET)
+    today_iso = now.date().isoformat()
+    required = ["expiry", "short_strike", "contracts", "entry_premium"]
+    missing = [k for k in required if data.get(k) in (None, "")]
+    if missing:
+        return jsonify({"status": "error", "error": f"missing fields: {', '.join(missing)}"}), 400
+
+    rec = {
+        "trade_id":      _hvlad_next_trade_id(),
+        "event":         "open",
+        "timestamp":     now.isoformat(timespec="seconds"),
+        "signal_date":   data.get("signal_date") or today_iso,
+        "source":        "manual",
+        "underlying":    "/ES",
+        "strategy_key":  "stress_put_ladder",
+        "expiry":        data.get("expiry"),
+        "dte_at_entry":  data.get("dte_at_entry"),
+        "short_strike":  data.get("short_strike"),
+        "contracts":     data.get("contracts", 1),
+        "entry_premium": data.get("entry_premium"),
+        "entry_spx":     data.get("entry_spx"),
+        "entry_vix":     data.get("entry_vix"),
+        "paper_trade":   bool(data.get("paper_trade", False)),
+        "note":          data.get("note", "") or "",
+    }
+    _hvlad_append(rec)
+    return jsonify({"status": "ok", "trade_id": rec["trade_id"], "record": rec})
+
+
+@app.route("/api/hvladder/position/close", methods=["POST"])
+def api_hvladder_position_close():
+    """Record a close event referencing an existing open trade_id."""
+    data = flask_req.get_json(silent=True) or {}
+    now = datetime.now(_ET)
+    tid = data.get("trade_id")
+    if not tid:
+        return jsonify({"status": "error", "error": "trade_id required"}), 400
+    if data.get("close_premium") in (None, ""):
+        return jsonify({"status": "error", "error": "close_premium required"}), 400
+
+    # Verify trade exists and is open
+    open_trades = _hvlad_open_trades(_load_hvlad_paper_trades())
+    if not any(t.get("trade_id") == tid for t in open_trades):
+        return jsonify({"status": "error", "error": f"trade_id {tid} not in open trades"}), 400
+
+    rec = {
+        "trade_id":      tid,
+        "event":         "close",
+        "timestamp":     now.isoformat(timespec="seconds"),
+        "close_date":    data.get("close_date") or now.date().isoformat(),
+        "source":        "manual",
+        "close_premium": data.get("close_premium"),
+        "close_spx":     data.get("close_spx"),
+        "close_vix":     data.get("close_vix"),
+        "exit_reason":   data.get("exit_reason", "discretionary"),
+        "note":          data.get("note", "") or "",
+    }
+    _hvlad_append(rec)
+    return jsonify({"status": "ok", "record": rec})
+
+
+@app.route("/api/hvladder/position/note", methods=["POST"])
+def api_hvladder_position_note():
+    """Append a note entry, optionally linked to a trade_id."""
+    data = flask_req.get_json(silent=True) or {}
+    now = datetime.now(_ET)
+    note = (data.get("note") or "").strip()
+    if not note:
+        return jsonify({"status": "error", "error": "note text required"}), 400
+    rec = {
+        "event":     "note",
+        "timestamp": now.isoformat(timespec="seconds"),
+        "trade_id":  data.get("trade_id"),
+        "source":    "manual",
+        "note":      note,
+    }
+    _hvlad_append(rec)
+    return jsonify({"status": "ok", "record": rec})
+
+
+@app.route("/api/hvladder/open-trades")
+def api_hvladder_open_trades():
+    """List currently-open Stress Put Ladder slots (for close modal picker)."""
+    rows = _load_hvlad_paper_trades()
+    return jsonify({"trades": _hvlad_open_trades(rows)})
 
 
 @app.route("/api/hvladder/paper_trades")
