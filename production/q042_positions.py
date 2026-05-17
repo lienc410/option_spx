@@ -94,6 +94,11 @@ def get_active_positions(paper: bool = True) -> dict[str, Optional[Q042Position]
     trades = _load_trades(paper)
     by_sleeve: dict[str, list[dict]] = {"A": [], "B": []}
     for t in trades:
+        # Skip non-open events (notes, future close events) — they share the
+        # ledger but aren't position records.
+        event = t.get("event", "open")
+        if event != "open":
+            continue
         sid = t.get("sleeve_id", "")
         if sid in by_sleeve:
             by_sleeve[sid].append(t)
