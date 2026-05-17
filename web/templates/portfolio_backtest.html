@@ -241,7 +241,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
       <span style="font-family:var(--f-mono);font-size:0.60rem;color:var(--text-2)">
         <span style="color:var(--green)">▲</span> HV 入场 &nbsp;
         <span style="color:var(--red)">✕</span> HV R6 阻断 &nbsp;
-        <span style="color:var(--gold)">●</span> 主策略入场
+        <span style="color:var(--gold)">▽</span> <span id="aftermath-legend">Aftermath (BPS_HV)</span>
       </span>
       <button class="ctrl-btn" id="reg-reset" style="margin-left:4px">↩ 全局</button>
     </div>
@@ -382,8 +382,11 @@ function _buildRegimeConfig(data, overlay, windowYrs) {
     if (initEq === null) initEq = r.equity;
   }
 
-  const hvEntryPts  = dates.filter(d => hvEntries.has(d)).map(d => ({ x: d, y: allVix[allDates.indexOf(d)] }));
-  const hvBlockPts  = dates.filter(d => hvBlocked.has(d)).map(d => ({ x: d, y: allVix[allDates.indexOf(d)] }));
+  const allAftermath = new Set(data.aftermath_dates || []);
+
+  const hvEntryPts     = dates.filter(d => hvEntries.has(d)).map(d => ({ x: d, y: allVix[allDates.indexOf(d)] }));
+  const hvBlockPts     = dates.filter(d => hvBlocked.has(d)).map(d => ({ x: d, y: allVix[allDates.indexOf(d)] }));
+  const aftermathPts   = dates.filter(d => allAftermath.has(d)).map(d => ({ x: d, y: 8 }));
 
   let overlayDs = null;
   let y1Label = '', y1Color = 'rgba(72,136,232,0.7)';
@@ -411,6 +414,9 @@ function _buildRegimeConfig(data, overlay, windowYrs) {
   if (overlayDs) datasets.push(overlayDs);
   datasets.push({ label: '▲ HV 入场', data: hvEntryPts, parsing: false, type: 'scatter', pointStyle: 'triangle', rotation: 0, pointRadius: 7, pointBackgroundColor: 'rgba(66,204,124,0.90)', pointBorderColor: 'rgba(66,204,124,1)', borderWidth: 0, yAxisID: 'y', order: 1 });
   datasets.push({ label: '✕ HV R6 阻断', data: hvBlockPts, parsing: false, type: 'scatter', pointStyle: 'crossRot', pointRadius: 5, pointBackgroundColor: 'transparent', pointBorderColor: 'rgba(224,72,98,0.85)', borderWidth: 1.5, yAxisID: 'y', order: 2 });
+  if (aftermathPts.length > 0) {
+    datasets.push({ label: '▽ Aftermath', data: aftermathPts, parsing: false, type: 'scatter', pointStyle: 'triangle', rotation: 180, pointRadius: 4, pointBackgroundColor: 'rgba(201,168,64,0.70)', pointBorderColor: 'rgba(201,168,64,0.85)', borderWidth: 0, yAxisID: 'y', order: 3 });
+  }
 
   const hasY1 = !!overlayDs;
   return {
@@ -431,6 +437,7 @@ function _buildRegimeConfig(data, overlay, windowYrs) {
               const v = ctx.parsed.y; if (v == null) return null;
               const l = ctx.dataset.label || '';
               if (l.includes('入场') || l.includes('阻断')) return `  ${l} @ VIX ${v.toFixed(1)}`;
+              if (l === '▽ Aftermath') return `  Aftermath — BPS_HV permission active (SPEC-064)`;
               if (l.startsWith('VIX 2')) return null;
               if (l === 'Drawdown %') return `  DD: ${v.toFixed(2)}%`;
               if (l === 'Cum. P&L') return `  P&L: $${v.toFixed(0)}k`;
@@ -441,7 +448,7 @@ function _buildRegimeConfig(data, overlay, windowYrs) {
       },
       scales: {
         x: { ticks: { color: '#606880', font: { family: "'JetBrains Mono', monospace", size: 10 }, maxTicksLimit: 14 }, grid: { color: 'rgba(25,30,51,0.8)' } },
-        y: { position: 'left', ticks: { color: 'rgba(72,136,232,0.7)', font: { family: "'JetBrains Mono', monospace", size: 10 } }, grid: { color: 'rgba(25,30,51,0.8)' }, title: { display: true, text: 'VIX', color: 'rgba(72,136,232,0.7)', font: { size: 10 } }, suggestedMin: 10 },
+        y: { position: 'left', ticks: { color: 'rgba(72,136,232,0.7)', font: { family: "'JetBrains Mono', monospace", size: 10 } }, grid: { color: 'rgba(25,30,51,0.8)' }, title: { display: true, text: 'VIX', color: 'rgba(72,136,232,0.7)', font: { size: 10 } }, min: 8 },
         y1: { display: hasY1, position: 'right', ticks: { color: y1Color, font: { family: "'JetBrains Mono', monospace", size: 10 } }, grid: { drawOnChartArea: false }, title: { display: !!y1Label, text: y1Label, color: y1Color, font: { size: 10 } } },
       },
     },
@@ -490,6 +497,12 @@ async function loadGovernanceBT() {
   if (tlR.status === 'fulfilled' && tlR.value.status === 'available') {
     _timelineData = tlR.value;
     renderRegimeChart();
+    // Update aftermath legend with live stats
+    const afDates = tlR.value.aftermath_dates || [];
+    if (afDates.length > 0) {
+      const el = document.getElementById('aftermath-legend');
+      if (el) el.textContent = `Aftermath (BPS_HV) · ${afDates.length} days`;
+    }
   } else {
     document.getElementById('regime-chart').closest('.regime-chart-wrap').innerHTML =
       `<div class="unavail">Timeline unavailable: ${tlR.reason?.message || tlR.value?.error || 'error'}</div>`;
@@ -502,6 +515,14 @@ async function loadGovernanceBT() {
     const m  = d.metrics;
     const dr = d.data_range || {};
     const caps = d.caps || {};
+
+    // Aftermath legend — enrich with % of stress once stress_days is known
+    const afDaysFinal = (tlR.status === 'fulfilled' ? tlR.value.aftermath_dates || [] : []).length;
+    if (afDaysFinal > 0 && m.stress_days > 0) {
+      const afPct = ((afDaysFinal / m.stress_days) * 100).toFixed(0);
+      const el = document.getElementById('aftermath-legend');
+      if (el) el.textContent = `Aftermath (BPS_HV) · ${afDaysFinal}d · ${afPct}% of stress`;
+    }
 
     // Hero range
     if (dr.start && dr.end) {
