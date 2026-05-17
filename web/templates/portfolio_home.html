@@ -858,7 +858,6 @@ body {
   <div class="nav-links">
     <a href="/" class="nav-link active">Portfolio</a>
     <a href="/spx" class="nav-link">SPX</a>
-    <a href="/es" class="nav-link">/ES</a>
     <a href="/hvladder" class="nav-link">Stress Put Ladder</a>
     <a href="/q042"               class="nav-link">DD Overlay</a>
     <a href="/aftermath"          class="nav-link">Aftermath</a>
@@ -879,7 +878,7 @@ body {
     <div class="page-meta">
       <span id="hero-date">—</span>
       <span class="meta-sep">·</span>
-      <span>SPX · /ES · Sleeves</span>
+      <span>SPX · Stress Put Ladder · Sleeves</span>
       <span class="meta-sep">·</span>
       <span id="hero-nlv">—</span>
     </div>
@@ -917,24 +916,18 @@ body {
     </div>
   </div>
 
-  <!-- ── /ES Secondary Card (Research tier) ── -->
+  <!-- ── Stress Put Ladder Card (/ES) ── -->
   <div class="strategy-card tier-secondary" id="card-es" style="margin-bottom:14px">
     <div class="card-header">
       <div class="card-name-wrap">
-        <a href="/es" style="text-decoration:none">
-          <span class="card-name card-name-secondary">/ES</span>
+        <a href="/hvladder" style="text-decoration:none">
+          <span class="card-name card-name-secondary">Stress Put Ladder</span>
         </a>
-        <span class="state-badge badge-hold" style="font-size:0.55rem;padding:2px 7px">Research</span>
+        <span class="state-badge badge-hold" style="font-size:0.55rem;padding:2px 7px">/ES · Research</span>
       </div>
       <span class="state-badge badge-wait" id="badge-es">WAIT</span>
     </div>
     <div class="es-card-body">
-      <span class="es-key">Position</span>
-      <span id="es-monitor-pos">Loading…</span>
-      <span class="es-span" id="es-monitor-span"></span>
-    </div>
-    <div class="es-card-body" style="border-top:1px solid var(--border);margin-top:4px;padding-top:8px">
-      <span class="es-key">Stress Put Ladder</span>
       <span id="es-ladder-status">Loading…</span>
     </div>
   </div>
@@ -1409,48 +1402,6 @@ async function loadSettling() {
   }
 }
 
-// ── /ES Monitor Row ───────────────────────────────────────────────────────────
-async function loadEs() {
-  const posEl  = document.getElementById('es-monitor-pos');
-  const spanEl = document.getElementById('es-monitor-span');
-  try {
-    const [posRes, spanRes] = await Promise.allSettled([
-      fetch('/api/es/position'),
-      fetch('/api/es/stressed-span'),
-    ]);
-    // Position + state badge
-    if (posRes.status === 'fulfilled' && posRes.value.ok) {
-      const pos = await posRes.value.json();
-      if (pos.open) {
-        const dte = pos.dte != null ? `${pos.dte}d` : '—';
-        const exp = pos.expiry ? pos.expiry.substring(5) : '—';
-        const stop = pos.stop_level && pos.stop_level !== 'NONE'
-          ? ` · stop: <span style="color:var(--red)">${pos.stop_level}</span>` : '';
-        posEl.innerHTML = `PUT exp ${exp} · ${dte} · entry $${pos.entry_premium != null ? pos.entry_premium.toFixed(2) : '—'}${stop}`;
-        applyBadge('badge-es', { cls: 'badge-hold', label: 'HOLD' });
-      } else {
-        posEl.textContent = 'No open position';
-        applyBadge('badge-es', { cls: 'badge-wait', label: 'WAIT' });
-      }
-    } else {
-      posEl.textContent = '—';
-      applyBadge('badge-es', { cls: 'badge-unavail', label: 'N/A' });
-    }
-    // SPAN visibility
-    if (spanRes.status === 'fulfilled' && spanRes.value.ok) {
-      const span = await spanRes.value.json();
-      if (span.stress_ratio != null) {
-        spanEl.textContent = `SPAN ${span.stress_ratio.toFixed(2)} · ${span.stress_band || '—'}`;
-      } else {
-        spanEl.textContent = '';
-      }
-    }
-  } catch (_) {
-    posEl.textContent = '—';
-    applyBadge('badge-es', { cls: 'badge-unavail', label: 'N/A' });
-  }
-}
-
 // ── NLV change in hero ───────────────────────────────────────────────────────
 async function loadNLVChange() {
   const el = document.getElementById('hero-nlv');
@@ -1505,7 +1456,6 @@ async function loadStressPutLadder() {
     const vixTxt = vix != null
       ? `<span class="es-key">VIX</span> <span style="color:${vixOk ? 'var(--green)' : 'var(--text-2)'}">${vix.toFixed(1)}</span><span style="color:var(--text-muted)">/${(d.threshold ?? 22).toFixed(0)}</span>`
       : '';
-    const gate = d.gate_status || {};
     const blockers = d.blockers || [];
     let stateTxt;
     if (d.signal_live) {
@@ -1518,8 +1468,19 @@ async function loadStressPutLadder() {
       stateTxt = `<span style="color:var(--text-muted)">—</span>`;
     }
     el.innerHTML = `${slotsTxt} &nbsp; ${vixTxt} &nbsp; ${stateTxt}`;
+
+    // Card-level badge: SIGNAL / HOLD / WAIT
+    const slots = d.active_slots ?? 0;
+    if (d.signal_live) {
+      applyBadge('badge-es', { cls: 'badge-open', label: 'SIGNAL' });
+    } else if (slots > 0) {
+      applyBadge('badge-es', { cls: 'badge-hold', label: `HOLD ${slots}/${d.max_slots ?? 5}` });
+    } else {
+      applyBadge('badge-es', { cls: 'badge-wait', label: 'WAIT' });
+    }
   } catch (e) {
     el.innerHTML = `<span class="pos-none">${e.message}</span>`;
+    applyBadge('badge-es', { cls: 'badge-unavail', label: 'N/A' });
   }
 }
 
@@ -2669,7 +2630,7 @@ async function syncPortfolio() {
   const ts  = document.getElementById('sync-ts');
   if (btn) { btn.textContent = '↻ Syncing…'; btn.disabled = true; }
   if (ts)  ts.textContent = '';
-  await Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition()]);
+  await Promise.allSettled([loadSpx(), loadSettling(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition()]);
   if (btn) { btn.textContent = '↻ Sync'; btn.disabled = false; }
   if (ts)  ts.textContent = 'synced ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
@@ -2697,12 +2658,12 @@ function _initDefaultView() {
 // ── Boot ──────────────────────────────────────────────────────────────────────
 (async () => {
   _initDefaultView();
-  await Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition()]);
+  await Promise.allSettled([loadSpx(), loadSettling(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition()]);
   const ts = document.getElementById('sync-ts');
   if (ts) ts.textContent = 'loaded ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
   // Auto-refresh: strategy cards (recommendation+position) every 60s — picks up close→re-entry transitions
-  setInterval(() => Promise.allSettled([loadSpx(), loadSettling(), loadEs(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadEtradeAuthBanner()]), 60 * 1000);
+  setInterval(() => Promise.allSettled([loadSpx(), loadSettling(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadEtradeAuthBanner()]), 60 * 1000);
   // Snapshot + Schwab positions every 5min — heavier, less frequent
   setInterval(() => Promise.allSettled([loadSnapshot(), loadGovernance(), loadPositionComposition()]), 5 * 60 * 1000);
 })();

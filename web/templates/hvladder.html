@@ -158,7 +158,6 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   <div class="nav-links">
     <a href="/"                   class="nav-link">Portfolio</a>
     <a href="/spx"                class="nav-link">SPX</a>
-    <a href="/es"                 class="nav-link">/ES</a>
     <a href="/hvladder"           class="nav-link active">Stress Put Ladder</a>
     <a href="/q042"               class="nav-link">DD Overlay</a>
     <a href="/aftermath"          class="nav-link">Aftermath</a>
@@ -177,7 +176,11 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 <div class="container">
   <div class="page-hero">
     <h1>HV <em>Ladder</em></h1>
-    <div class="page-meta">ES High-Vol Sell Put Ladder · VIX ≥ 22 · paper/shadow observation</div>
+    <div class="page-meta">
+      ES High-Vol Sell Put Ladder · VIX ≥ 22 · paper/shadow observation
+      <span style="color:var(--text-muted);margin-left:8px">·</span>
+      <a href="/es" style="color:var(--text-muted);text-decoration:none;font-size:0.60rem;margin-left:4px" title="legacy single-slot /ES strategy (no longer trading)">Legacy /ES view →</a>
+    </div>
   </div>
 
   <div class="page-tabs">
