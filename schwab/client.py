@@ -279,6 +279,174 @@ def _parse_chain_response(payload: dict, option_type: str) -> list[dict]:
     return rows
 
 
+_FUTURES_MONTH_CODES = "FGHJKMNQUVXZ"  # Jan-Dec → F G H J K M N Q U V X Z
+
+
+def _is_futures_symbol(symbol: str) -> bool:
+    return str(symbol or "").strip().startswith("/")
+
+
+def _futures_option_symbol(future_root: str, expiry_iso: str, option_type: str, strike: float) -> str:
+    """Build a Schwab futures-option symbol: ./<ROOT><MONTH_CODE><YY><P|C><STRIKE>."""
+    y, m, _ = expiry_iso.split("-")
+    month_code = _FUTURES_MONTH_CODES[int(m) - 1]
+    yy = y[-2:]
+    cp = "P" if option_type.upper() == "PUT" else "C"
+    return f"./{future_root}{month_code}{yy}{cp}{int(strike)}"
+
+
+def _bsm_delta_put(spot: float, strike: float, dte: int, sigma: float, r: float = 0.04) -> float:
+    """Black-Scholes put delta. Returns negative value in [-1, 0]."""
+    import math
+    if dte <= 0 or sigma <= 0 or spot <= 0 or strike <= 0:
+        return 0.0
+    T = dte / 365.0
+    d1 = (math.log(spot / strike) + (r + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
+    # N(d1) via erf
+    def _N(x):
+        return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
+    return _N(d1) - 1.0
+
+
+def get_futures_option_chain(
+    symbol: str,
+    option_type: str,
+    target_dte: int,
+    dte_range: int = 21,
+    center_strike: float | None = None,
+    strike_window: int = 30,
+    spot: float | None = None,
+    sigma: float | None = None,
+) -> list[dict]:
+    """Build a futures option chain via expirationchain + bulk quotes.
+
+    Schwab's marketdata/v1/chains endpoint does NOT support futures (returns
+    400). Instead we list expirations via expirationchain, construct option
+    symbols, and bulk-quote them. Greeks are computed via BSM since quotes
+    don't include delta/gamma/theta for futures options.
+
+    spot + sigma are required for BSM delta. If omitted, delta will be None
+    and downstream scan_strikes will filter those rows out.
+    """
+    if not is_configured():
+        return []
+    if not _is_futures_symbol(symbol):
+        return []
+
+    cache_key = _chain_cache_key(
+        symbol, option_type.upper(), int(target_dte), int(dte_range),
+        center_strike=center_strike, strike_window=int(strike_window),
+    )
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    # 1) List available expirations
+    res = requests.get(
+        f"{BASE_URL}/marketdata/v1/expirationchain",
+        params={"symbol": symbol},
+        headers=_headers(), timeout=15,
+    )
+    res.raise_for_status()
+    exps = (res.json() or {}).get("expirationList") or []
+    if not exps:
+        _cache_put(cache_key, [])
+        return []
+
+    # 2) Pick best expiry: closest to target DTE within dte_range
+    target = int(target_dte)
+    eligible = [e for e in exps if abs(int(e.get("daysToExpiration", 0)) - target) <= int(dte_range)]
+    if not eligible:
+        # Widen: pick globally closest
+        eligible = exps
+    best = min(eligible, key=lambda e: abs(int(e.get("daysToExpiration", 0)) - target))
+    expiry_iso = best.get("expirationDate")
+    actual_dte = int(best.get("daysToExpiration", target))
+    future_root = best.get("optionRoots") or symbol.lstrip("/").split()[0] or "ES"
+
+    # 3) Build strike grid around center
+    if center_strike is None or center_strike <= 0:
+        # Default: use 5050 as a placeholder (caller usually provides BSM-fit)
+        center_strike = 5000.0
+    step = 5  # /ES standard strike increment
+    half = max(int(strike_window), 5)
+    center_rounded = int(round(float(center_strike) / step) * step)
+    strikes = list(range(center_rounded - half * step, center_rounded + (half + 1) * step, step))
+
+    # 4) Bulk quote
+    symbols = [_futures_option_symbol(future_root, expiry_iso, option_type, k) for k in strikes]
+    q = requests.get(
+        f"{BASE_URL}/marketdata/v1/quotes",
+        params={"symbols": ",".join(symbols), "fields": "quote"},
+        headers=_headers(), timeout=20,
+    )
+    q.raise_for_status()
+    quotes = q.json() or {}
+
+    # 5) Parse rows
+    rows: list[dict] = []
+    for sym, strike in zip(symbols, strikes):
+        entry = quotes.get(sym)
+        if not isinstance(entry, dict) or "quote" not in entry:
+            continue
+        qd = entry["quote"]
+        bid = qd.get("bidPrice")
+        ask = qd.get("askPrice")
+        try:
+            bid_f = float(bid) if bid not in (None, "") else None
+            ask_f = float(ask) if ask not in (None, "") else None
+        except (TypeError, ValueError):
+            bid_f = ask_f = None
+        # Mid = (bid + ask) / 2 when both > 0; otherwise use mark / last
+        mid = None
+        if bid_f and ask_f and bid_f > 0 and ask_f > 0:
+            mid = (bid_f + ask_f) / 2.0
+        elif qd.get("mark") not in (None, ""):
+            try:
+                mid = float(qd["mark"])
+            except (TypeError, ValueError):
+                mid = None
+        if mid is None and qd.get("lastPrice") not in (None, ""):
+            try:
+                mid = float(qd["lastPrice"])
+            except (TypeError, ValueError):
+                pass
+        spread_pct = None
+        if bid_f is not None and ask_f is not None and mid and mid > 0:
+            spread_pct = (ask_f - bid_f) / mid
+        # Compute BSM delta when spot + sigma given (futures quotes have no greeks)
+        delta = None
+        if spot is not None and sigma is not None:
+            try:
+                if option_type.upper() == "PUT":
+                    delta = _bsm_delta_put(float(spot), float(strike), int(actual_dte), float(sigma))
+                else:
+                    delta = _bsm_delta_put(float(spot), float(strike), int(actual_dte), float(sigma)) + 1.0
+            except Exception:
+                delta = None
+        rows.append({
+            "symbol":        sym,
+            "expiry":        expiry_iso,
+            "strike":        float(strike),
+            "bid":           bid_f,
+            "ask":           ask_f,
+            "mid":           round(mid, 4) if mid is not None else None,
+            "spread_pct":    round(spread_pct, 6) if spread_pct is not None else None,
+            "delta":         round(delta, 4) if delta is not None else None,
+            "gamma":         None,
+            "theta":         None,
+            "vega":          None,
+            "open_interest": qd.get("openInterest"),
+            "volume":        qd.get("totalVolume"),
+            "dte":           actual_dte,
+            "iv":            None,
+            "last":          qd.get("lastPrice"),
+        })
+
+    _cache_put(cache_key, rows)
+    return rows
+
+
 def get_option_chain(
     symbol: str,
     option_type: str,
@@ -286,7 +454,16 @@ def get_option_chain(
     dte_range: int = 7,
     center_strike: float | None = None,
     strike_window: int = 10,
+    spot: float | None = None,
+    sigma: float | None = None,
 ) -> list[dict]:
+    # Futures symbols (/ES, /NQ, ...) need a separate API path — equity chains endpoint rejects them.
+    if _is_futures_symbol(symbol):
+        return get_futures_option_chain(
+            symbol, option_type, target_dte, dte_range=max(int(dte_range), 14),
+            center_strike=center_strike, strike_window=int(strike_window),
+            spot=spot, sigma=sigma,
+        )
     if not is_configured():
         return []
     cache_key = _chain_cache_key(

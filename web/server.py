@@ -2800,6 +2800,8 @@ def api_hvladder_draft():
             target_delta=-target_delta,  # scanner convention: negative for puts
             target_dte=dte,
             center_strike=float(k_center),
+            spot=float(spx),
+            sigma=float(sigma),
         )
         scan_rows = scan.get("rows") or []
         scan_fallback = bool(scan.get("scan_fallback"))

@@ -118,10 +118,12 @@ def build_strike_scan(
     target_delta: float,
     target_dte: int,
     center_strike: float | None = None,
+    spot: float | None = None,
+    sigma: float | None = None,
 ) -> dict:
     if center_strike is None:
         rows = scan_strikes(
-            get_option_chain(symbol, option_type, target_dte),
+            get_option_chain(symbol, option_type, target_dte, spot=spot, sigma=sigma),
             target_delta=target_delta,
             symbol=symbol,
         )
@@ -139,6 +141,8 @@ def build_strike_scan(
             target_dte,
             center_strike=center_strike,
             strike_window=strike_window,
+            spot=spot,
+            sigma=sigma,
         )
         selected_chain = chain
         sought_strike = _seek_target_delta_strike(chain, abs(float(target_delta)))
