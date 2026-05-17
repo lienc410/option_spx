@@ -439,22 +439,12 @@ def get_futures_option_chain(
         except (TypeError, ValueError):
             bid_f = ask_f = None
         # Mid = (bid + ask) / 2 when both > 0; otherwise use mark / last
-        mid = None
-        if bid_f and ask_f and bid_f > 0 and ask_f > 0:
-            mid = (bid_f + ask_f) / 2.0
-        elif qd.get("mark") not in (None, ""):
-            try:
-                mid = float(qd["mark"])
-            except (TypeError, ValueError):
-                mid = None
-        if mid is None and qd.get("lastPrice") not in (None, ""):
-            try:
-                mid = float(qd["lastPrice"])
-            except (TypeError, ValueError):
-                pass
-        spread_pct = None
-        if bid_f is not None and ask_f is not None and mid and mid > 0:
-            spread_pct = (ask_f - bid_f) / mid
+        # Drop broken quotes (typically stale weekend/after-hours data):
+        # ask=0 or bid>ask means no real market — skip the row.
+        if bid_f is None or ask_f is None or ask_f <= 0 or bid_f > ask_f:
+            continue
+        mid = (bid_f + ask_f) / 2.0
+        spread_pct = (ask_f - bid_f) / mid if mid > 0 else None
         # Compute BSM delta when spot + sigma given (futures quotes have no greeks)
         delta = None
         if spot is not None and sigma is not None:
