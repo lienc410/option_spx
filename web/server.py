@@ -2694,6 +2694,7 @@ def api_hvladder_position_open():
         "short_strike":  data.get("short_strike"),
         "contracts":     data.get("contracts", 1),
         "entry_premium": data.get("entry_premium"),
+        "model_premium": data.get("model_premium"),
         "entry_spx":     data.get("entry_spx"),
         "entry_vix":     data.get("entry_vix"),
         "paper_trade":   bool(data.get("paper_trade", False)),
@@ -2752,6 +2753,55 @@ def api_hvladder_position_note():
     }
     _hvlad_append(rec)
     return jsonify({"status": "ok", "record": rec})
+
+
+@app.route("/api/hvladder/draft")
+def api_hvladder_draft():
+    """Suggested open parameters: BSM-fit short strike at δ0.20 + model premium at current VIX/SPX."""
+    try:
+        from backtest.pricer import find_strike_for_delta, put_price
+    except Exception as exc:
+        return jsonify({"status": "error", "error": f"pricer unavailable: {exc}"})
+
+    vix_ctx = _hvlad_vix_context()
+    trend = _hvlad_trend_status()
+    vix = vix_ctx.get("vix_current")
+    spx = trend.get("spx")
+    if not isinstance(vix, (int, float)) or vix <= 0:
+        return jsonify({"status": "unavailable", "reason": "vix not available"})
+    if not isinstance(spx, (int, float)) or spx <= 0:
+        return jsonify({"status": "unavailable", "reason": "spx not available"})
+
+    sigma = vix / 100.0
+    dte = 49
+    target_delta = 0.20
+    try:
+        k_raw = find_strike_for_delta(spx, dte, sigma, target_delta, False)
+    except Exception as exc:
+        return jsonify({"status": "error", "error": f"strike fit failed: {exc}"})
+    # Round to nearest 5 (typical /ES weekly strike grid)
+    short_strike = round(k_raw / 5.0) * 5.0
+    try:
+        model_premium = put_price(spx, short_strike, dte, sigma)
+    except Exception as exc:
+        return jsonify({"status": "error", "error": f"put_price failed: {exc}"})
+
+    today = date.today()
+    default_expiry = (today + timedelta(days=dte)).isoformat()
+
+    return jsonify({
+        "status":        "ok",
+        "spx":           round(float(spx), 2),
+        "vix":           round(float(vix), 2),
+        "sigma":         round(float(sigma), 4),
+        "dte":           dte,
+        "target_delta":  target_delta,
+        "strike_raw":    round(float(k_raw), 2),
+        "short_strike":  short_strike,
+        "model_premium": round(float(model_premium), 2),
+        "signal_date":   today.isoformat(),
+        "default_expiry": default_expiry,
+    })
 
 
 @app.route("/api/hvladder/open-trades")
