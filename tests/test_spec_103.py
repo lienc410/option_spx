@@ -19,7 +19,7 @@ def _state(*, second_leg=False, stress=False, spx=10.0, es=5.0, combined=15.0, s
             "combined_bp_pct": combined,
             "short_vol_bp_pct": short_vol,
         },
-        "caps": gov.governance_caps(stress),
+        "caps": gov.governance_caps(stress, second_leg),
         "stress_episode_active": stress,
         "second_leg_active": second_leg,
         "market": {"status": "available"},
@@ -80,11 +80,11 @@ class Spec103Tests(unittest.TestCase):
     def test_ac4_r1_r5_caps_are_enforced(self):
         r1 = gov.evaluate_candidate(
             {"strategy_key": "bull_put_spread", "strategy": "Bull Put Spread", "requested_bp_dollars": 30_000},
-            state=_state(spx=60.0, combined=20.0, short_vol=20.0),
+            state=_state(spx=70.0, combined=20.0, short_vol=20.0),
         )
         r5 = gov.evaluate_candidate(
             {"strategy_key": "bull_put_spread", "strategy": "Bull Put Spread", "requested_bp_dollars": 15_000},
-            state=_state(stress=True, spx=55.0, combined=20.0, short_vol=20.0),
+            state=_state(stress=True, spx=45.0, combined=20.0, short_vol=20.0),
         )
 
         self.assertFalse(r1.accepted)

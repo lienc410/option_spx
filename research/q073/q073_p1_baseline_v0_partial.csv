@@ -1,0 +1,13 @@
+strategy,role,period,n_trades,ann_roe_pct,sharpe,max_dd_pct,worst_trade_nlv_pct,bootstrap_sig_pct,occupancy_pct,total_pnl_usd,data_source,data_quality,decision_usefulness
+SPX_BPS_main (Q041 production),core_income,2025-05-13 to 2026-05-13 (1y only),20,53.79,5.08,-2.4,N/A,N/A,N/A,53197,data/backtest_results_cache.json,EXCEPTIONAL 1y window (calmar 22; not representative; needs 26y replay),not_decision_grade
+V2f_baseline_pre_G6 (Q071 P5),(comparison),2000-01-01 to 2026-05 (26y),725,1.04,0.15,-33.3,-10.6,0.0,86.3,156872,research/q071/q071_p5_results.csv,PRECISE 26y,usable_now
+HV_Ladder_ES_G6 (Q071 P5 / SPEC-101),opportunistic_hv,2000-01-01 to 2026-05 (26y),146,1.14,0.34,-9.68,-4.77,100.0,21.4,173325,research/q071/q071_p5_results.csv,PRECISE 26y,usable_now
+Q042_SleeveA_dd4_SPEC-094.1 (sleeve-only口径),convex_overlay,2007 to 2026 (19y),35,9.94,N/A,-19.0,N/A,N/A,N/A,192300,SPEC-094.1 memo + RESEARCH_LOG R-20260510-15,SPEC memo sleeve-only (need re-extract Sharpe + worst_trade + combined-NLV contribution),directional_only
+Q042_SleeveA_combined-NLV-contribution-est,convex_overlay,2007 to 2026 (19y),35,~1.0 est,N/A,N/A,N/A,N/A,N/A,N/A,SPEC-094.1 backtest assume 10% sleeve sizing,ESTIMATE based on 10% sleeve sizing — actual combined NLV contribution to be computed,directional_only
+Q042_SleeveB_dd15_MA10reclaim,convex_overlay,2007 to 2026 (19y),5,2.2,N/A,N/A,N/A,N/A,N/A,N/A,SPEC-094 memo (n=5 thin),THIN SAMPLE - research-only candidate per PM校准答复 Q4,not_decision_grade
+V3A_Aftermath_overlay (Q064),permission_bypass,2009 to 2026 (17y),33 (V3-A only),N/A standalone,N/A,N/A,N/A,N/A,N/A,N/A,research/q064/q064_p6_results.csv,N/A standalone - must evaluate as permission alpha not standalone sleeve (PM校准 Q1),N/A
+Q019_Signal2_sidecar (SPEC-091),research_paper,2026-05-09 to 2026-11-09 A/B,N/A live,N/A,N/A,N/A,N/A,N/A,N/A,N/A,data/q019_settling_log.jsonl,LIVE A/B in progress (PM 校准 Q2: 不立即结束 评估 evidence rate),N/A
+LOW_VOL_reduce_wait (default),idle_no_strategy,2000-01-01 to 2026-05 (26y),N/A,0.0,N/A,N/A,N/A,N/A,N/A (% idle days),N/A,signals/vix_regime.py LOW_VOL_THRESHOLD=15,IDLE (PM 校准 Q3: ROE opportunity — C1 cash first / C2 option cautious),directional_only
+IVP_gate_reduce_wait (BPS_NNB_IVP_UPPER=55),idle_no_strategy,2000-01-01 to 2026-05 (26y),N/A,0.0,N/A,N/A,N/A,N/A,N/A (% idle days),N/A,strategy/selector.py BPS_NNB_IVP_UPPER,IDLE (PM 校准 Q3: risk avoidance — 默认 by-design 不轻易填),N/A
+COMBINED_PORTFOLIO,(top-level),26y,N/A,N/A,N/A,N/A,N/A,N/A,N/A,N/A,not_yet_computed,REQUIRES FULL P1 - cross-strategy combined PnL series + correlation matrix,N/A
+CASH_baseline_BOXX,benchmark,(rolling),N/A,4.3,N/A,N/A,N/A,N/A,100 (always),N/A,PM provided BOXX proxy 2026-05-17,Per PM verify trailing 12m,usable_now

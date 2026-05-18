@@ -233,7 +233,15 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     <a href="/es-backtest"       class="page-tab">/ES Archive</a>
   </div>
 
-  <!-- Action buttons — PM 自主决定 paper 还是 real -->
+  <section class="card" style="margin-bottom:12px;border-color:rgba(245,158,11,.42);background:linear-gradient(135deg,rgba(245,158,11,.16),rgba(245,158,11,.04))">
+    <div class="card-title" style="color:var(--orange)">SPEC-104 Status · Research-only / Paper-only</div>
+    <div style="font-family:var(--f-ui);font-size:.76rem;color:var(--text);line-height:1.55">
+      HV Ladder has <strong>0% production allocation</strong>. Signals and manual entries on this page are observation records only.
+      <span style="color:var(--orange);font-weight:800">NO PRODUCTION EXECUTION.</span>
+    </div>
+  </section>
+
+  <!-- Action buttons — paper/research records only -->
   <div class="page-actions">
     <button class="action-btn primary" onclick="openHvlModal('open')">+ Open Slot</button>
     <button class="action-btn"         onclick="openHvlModal('close')">Close</button>
@@ -484,8 +492,8 @@ function openHvlModal(kind) {
           <input id="hvl-spx" class="modal-input" type="number" step="1">
         </div>
         <div class="modal-field">
-          <label class="modal-label">Mark as Paper</label>
-          <label class="modal-check"><input id="hvl-paper" type="checkbox"> Paper trade</label>
+          <label class="modal-label">Production Status</label>
+          <label class="modal-check"><input id="hvl-paper" type="checkbox" checked disabled> Paper / research only</label>
         </div>
         <div class="modal-field">
           <label class="modal-label">Scan Rows</label>
@@ -508,7 +516,7 @@ function openHvlModal(kind) {
       </div>
       <div class="modal-cta">
         <button class="action-btn" onclick="closeHvlModal()">Cancel</button>
-        <button class="action-btn primary" onclick="submitHvlOpen()">Open Slot</button>
+        <button class="action-btn primary" onclick="submitHvlOpen()">Record Paper Slot</button>
       </div>
       <div id="hvl-modal-msg" class="modal-msg hidden"></div>`;
     // Fetch chain scan and prefill

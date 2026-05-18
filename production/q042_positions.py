@@ -202,3 +202,36 @@ def get_lifetime_stats(paper: bool = True) -> dict[str, dict]:
         s["total_pnl"] = round(s["total_pnl"], 2)
 
     return stats
+
+
+def q042_concentration_monitor(paper: bool = True, threshold_pct: float = 50.0) -> dict:
+    """Return top-3 settled-trade P&L concentration for Q042 monitoring.
+
+    SPEC-104 uses this as an observation metric only. If there are not enough
+    settled profitable trades, the monitor fails soft instead of inventing a
+    conclusion.
+    """
+    trades = [
+        t for t in _load_trades(paper)
+        if t.get("event", "open") == "open" and t.get("settled") and t.get("exit_pnl") not in (None, "")
+    ]
+    pnls = [float(t.get("exit_pnl") or 0.0) for t in trades]
+    positive = [p for p in pnls if p > 0]
+    total_positive = sum(positive)
+    if len(positive) < 3 or total_positive <= 0:
+        return {
+            "status": "insufficient_data",
+            "threshold_pct": threshold_pct,
+            "sample_size": len(trades),
+            "profitable_sample_size": len(positive),
+            "top3_contribution_pct": None,
+        }
+    top3 = sum(sorted(positive, reverse=True)[:3])
+    pct = top3 / total_positive * 100.0
+    return {
+        "status": "breach" if pct > threshold_pct else "ok",
+        "threshold_pct": threshold_pct,
+        "sample_size": len(trades),
+        "profitable_sample_size": len(positive),
+        "top3_contribution_pct": round(pct, 2),
+    }

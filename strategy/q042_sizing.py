@@ -5,9 +5,10 @@ Single entry point: compute_sizing().
 Inputs:  NLV, current SPX close, current VIX, sleeve_id.
 Outputs: (long_strike, short_strike, contracts, est_debit_per_contract)
 
-Rules (from SPEC-094 F2):
+Rules (from SPEC-094 F2, updated by SPEC-104):
   - NLV < $200k → skip (return 0 contracts)
-  - Target debit = NLV × 10%
+  - Sleeve A staged target debit = NLV × 12.5%
+  - Sleeve B remains unchanged at NLV × 10% and is not production-routed
   - Long K  = ATM rounded to nearest $5
   - Short K = ATM × 1.05 rounded to nearest $5
   - Contracts = floor(target_debit / est_debit_per_contract)
@@ -18,16 +19,28 @@ from __future__ import annotations
 
 from typing import Optional, Tuple
 
+from strategy.q042_config import (
+    Q042_SLEEVE_A_PRODUCTION_CAP_PCT,
+    Q042_SLEEVE_B_PAPER_SIZING_PCT,
+)
 from strategy.q042_pricing import estimate_debit
 
 _NLV_MINIMUM    = 200_000.0   # activation threshold
-_SIZING_PCT     = 0.10        # 10% account per entry
 _STRIKE_ROUND   = 5.0         # $5 increments
 _OTM_PCT_A      = 0.025       # Sleeve A: ATM/+2.5% (SPEC-094.1)
 _OTM_PCT_B      = 0.05        # Sleeve B: ATM/+5%  (unchanged)
 _DTE_A          = 30          # Sleeve A: 30 DTE   (SPEC-094.1)
 _DTE_B          = 90          # Sleeve B: 90 DTE   (unchanged)
 _SPX_MULTIPLIER = 100         # SPX contract multiplier
+
+
+def q042_sleeve_cap_pct(sleeve_id: str = "A") -> float:
+    """Return the sizing cap used for draft entries.
+
+    Sleeve B remains research-only, but the paper draft keeps its legacy 10%
+    sizing so historical/paper records remain comparable.
+    """
+    return Q042_SLEEVE_A_PRODUCTION_CAP_PCT if str(sleeve_id).upper() == "A" else Q042_SLEEVE_B_PAPER_SIZING_PCT
 
 
 def _round_strike(price: float, increment: float = _STRIKE_ROUND) -> int:
@@ -47,7 +60,7 @@ def compute_sizing(
         nlv:       Net liquidation value in USD.
         spx_close: Current SPX level (entry reference price for strikes).
         vix:       Current VIX level (used for BS pricing).
-        sleeve_id: "A" or "B" (no behavioural difference in MVP sizing).
+        sleeve_id: "A" or "B".
 
     Returns:
         (long_strike, short_strike, contracts, est_debit_per_contract)
@@ -80,7 +93,7 @@ def compute_sizing(
     if debit_per_contract <= 0:
         return long_k, short_k, 0, None
 
-    target = nlv * _SIZING_PCT
+    target = nlv * (q042_sleeve_cap_pct(sleeve_id) / 100.0)
     contracts = int(target // debit_per_contract)
 
     return long_k, short_k, contracts, round(debit_per_contract, 2)

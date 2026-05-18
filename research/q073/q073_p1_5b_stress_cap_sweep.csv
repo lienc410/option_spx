@@ -1,0 +1,6 @@
+stress_cap_pct,second_leg_cap_pct,ann_roe_pct,max_dd_pct,worst_20d_pct,worst_63d_pct,sharpe,v1_pass,v2_pass,v3_pass,all_vetoes_pass,roe_meets_floor
+60,50,7.87,-13.44,-11.82,-11.45,1.76,True,False,True,False,False
+55,45,7.82,-12.52,-11.0,-10.66,1.82,True,False,True,False,False
+50,40,7.76,-11.6,-10.18,-9.87,1.87,True,True,True,True,False
+45,35,7.71,-10.68,-9.37,-9.08,1.93,True,True,True,True,False
+40,30,7.65,-9.75,-8.55,-8.29,1.98,True,True,True,True,False

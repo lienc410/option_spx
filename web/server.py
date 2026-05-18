@@ -1346,10 +1346,17 @@ def api_etrade_auth():
 def api_q042_state():
     try:
         from signals.q042_trigger import get_current_q042_snapshot
-        from production.q042_positions import get_active_positions, get_lifetime_stats
+        from production.q042_positions import get_active_positions, get_lifetime_stats, q042_concentration_monitor
+        from strategy.q042_config import (
+            Q042_SLEEVE_A_PRODUCTION_CAP_PCT,
+            Q042_SLEEVE_A_STAGE_LABEL,
+            Q042_SLEEVE_A_TARGET_CAP_PCT,
+            Q042_SLEEVE_B_PRODUCTION_CAP_PCT,
+        )
         snap = get_current_q042_snapshot()
         positions = get_active_positions(paper=True)
         stats = get_lifetime_stats(paper=True)
+        concentration = q042_concentration_monitor(paper=True)
 
         def _pos_dict(p):
             if p is None:
@@ -1373,17 +1380,31 @@ def api_q042_state():
             "ddath_pct": round(snap.ddath * 100, 2),
             "sleeve_a": {
                 "armed": snap.sleeve_a.armed,
+                "production_cap_pct": Q042_SLEEVE_A_PRODUCTION_CAP_PCT,
+                "target_cap_pct": Q042_SLEEVE_A_TARGET_CAP_PCT,
+                "stage": Q042_SLEEVE_A_STAGE_LABEL,
                 "active_position": _pos_dict(positions.get("A")),
                 "stats": stats.get("A", {}),
             },
             "sleeve_b": {
                 "armed": snap.sleeve_b.armed,
+                "production_status": "research_only",
+                "production_cap_pct": Q042_SLEEVE_B_PRODUCTION_CAP_PCT,
                 "in_watching": snap.sleeve_b.in_watching,
                 "watch_start_date": snap.sleeve_b.watch_start_date,
                 "active_position": _pos_dict(positions.get("B")),
                 "stats": stats.get("B", {}),
             },
             "combined_bp_pct": snap.combined_bp_pct,
+            "monitors": {
+                "q042_cap_utilization": {
+                    "status": "ok" if snap.combined_bp_pct <= Q042_SLEEVE_A_PRODUCTION_CAP_PCT else "breach",
+                    "stage_cap_pct": Q042_SLEEVE_A_PRODUCTION_CAP_PCT,
+                    "current_combined_bp_pct": snap.combined_bp_pct,
+                    "scope": "sleeve_a_staged_cap_monitor",
+                },
+                "q042_top3_pnl_concentration": concentration,
+            },
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -3159,6 +3180,10 @@ def api_hvladder_live():
         "trend": trend,
         "gate_status": gate_status,
         "signal_live": all(gate_status.values()),
+        "production_status": "research_only",
+        "production_allocation_pct": 0.0,
+        "execution_allowed": False,
+        "research_only_note": "Research-only / paper-only per SPEC-104. NO PRODUCTION EXECUTION.",
         "blockers": blockers,
         "last_signal": rows[0] if rows else None,
         "status": "ok" if vix.get("ok") and trend.get("ok") else "degraded",
@@ -3217,10 +3242,16 @@ def _hvlad_append(rec: dict) -> None:
 
 @app.route("/api/hvladder/position/open", methods=["POST"])
 def api_hvladder_position_open():
-    """Record a manual Stress Put Ladder slot open. PM decides paper vs real."""
+    """Record a manual Stress Put Ladder paper slot open."""
     data = flask_req.get_json(silent=True) or {}
     now = datetime.now(_ET)
     today_iso = now.date().isoformat()
+    if data.get("paper_trade") is False:
+        return jsonify({
+            "status": "error",
+            "error": "HV Ladder is research-only / paper-only per SPEC-104. NO PRODUCTION EXECUTION.",
+            "production_status": "research_only",
+        }), 403
     required = ["expiry", "short_strike", "contracts", "entry_premium"]
     missing = [k for k in required if data.get(k) in (None, "")]
     if missing:
@@ -3242,7 +3273,8 @@ def api_hvladder_position_open():
         "model_premium": data.get("model_premium"),
         "entry_spx":     data.get("entry_spx"),
         "entry_vix":     data.get("entry_vix"),
-        "paper_trade":   bool(data.get("paper_trade", False)),
+        "paper_trade":   True,
+        "production_status": "research_only",
         "note":          data.get("note", "") or "",
     }
     _hvlad_append(rec)

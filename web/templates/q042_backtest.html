@@ -212,7 +212,7 @@ function render(bt, spxHist, paper, vixHist) {
     sharpe = std > 0 ? (mean / std) * Math.sqrt(12) : null;
   }
 
-  // Annualized ROE on $500k baseline (Q042 sizes 10% per entry → ~$50k capital at risk)
+  // Annualized ROE on $500k baseline (SPEC-104 Sleeve A Stage 1 uses 12.5% per entry)
   const baseline = 500000;
   const firstDate = sortedClosed.length ? sortedClosed[0].exit_date : null;
   const lastDate  = sortedClosed.length ? sortedClosed[sortedClosed.length-1].exit_date : null;
@@ -388,8 +388,8 @@ function render(bt, spxHist, paper, vixHist) {
         <div class="discipline-row">
           <div class="discipline-key">Sizing</div>
           <div class="discipline-val">
-            每次入场 <code>10%</code> 账户；A+B 合并上限 <code>20%</code>。
-            Joint BP gate: <code>min(20%, max(0%, 60% − main_bp%))</code> — main SPX 策略 BP 占用越高，可分给 DD Overlay 越少。
+            Sleeve A Stage 1 每次入场 <code>12.5%</code> 账户，target <code>17.5%</code>；Sleeve B 维持 research-only。
+            Joint BP gate: <code>min(12.5%, max(0%, 60% − main_bp%))</code> — main SPX 策略 BP 占用越高，可分给 DD Overlay 越少。
           </div>
         </div>
         <div class="discipline-row">
@@ -407,7 +407,7 @@ function render(bt, spxHist, paper, vixHist) {
           </div>
         </div>
         <div class="discipline-footnote">
-          Source: <code>backtest/q042_engine.py</code> · sizing pct <code>_SIZING_PCT = 0.10</code> · q042 spec card in <code>web/templates/q042.html</code>.
+          Source: <code>backtest/q042_engine.py</code> · SPEC-104 Sleeve A stage cap <code>12.5%</code> / target <code>17.5%</code> · q042 spec card in <code>web/templates/q042.html</code>.
         </div>
       </div>
     </div>`;

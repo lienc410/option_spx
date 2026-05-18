@@ -2076,7 +2076,7 @@ function _renderGovernance() {
     return d >= 1e6 ? `$${(d/1e6).toFixed(2)}M` : d >= 1000 ? `$${Math.round(d/1000)}k` : `$${Math.round(d)}`;
   };
 
-  // BP line: "34.3% / cap 70.0% · 已用 49%"  — only show live BP in current regime col
+  // BP line: "34.3% / cap 80.0% · 已用 43%"  — only show live BP in current regime col
   function bpLine(val, cap, isLive, dollars) {
     const bpStr = isLive && val != null ? fmtPct(val) : '—';
     const dStr  = isLive && dollars ? ` <span style="color:var(--text-2);font-size:0.92em">(${_fmtKBP(dollars)})</span>` : '';
@@ -2104,7 +2104,7 @@ function _renderGovernance() {
   function schwabAcctContent(r) {
     if (r === 'second') {
       const bp = bpLine(pools.spx_pm_bp_pct, caps.R1_spx_pm_pool_cap_pct, r === regime, pools.spx_pm_bp_dollars);
-      return `<div class="rm-val">${bp}</div><div class="rm-note n-block">R6 阻断新入场 (BP 仍计)</div>`;
+      return `<div class="rm-val">${bp}</div><div class="rm-note n-block">R6 cap ${fmtPct(caps.R6_second_leg_spx_cap_pct ?? caps.active_spx_pm_cap_pct)} + 阻断新 short-vol</div>`;
     }
     const cap = r === 'stress'
       ? (caps.R5_stress_threshold_pct ?? caps.R5_spx_pm_stress_cap_pct)
@@ -2151,7 +2151,7 @@ function _renderGovernance() {
   // ── footer rule lines ────────────────────────────────────────────────────────
   const footerNormal = `<div class="rm-footer-rule">R1: PM cap ${fmtPct(caps.R1_spx_pm_pool_cap_pct)}</div>`;
   const footerStress = `<div class="rm-footer-rule${regime==='stress'?' fr-active':''}">R5: PM cap → ${fmtPct(caps.R5_stress_threshold_pct ?? caps.R5_spx_pm_stress_cap_pct)}</div>`;
-  const footerSecond = `<div class="rm-footer-rule${regime==='second'?' fr-block':''}">R6: 全部 short-vol 阻断</div>`;
+  const footerSecond = `<div class="rm-footer-rule${regime==='second'?' fr-block':''}">R6: SPX cap ${fmtPct(caps.R6_second_leg_spx_cap_pct ?? caps.active_spx_pm_cap_pct)} + short-vol 阻断</div>`;
 
   // ── blocked candidates ───────────────────────────────────────────────────────
   const blocksHtml = blocked.length

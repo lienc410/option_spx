@@ -30,11 +30,12 @@ SPX_NLV = 100_000.0
 ES_NLV = 100_000.0
 COMBINED_NLV = SPX_NLV + ES_NLV
 
-CAP_SPX_PM = 70.0
+CAP_SPX_PM = 80.0
 CAP_ES_SPAN = 80.0
 CAP_COMBINED = 60.0
 CAP_SHORT_VOL = 50.0
-CAP_STRESS_EPISODE = 60.0
+CAP_STRESS_EPISODE = 50.0
+CAP_SECOND_LEG_EPISODE = 40.0
 _REPLAY_CACHE: dict | None = None
 
 SHORT_VOL_STRATEGIES = {
@@ -434,7 +435,7 @@ def current_governance_state() -> dict:
         "basis_dollars": round(basis, 2),
         "pools": pools_default,
         "pools_by_view": pools_by_view,
-        "caps": governance_caps(stress_active),
+        "caps": governance_caps(stress_active, second_leg),
         "stress_episode_active": stress_active,
         "second_leg_active": second_leg,
         "market": market,
@@ -443,16 +444,27 @@ def current_governance_state() -> dict:
     }
 
 
-def governance_caps(stress_episode_active: bool = False) -> dict:
+def governance_caps(stress_episode_active: bool = False, second_leg_active: bool = False) -> dict:
+    active_spx_cap = CAP_SPX_PM
+    active_regime = "normal"
+    if second_leg_active:
+        active_spx_cap = CAP_SECOND_LEG_EPISODE
+        active_regime = "second_leg"
+    elif stress_episode_active:
+        active_spx_cap = CAP_STRESS_EPISODE
+        active_regime = "stress"
     return {
         "R1_spx_pm_pool_cap_pct": CAP_SPX_PM,
         "R2_es_span_cap_pct": CAP_ES_SPAN,
         "R3_combined_cap_pct": CAP_COMBINED,
         "R4_short_vol_cap_pct": CAP_SHORT_VOL,
         # Effective cap for current regime (used for live BP display)
+        "active_spx_pm_cap_pct": active_spx_cap,
+        "active_spx_pm_cap_regime": active_regime,
         "R5_spx_pm_stress_cap_pct": CAP_STRESS_EPISODE if stress_episode_active else CAP_SPX_PM,
         # Fixed stress threshold — always CAP_STRESS_EPISODE regardless of current regime
         "R5_stress_threshold_pct": CAP_STRESS_EPISODE,
+        "R6_second_leg_spx_cap_pct": CAP_SECOND_LEG_EPISODE,
         "R6_second_leg_short_vol_block": True,
     }
 
@@ -537,7 +549,7 @@ def evaluate_candidate(candidate: dict, state: dict | None = None) -> Governance
     requested_pct = requested_bp / basis * 100.0 if basis else 0.0
     pools = state.get("pools") or {}
     is_short = is_short_vol_candidate(candidate)
-    caps = governance_caps(bool(state.get("stress_episode_active")))
+    caps = governance_caps(bool(state.get("stress_episode_active")), bool(state.get("second_leg_active")))
     accepted = True
     rule = None
     reason = "accepted"
@@ -555,8 +567,9 @@ def evaluate_candidate(candidate: dict, state: dict | None = None) -> Governance
         ("R2", pool == "ES_SPAN" and es_after > CAP_ES_SPAN, f"Projected /ES SPAN BP {es_after:.1f}% exceeds {CAP_ES_SPAN:.1f}% cap"),
         ("R3", combined_after > CAP_COMBINED, f"Projected combined BP {combined_after:.1f}% exceeds {CAP_COMBINED:.1f}% cap"),
         ("R4", is_short and short_vol_after > CAP_SHORT_VOL, f"Projected short-vol BP {short_vol_after:.1f}% exceeds {CAP_SHORT_VOL:.1f}% cap"),
-        ("R5", bool(state.get("stress_episode_active")) and pool == "SPX_PM" and spx_after > CAP_STRESS_EPISODE, f"Stress episode SPX cap {CAP_STRESS_EPISODE:.1f}% would be exceeded"),
+        ("R6", bool(state.get("second_leg_active")) and pool == "SPX_PM" and spx_after > CAP_SECOND_LEG_EPISODE, f"Second-leg SPX cap {CAP_SECOND_LEG_EPISODE:.1f}% would be exceeded"),
         ("R6", bool(state.get("second_leg_active")) and is_short, "Second-leg state blocks new short-vol entries"),
+        ("R5", bool(state.get("stress_episode_active")) and pool == "SPX_PM" and spx_after > CAP_STRESS_EPISODE, f"Stress episode SPX cap {CAP_STRESS_EPISODE:.1f}% would be exceeded"),
     ]
     for candidate_rule, triggered, candidate_reason in checks:
         if triggered and not is_rule_paused(candidate_rule):
@@ -634,6 +647,8 @@ def governance_dashboard_payload() -> dict:
 
     stress30 = sum(1 for row in state_rows if _after(row, since30) and row.get("stress_episode_active"))
     second90 = sum(1 for row in state_rows if _after(row, since90) and row.get("second_leg_active"))
+    r5_blocks_90 = sum(1 for row in blocked if _after(row, since90) and row.get("rule") == "R5")
+    r6_blocks_90 = sum(1 for row in blocked if _after(row, since90) and row.get("rule") == "R6")
     return {
         "surface": "sleeve_governance",
         "semantics": "read-only portfolio-level sleeve stress governance; production entry gate logs decisions",
@@ -643,6 +658,21 @@ def governance_dashboard_payload() -> dict:
             "blocked_30d": sum(1 for row in blocked if _after(row, since30)),
             "stress_episode_days_30d": stress30,
             "second_leg_days_90d": second90,
+        },
+        "monitors": {
+            "spx_normal_to_stress_transition_loss": {
+                "status": "pending_live_data",
+                "description": "Track SPX sleeve loss during normal-to-stress transitions; no realized transition ledger yet.",
+            },
+            "r5_r6_frequency": {
+                "status": "ok",
+                "r5_blocks_90d": r5_blocks_90,
+                "r6_blocks_90d": r6_blocks_90,
+            },
+            "blocked_hv_signals": {
+                "status": "research_only",
+                "description": "HV Ladder production allocation is 0% per SPEC-104; paper signals are not executable.",
+            },
         },
         "replay_validation": q072_replay_validation(),
     }

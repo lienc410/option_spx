@@ -1,0 +1,5 @@
+architecture,spx_normal_pct,spx_stress_pct,spx_2nd_leg_pct,hv_pct,q42_pct,net_ann_roe_pct,max_dd_pct,worst_20d_pct,worst_63d_pct,sharpe,sortino,final_eq_M,v1_pass,v2_pass,v3_pass,all_vetoes_pass,floor_8_pass,dotcom_pct,gfc_pct,covid_pct,bear22_pct
+Arch-0 status_quo,60,60,60,5.0,10.0,7.42,-14.09,-12.52,-12.6,1.63,1.42,5.88,True,False,True,False,False,30.25,-2.96,0.31,-0.17
+Arch-1 conservative,70,60,50,5.0,10.0,7.79,-13.5,-11.88,-11.6,1.73,1.56,6.44,True,False,True,False,False,31.71,-2.01,0.29,0.36
+Arch-2 moderate_E5,80,50,40,5.0,12.5,7.99,-11.68,-10.25,-10.11,1.82,1.99,6.76,True,True,True,True,False,29.11,-1.44,0.2,0.65
+Arch-3 radical_no_HV,80,50,40,0.0,17.5,7.95,-8.71,-7.04,-8.66,1.97,2.2,6.69,True,True,True,True,False,30.37,-1.22,-0.2,1.47

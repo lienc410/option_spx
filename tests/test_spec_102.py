@@ -16,7 +16,7 @@ class Spec102HvLadderFrontendTests(unittest.TestCase):
         self.assertEqual(archive.status_code, 200)
         self.assertIn(b"paper/shadow", live.data)
         self.assertIn(b"Crisis Windows", backtest.data)
-        self.assertIn(b"HV Ladder [archived]", archive.data)
+        self.assertIn(b"Stress Put Ladder [archived]", archive.data)
         self.assertIn(b"/hvladder_backtest", archive.data)
 
     def test_hvladder_apis_shape(self):

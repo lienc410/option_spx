@@ -1,0 +1,8 @@
+candidate,spx_pct,hv_pct,q42_pct,cash_pct,gross_ann_roe_pct,net_ann_roe_pct,friction_drag_pp,net_max_dd_pct,net_worst_20d_pct,net_worst_63d_pct,net_sharpe,v1_pass_net,v2_pass_net,v3_pass_net,all_vetoes_pass_net,floor_8_pass_net
+E0_anchor,75,5.0,12.5,7.500000000000001,7.92,7.85,0.08,-11.67,-10.25,-10.07,1.82,True,True,True,True,False
+E1_q42_15,75,5.0,15.0,5.000000000000002,7.93,7.86,0.08,-11.69,-10.26,-10.1,1.82,True,True,True,True,False
+E2_q42_175,75,5.0,17.5,2.500000000000002,7.95,7.86,0.08,-11.7,-10.27,-10.13,1.81,True,True,True,True,False
+E3_spx775,77,5.0,12.5,4.999999999999999,8.0,7.92,0.08,-11.67,-10.25,-10.09,1.82,True,True,True,True,False
+E4_spx775_q15,77,5.0,15.0,2.4999999999999996,8.01,7.93,0.08,-11.69,-10.26,-10.12,1.81,True,True,True,True,False
+E5_spx80,80,5.0,12.5,2.4999999999999964,8.07,7.99,0.08,-11.68,-10.25,-10.11,1.82,True,True,True,True,False
+E8_q42_20,75,5.0,20.0,0.0,7.96,7.87,0.08,-11.72,-10.29,-10.17,1.8,True,True,True,True,False
