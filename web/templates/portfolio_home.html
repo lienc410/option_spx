@@ -2088,15 +2088,19 @@ function _renderGovernance() {
   // SPX Spread (short put spread, Schwab PM)
   // Fix 1: SPX Spread — show spx_live_bp_pct (PM max-loss only, not total Schwab maint)
   function spxContent(r) {
-    if (r === 'second') return `<div class="rm-val v-blocked">✕ BLOCKED</div><div class="rm-note n-block">R6 全部 short-vol 阻断</div>`;
     const valCls = r === regime ? 'v-active' : '';
     const spxDollars = pools.spx_pm_bp_dollars;
     const dollarsTxt = (r === regime && spxDollars > 0) ? ` <span style="color:var(--text-2);font-size:0.92em">(${_fmtKBP(spxDollars)})</span>` : '';
     const usageLine = (r === regime && spxLiveBP != null)
       ? ` · ${fmtPct(spxLiveBP)}${dollarsTxt} PM max-loss` : '';
-    const note = r === 'stress'
-      ? `<div class="rm-note n-warn">R5: PM cap → ${fmtPct(caps.R5_stress_threshold_pct ?? caps.R5_spx_pm_stress_cap_pct)}</div>`
-      : `<div class="rm-note">正常入场条件</div>`;
+    let note;
+    if (r === 'second') {
+      note = `<div class="rm-note n-block">R6: cap → ${fmtPct(caps.R6_second_leg_spx_cap_pct)}</div>`;
+    } else if (r === 'stress') {
+      note = `<div class="rm-note n-warn">R5: cap → ${fmtPct(caps.R5_stress_threshold_pct ?? caps.R5_spx_pm_stress_cap_pct)}</div>`;
+    } else {
+      note = `<div class="rm-note">R1: cap ${fmtPct(caps.R1_spx_pm_pool_cap_pct)}</div>`;
+    }
     return `<div class="rm-val ${valCls}">● ACTIVE${usageLine}</div>${note}`;
   }
 
@@ -2116,14 +2120,9 @@ function _renderGovernance() {
     return `<div class="rm-val">${bp}</div>${note}`;
   }
 
-  // Fix 3: Stress Put Ladder — clarify 80% is /ES SPAN (not PM), much smaller than notional
+  // Stress Put Ladder — research-only globally per SPEC-104 (production allocation = 0%)
   function hvContent(r) {
-    if (r === 'second') return `<div class="rm-val v-blocked">✕ BLOCKED</div><div class="rm-note n-block">R6 全部 short-vol 阻断</div>`;
-    if (r === 'normal') return `<div class="rm-val v-wait">○ 待机</div><div class="rm-note">需 VIX ≥ 22 解锁</div>`;
-    const cap = caps.R2_es_span_cap_pct;
-    const bp = bpLine(pools.es_span_bp_pct, cap, r === regime, pools.es_span_bp_dollars);
-    const valCls = r === regime ? 'v-active' : '';
-    return `<div class="rm-val ${valCls}">${bp}</div><div class="rm-note n-ok">/ES SPAN margin · R2 cap ${fmtPct(cap)}</div>`;
+    return `<div class="rm-val v-wait">○ RESEARCH-ONLY</div><div class="rm-note">SPEC-104: 0% production · paper signals continue</div>`;
   }
 
   // Fix 4: DD Overlay — show entry conditions explicitly
@@ -2151,7 +2150,51 @@ function _renderGovernance() {
   // ── footer rule lines ────────────────────────────────────────────────────────
   const footerNormal = `<div class="rm-footer-rule">R1: PM cap ${fmtPct(caps.R1_spx_pm_pool_cap_pct)}</div>`;
   const footerStress = `<div class="rm-footer-rule${regime==='stress'?' fr-active':''}">R5: PM cap → ${fmtPct(caps.R5_stress_threshold_pct ?? caps.R5_spx_pm_stress_cap_pct)}</div>`;
-  const footerSecond = `<div class="rm-footer-rule${regime==='second'?' fr-block':''}">R6: SPX cap ${fmtPct(caps.R6_second_leg_spx_cap_pct ?? caps.active_spx_pm_cap_pct)} + short-vol 阻断</div>`;
+  const footerSecond = `<div class="rm-footer-rule${regime==='second'?' fr-block':''}">R6: PM cap → ${fmtPct(caps.R6_second_leg_spx_cap_pct ?? caps.active_spx_pm_cap_pct)}</div>`;
+
+  // Active cap badge — colored by regime
+  const activeCapPct = caps.active_spx_pm_cap_pct;
+  const activeCapRegime = String(caps.active_spx_pm_cap_regime || 'normal');
+  const activeCapColor = activeCapRegime === 'second_leg' ? 'var(--red)'
+                       : activeCapRegime === 'stress'    ? 'var(--orange)'
+                       : 'var(--green)';
+  const activeCapBg    = activeCapRegime === 'second_leg' ? 'var(--red-bg)'
+                       : activeCapRegime === 'stress'    ? 'var(--orange-bg)'
+                       : 'var(--green-bg)';
+  const activeCapBorder = activeCapRegime === 'second_leg' ? 'var(--red-border)'
+                        : activeCapRegime === 'stress'    ? 'var(--orange-border)'
+                        : 'var(--green-border)';
+  const activeCapBadge = activeCapPct != null
+    ? `<span style="font-family:var(--f-mono);font-size:0.58rem;padding:2px 8px;border-radius:5px;background:${activeCapBg};border:1px solid ${activeCapBorder};color:${activeCapColor};margin-left:8px"><span style="font-weight:600">Active ${fmtPct(activeCapPct)}</span> · ${activeCapRegime.replace('_',' ')}</span>`
+    : '';
+
+  // Monitors block (SPEC-104) — pulled from /api/sleeve-governance/state.monitors
+  const monitors = (_governanceCache && _governanceCache.monitors) || {};
+  function _monBadge(s) {
+    s = String(s || '—');
+    const ok = s === 'ok';
+    const ins = s === 'insufficient_data' || s === 'pending_live_data' || s === 'research_only';
+    const color = ok ? 'var(--green)' : ins ? 'var(--text-2)' : 'var(--orange)';
+    const bg    = ok ? 'var(--green-bg)' : ins ? 'var(--gray-bg)' : 'var(--orange-bg)';
+    const bord  = ok ? 'var(--green-border)' : ins ? 'var(--gray-border)' : 'var(--orange-border)';
+    return `<span style="font-family:var(--f-mono);font-size:0.55rem;padding:2px 7px;border-radius:4px;background:${bg};border:1px solid ${bord};color:${color}">${s}</span>`;
+  }
+  const monRow = (key, label) => {
+    const m = monitors[key];
+    if (!m) return '';
+    const desc = m.description ? `<div style="font-family:var(--f-ui);font-size:0.55rem;color:var(--text-muted);margin-top:2px">${m.description}</div>` : '';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 12px;border-bottom:1px solid var(--border)">
+      <div><span style="font-family:var(--f-ui);font-size:0.65rem;color:var(--text-2)">📊 ${label}</span>${desc}</div>
+      ${_monBadge(m.status)}
+    </div>`;
+  };
+  const monitorsHtml = `
+    <div style="margin-top:14px;background:var(--surface);border:1px solid var(--border);border-radius:9px;overflow:hidden">
+      <div style="padding:8px 12px;background:var(--surface-hi);border-bottom:1px solid var(--border);font-family:var(--f-ui);font-size:0.55rem;font-weight:700;letter-spacing:0.10em;text-transform:uppercase;color:var(--text-muted)">SPEC-104 Monitors</div>
+      ${monRow('blocked_hv_signals', 'HV Ladder Blocked Signals')}
+      ${monRow('r5_r6_frequency', 'R5/R6 Block Frequency (90d)')}
+      ${monRow('spx_normal_to_stress_transition_loss', 'SPX Normal→Stress Transition Loss')}
+    </div>`;
 
   // ── blocked candidates ───────────────────────────────────────────────────────
   const blocksHtml = blocked.length
@@ -2170,6 +2213,7 @@ function _renderGovernance() {
     <div class="governance-view-meta">
       <span class="governance-view-badge">${viewLabel}</span>
       <span class="governance-view-denom">$${fmtNum(denomStr, 0)}</span>
+      ${activeCapBadge}
       <span style="flex:1"></span>
       <span style="font-family:var(--f-mono);font-size:0.58rem;color:var(--text-muted)">Blocked 30D: <strong style="color:var(--text-2)">${counts.blocked_30d ?? 0}</strong> &nbsp;·&nbsp; 2nd-Leg 90D: <strong style="color:var(--text-2)">${counts.second_leg_days_90d ?? 0}</strong>d</span>
     </div>
@@ -2252,7 +2296,9 @@ function _renderGovernance() {
     <div class="governance-blocks">
       <div class="governance-label" style="margin-bottom:5px">Recent Blocked Candidates</div>
       ${blocksHtml}
-    </div>`;
+    </div>
+
+    ${monitorsHtml}`;
 }
 
 // ── Date ──────────────────────────────────────────────────────────────────────

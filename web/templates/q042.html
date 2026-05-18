@@ -408,6 +408,16 @@ async function loadState() {
             ${stateA === 'active' ? '🔴 已触发，仓位开立中' : gaugePctA >= 100 ? '⚠ 已穿越阈值' : `还需下跌 ${Math.abs(remA)}% 触发`}
           </div>
         </div>
+        ${(() => {
+          const a = d.sleeve_a || {};
+          if (a.production_cap_pct == null && !a.stage) return '';
+          const stage = String(a.stage || 'stage_1').replace('stage_', '');
+          const cur = a.production_cap_pct != null ? a.production_cap_pct.toFixed(1) + '%' : '—';
+          const tgt = a.target_cap_pct != null ? a.target_cap_pct.toFixed(1) + '%' : '—';
+          return `<div style="padding:9px 16px;border-top:1px solid var(--border);background:var(--surface-hi);font-family:var(--f-mono);font-size:0.62rem;color:var(--text-2)">
+            <span style="color:var(--blue);font-weight:600">SPEC-104</span> · Stage ${stage} of 4 · Current cap <strong style="color:var(--text)">${cur}</strong> · Target <strong style="color:var(--text)">${tgt}</strong>
+          </div>`;
+        })()}
       </div>
 
       <!-- Sleeve B -->
@@ -445,6 +455,13 @@ async function loadState() {
             ${stateB === 'active' ? '🔴 已触发，仓位开立中' : gaugePctB >= 100 ? '⚠ 已穿越阈值' : `还需下跌 ${Math.abs(remB)}% 触发`}
           </div>
         </div>
+        ${(() => {
+          const b = d.sleeve_b || {};
+          if (b.production_status !== 'research_only' && b.production_cap_pct == null) return '';
+          return `<div style="padding:9px 16px;border-top:1px solid var(--border);background:var(--surface-hi);font-family:var(--f-mono);font-size:0.62rem;color:var(--text-2)">
+            <span style="color:var(--orange);font-weight:600">SPEC-104</span> · <strong style="color:var(--orange)">Research-only</strong> · ${(b.production_cap_pct ?? 0).toFixed(1)}% production cap
+          </div>`;
+        })()}
       </div>`;
 
     // Positions table

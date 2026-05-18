@@ -217,9 +217,13 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     <a href="/es-backtest"       class="page-tab">/ES Archive</a>
   </div>
 
-  <div class="banner">
-    <div class="banner-title">Research view — not production routing</div>
-    <div class="banner-body">此页面展示 SPEC-101 paper/shadow 回测结果与历史危机窗口分析，不改变 /ES 生产策略行为。</div>
+  <div class="banner" style="border-color:rgba(245,158,11,.42);background:linear-gradient(135deg,rgba(245,158,11,.16),rgba(245,158,11,.04))">
+    <div class="banner-title" style="color:var(--orange)">⚠ SPEC-104 · Research-only / Paper-only</div>
+    <div class="banner-body">
+      ES High-Vol Sell Put Ladder — <strong>0% production allocation</strong>.
+      <span style="color:var(--orange);font-weight:700">NO PRODUCTION EXECUTION.</span>
+      Signal logging continues for research accumulation only.
+    </div>
   </div>
 
   <!-- ① Key Metrics Row (required per DESIGN.md) -->
