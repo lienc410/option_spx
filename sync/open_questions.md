@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-05-16（SPEC-103 cap recalibration DONE — R1 cap 维持 70%，物理依据改为 PM-call 80%−10pp safety；sensitivity 表加入 SPEC-103.md；R3/R4 future-watch。E-Trade OAuth fix：`_build_oauth()` dev=False）
+最后更新：2026-05-17（**Q073 CLOSED — PROMOTE Arch-3**。2nd Quant PASS。Arch-3 locked：Normal SPX cap 80% / Stress cap 50% / Second-leg cap 40% / HV Ladder 0% / Q042 Sleeve A 17.5% staged。SPEC 待起草）
 
 ---
 
@@ -33,6 +33,30 @@
 ---
 
 ## 策略设计待解决
+
+### Q073 — Portfolio-Level ROE Optimization Round 2
+
+- **状态**：**resolved** (Q073 CLOSED — PROMOTE Arch-3，2026-05-17，2nd Quant Final PASS)
+- **结论**：Arch-3 全面优于 Arch-2 和 baseline — 6 binding rules 全 PASS，bootstrap sig 100%，walk-forward both halves PASS
+- **Arch-3 Locked Configuration**：
+  - Normal SPX cap：80%（R1: 70→80，governance amendment）
+  - Stress SPX cap：50%（R5: 60→50）
+  - Second-leg cap：40%（R6: hard-block → 40% numeric cap）
+  - HV Ladder /ES：0%（portfolio allocation decision，NOT signal alpha rejection；退回 paper-only）
+  - Q042 Sleeve A：17.5%（staged ramp 10→12.5→15→17.5%，per-stage PM gates non-time-locked）
+  - Cash (BOXX)：residual
+- **验证指标（Arch-3）**：Net ann ROE 7.95% / MaxDD -8.71% / Worst 20d -7.04% / Sharpe 1.97 / V6 bootstrap 100% / V7 walk-forward PASS
+- **关键研究结论**：
+  - HV demotion = portfolio allocation decision（NOT signal alpha rejection）——alpha 完好，但在 Arch-3 组合中 slot 给 Q042
+  - Q042 Sleeve A 17.5% STAGED ramp（10→12.5→15→17.5%），每段 non-time-locked gate
+  - Governance philosophy 不变："only numeric caps updated"
+  - Arch-2 = implementation-preferred（NOT risk-preferred）fallback
+  - 新 monitors：Q042 live concentration + SPX normal→stress transition loss
+- **6 个 2nd Quant 修订**：全部应用到 q073_final_memo.md（HV demotion framing / staged ramp / governance philosophy / 2 monitors / bootstrap CI caveat / Arch-2 fallback 措辞）
+- **Quant 交付**：12 个文件 + 5 个 compute scripts + CSV data outputs — `See: research/q073/q073_final_memo.md`, `task/q073_p5_2nd_quant_review_packet_2026-05-17_Review.md`
+- **后续**：SPEC 待起草（Governance 修订 + HV Ladder 降级 + Q042 staged ramp）— Quant 停止 Q073 扩展研究，SPEC 支持 only
+
+---
 
 ### Q012 — `/ES` short put 生产路径与共用 BP 管理
 

@@ -1,6 +1,36 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-16 (**SPEC-103 governance 口径修正 + cap recalibration**。commit 0fae2e4：R1/R3/R4 改读 account-level maintenance margin（修正 §R1 设计意图 spread-only 错配），新增 pools_by_view {all/schwab/etrade} 与 Portfolio Snapshot toggle 联动。Cap recalibration sensitivity 跑完：维持 70% cap，但物理依据从 "backtest peak 67.9% + 2pp safety" 改为 "Schwab PM call 80% - 10pp safety margin"。当前 PM 持仓 baseline 14.4% 下，sleeve peak + baseline = 82.3%，70% cap 在 19y 中 bind 5 天，cap 真的会工作。SPEC-103.md 加 caveat 段落。无服务重启（docs only）)
+Last Updated: 2026-05-17 (**Q073 CLOSED — PROMOTE Arch-3**。2nd Quant Final Verdict PASS。6 revisions applied to q073_final_memo.md。Arch-3 locked：Normal SPX cap 80% / Stress 50% / Second-leg 40% cap / HV Ladder 0% portfolio / Q042 Sleeve A 17.5% staged / Sharpe 1.97 / MaxDD -8.71% / bootstrap 100%)
+
+### R-20260517-01 — Q073: Portfolio-Level ROE Optimization Round 2 — CLOSED PROMOTE Arch-3
+
+- **Topic**: 账户层 ROE 优化第二轮。Q072 完成 governance P4 后，发现 cap structure + allocation 共同优化可进一步提升 ROE 同时改善 tail risk。P0 三方锚定（PM + Quant + 2nd Quant）+ 7 binding rules 框架
+- **Method**: P0 三方锚定 → P1（unified-NLV baseline + V2/V3 rolling window + 7 rules）→ P2A allocation sweep → P2A+ E5 candidate + friction model → P3 Arch-2 vs Arch-3 → P4 dual-track validation（bootstrap + walk-forward）→ P5 final memo → 2nd Quant review（framing + P0 + P5，三轮）
+- **Arch-3 Final Configuration（Locked）**：
+  - R1 Normal SPX cap：80%（+10pp from SPEC-103 70%）
+  - R5 Stress SPX cap：50%（-10pp from SPEC-103 60%）
+  - R6 Second-leg：40% numeric cap（→ from SPEC-103 hard-block）
+  - HV Ladder /ES：0% portfolio allocation（demote to paper-only；alpha 完好，portfolio allocation decision）
+  - Q042 Sleeve A：17.5% cap（staged ramp 10→12.5→15→17.5%，per-stage non-time-locked PM gates）
+  - Cash (BOXX)：residual
+- **Validation（Arch-3 vs Arch-2 vs baseline）**：
+  - Net ann ROE 7.95%（floor 8% ≈）/ MaxDD -8.71%（V1 28% ✓）/ Worst 20d -7.04%（V2 11% ✓ buffer 3.96pp）
+  - Sharpe 1.97 / V6 bootstrap sig_rate 100% / V7 walk-forward both halves PASS
+- **6 Required Revisions（all applied to q073_final_memo.md）**：
+  1. HV demotion framing → "portfolio allocation decision, NOT signal alpha rejection"
+  2. Q042 17.5% STAGED ramp（10→12.5→15→17.5%）+ per-stage non-time-locked gates
+  3. Governance philosophy unchanged（"only numeric caps updated"）
+  4. 2 new monitors：Q042 live concentration + SPX normal→stress transition loss
+  5. Bootstrap CI caveat（"significance evidence, not forward forecast"）
+  6. Arch-2 fallback → "implementation-preferred, NOT risk-preferred"
+- **Methodology 沉淀（feedback_portfolio_level_research.md）**：
+  - Unified-NLV simulator from start（不要 naive sum per-engine compounded PnL）
+  - Friction = constant daily $ drag（不要 % of PnL multiplicative）
+  - V2/V3 worst-rolling 用 point-in-time equity 分母
+  - P0 三方锚定 + 7 rules + mid-review gates 的 process framework
+- **Quant 交付**：12 个研究文件 + 5 compute scripts + CSV data outputs
+- **后续**：SPEC 待起草（Governance 修订 + HV Ladder 降级 + Q042 staged ramp）。Quant 停止 Q073 扩展研究
+- **来源**：`research/q073/q073_final_memo.md`, `task/q073_p5_2nd_quant_review_packet_2026-05-17_Review.md`
 Owner: Planner or PM
 
 ### R-20260515-01 — Q072: Sleeve Global Evaluation — P1-P3 完成，P4 启动

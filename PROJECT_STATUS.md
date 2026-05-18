@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-16 (**SPEC-103 cap recalibration docs + PM UI commits + E-Trade auth fix**。commit 63f8825：R1 cap 物理依据从 "backtest peak 67.9%+2pp" 改为 "Schwab PM call 80%−10pp safety"（cap 维持 70%）；sensitivity 表 + caveat 段落加入 SPEC-103.md；PM 另有 2 个 UI commit：477adb9 rename SPX PM BP→Schwab Maint BP / a2ab7ab show cap utilization% in governance cells。E-Trade OAuth fix：`_build_oauth()` 加 `dev=False`（原默认 sandbox URL → production key 404）)
+Last Updated: 2026-05-17 (**Q073 RESEARCH FORMALLY CLOSED — PROMOTE Arch-3**。2nd Quant Final Verdict PASS。Final config lock：Normal SPX cap 80%（R1: 70→80）/ Stress cap 50%（R5: 60→50）/ Second-leg cap 40%（R6: block→40%）/ HV Ladder 0%（demote to paper-only）/ Q042 Sleeve A 17.5% staged ramp。Net ann ROE 7.95%，MaxDD -8.71%，Sharpe 1.97，bootstrap 100%。SPEC 待起草 — `See: research/q073/q073_final_memo.md`, `task/q073_p5_2nd_quant_review_packet_2026-05-17_Review.md`)
 Owner: Planner or PM
 
 ## Current Phase
@@ -28,7 +28,12 @@ Owner: Planner or PM
 
 ## Active APPROVED Specs
 
-_(currently empty — SPEC-103 closed below)_
+**Q073 Arch-3 implementation 待 SPEC 起草**（PM 批准后执行）：
+1. **Sleeve Governance 修订**：R1 Normal SPX cap 70→80% / R5 Stress cap 60→50% / R6 second-leg 从 hard-block 改为 40% cap
+2. **HV Ladder 降级**：从 direct-recommendation 退回 paper-only（allocation = 0%；信号保留但不作为主动推荐）
+3. **Q042 Sleeve A 分配 staged ramp**：10→12.5→15→17.5%，每段 non-time-locked PM gate
+
+**冲突注意**：2026-05-17 commit 2a06008 把 HV Ladder bot 改为 direct recommendation（`📡 Entry Signal`）；Q073 Arch-3 要求退回 paper-only — **需在对应 SPEC 实施时一起 revert**。
 
 ## Recently Closed Specs
 
