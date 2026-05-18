@@ -1,6 +1,6 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-17 (**Q073 CLOSED — PROMOTE Arch-3**。2nd Quant Final Verdict PASS。6 revisions applied to q073_final_memo.md。Arch-3 locked：Normal SPX cap 80% / Stress 50% / Second-leg 40% cap / HV Ladder 0% portfolio / Q042 Sleeve A 17.5% staged / Sharpe 1.97 / MaxDD -8.71% / bootstrap 100%)
+Last Updated: 2026-05-17 (**SPEC-104 DONE + Quant tie-out 13/13 PASS**。Q073→SPEC-104 全链条收口。Cap state machine live：normal cap 80% / stress 50% / second-leg 40%。HV Ladder production_status=research_only。Q042 Sleeve A Stage 1=12.5%。2 monitors 初始化完成（concentration + transition loss）。tests/test_spec_104 20/20 PASS)
 
 ### R-20260517-01 — Q073: Portfolio-Level ROE Optimization Round 2 — CLOSED PROMOTE Arch-3
 

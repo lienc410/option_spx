@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-05-17（**Q073 CLOSED — PROMOTE Arch-3**。2nd Quant PASS。Arch-3 locked：Normal SPX cap 80% / Stress cap 50% / Second-leg cap 40% / HV Ladder 0% / Q042 Sleeve A 17.5% staged。SPEC 待起草）
+最后更新：2026-05-17（**SPEC-104 DONE + Quant tie-out 13/13 PASS**。Q073→SPEC-104 全链条收口。Cap state machine live：normal 80% / stress 50% / second-leg 40%。HV Ladder paper-only，Q042 Sleeve A Stage 1=12.5%，2 monitors 初始化完成）
 
 ---
 
@@ -54,7 +54,8 @@
   - 新 monitors：Q042 live concentration + SPX normal→stress transition loss
 - **6 个 2nd Quant 修订**：全部应用到 q073_final_memo.md（HV demotion framing / staged ramp / governance philosophy / 2 monitors / bootstrap CI caveat / Arch-2 fallback 措辞）
 - **Quant 交付**：12 个文件 + 5 个 compute scripts + CSV data outputs — `See: research/q073/q073_final_memo.md`, `task/q073_p5_2nd_quant_review_packet_2026-05-17_Review.md`
-- **后续**：SPEC 待起草（Governance 修订 + HV Ladder 降级 + Q042 staged ramp）— Quant 停止 Q073 扩展研究，SPEC 支持 only
+- **SPEC-104 DONE + Quant tie-out 13/13 PASS（2026-05-17）**：Governance cap state machine / HV Ladder paper-only / Q042 Sleeve A Stage 1 全上线。Standing items：①Q042 concentration monitor 数据累积中；②SPX normal→stress transition monitor pending；③Q042 Stage 2（15%）按 PM per-stage gates 推进
+- **Quant off duty**：停止 Q073 扩展研究，standing by for post-deploy monitor 异常 / staged ramp 决策
 
 ---
 
