@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-05-17（**SPEC-104 DONE + Quant tie-out 13/13 PASS**。Q073→SPEC-104 全链条收口。Cap state machine live：normal 80% / stress 50% / second-leg 40%。HV Ladder paper-only，Q042 Sleeve A Stage 1=12.5%，2 monitors 初始化完成）
+最后更新：2026-05-18（**Session 2026-05-13→05-18 全收口**。Q071/Q073/Q074 PROMOTE，SPEC-101/102/104/105 DEPLOYED。当前：Arch-3 normal state + B4 booster shadow Stage 1 + Q042 Sleeve A Stage 1=12.5%）
 
 ---
 
@@ -33,6 +33,26 @@
 ---
 
 ## 策略设计待解决
+
+### Q074 — Bull Regime Booster / Layer-2 Income Optimization
+
+- **状态**：**resolved** (Q074 CLOSED — PROMOTE B4 staged，2026-05-18，2nd Quant Final PASS)
+- **结论**：B4 bull-regime booster overlay（8 gates: 7 SPEC + warmed）— 当全部条件满足时 SPX cap 升至 90%。Stage 1 shadow active。
+- **B4 入场条件（全部需满足）**：
+  `NOT stress / NOT second-leg / SPX > MA50 / ddATH > -4% / VIX < 22 / VIX_5d_change ≤ +1.5 / IVP_252 < 55 / warmed`
+- **验证指标（Arch-3 + B4, 26y backtest）**：Net ann ROE 8.20%（+0.25pp vs Arch-3 7.95%）/ MaxDD -8.715%（Layer-1 unchanged）/ W20d -7.042%（unchanged）
+- **关键 2nd Quant 决策**：
+  - Hard snap-back（无平滑）for SPX cap state transitions
+  - Arch-3 B3 documented fallback（NOT runtime toggle）
+  - 90% 上界；95%/100% NOT tested / NOT permitted
+  - Strong-eligible（非 Strong Pass）的 B4 +0.25pp 措辞
+  - Booster mode=shadow enforced；Stage 2 active 需独立 PM 决策
+- **SPEC-105 DONE + DEPLOYED 2026-05-18**（commit c7f7da1 / 88915f6）：Stage 1 shadow 已上线；production SPX cap 仍 80%；data/q074_booster_shadow.jsonl logging
+- **Standing items**：①Booster active days %（>60% → too broad）；②Normal→stress during booster（>0.5% NLV incremental loss）；③VIX 20-22 joint slice；④Negative-cash funding cost live vs P4 calibration；⑤B4 vs B3 shadow comparison（optional）
+- **Quant off duty**：standing by for Stage 2/3 advancement / monitor triggers
+- **来源**：`research/q074/q074_final_memo.md`, `task/SPEC-105.md`
+
+---
 
 ### Q073 — Portfolio-Level ROE Optimization Round 2
 

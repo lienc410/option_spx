@@ -1,6 +1,28 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-17 (**SPEC-104 DONE + Quant tie-out 13/13 PASS**。Q073→SPEC-104 全链条收口。Cap state machine live：normal cap 80% / stress 50% / second-leg 40%。HV Ladder production_status=research_only。Q042 Sleeve A Stage 1=12.5%。2 monitors 初始化完成（concentration + transition loss）。tests/test_spec_104 20/20 PASS)
+Last Updated: 2026-05-18 (**Session 2026-05-13→05-18 全收口**。Q074 CLOSED PROMOTE B4 staged。SPEC-105 DEPLOYED Stage 1 shadow。B4 booster 8-gate benign confirm，SPX cap 90% when active，Layer-1 caps/triggers unchanged。Combined NLV $894k，booster inactive（IVP≥55 blocks），cap regime normal=80%）
+
+### R-20260518-01 — Q074: Bull Regime Booster / Layer-2 Income Optimization — CLOSED PROMOTE B4 staged
+
+- **Topic**: 在 Q073 Arch-3 Layer-1 框架上叠加 Layer-2 income：benign 市场环境下通过更高 SPX cap 捕获额外 premium。Layer-1（crisis survival）与 Layer-2（benign ROE）严格分离
+- **Method**: P0 三方锚定 + 7 binding rules（沿用 Q073 framework）→ P1 allocation sweep → P2A+ candidates → P3 Arch候选（B1-B4）→ P4 dual-track validation（bootstrap + walk-forward，26y）→ P5 final memo → 2nd Quant review（G4 mandatory）
+- **B4 Final Configuration（Locked）**：
+  - 入场 8 gates（全满足）：NOT stress / NOT second-leg / SPX > MA50 / ddATH > -4% / VIX < 22 / VIX_5d_change ≤ +1.5 / IVP_252 < 55 / warmed
+  - 激活效果：SPX PM cap 80% → 90%（PRODUCTION: Stage 1 shadow only，不自动执行）
+  - 上界：90%（95%/100% NOT tested，NOT permitted）
+- **Validation（B4 Arch-3 base, 26y）**：Net ann ROE 8.20%（+0.25pp vs 7.95%）/ MaxDD -8.715%（Layer-1 unchanged）/ Worst 20d -7.042%（unchanged）/ bootstrap sig 100% / walk-forward PASS
+- **关键 2nd Quant 决策**：
+  - Hard snap-back（无平滑）for SPX cap state transitions（PM + 2nd Quant Q4 confirmed）
+  - B3 = documented fallback（NOT runtime toggle，实现复杂度无收益）
+  - 90% 上界 hardcoded；95%/100% NOT tested（P0 R5）
+  - "Strong-eligible"（非 Strong Pass）措辞（2nd Quant G4 Q1）
+  - Booster mode=shadow mandatory initial posture
+- **Methodology memory**：
+  - feedback_survival_vs_income_layering.md：Layer-1 / Layer-2 分离原则（crisis paths → Layer-1 survival；benign regime ROE → Layer-2；不交叉）
+- **Quant 交付**：14 个研究文件 + 4 compute scripts + CSV data outputs
+- **SPEC-105 DONE + DEPLOYED**（commit c7f7da1 / 88915f6）：B4 signal / booster fields / shadow log / condition chips / monitor init 全上线；Stage 1 shadow tests 24/24 PASS
+- **后续**：SPEC-105 Stage 2 active mode — PM-discretionary，按 §6 per-stage gates。Quant off duty
+- **来源**：`research/q074/q074_final_memo.md`, `task/SPEC-105.md`, `task/SPEC-105_handoff.md`
 
 ### R-20260517-01 — Q073: Portfolio-Level ROE Optimization Round 2 — CLOSED PROMOTE Arch-3
 

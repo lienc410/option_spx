@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-18 (**SPEC-105 DONE + DEPLOYED old Air in Stage 1 shadow**。Q074 B4 Bull Regime Booster overlay 已上线：B4 signal / booster condition flags / governance API fields / Portfolio Command Center condition chips / shadow log `data/q074_booster_shadow.jsonl`。默认 `SPX_BENIGN_BOOSTER_MODE=shadow`，production SPX cap 仍为 SPEC-104 的 `80%`，不会直接启用 `90%`。old Air verified: `/api/sleeve-governance/state` 200, `booster_mode=shadow`, `active_spx_pm_cap_pct=80.0`, web/recommendation 200, cache refresh 5/5 OK。SPEC-104 R1/R5/R6 caps `80/50/40` 与 trigger definitions unchanged。tests `SPEC-103/104/105` 24/24 PASS。)
+Last Updated: 2026-05-18 (**Session 2026-05-13→2026-05-18 全部收口**。4 research closures（Q064-P7 / Q071 / Q073 / Q074，全部 2nd Quant PASS）+ 5 SPECs DEPLOYED（SPEC-100/101/102/104/105）。当前生产快照：Arch-3 normal state，SPX cap 80%，booster shadow Stage 1，HV Ladder paper-only，Q042 Sleeve A Stage 1=12.5%，Combined NLV $894k）
 Owner: Planner or PM
 
 ## Current Phase
@@ -28,7 +28,21 @@ Owner: Planner or PM
 
 ## Active APPROVED Specs
 
-- None currently.
+- None currently. **Future seeds**（PM-discretionary，no time-lock）：Q042 Stage 2/3 ramp（per §2.2 gates）/ SPEC-105 Stage 2 active mode / HV Ladder re-promotion（separate SPEC）/ Q042 Sleeve B（forward sample > 3-5 trades）
+
+## Current Production State Snapshot (2026-05-18)
+
+```
+Combined NLV:           $894k  (Schwab $601k + E-Trade $293k)
+SPX cap regime:         normal → active cap 80% (R1)
+Booster:                inactive (IVP ≥ 55 blocks); mode = shadow (Stage 1)
+Q042 Sleeve A:          Stage 1, cap 12.5%, target 17.5%
+Q042 Sleeve B:          research-only (production 0%)
+HV Ladder:              paper/research signal only (production 0%)
+Stress regime (R5):     inactive
+Second-leg regime (R6): inactive
+Expected Net Ann ROE:   7.95% (Layer-1 Arch-3) → 8.20% when booster Stage 2 active
+```
 
 ## Recently Closed Specs
 
@@ -37,6 +51,8 @@ Owner: Planner or PM
 - `SPEC-104` — Q073 Arch-3 Portfolio Architecture. Closed **DONE + DEPLOYED old Air + Quant tie-out 13/13 PASS 2026-05-17**. Implements R1 normal SPX cap `70→80%`, R5 stress cap `60→50%`, new explicit R6 second-leg SPX cap `40%`（cap state machine: normal→80% / stress→50% / second-leg→40%）, Q042 Sleeve A Stage 1 production cap `12.5%` with target metadata `17.5%`, HV Ladder demotion to research-only / paper-only（production_allocation_pct=0.0 / execution_allowed=false）. HV Ladder Telegram reverted to "📡 Paper / Research Signal" with footer "Research-only / paper-only per SPEC-104. NO PRODUCTION EXECUTION."; `/api/hvladder/live` production_status=research_only; AC-104-13 grep "Entry Signal" = zero. 2 new monitors: Q042 top-3 concentration（threshold 50%）+ SPX normal→stress transition loss（both properly initialized: insufficient_data / pending_live_data）. tests/test_spec_104.py **20/20 PASS**. Cap state machine: active_spx_pm_cap_regime="normal"，当前 SPX cap 80% active（Arch-3 normal-state）。**Standing observation items**：①Q042 concentration monitor 待 Stage 1 entries 累积；②SPX normal→stress transition monitor 待下次 R5 trigger；③Q042 Stage 2（15%）按 §2.2 per-stage PM gates 推进 — `See: task/SPEC-104.md`, `task/SPEC-104_handoff.md`, `research/q073/q073_final_memo.md`
 
 - `SPEC-103` — Global Sleeve Stress Governance. Closed **DONE + DEPLOYED old Air** 2026-05-15（commit 1c690cc）. Augmented Default Cap 实施：R1-R4 默认 hard caps + R5（stress episode SPX cap 70%→60%）+ R6（second-leg short-vol absolute block）。新增 strategy/sleeve_governance.py / scripts/sleeve_governance_daemon.py / scripts/manage_governance.py / /api/sleeve-governance/state + Portfolio Command Center "Sleeve Stress Governance" panel。tests/test_spec_103.py 8/8 PASS，含 **AC8 backtest replay smoke** 数值 100% 匹配 Q072 P4C.4 default cap（n_entered=872 / total_pnl=$742,193 / max_dd=-$174,959）。本地 + old Air 都 PASS。**Cap recalibration（2026-05-16，63f8825）**：8×5 sensitivity 跑完，R1 cap 维持 70% 但物理依据从 "backtest peak 67.9%+2pp" 改为 "Schwab PM call 80%−10pp safety"；当前 baseline 14.4% 下 sleeve peak+baseline=82.3%，70% cap 19y 中 bind 5 天；R3/R4 caps 标 future-watch（production 口径下 bind 更频繁，1 个月后看实际数据）；Sleeve sizing trade-off：PM 增持 equity baseline >25% 时需重审。**PM UI commits**（与 cap recalibration 不冲突）：477adb9 rename SPX PM BP→Schwab Maint BP；a2ab7ab show cap utilization% in governance cells。Deferred 验证（P4B /ES rerun + P4C.7 synthetic stress，待 Q071 final lock 后做）不阻塞 close — `See: task/SPEC-103.md`, `task/SPEC-103_handoff.md`, `research/q072/q072_final_memo_2026-05-15.md`, `research/q072/q072_p4_cap_recalibration_2026-05-16.md`
+
+- `SPEC-102` — HV Ladder Dedicated Frontend. Closed **DONE + DEPLOYED old Air 2026-05-15**（commit 936b9f7）. 独立路由 `/es-backtest/hvlad`（HV Ladder tab）+ paper trade log display + production_status badge。与 SPEC-104 revert 配合：caveat banner 更新为 "Research-only / paper-only per SPEC-104. NO PRODUCTION EXECUTION." — `See: task/SPEC-102.md`
 
 - `SPEC-101` — ES High-Vol Sell Put Ladder (VIX ≥ 22 gate). Closed **DONE 2026-05-14**. Quant tie-out exact match（n=146/ann_roe 1.14%/sharpe 0.34/MaxDD -9.68%/bootstrap 100% 精确对齐 Q071 P5）。paper-trade 阶段正式开始，Telegram alert 在 VIX ≥ 22 时推送 paper signal。Review §9 改为 PM 主导无时间锁。生产 bot（SPEC-061）未改动 — `See: task/SPEC-101.md`
 - `SPEC-100` — HV Spell `max_trades_per_spell` 2→3. **DEPLOYED 2026-05-13**. Backtest confirmed n=37 (+4), WR=91.9%, total=$45,139 (+$5,424), worst=-$2,016 (unchanged). Three backtest caches refreshed. 12-month monitor obligation: **2027-05-13** rerun P8 with live data; if incremental WR < 70% or net P&L < $0, revert. — `See: task/SPEC-100.md`, `RESEARCH_LOG.md R-20260513-04`
