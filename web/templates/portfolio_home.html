@@ -759,6 +759,97 @@ body {
 .governance-block-row .gov-sleeve { color: var(--text); flex: 0 0 auto; min-width: 80px; }
 .governance-block-row .gov-rule   { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .governance-block-row .gov-ts     { flex: 0 0 auto; color: var(--text-muted); white-space: nowrap; }
+
+/* ── Active cap badge (governance-view-meta) ── */
+.active-cap-badge {
+  font-family: var(--f-mono); font-size: 0.58rem;
+  padding: 2px 8px; border-radius: 5px; margin-left: 8px;
+  border: 1px solid var(--gray-border); background: var(--gray-bg); color: var(--text-2);
+}
+.active-cap-badge strong { font-weight: 600; }
+.active-cap-badge.r-normal { color: var(--green);  background: var(--green-bg);  border-color: var(--green-border); }
+.active-cap-badge.r-stress { color: var(--orange); background: var(--orange-bg); border-color: var(--orange-border); }
+.active-cap-badge.r-second { color: var(--red);    background: var(--red-bg);    border-color: var(--red-border); }
+
+/* ── Booster panel (SPEC-105) ── */
+.booster-panel {
+  margin: 10px 0 14px; padding: 10px 12px;
+  border: 1px solid var(--border); background: var(--surface-hi);
+  border-radius: 9px;
+}
+.booster-panel.b-shadow { background: var(--orange-bg); border-color: var(--orange-border); }
+.booster-panel.b-active { background: var(--green-bg);  border-color: var(--green-border); }
+.booster-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.booster-label {
+  font-family: var(--f-ui); font-size: 0.58rem; font-weight: 800;
+  letter-spacing: 0.11em; text-transform: uppercase; color: var(--text-muted);
+}
+.booster-panel.b-shadow .booster-label { color: var(--orange); }
+.booster-panel.b-active .booster-label { color: var(--green); }
+.booster-cap-line { font-family: var(--f-mono); font-size: 0.58rem; color: var(--text-2); }
+.booster-meta     { font-family: var(--f-ui);   font-size: 0.56rem; color: var(--text-muted); }
+.booster-chips    { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.booster-chip {
+  font-family: var(--f-mono); font-size: 0.54rem;
+  padding: 2px 6px; border-radius: 4px;
+  background: var(--gray-bg); border: 1px solid var(--gray-border); color: var(--text-2);
+}
+.booster-chip.ok   { background: var(--green-bg); border-color: var(--green-border); color: var(--green); }
+.booster-chip.fail { background: var(--red-bg);   border-color: var(--red-border);   color: var(--red); }
+
+/* ── Monitors block (SPEC-104) ── */
+.monitor-block {
+  margin-top: 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 9px; overflow: hidden;
+}
+.monitor-block-head {
+  padding: 8px 12px; background: var(--surface-hi);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--f-ui); font-size: 0.55rem; font-weight: 700;
+  letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-muted);
+}
+.monitor-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 12px; border-bottom: 1px solid var(--border);
+}
+.monitor-row:last-child { border-bottom: none; }
+.monitor-row .mr-label { font-family: var(--f-ui); font-size: 0.65rem; color: var(--text-2); }
+.monitor-row .mr-desc  { font-family: var(--f-ui); font-size: 0.55rem; color: var(--text-muted); margin-top: 2px; }
+.monitor-badge {
+  font-family: var(--f-mono); font-size: 0.55rem;
+  padding: 2px 7px; border-radius: 4px;
+  background: var(--gray-bg); border: 1px solid var(--gray-border); color: var(--text-2);
+}
+.monitor-badge.s-ok  { background: var(--green-bg);  border-color: var(--green-border);  color: var(--green); }
+.monitor-badge.s-ins { background: var(--gray-bg);   border-color: var(--gray-border);   color: var(--text-2); }
+.monitor-badge.s-warn { background: var(--orange-bg); border-color: var(--orange-border); color: var(--orange); }
+
+/* ── Re-auth banners (Schwab red, E-Trade orange) ── */
+.reauth-banner {
+  display: none; align-items: center; justify-content: space-between;
+  gap: 14px; flex-wrap: wrap;
+  border-radius: 9px; padding: 10px 16px; margin-bottom: 14px;
+  font-family: var(--f-ui); font-size: 0.70rem;
+  border: 1px solid;
+}
+.reauth-banner.shown { display: flex; }
+.reauth-banner.bn-red    { background: var(--red-bg);    border-color: var(--red-border);    color: var(--red); }
+.reauth-banner.bn-orange { background: var(--orange-bg); border-color: var(--orange-border); color: var(--orange); }
+.reauth-banner-tag {
+  font-family: var(--f-mono); font-size: 0.58rem; letter-spacing: 0.10em;
+  text-transform: uppercase; padding: 2px 8px; border-radius: 4px;
+}
+.reauth-banner.bn-red    .reauth-banner-tag { background: rgba(224,72,98,0.18); }
+.reauth-banner.bn-orange .reauth-banner-tag { background: rgba(224,128,64,0.18); }
+.reauth-banner-cta {
+  font-family: var(--f-ui); font-size: 0.65rem;
+  text-decoration: none; padding: 5px 12px;
+  border-radius: 5px; border: 1px solid; white-space: nowrap;
+}
+.reauth-banner.bn-red    .reauth-banner-cta { color: var(--red);    border-color: var(--red-border);    background: rgba(224,72,98,0.10); }
+.reauth-banner.bn-orange .reauth-banner-cta { color: var(--orange); border-color: var(--orange-border); background: rgba(224,128,64,0.10); }
+
 /* ── Position composition bars ── */
 .pos-comp-section { margin-top: 4px; }
 .pos-comp-header {
@@ -990,21 +1081,21 @@ body {
   </div>
   <div class="snapshot-zone">
     <!-- Schwab re-auth alert (refresh token expired) -->
-    <div id="schwab-reauth-banner" style="display:none;background:var(--red-bg);border:1px solid var(--red-border);border-radius:9px;padding:10px 16px;margin-bottom:14px;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;font-family:var(--f-ui);font-size:0.70rem;color:var(--red)">
+    <div id="schwab-reauth-banner" class="reauth-banner bn-red">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <span style="font-family:var(--f-mono);font-size:0.58rem;letter-spacing:0.10em;text-transform:uppercase;padding:2px 8px;border-radius:4px;background:rgba(224,72,98,0.18)">SCHWAB</span>
+        <span class="reauth-banner-tag">SCHWAB</span>
         <span class="schwab-banner-label" id="schwab-banner-label">Schwab token expired — SPX live + chain scans degraded.</span>
       </div>
-      <a href="/schwab/reauth" style="font-family:var(--f-ui);font-size:0.65rem;color:var(--red);text-decoration:none;border:1px solid var(--red-border);background:rgba(224,72,98,0.10);padding:5px 12px;border-radius:5px;white-space:nowrap">→ 重新连接</a>
+      <a href="/schwab/reauth" class="reauth-banner-cta">→ 重新连接</a>
     </div>
 
     <!-- E-Trade re-auth alert (shown when token configured-but-invalid or API failing) -->
-    <div id="etrade-reauth-banner" style="display:none;background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:9px;padding:10px 16px;margin-bottom:14px;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;font-family:var(--f-ui);font-size:0.70rem;color:var(--orange)">
+    <div id="etrade-reauth-banner" class="reauth-banner bn-orange">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <span style="font-family:var(--f-mono);font-size:0.58rem;letter-spacing:0.10em;text-transform:uppercase;padding:2px 8px;border-radius:4px;background:rgba(224,128,64,0.18)">E-TRADE</span>
+        <span class="reauth-banner-tag">E-TRADE</span>
         <span class="etrade-banner-label">E-Trade token 已过期 — 账户数据不可用。30 秒可完成 re-auth。</span>
       </div>
-      <a href="/etrade/reauth" style="font-family:var(--f-ui);font-size:0.65rem;color:var(--orange);text-decoration:none;border:1px solid var(--orange-border);background:rgba(224,128,64,0.10);padding:5px 12px;border-radius:5px;white-space:nowrap">→ 重新连接</a>
+      <a href="/etrade/reauth" class="reauth-banner-cta">→ 重新连接</a>
     </div>
     <div id="snapshot-body">
       <div class="snapshot-unavail">Loading portfolio data…</div>
@@ -1647,9 +1738,9 @@ async function loadSchwabAuthBanner() {
           ? `Schwab refresh token 已过期 ${ageHrs}h — SPX live + chain scans degraded.`
           : 'Schwab token 失效 — SPX live + chain scans degraded.';
       }
-      banner.style.display = 'flex';
+      banner.classList.add('shown');
     } else {
-      banner.style.display = 'none';
+      banner.classList.remove('shown');
     }
   } catch (_) {
     // Network failure — silently leave banner hidden
@@ -1679,12 +1770,12 @@ async function loadEtradeAuthBanner() {
             ? 'E-Trade token 已过期 — 账户数据不可用。30 秒可完成 re-auth。'
             : 'E-Trade 数据暂时不可用 — 点击重新连接。';
       }
-      banner.style.display = 'flex';
+      banner.classList.add('shown');
     } else {
-      banner.style.display = 'none';
+      banner.classList.remove('shown');
     }
   } catch (_) {
-    banner.style.display = 'none';
+    banner.classList.remove('shown');
   }
 }
 
@@ -2159,17 +2250,11 @@ function _renderGovernance() {
   // Active cap badge — colored by regime
   const activeCapPct = state.active_spx_pm_cap_pct ?? caps.active_spx_pm_cap_pct;
   const activeCapRegime = String(state.active_spx_pm_cap_regime || caps.active_spx_pm_cap_regime || 'normal');
-  const activeCapColor = activeCapRegime === 'second_leg' ? 'var(--red)'
-                       : activeCapRegime === 'stress'    ? 'var(--orange)'
-                       : 'var(--green)';
-  const activeCapBg    = activeCapRegime === 'second_leg' ? 'var(--red-bg)'
-                       : activeCapRegime === 'stress'    ? 'var(--orange-bg)'
-                       : 'var(--green-bg)';
-  const activeCapBorder = activeCapRegime === 'second_leg' ? 'var(--red-border)'
-                        : activeCapRegime === 'stress'    ? 'var(--orange-border)'
-                        : 'var(--green-border)';
+  const activeCapClass = activeCapRegime === 'second_leg' ? 'r-second'
+                       : activeCapRegime === 'stress'     ? 'r-stress'
+                       : 'r-normal';
   const activeCapBadge = activeCapPct != null
-    ? `<span style="font-family:var(--f-mono);font-size:0.58rem;padding:2px 8px;border-radius:5px;background:${activeCapBg};border:1px solid ${activeCapBorder};color:${activeCapColor};margin-left:8px"><span style="font-weight:600">Active ${fmtPct(activeCapPct)}</span> · ${activeCapRegime.replace('_',' ')}</span>`
+    ? `<span class="active-cap-badge ${activeCapClass}"><strong>Active ${fmtPct(activeCapPct)}</strong> · ${activeCapRegime.replace('_',' ')}</span>`
     : '';
 
   // Q074 / SPEC-105 benign booster: Stage 1 is shadow by default. A true signal
@@ -2178,9 +2263,9 @@ function _renderGovernance() {
   const boosterLabel = boosterActive
     ? (boosterMode === 'active' ? 'BOOSTER ACTIVE' : 'BOOSTER SHADOW')
     : (boosterMode === 'disabled' ? 'BOOSTER DISABLED' : 'BOOSTER OFF');
-  const boosterTone = boosterActive ? (boosterMode === 'active' ? 'var(--green)' : 'var(--orange)') : 'var(--text-muted)';
-  const boosterBg = boosterActive ? (boosterMode === 'active' ? 'var(--green-bg)' : 'var(--orange-bg)') : 'var(--surface-hi)';
-  const boosterBorder = boosterActive ? (boosterMode === 'active' ? 'var(--green-border)' : 'var(--orange-border)') : 'var(--border)';
+  const boosterPanelCls = boosterActive
+    ? (boosterMode === 'active' ? 'b-active' : 'b-shadow')
+    : 'b-off';
   const boosterCapLine = boosterActive && boosterMode !== 'active'
     ? `would cap ${fmtPct(caps.CAP_SPX_BENIGN_BOOSTER || 90)} · effective ${fmtPct(activeCapPct)}`
     : `effective ${fmtPct(activeCapPct)}`;
@@ -2196,41 +2281,38 @@ function _renderGovernance() {
   ];
   const boosterConditionsHtml = boosterCondLabels.map(([key, label]) => {
     const ok = !!boosterConds[key];
-    return `<span style="font-family:var(--f-mono);font-size:0.54rem;padding:2px 6px;border-radius:4px;background:${ok ? 'var(--green-bg)' : 'var(--red-bg)'};border:1px solid ${ok ? 'var(--green-border)' : 'var(--red-border)'};color:${ok ? 'var(--green)' : 'var(--red)'}">${ok ? '✓' : '×'} ${label}</span>`;
+    return `<span class="booster-chip ${ok ? 'ok' : 'fail'}">${ok ? '✓' : '×'} ${label}</span>`;
   }).join('');
   const boosterHtml = `
-    <div style="margin:10px 0 14px;padding:10px 12px;background:${boosterBg};border:1px solid ${boosterBorder};border-radius:9px">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span style="font-family:var(--f-ui);font-size:0.58rem;font-weight:800;letter-spacing:0.11em;text-transform:uppercase;color:${boosterTone}">${boosterLabel}</span>
-        <span style="font-family:var(--f-mono);font-size:0.58rem;color:var(--text-2)">${boosterCapLine}</span>
-        <span style="font-family:var(--f-ui);font-size:0.56rem;color:var(--text-muted)">Stage 1 shadow: observation only unless PM approves active mode.</span>
+    <div class="booster-panel ${boosterPanelCls}">
+      <div class="booster-row">
+        <span class="booster-label">${boosterLabel}</span>
+        <span class="booster-cap-line">${boosterCapLine}</span>
+        <span class="booster-meta">Stage 1 shadow: observation only unless PM approves active mode.</span>
       </div>
-      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px">${boosterConditionsHtml}</div>
+      <div class="booster-chips">${boosterConditionsHtml}</div>
     </div>`;
 
   // Monitors block (SPEC-104) — pulled from /api/sleeve-governance/state.monitors
   const monitors = (_governanceCache && _governanceCache.monitors) || {};
-  function _monBadge(s) {
+  function _monBadgeCls(s) {
     s = String(s || '—');
-    const ok = s === 'ok';
-    const ins = s === 'insufficient_data' || s === 'pending_live_data' || s === 'research_only';
-    const color = ok ? 'var(--green)' : ins ? 'var(--text-2)' : 'var(--orange)';
-    const bg    = ok ? 'var(--green-bg)' : ins ? 'var(--gray-bg)' : 'var(--orange-bg)';
-    const bord  = ok ? 'var(--green-border)' : ins ? 'var(--gray-border)' : 'var(--orange-border)';
-    return `<span style="font-family:var(--f-mono);font-size:0.55rem;padding:2px 7px;border-radius:4px;background:${bg};border:1px solid ${bord};color:${color}">${s}</span>`;
+    if (s === 'ok') return 's-ok';
+    if (s === 'insufficient_data' || s === 'pending_live_data' || s === 'research_only') return 's-ins';
+    return 's-warn';
   }
   const monRow = (key, label) => {
     const m = monitors[key];
     if (!m) return '';
-    const desc = m.description ? `<div style="font-family:var(--f-ui);font-size:0.55rem;color:var(--text-muted);margin-top:2px">${m.description}</div>` : '';
-    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 12px;border-bottom:1px solid var(--border)">
-      <div><span style="font-family:var(--f-ui);font-size:0.65rem;color:var(--text-2)">${label}</span>${desc}</div>
-      ${_monBadge(m.status)}
+    const desc = m.description ? `<div class="mr-desc">${m.description}</div>` : '';
+    return `<div class="monitor-row">
+      <div><span class="mr-label">${label}</span>${desc}</div>
+      <span class="monitor-badge ${_monBadgeCls(m.status)}">${m.status || '—'}</span>
     </div>`;
   };
   const monitorsHtml = `
-    <div style="margin-top:14px;background:var(--surface);border:1px solid var(--border);border-radius:9px;overflow:hidden">
-      <div style="padding:8px 12px;background:var(--surface-hi);border-bottom:1px solid var(--border);font-family:var(--f-ui);font-size:0.55rem;font-weight:700;letter-spacing:0.10em;text-transform:uppercase;color:var(--text-muted)">SPEC-104 Monitors</div>
+    <div class="monitor-block">
+      <div class="monitor-block-head">SPEC-104 Monitors</div>
       ${monRow('blocked_hv_signals', 'Stress Put Ladder Blocked Signals')}
       ${monRow('r5_r6_frequency', 'R5/R6 Block Frequency (90d)')}
       ${monRow('spx_normal_to_stress_transition_loss', 'SPX Normal→Stress Transition Loss')}
