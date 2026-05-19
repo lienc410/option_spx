@@ -880,6 +880,7 @@ body {
 }
 .pos-col-label:nth-child(3) { min-width: 58px; }
 .pos-col-label:nth-child(4) { min-width: 38px; }
+.pos-col-label:nth-child(5) { min-width: 46px; }
 .pos-row {
   display: flex; align-items: center; gap: 8px; padding: 3px 0;
 }
@@ -951,9 +952,9 @@ body {
   <div class="nav-links">
     <a href="/" class="nav-link active">Portfolio</a>
     <a href="/spx" class="nav-link">SPX</a>
-    <a href="/hvladder" class="nav-link">Stress Put Ladder</a>
     <a href="/q042"               class="nav-link">DD Overlay</a>
     <a href="/aftermath"          class="nav-link">Aftermath</a>
+    <a href="/hvladder"           class="nav-link">Stress Put Ladder</a>
     <a href="/q041"               class="nav-link">Sleeves</a>
     <a href="/portfolio-backtest" class="nav-link">Port BT</a>
     <a href="/performance" class="nav-link">Performance</a>
@@ -1116,6 +1117,7 @@ body {
         <div class="pos-col-bar"></div>
         <div class="pos-col-label">Mkt Value</div>
         <div class="pos-col-label">Weight</div>
+        <div class="pos-col-label">Δ%</div>
       </div>
       <div id="pos-comp-bars"><div class="snapshot-unavail">Loading positions…</div></div>
     </div>
@@ -1528,16 +1530,16 @@ async function loadNLVChange() {
     const dlrs  = Math.abs(d.change_dollars ?? 0);
     const pct   = Math.abs(d.change_pct ?? 0);
     const mtd = d.mtd_pct != null
-      ? `<span style="color:var(--text-muted)"> · MTD</span> <span style="color:${d.mtd_pct>=0?'var(--green)':'var(--red)'}">${d.mtd_pct>=0?'+':'−'}${Math.abs(d.mtd_pct).toFixed(1)}%</span>`
+      ? `<span style="color:var(--text-2)"> · MTD</span> <span style="color:${d.mtd_pct>=0?'var(--green)':'var(--red)'}">${d.mtd_pct>=0?'+':'−'}${Math.abs(d.mtd_pct).toFixed(1)}%</span>`
       : '';
     const ytd = d.ytd_pct != null
-      ? `<span style="color:var(--text-muted)"> · YTD</span> <span style="color:${d.ytd_pct>=0?'var(--green)':'var(--red)'}">${d.ytd_pct>=0?'+':'−'}${Math.abs(d.ytd_pct).toFixed(1)}%</span>`
+      ? `<span style="color:var(--text-2)"> · YTD</span> <span style="color:${d.ytd_pct>=0?'var(--green)':'var(--red)'}">${d.ytd_pct>=0?'+':'−'}${Math.abs(d.ytd_pct).toFixed(1)}%</span>`
       : '';
     el.innerHTML =
-      `<span style="color:var(--text-muted)">NLV</span> ` +
+      `<span style="color:var(--text-2)">NLV</span> ` +
       `<span style="color:var(--text)">${fmtDollars(d.today_nlv)}</span> ` +
       `<span style="color:${color};font-weight:500">${sign}$${Math.round(dlrs).toLocaleString()} (${sign}${pct.toFixed(2)}%)</span>` +
-      ` <span style="color:var(--text-muted);font-size:0.92em">vs ${d.prev_date}</span>` +
+      ` <span style="color:var(--text-2);font-size:0.92em">vs ${d.prev_date}</span>` +
       mtd + ytd;
   } catch (e) {
     el.innerHTML = `<span style="color:var(--text-muted)">NLV unavailable</span>`;
@@ -2099,11 +2101,12 @@ function _renderRegimeBanner() {
   const el = document.getElementById('regime-banner');
   if (!el || !_governanceCache) return;
   const state  = _governanceCache.state || {};
+  const caps   = state.caps || {};
   const counts = _governanceCache.recent_counts || {};
   const stress = !!state.stress_episode_active;
   const second = !!state.second_leg_active;
   const boosterActive = !!state.booster_active;
-  const boosterMode = String(state.booster_mode || (caps.booster_mode || 'shadow'));
+  const boosterMode = String(state.booster_mode || caps.booster_mode || 'shadow');
   const regime = second ? 'second' : stress ? 'stress' : 'normal';
 
   const conf = regime === 'second' ? {
@@ -2152,6 +2155,8 @@ function _renderGovernance() {
   const blocked = data.recent_blocked_candidates || [];
   const stress = !!state.stress_episode_active;
   const second = !!state.second_leg_active;
+  const boosterActive = !!state.booster_active;
+  const boosterMode = String(state.booster_mode || caps.booster_mode || 'shadow');
   const regime = second ? 'second' : stress ? 'stress' : 'normal';
   const spxLiveBP = state.spx_live_bp_pct;
   const viewLabel = view === 'schwab' ? 'Schwab' : view === 'etrade' ? 'E-Trade' : 'All';

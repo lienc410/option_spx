@@ -193,9 +193,9 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   <div class="nav-links">
     <a href="/" class="nav-link">Portfolio</a>
     <a href="/spx" class="nav-link">SPX</a>
-    <a href="/hvladder"           class="nav-link">Stress Put Ladder</a>
     <a href="/q042"               class="nav-link">DD Overlay</a>
     <a href="/aftermath"          class="nav-link">Aftermath</a>
+    <a href="/hvladder"           class="nav-link">Stress Put Ladder</a>
     <a href="/q041"               class="nav-link">Sleeves</a>
     <a href="/portfolio-backtest" class="nav-link active">Port BT</a>
     <a href="/performance" class="nav-link">Performance</a>
@@ -557,7 +557,8 @@ document.getElementById('reg-reset').addEventListener('click', () => {
 
 // ── Governance BT loader ──────────────────────────────────────────────────────
 function fmtPct1(v) { return typeof v === 'number' ? v.toFixed(1) + '%' : '—'; }
-function capPct(v)  { return v != null ? fmtPct1(v * 100) : '—'; }
+// API caps are already in percent form (80.0 means 80%) per SPEC-104; no *100.
+function capPct(v)  { return v != null ? fmtPct1(v) : '—'; }
 
 async function loadGovernanceBT() {
   const [btR, tlR] = await Promise.allSettled([
