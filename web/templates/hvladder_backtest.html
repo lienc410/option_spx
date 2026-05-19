@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -591,6 +592,7 @@ function _buildChartConfig(data, overlay, windowYrs) {
         legend: {
           display: false,
         },
+        zoom: { zoom: { drag: { enabled: true, backgroundColor: 'rgba(72,136,232,0.09)', borderColor: 'rgba(72,136,232,0.45)', borderWidth: 1 }, mode: 'x' } },
         tooltip: {
           backgroundColor: '#0D1020', borderColor: '#232A42', borderWidth: 1,
           titleColor: '#C4CEEC', bodyColor: '#606880',
@@ -667,6 +669,7 @@ document.getElementById('window-group').addEventListener('click', e => {
 });
 
 document.getElementById('chart-reset').addEventListener('click', () => {
+  if (_spxChart) try { _spxChart.resetZoom(); } catch(_) {}
   _chartOverlay = 'none';
   _chartWindow  = 'all';
   document.querySelectorAll('#overlay-group .ctrl-btn').forEach(b => b.classList.toggle('active', b.dataset.overlay === 'none'));

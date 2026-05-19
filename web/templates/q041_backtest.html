@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -453,6 +454,7 @@ function buildPriceOverlay(canvasId, sleeve, overlayState) {
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
+        zoom: { zoom: { drag: { enabled: true, backgroundColor: 'rgba(72,136,232,0.09)', borderColor: 'rgba(72,136,232,0.45)', borderWidth: 1 }, mode: 'x' } },
         tooltip: {
           callbacks: {
             title: items => items[0]?.label || '',
@@ -504,6 +506,11 @@ function buildPriceOverlay(canvasId, sleeve, overlayState) {
     },
   });
   charts[canvasId]._fullData = _fullDatasets;
+}
+
+function resetOverlayZoom(sym) {
+  const c = charts[`ov-${sym}`];
+  if (c) try { c.resetZoom(); } catch(_) {}
 }
 
 function setOverlayRange(sym, range) {
@@ -895,6 +902,7 @@ function render(data) {
             <button class="range-btn" data-sym="${s.symbol}" data-range="3yr" onclick="setOverlayRange('${s.symbol}','3yr')">3yr</button>
             <button class="range-btn" data-sym="${s.symbol}" data-range="5yr" onclick="setOverlayRange('${s.symbol}','5yr')">5yr</button>
             <button class="range-btn active" data-sym="${s.symbol}" data-range="all" onclick="setOverlayRange('${s.symbol}','all')">All</button>
+            <button class="range-btn" style="margin-left:6px" onclick="resetOverlayZoom('${s.symbol}')">↩ 全局</button>
           </div>
         </div>
         <canvas id="${ovId}" height="240" style="width:100%"></canvas>
