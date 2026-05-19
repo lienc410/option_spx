@@ -224,17 +224,24 @@ Real templates use these enough that they earn first-class status. Use when
 the strict 4px scale produces visually wrong rhythm. Do not introduce new
 off-scale values without adding them here.
 
+- 5px — nav-link inner padding, chip-row gaps (very widely used; do not "round up" to 8)
 - 6px — tight inline gaps (badge gutters, chip spacing)
+- 7px — table cell `padding`, half-step between 6 and 8 (used in episode/data tables)
 - 9px — card / panel `padding` between sm (8) and md (12), used for compact informational panels
 - 10px — card padding `top/bottom` shorthand (matches sm + 2 hairline)
+- 13px — nav-link horizontal padding (also widely used)
 - 14px — section / card `margin-bottom` between md (12) and lg (16), used to separate strategy cards
 - 18px — section spacing between lg (16) and xl (24), used for matrix-row gaps
 - 26px — page-hero top `padding` (between xl 24 and 2xl 28)
 
-**Forbidden** — replace with closest scale value:
-- 5, 7, 11, 13 → 4, 8, 12, 12
-- 17, 19, 21 → 16, 16, 20 (or use 18)
-- 25, 27 → 24, 28
+**Discouraged for new code** — these values appear in legacy templates but should not be introduced going forward; round to the nearest scale value when refactoring:
+- 11px → 12px (md)
+- 17 / 19 / 21 → 16 / 20 (or use 18 from extended)
+- 25 / 27 → 24 / 28
+
+If you find yourself reaching for an off-scale value not listed above, prefer the closest
+4px-scale value first. Add to the extended list (with rationale) only if the strict scale
+produces visibly wrong rhythm in side-by-side comparison.
 
 ## Layout
 
