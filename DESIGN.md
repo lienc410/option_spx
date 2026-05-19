@@ -208,7 +208,7 @@ CSS class names: `.discipline-section` / `.discipline-card` / `.discipline-row` 
 
 - **Base unit:** 4px
 - **Density:** Compact-to-comfortable — data-dense but not cramped; 8px minimum between logical groups
-- **Scale:**
+- **Primary scale (4px-based):**
   - 2xs: 2px
   - xs: 4px
   - sm: 8px
@@ -217,6 +217,24 @@ CSS class names: `.discipline-section` / `.discipline-card` / `.discipline-row` 
   - xl: 24px
   - 2xl: 28px
   - 3xl: 48px
+
+**Extended scale (blessed half-step values for fine layout work):**
+
+Real templates use these enough that they earn first-class status. Use when
+the strict 4px scale produces visually wrong rhythm. Do not introduce new
+off-scale values without adding them here.
+
+- 6px — tight inline gaps (badge gutters, chip spacing)
+- 9px — card / panel `padding` between sm (8) and md (12), used for compact informational panels
+- 10px — card padding `top/bottom` shorthand (matches sm + 2 hairline)
+- 14px — section / card `margin-bottom` between md (12) and lg (16), used to separate strategy cards
+- 18px — section spacing between lg (16) and xl (24), used for matrix-row gaps
+- 26px — page-hero top `padding` (between xl 24 and 2xl 28)
+
+**Forbidden** — replace with closest scale value:
+- 5, 7, 11, 13 → 4, 8, 12, 12
+- 17, 19, 21 → 16, 16, 20 (or use 18)
+- 25, 27 → 24, 28
 
 ## Layout
 
