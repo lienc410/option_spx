@@ -150,6 +150,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .rh-strategy-status.s-locked  { color: var(--text-2); }
 .rh-strategy-status.s-blocked { color: var(--red); }
 .rh-strategy-status.s-wait    { color: var(--text-2); }
+.rh-strategy-note { font-family: var(--f-mono); font-size: 0.56rem; color: var(--text-2); margin-top: 1px; }
 .rh-rule-badge {
   display: inline-block; font-family: var(--f-mono); font-size: 0.56rem;
   padding: 2px 6px; border-radius: 4px; margin-top: 4px;
@@ -641,6 +642,9 @@ async function loadGovernanceBT() {
           <div class="rh-strategy-row">
             <div class="rh-strategy-name">SPX Spread</div>
             <div class="rh-strategy-status s-active">● ACTIVE · cap ${capPct(caps.R1_spx_pm_pool_cap_pct)}</div>
+            ${m.normal_ivp_blocked_days != null
+              ? `<div class="rh-strategy-note">IVP252 ≥ 55 阻挡 ${fmtPct1(m.normal_ivp_blocked_pct_of_normal)} of normal (${m.normal_ivp_blocked_days}d)</div>`
+              : ''}
           </div>
           <div class="rh-strategy-row">
             <div class="rh-strategy-name">Stress Put Ladder /ES</div>

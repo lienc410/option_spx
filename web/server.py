@@ -1128,6 +1128,28 @@ def api_governance_backtest():
         n_stress_only_episodes = len(episodes) - n_second_leg_episodes
         stress_only_days = stress_days - second_leg_days
 
+        # IVP252 gate impact within Normal regime (SPEC: BPS_NNB_IVP_UPPER=55 in selector.py).
+        # IVP252[t] = % of trailing 252d (excluding today) where VIX < VIX[t]; matches
+        # signals/iv_rank.py:compute_iv_percentile convention.
+        normal_ivp_blocked_days = None
+        try:
+            import numpy as np
+            vix_arr = daily["vix"].to_numpy(dtype=float) if "vix" in daily.columns else None
+            if vix_arr is not None and len(vix_arr) >= 30:
+                ivp252 = np.full(len(vix_arr), np.nan)
+                window = 252
+                warmup = 30
+                for i in range(warmup, len(vix_arr)):
+                    past = vix_arr[max(0, i - window):i]
+                    if len(past):
+                        ivp252[i] = float((past < vix_arr[i]).mean() * 100.0)
+                stress_arr = stress.reindex(daily.index).fillna(False).to_numpy(dtype=bool)
+                normal_mask = ~stress_arr
+                ivp_defined = ~np.isnan(ivp252)
+                normal_ivp_blocked_days = int(((ivp252 >= 55.0) & normal_mask & ivp_defined).sum())
+        except Exception:
+            normal_ivp_blocked_days = None
+
         return jsonify({
             "status": "available",
             "data_range": {
@@ -1151,6 +1173,11 @@ def api_governance_backtest():
                 "total_decided": total_decided,
                 "total_blocked": total_blocked,
                 "blocked_rate_pct": round(total_blocked / total_decided * 100, 1) if total_decided else 0,
+                "normal_ivp_blocked_days": normal_ivp_blocked_days,
+                "normal_ivp_blocked_pct_of_normal": (
+                    round(normal_ivp_blocked_days / normal_days * 100, 1)
+                    if normal_ivp_blocked_days is not None and normal_days else None
+                ),
             },
             "episodes": episodes,
             "caps": caps,
