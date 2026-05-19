@@ -1,0 +1,8 @@
+metric,value
+b3_active_days,1148.0
+b4_active_days,1331.0
+overlap_days,1148.0
+b4_only_days,183.0
+b3_only_days,0.0
+b4_only_incremental_usd,52266.0
+b4_only_incremental_pct_nlv,5.846

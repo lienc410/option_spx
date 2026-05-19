@@ -322,6 +322,32 @@ Q072 / SPEC-103 was 2nd-Quant-reviewed. SPEC-104 tightens its numeric caps based
 
 ---
 
+## 13. Regime Philosophy & Forward Research Seed
+
+> **Q073 Arch-3 is not intended to be the final answer for all market regimes. It is the current risk-constrained base architecture.**
+>
+> Future research may test a bull-regime ROE booster that increases deployment only in confirmed benign regimes, while preserving Arch-3 stress and second-leg caps.
+
+### Framing principle (PM, 2026-05-17)
+
+> 2000 / 2008 应该决定"不能怎么死"，不应该完全决定"平时怎么赚钱"。
+>
+> Arch-3 解决的是生存和基础 ROE；慢牛环境下的增益，作为下一轮独立研究。
+
+Q073 used 2000-04 worst-20d as the binding V2 constraint. That's correct as a **survival floor** — but it should not be the only consideration for benign-regime ROE optimization. Future research (Q074 or later) may:
+
+- **A. Bull regime booster** — When confirmed benign signals stack (SPX > MA50 + VIX < 20 + VIX trend not rising + IVP not high + ddATH > -3%), test allowing SPX cap 80% → 85% / 90%, snapping back to 50% / 40% the moment stress / second-leg triggers fire.
+- **B. Cash reserve dynamic sizing** — Replace constant cash residual with regime-aware: lower in benign, higher in stress.
+- **C. Non-short-vol low-risk filler** — BOXX ladder / very low-risk defined-risk overlays / covered-call-like structures to fill idle BP without adding short-vol tail.
+
+**These are NOT in SPEC-104 scope. Arch-3 stands as deployed.** Forward research must:
+- Preserve V1-V7 vetoes (including 2000-04 worst-20d) as floor
+- Preserve Arch-3 stress (50%) and second-leg (40%) caps
+- Only relax NORMAL-regime caps under multi-condition benign confirmation
+- Pass independent 2nd Quant framing review per Q073 P0/P3/P5 precedent
+
+---
+
 ## 10. 参考文件
 
 - `research/q073/q073_final_memo.md` — Q073 P5 decision layer (with 2nd Quant revisions applied)
@@ -443,3 +469,15 @@ Validation:
 
 Known deployment note:
 - Local cache refresh via `scripts/refresh_backtest_caches.py` could not run because no local Flask server was listening on `localhost:5050`. Run cache refresh on old Air after deploy/restart where canonical runtime is active.
+
+---
+
+## 14. SPEC-105 Extension Note (2026-05-18)
+
+SPEC-105 adds a Q074 Bull Regime Booster overlay on top of Arch-3. SPEC-104 Layer-1 survival caps and triggers remain unchanged:
+
+- Normal base SPX cap: `80%`
+- Stress cap: `50%`
+- Second-leg cap: `40%`
+
+SPEC-105 Stage 1 is shadow-only by default: the B4 signal is evaluated, logged, and displayed, but production SPX cap remains `80%` unless PM later approves active booster mode.

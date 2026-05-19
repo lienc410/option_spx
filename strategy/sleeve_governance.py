@@ -21,6 +21,7 @@ STATE_LOG_PATH = DATA_DIR / "sleeve_governance_state.jsonl"
 DECISION_LOG_PATH = DATA_DIR / "sleeve_governance_decisions.jsonl"
 OVERRIDE_LOG_PATH = DATA_DIR / "sleeve_governance_overrides.jsonl"
 RUNTIME_STATE_PATH = DATA_DIR / "sleeve_governance_runtime.json"
+BOOSTER_SHADOW_LOG_PATH = DATA_DIR / "q074_booster_shadow.jsonl"
 Q072_DIR = REPO_ROOT / "research" / "q072"
 Q072_DAILY_FLAGS = Q072_DIR / "q072_p1_daily_flags.csv"
 Q072_PORTFOLIO_STATE = Q072_DIR / "q072_p4c0_portfolio_state.csv"
@@ -36,6 +37,7 @@ CAP_COMBINED = 60.0
 CAP_SHORT_VOL = 50.0
 CAP_STRESS_EPISODE = 50.0
 CAP_SECOND_LEG_EPISODE = 40.0
+CAP_SPX_BENIGN_BOOSTER = 90.0
 _REPLAY_CACHE: dict | None = None
 
 SHORT_VOL_STRATEGIES = {
@@ -83,6 +85,12 @@ def _num(value: Any) -> float | None:
         return number
     except (TypeError, ValueError):
         return None
+
+
+def booster_mode() -> str:
+    """SPEC-105 rollout mode. Default is mandatory Stage 1 shadow."""
+    mode = str(os.getenv("SPX_BENIGN_BOOSTER_MODE", "shadow")).strip().lower()
+    return mode if mode in {"shadow", "active", "disabled"} else "shadow"
 
 
 def _append_jsonl(path: Path, payload: dict) -> None:
@@ -264,33 +272,104 @@ def q072_replay_validation() -> dict:
     return result
 
 
+def booster_signal_conditions(market_state: dict) -> dict:
+    """Return Q074 B4 condition flags.
+
+    `warmed` is a data-readiness flag. The B4 gate itself then requires:
+    no stress, no second-leg, SPX above MA50, ddATH > -4%, VIX < 22,
+    VIX 5d point-change <= +1.5, and IVP252 < 55.
+    """
+    status_ok = market_state.get("status") == "available"
+    spx_close = _num(market_state.get("spx_close"))
+    ma50 = _num(market_state.get("ma50"))
+    ddath = _num(market_state.get("ddath"))
+    vix = _num(market_state.get("vix"))
+    vix_5d_change = _num(market_state.get("vix_5d_change"))
+    ivp252 = _num(market_state.get("ivp252"))
+    return {
+        "warmed": bool(status_ok and spx_close is not None and ma50 is not None and ddath is not None and vix is not None and vix_5d_change is not None and ivp252 is not None),
+        "no_stress": not bool(market_state.get("stress_episode_active")),
+        "no_second_leg": not bool(market_state.get("second_leg_active")),
+        "trend_ok": bool(spx_close is not None and ma50 is not None and spx_close > ma50),
+        "ddath_ok": bool(ddath is not None and ddath > -0.04),
+        "vix_ok": bool(vix is not None and vix < 22.0),
+        "vix5d_ok": bool(vix_5d_change is not None and vix_5d_change <= 1.5),
+        "ivp_ok": bool(ivp252 is not None and ivp252 < 55.0),
+    }
+
+
+def b4_benign_active(market_state: dict) -> bool:
+    """Q074 B4 moderate 90% booster activation criteria."""
+    cond = booster_signal_conditions(market_state)
+    return all(cond.values())
+
+
+def active_spx_cap(market_state: dict, mode: str | None = None) -> tuple[float, str]:
+    """Return effective SPX cap and regime.
+
+    Priority is second-leg > stress > booster > normal. In mandatory Stage 1
+    shadow mode, booster is surfaced as `booster_shadow` but does not change the
+    production cap above the SPEC-104 normal cap.
+    """
+    if bool(market_state.get("second_leg_active")):
+        return CAP_SECOND_LEG_EPISODE, "second_leg"
+    if bool(market_state.get("stress_episode_active")):
+        return CAP_STRESS_EPISODE, "stress"
+    if b4_benign_active(market_state):
+        rollout = mode or booster_mode()
+        if rollout == "active":
+            return CAP_SPX_BENIGN_BOOSTER, "booster"
+        if rollout == "disabled":
+            return CAP_SPX_PM, "normal"
+        return CAP_SPX_PM, "booster_shadow"
+    return CAP_SPX_PM, "normal"
+
+
 def _latest_market_stress() -> dict:
     """Best-effort live stress flags. Fails closed to unavailable, not optimistic."""
     try:
         import pandas as pd
         from schwab.client import get_vix_quote
+        from signals.iv_rank import get_current_iv_snapshot
+        from signals.vix_regime import fetch_vix_history
 
         spx_path = DATA_DIR / "market_cache" / "yahoo__GSPC__max__1d.pkl"
         if not spx_path.exists():
             return {"status": "unavailable", "reason": "missing SPX cache"}
         spx = pd.read_pickle(spx_path)
-        close = spx["Close"].dropna().tail(90)
-        if len(close) < 60:
+        close_full = spx["Close"].dropna()
+        close = close_full.tail(90)
+        if len(close_full) < 60:
             return {"status": "unavailable", "reason": "insufficient SPX history"}
         vix_quote = get_vix_quote()
         vix = _num(vix_quote.get("last")) or _num(vix_quote.get("close"))
         if vix is None:
             return {"status": "unavailable", "reason": "missing VIX quote"}
         last = float(close.iloc[-1])
+        ma50 = float(close_full.rolling(50).mean().iloc[-1])
+        ddath = last / float(close_full.max()) - 1.0
         dd_20d = last / float(close.tail(20).max()) - 1.0
         dd_60d = last / float(close.tail(60).max()) - 1.0
         stress_flag = vix >= 22.0 or dd_20d <= -0.04 or dd_60d <= -0.04
+        vix_5d_change = None
+        ivp252 = None
+        try:
+            vix_hist = fetch_vix_history(period="1y")
+            if len(vix_hist) >= 6:
+                vix_5d_change = float(vix) - float(vix_hist["vix"].iloc[-6])
+            ivp252 = float(get_current_iv_snapshot(vix_hist, current_vix=float(vix)).ivp252)
+        except Exception:
+            pass
         return {
             "status": "available",
             "vix": round(vix, 2),
             "spx_close": round(last, 2),
+            "ma50": round(ma50, 2),
+            "ddath": round(ddath, 4),
             "dd_20d": round(dd_20d, 4),
             "dd_60d": round(dd_60d, 4),
+            "vix_5d_change": round(vix_5d_change, 2) if vix_5d_change is not None else None,
+            "ivp252": round(ivp252, 1) if ivp252 is not None else None,
             "stress_episode_active": bool(stress_flag),
             "second_leg_active": bool(dd_60d <= -0.08 and vix >= 25.0),
             "source": "live_cache_quote_best_effort",
@@ -416,6 +495,9 @@ def current_governance_state() -> dict:
     market = _latest_market_stress()
     stress_active = bool(market.get("stress_episode_active")) if market.get("status") == "available" else False
     second_leg = bool(market.get("second_leg_active")) if market.get("status") == "available" else False
+    booster_conditions = booster_signal_conditions(market)
+    booster_active = b4_benign_active(market)
+    cap_pct, cap_regime = active_spx_cap(market)
 
     # Back-compat: 'pools' = 'all' view (existing consumers don't break).
     pools_default = pools_by_view.get("all") or {
@@ -435,32 +517,53 @@ def current_governance_state() -> dict:
         "basis_dollars": round(basis, 2),
         "pools": pools_default,
         "pools_by_view": pools_by_view,
-        "caps": governance_caps(stress_active, second_leg),
+        "caps": governance_caps(stress_active, second_leg, booster_active, cap_pct, cap_regime),
         "stress_episode_active": stress_active,
         "second_leg_active": second_leg,
+        "booster_active": booster_active,
+        "booster_mode": booster_mode(),
+        "booster_signal_conditions": booster_conditions,
+        "active_spx_pm_cap_pct": cap_pct,
+        "active_spx_pm_cap_regime": cap_regime,
         "market": market,
         "active_overrides": active_overrides(),
         "spx_live_bp_pct": round(_spx_live_bp_pct, 2) if _spx_live_bp_pct is not None else None,
     }
 
 
-def governance_caps(stress_episode_active: bool = False, second_leg_active: bool = False) -> dict:
-    active_spx_cap = CAP_SPX_PM
-    active_regime = "normal"
-    if second_leg_active:
-        active_spx_cap = CAP_SECOND_LEG_EPISODE
-        active_regime = "second_leg"
-    elif stress_episode_active:
-        active_spx_cap = CAP_STRESS_EPISODE
-        active_regime = "stress"
+def governance_caps(
+    stress_episode_active: bool = False,
+    second_leg_active: bool = False,
+    booster_active: bool = False,
+    active_cap_pct: float | None = None,
+    active_regime: str | None = None,
+) -> dict:
+    if active_cap_pct is None or active_regime is None:
+        proxy = {
+            "status": "available",
+            "stress_episode_active": stress_episode_active,
+            "second_leg_active": second_leg_active,
+            "spx_close": 1.0 if booster_active else None,
+            "ma50": 0.5 if booster_active else None,
+            "ddath": 0.0 if booster_active else None,
+            "vix": 10.0 if booster_active else None,
+            "vix_5d_change": 0.0 if booster_active else None,
+            "ivp252": 10.0 if booster_active else None,
+        }
+        active_cap_pct, active_regime = active_spx_cap(proxy)
     return {
         "R1_spx_pm_pool_cap_pct": CAP_SPX_PM,
         "R2_es_span_cap_pct": CAP_ES_SPAN,
         "R3_combined_cap_pct": CAP_COMBINED,
         "R4_short_vol_cap_pct": CAP_SHORT_VOL,
         # Effective cap for current regime (used for live BP display)
-        "active_spx_pm_cap_pct": active_spx_cap,
+        "active_spx_pm_cap_pct": active_cap_pct,
         "active_spx_pm_cap_regime": active_regime,
+        "booster_mode": booster_mode(),
+        "booster_active": booster_active,
+        "booster_shadow_cap_pct": CAP_SPX_BENIGN_BOOSTER if booster_active else None,
+        "booster_production_enabled": booster_mode() == "active",
+        "CAP_SPX_BENIGN_BOOSTER": CAP_SPX_BENIGN_BOOSTER,
         "R5_spx_pm_stress_cap_pct": CAP_STRESS_EPISODE if stress_episode_active else CAP_SPX_PM,
         # Fixed stress threshold — always CAP_STRESS_EPISODE regardless of current regime
         "R5_stress_threshold_pct": CAP_STRESS_EPISODE,
@@ -549,7 +652,14 @@ def evaluate_candidate(candidate: dict, state: dict | None = None) -> Governance
     requested_pct = requested_bp / basis * 100.0 if basis else 0.0
     pools = state.get("pools") or {}
     is_short = is_short_vol_candidate(candidate)
-    caps = governance_caps(bool(state.get("stress_episode_active")), bool(state.get("second_leg_active")))
+    caps = state.get("caps") if isinstance(state.get("caps"), dict) else governance_caps(
+        bool(state.get("stress_episode_active")),
+        bool(state.get("second_leg_active")),
+        bool(state.get("booster_active")),
+        _num(state.get("active_spx_pm_cap_pct")),
+        state.get("active_spx_pm_cap_regime"),
+    )
+    normal_spx_cap = _num(caps.get("active_spx_pm_cap_pct")) or CAP_SPX_PM
     accepted = True
     rule = None
     reason = "accepted"
@@ -563,13 +673,13 @@ def evaluate_candidate(candidate: dict, state: dict | None = None) -> Governance
     short_vol_after = (_num(pools.get("short_vol_bp_pct")) or 0.0) + (requested_pct if is_short else 0.0)
 
     checks = [
-        ("R1", pool == "SPX_PM" and spx_after > CAP_SPX_PM, f"Projected SPX PM BP {spx_after:.1f}% exceeds {CAP_SPX_PM:.1f}% cap"),
         ("R2", pool == "ES_SPAN" and es_after > CAP_ES_SPAN, f"Projected /ES SPAN BP {es_after:.1f}% exceeds {CAP_ES_SPAN:.1f}% cap"),
         ("R3", combined_after > CAP_COMBINED, f"Projected combined BP {combined_after:.1f}% exceeds {CAP_COMBINED:.1f}% cap"),
         ("R4", is_short and short_vol_after > CAP_SHORT_VOL, f"Projected short-vol BP {short_vol_after:.1f}% exceeds {CAP_SHORT_VOL:.1f}% cap"),
         ("R6", bool(state.get("second_leg_active")) and pool == "SPX_PM" and spx_after > CAP_SECOND_LEG_EPISODE, f"Second-leg SPX cap {CAP_SECOND_LEG_EPISODE:.1f}% would be exceeded"),
         ("R6", bool(state.get("second_leg_active")) and is_short, "Second-leg state blocks new short-vol entries"),
         ("R5", bool(state.get("stress_episode_active")) and pool == "SPX_PM" and spx_after > CAP_STRESS_EPISODE, f"Stress episode SPX cap {CAP_STRESS_EPISODE:.1f}% would be exceeded"),
+        ("R1", pool == "SPX_PM" and spx_after > normal_spx_cap, f"Projected SPX PM BP {spx_after:.1f}% exceeds {normal_spx_cap:.1f}% active cap"),
     ]
     for candidate_rule, triggered, candidate_reason in checks:
         if triggered and not is_rule_paused(candidate_rule):
@@ -607,6 +717,33 @@ def maybe_alert_decision(decision: GovernanceDecision) -> bool:
     )
 
 
+def _cap_regime_for_alert(state: dict | None) -> str:
+    if not state:
+        return "unknown"
+    return str(state.get("active_spx_pm_cap_regime") or (state.get("caps") or {}).get("active_spx_pm_cap_regime") or "normal")
+
+
+def _maybe_alert_booster_transition(previous: dict | None, current: dict) -> bool:
+    if previous is None:
+        return False
+    prev = _cap_regime_for_alert(previous)
+    now = _cap_regime_for_alert(current)
+    if prev == now:
+        return False
+    booster_related = prev.startswith("booster") or now.startswith("booster")
+    if not booster_related:
+        return False
+    cap = current.get("active_spx_pm_cap_pct") or (current.get("caps") or {}).get("active_spx_pm_cap_pct")
+    shadow_cap = (current.get("caps") or {}).get("booster_shadow_cap_pct")
+    return _send_alert(
+        "🧪 <b>Q074 Booster shadow transition</b>\n"
+        f"State: <code>{prev}</code> → <code>{now}</code>\n"
+        f"Effective SPX cap now: <code>{cap}%</code>\n"
+        f"Would-be booster cap: <code>{shadow_cap or CAP_SPX_BENIGN_BOOSTER}%</code>\n"
+        "Stage 1 shadow only — production cap remains governed by SPEC-104 unless PM flips booster active."
+    )
+
+
 def record_state_snapshot(send_alerts: bool = False) -> dict:
     state = current_governance_state()
     previous = None
@@ -616,8 +753,19 @@ def record_state_snapshot(send_alerts: bool = False) -> dict:
         except Exception:
             previous = None
     _append_jsonl(STATE_LOG_PATH, state)
+    _append_jsonl(BOOSTER_SHADOW_LOG_PATH, {
+        "timestamp": state.get("timestamp"),
+        "mode": state.get("booster_mode"),
+        "booster_active": state.get("booster_active"),
+        "active_spx_pm_cap_regime": state.get("active_spx_pm_cap_regime"),
+        "active_spx_pm_cap_pct": state.get("active_spx_pm_cap_pct"),
+        "booster_shadow_cap_pct": (state.get("caps") or {}).get("booster_shadow_cap_pct"),
+        "conditions": state.get("booster_signal_conditions"),
+        "market": state.get("market"),
+    })
     _write_json(RUNTIME_STATE_PATH, state)
     if send_alerts and previous is not None:
+        _maybe_alert_booster_transition(previous, state)
         prev_second = bool(previous.get("second_leg_active"))
         now_second = bool(state.get("second_leg_active"))
         if not prev_second and now_second:

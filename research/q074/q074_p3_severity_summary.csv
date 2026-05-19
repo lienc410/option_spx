@@ -1,0 +1,5 @@
+candidate,mild_transitions,acute_transitions,failed_benign_count,total_booster_present_transitions,cum_incremental_pnl_window10d_usd,cum_incremental_loss_window10d_usd,transitions_with_booster_active,transitions_total
+B1_strict_85,92,39,43,131,70629.0,-1751.0,131,2929
+B2_moderate_85,123,48,41,171,106936.0,-4647.0,171,2929
+B3_strict_90,92,39,43,131,141269.0,-3497.0,131,2929
+B4_moderate_90,123,48,41,171,213893.0,-9277.0,171,2929
