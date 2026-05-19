@@ -102,6 +102,16 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .ctrl-btn.active { background: var(--gold-bg); border-color: var(--gold-border); color: var(--gold); }
 .regime-chart-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 16px; margin-bottom: 18px; }
 
+/* Regime metrics row (DESIGN.md backtest template — observation-only variant) */
+.metric-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px; }
+.m-card { background: var(--surface); border: 1px solid var(--border-2); border-radius: 9px; padding: 14px 16px; display: flex; flex-direction: column; gap: 5px; }
+.m-card .m-label { font-family: var(--f-ui); font-size: 0.58rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); }
+.m-card .m-value { font-family: var(--f-mono); font-size: 1.40rem; font-weight: 600; color: var(--text); line-height: 1.1; }
+.m-card .m-value.warn { color: var(--orange); }
+.m-card .m-value.danger { color: var(--red); }
+.m-card .m-sub { font-family: var(--f-ui); font-size: 0.60rem; color: var(--text-2); }
+@media (max-width: 720px) { .metric-grid-4 { grid-template-columns: repeat(2, 1fr); } }
+
 /* ── Regime history columns ── */
 .regime-hist {
   display: grid;
@@ -213,6 +223,31 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   <div class="banner">
     <div class="banner-title">Research view — SPEC-103 governance rule backtest</div>
     <div class="banner-body">从 Q072 daily flags 重建历史 stress regime 分布。回答：各 regime 发生了多少次、各策略受到什么影响。</div>
+  </div>
+
+  <!-- Regime History Summary (DESIGN.md observation-only metrics row) -->
+  <div class="section-label">Regime History Summary</div>
+  <div class="metric-grid-4" id="regime-metrics-row">
+    <div class="m-card">
+      <div class="m-label">Trading Days</div>
+      <div class="m-value" id="m-total-days">—</div>
+      <div class="m-sub" id="m-date-range">—</div>
+    </div>
+    <div class="m-card">
+      <div class="m-label">Stress %</div>
+      <div class="m-value warn" id="m-stress-pct">—</div>
+      <div class="m-sub" id="m-stress-days">— days</div>
+    </div>
+    <div class="m-card">
+      <div class="m-label">Second-Leg %</div>
+      <div class="m-value danger" id="m-second-pct">—</div>
+      <div class="m-sub" id="m-second-days">— days</div>
+    </div>
+    <div class="m-card">
+      <div class="m-label">Aftermath Days</div>
+      <div class="m-value" id="m-aftermath-days">—</div>
+      <div class="m-sub" id="m-aftermath-pct">— % of stress</div>
+    </div>
   </div>
 
   <!-- Regime Timeline Chart -->
@@ -576,6 +611,17 @@ async function loadGovernanceBT() {
       document.getElementById('hero-range').textContent =
         `${dr.start} → ${dr.end} · ${dr.total_trading_days} trading days`;
     }
+
+    // ── Regime History Summary metrics row (4-card) ──────────────────────────
+    const $set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+    $set('m-total-days',    (dr.total_trading_days ?? '—').toLocaleString());
+    $set('m-date-range',    (dr.start && dr.end) ? `${dr.start} → ${dr.end}` : '—');
+    $set('m-stress-pct',    m.stress_pct != null ? m.stress_pct.toFixed(1) + '%' : '—');
+    $set('m-stress-days',   m.stress_days != null ? `${m.stress_days.toLocaleString()} days · ${m.n_episodes ?? '—'} episodes` : '— days');
+    $set('m-second-pct',    m.second_leg_pct != null ? m.second_leg_pct.toFixed(1) + '%' : '—');
+    $set('m-second-days',   m.second_leg_days != null ? `${m.second_leg_days.toLocaleString()} days · ${m.n_second_leg_episodes ?? '—'} episodes` : '— days');
+    $set('m-aftermath-days', afDaysFinal.toLocaleString());
+    $set('m-aftermath-pct',  m.stress_days > 0 ? `${(afDaysFinal/m.stress_days*100).toFixed(0)}% of stress` : '— % of stress');
 
     // ── 3-column Regime History ──────────────────────────────────────────────
     document.getElementById('gov-regime-hist').innerHTML = `
