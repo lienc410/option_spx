@@ -1,7 +1,7 @@
 # SPEC-105 Handoff — Q074 Bull Regime Booster Overlay
 
 **Date**: 2026-05-18
-**Status**: DONE locally; ready for old Air Stage 1 shadow deploy
+**Status**: DONE + deployed old Air in Stage 1 shadow
 **Scope**: Q074 B4 moderate 90% booster overlay on SPEC-104 Arch-3
 
 ## Summary
@@ -92,7 +92,7 @@ These match AC-105-5 tolerance.
 
 ## Deployment Notes
 
-Deploy to old Air with Stage 1 shadow posture. Do not set:
+Deployed to old Air with Stage 1 shadow posture. Do not set:
 
 ```bash
 SPX_BENIGN_BOOSTER_MODE=active
@@ -107,6 +107,26 @@ After deploy/restart:
 3. Confirm `active_spx_pm_cap_pct` remains `80%` when booster is shadow.
 4. Restart only `com.spxstrat.web` and `com.spxstrat.bot`.
 5. Refresh SPX / ES / Q041 backtest caches on old Air.
+
+Deployment verification completed 2026-05-18:
+
+- old Air HEAD: `c7f7da1`
+- `com.spxstrat.web` restarted
+- `com.spxstrat.bot` restarted
+- `venv/bin/python -m unittest tests.test_spec_105 -v` → 7/7 PASS on old Air
+- `booster_mode()` → `shadow`
+- `CAP_SPX_PM / CAP_STRESS_EPISODE / CAP_SECOND_LEG_EPISODE / CAP_SPX_BENIGN_BOOSTER` → `80 / 50 / 40 / 90`
+- `/api/sleeve-governance/state` → 200
+- Current runtime payload:
+  - `booster_mode = shadow`
+  - `active_spx_pm_cap_pct = 80.0`
+  - `active_spx_pm_cap_regime = normal`
+  - `booster_active = false`
+  - `booster_signal_conditions` present
+- `/` Portfolio Command Center → 200 and contains booster panel markup
+- `/api/recommendation` → 200
+- `data/q074_booster_shadow.jsonl` write smoke PASS
+- `scripts/refresh_backtest_caches.py` → 5/5 endpoints OK
 
 ## Follow-Up Risk
 
