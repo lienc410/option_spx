@@ -36,6 +36,8 @@
   --orange-border: rgba(224,128,64,0.22);
   --gray-bg:       rgba(96,104,128,0.08);
   --gray-border:   rgba(96,104,128,0.2);
+  /* Equity (E-Trade equity haircut) — desaturated green to separate from --green action state */
+  --green-equity:  #4a7c59;
 
   --f-display: 'Newsreader', Georgia, serif;
   --f-mono:    'JetBrains Mono', 'Courier New', monospace;
@@ -542,7 +544,7 @@ body {
 .bp-seg { height: 100%; transition: width 0.45s ease; }
 .bp-seg-spx    { background: var(--gold); }
 .bp-seg-es     { background: rgba(66,204,124,0.45); }
-.bp-seg-equity { background: #4a7c59; }
+.bp-seg-equity { background: var(--green-equity); }
 .bp-seg-q041   { background: var(--blue); }
 .bp-composite-legend { display: flex; gap: 16px; margin-top: 6px; flex-wrap: wrap; }
 .bp-legend-item {
@@ -552,7 +554,7 @@ body {
 .bp-legend-dot { width: 7px; height: 7px; border-radius: 9999px; flex-shrink: 0; }
 .dot-spx    { background: var(--gold); }
 .dot-es     { background: rgba(66,204,124,0.45); }
-.dot-equity { background: #4a7c59; }
+.dot-equity { background: var(--green-equity); }
 .dot-q041   { background: var(--blue); }
 .dot-idle   { background: var(--border-2); border: 1px solid var(--border); }
 
@@ -564,7 +566,7 @@ body {
 .bp-bucket-bar { height: 100%; border-radius: 9999px; transition: width 0.45s ease; }
 .bar-spx    { background: var(--gold); }
 .bar-etrade { background: rgba(66,204,124,0.45); }
-.bar-equity { background: #4a7c59; }
+.bar-equity { background: var(--green-equity); }
 .bar-q041   { background: var(--blue); }
 .bp-bucket-pct { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text); min-width: 42px; text-align: right; }
 
@@ -1824,7 +1826,7 @@ function _renderMarginAllocation(data) {
       ${etEqWeLocal  > 0 ? `<div class="bp-seg bp-seg-equity" style="width:${etEqWeLocal.toFixed(1)}%"></div>` : ''}`;
     legendItems = `
       ${etOptWeLocal > 0 ? `<div class="bp-legend-item"><div class="bp-legend-dot dot-spx"></div>SPX ${etOptWeLocal.toFixed(1)}%</div>` : ''}
-      ${etEqWeLocal  > 0 ? `<div class="bp-legend-item"><div class="bp-legend-dot" style="background:#4a7c59"></div>Equity ${etEqWeLocal.toFixed(1)}%</div>` : ''}
+      ${etEqWeLocal  > 0 ? `<div class="bp-legend-item"><div class="bp-legend-dot" style="background:var(--green-equity)"></div>Equity ${etEqWeLocal.toFixed(1)}%</div>` : ''}
       <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>`;
     // Bucket rows show only the two leaf categories (parent "E-Trade PM" is implied by top card)
     const spxBpRow = etOptDollars > 0
@@ -2222,7 +2224,7 @@ function _renderGovernance() {
     if (!m) return '';
     const desc = m.description ? `<div style="font-family:var(--f-ui);font-size:0.55rem;color:var(--text-muted);margin-top:2px">${m.description}</div>` : '';
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 12px;border-bottom:1px solid var(--border)">
-      <div><span style="font-family:var(--f-ui);font-size:0.65rem;color:var(--text-2)">📊 ${label}</span>${desc}</div>
+      <div><span style="font-family:var(--f-ui);font-size:0.65rem;color:var(--text-2)">${label}</span>${desc}</div>
       ${_monBadge(m.status)}
     </div>`;
   };
@@ -2800,7 +2802,7 @@ function hidePosGreekHelp() {
 </script>
 
 <div id="pos-greek-help-overlay" onclick="if(event.target===this)hidePosGreekHelp()" style="display:none;position:fixed;inset:0;background:rgba(5,8,20,0.72);z-index:9999;align-items:center;justify-content:center">
-  <div style="background:#0D1020;border:1px solid #2A3350;border-radius:10px;padding:24px 28px;max-width:480px;width:90%;font-family:var(--f-ui);position:relative">
+  <div style="background:var(--surface);border:1px solid var(--border-2);border-radius:10px;padding:24px 28px;max-width:480px;width:90%;font-family:var(--f-ui);position:relative">
     <button onclick="hidePosGreekHelp()" style="position:absolute;top:12px;right:14px;background:none;border:none;color:var(--text-muted);font-size:1.1rem;cursor:pointer;line-height:1">×</button>
     <div style="font-size:0.75rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-2);margin-bottom:16px">Position Greeks 解读</div>
     <div style="display:flex;flex-direction:column;gap:12px;font-size:0.72rem;line-height:1.55;color:var(--text)">

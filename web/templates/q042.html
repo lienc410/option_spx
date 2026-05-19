@@ -405,7 +405,7 @@ async function loadState() {
             <div class="gauge-fill" style="width:${gaugePctA.toFixed(1)}%;background:${gaugeColor(gaugePctA)}"></div>
           </div>
           <div class="gauge-sub">
-            ${stateA === 'active' ? '🔴 已触发，仓位开立中' : gaugePctA >= 100 ? '⚠ 已穿越阈值' : `还需下跌 ${Math.abs(remA)}% 触发`}
+            ${stateA === 'active' ? '<span style="color:var(--red)">●</span> 已触发，仓位开立中' : gaugePctA >= 100 ? '<span style="color:var(--orange)">▲</span> 已穿越阈值' : `还需下跌 ${Math.abs(remA)}% 触发`}
           </div>
         </div>
         ${(() => {
@@ -452,7 +452,7 @@ async function loadState() {
             <div class="gauge-fill" style="width:${gaugePctB.toFixed(1)}%;background:${gaugeColor(gaugePctB)}"></div>
           </div>
           <div class="gauge-sub">
-            ${stateB === 'active' ? '🔴 已触发，仓位开立中' : gaugePctB >= 100 ? '⚠ 已穿越阈值' : `还需下跌 ${Math.abs(remB)}% 触发`}
+            ${stateB === 'active' ? '<span style="color:var(--red)">●</span> 已触发，仓位开立中' : gaugePctB >= 100 ? '<span style="color:var(--orange)">▲</span> 已穿越阈值' : `还需下跌 ${Math.abs(remB)}% 触发`}
           </div>
         </div>
         ${(() => {
