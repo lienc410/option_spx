@@ -643,7 +643,7 @@ async function loadGovernanceBT() {
             <div class="rh-strategy-name">SPX Spread</div>
             <div class="rh-strategy-status s-active">● ACTIVE · cap ${capPct(caps.R1_spx_pm_pool_cap_pct)}</div>
             ${m.normal_ivp_blocked_days != null
-              ? `<div class="rh-strategy-note">IVP252 ≥ 55 阻挡 ${fmtPct1(m.normal_ivp_blocked_pct_of_normal)} of normal (${m.normal_ivp_blocked_days}d)</div>`
+              ? `<div class="rh-strategy-note">BPS_NNB entry gate (IVP filter): blocks ${fmtPct1(m.normal_ivp_blocked_pct_of_normal)} of normal (${m.normal_ivp_blocked_days}d)</div>`
               : ''}
           </div>
           <div class="rh-strategy-row">

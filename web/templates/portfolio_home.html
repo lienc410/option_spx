@@ -796,6 +796,33 @@ body {
 }
 .booster-chip.ok   { background: var(--green-bg); border-color: var(--green-border); color: var(--green); }
 .booster-chip.fail { background: var(--red-bg);   border-color: var(--red-border);   color: var(--red); }
+.booster-panel-head {
+  font-family: var(--f-ui); font-size: 0.56rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text-2); margin-bottom: 6px;
+}
+.booster-gate {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  margin-top: 6px; padding: 6px 8px;
+  background: var(--surface-hi); border: 1px solid var(--border); border-radius: 5px;
+}
+.booster-gate-label {
+  font-family: var(--f-ui); font-size: 0.54rem; font-weight: 600;
+  color: var(--text-2); text-transform: uppercase; letter-spacing: 0.06em;
+  margin-right: 2px;
+}
+.booster-gate-or {
+  font-family: var(--f-mono); font-size: 0.54rem; color: var(--text-muted);
+}
+.booster-gate-arrow {
+  font-family: var(--f-mono); font-size: 0.58rem; color: var(--text-muted);
+}
+.booster-gate-result {
+  font-family: var(--f-mono); font-size: 0.56rem; font-weight: 700;
+  padding: 2px 6px; border-radius: 4px;
+}
+.booster-gate-result.ok   { background: var(--green-bg); border: 1px solid var(--green-border); color: var(--green); }
+.booster-gate-result.fail { background: var(--red-bg);   border: 1px solid var(--red-border);   color: var(--red); }
 
 /* ── Monitors block (SPEC-104) ── */
 .monitor-block {
@@ -2262,9 +2289,14 @@ function _renderGovernance() {
     ? `<span class="active-cap-badge ${activeCapClass}"><strong>Active ${fmtPct(activeCapPct)}</strong> · ${activeCapRegime.replace('_',' ')}</span>`
     : '';
 
-  // Q074 / SPEC-105 benign booster: Stage 1 is shadow by default. A true signal
+  // Q074 / SPEC-105 v2 benign booster: Stage 1 is shadow by default. A true signal
   // is visible here but does not raise production cap unless PM later flips active.
+  // NB: this is the BOOSTER cap gate (cap 80% → 90%), NOT the BPS_NNB entry filter
+  // shown on /portfolio-backtest. They share an IVP threshold but gate different things.
   const boosterConds = state.booster_signal_conditions || {};
+  const market = state.market || {};
+  const liveVix    = (typeof market.vix    === 'number') ? market.vix    : null;
+  const liveIvp252 = (typeof market.ivp252 === 'number') ? market.ivp252 : null;
   const boosterLabel = boosterActive
     ? (boosterMode === 'active' ? 'BOOSTER ACTIVE' : 'BOOSTER SHADOW')
     : (boosterMode === 'disabled' ? 'BOOSTER DISABLED' : 'BOOSTER OFF');
@@ -2274,30 +2306,49 @@ function _renderGovernance() {
   const boosterCapLine = boosterActive && boosterMode !== 'active'
     ? `would cap ${fmtPct(caps.CAP_SPX_BENIGN_BOOSTER || 90)} · effective ${fmtPct(activeCapPct)}`
     : `effective ${fmtPct(activeCapPct)}`;
+
+  // 7 independent B4 conditions (rendered as flat chips)
   const boosterCondLabels = [
-    ['warmed', 'data warmed'],
-    ['no_stress', 'no stress'],
+    ['warmed',        'data warmed'],
+    ['no_stress',     'no stress'],
     ['no_second_leg', 'no 2nd-leg'],
-    ['trend_ok', 'SPX > MA50'],
-    ['ddath_ok', 'ddATH > -4%'],
-    ['vix_ok', 'VIX < 22'],
-    ['vix5d_ok', 'VIX 5d ≤ +1.5'],
-    ['ivp_ok', 'IVP252 < 55'],
-    ['low_vix_escape_ok', 'OR VIX < 15'],
-    ['ivp_gate_pass', 'IVP gate pass'],
+    ['trend_ok',      'SPX > MA50'],
+    ['ddath_ok',      'ddATH > -4%'],
+    ['vix_ok',        'VIX < 22'],
+    ['vix5d_ok',      'VIX 5d ≤ +1.5'],
   ];
   const boosterConditionsHtml = boosterCondLabels.map(([key, label]) => {
     const ok = !!boosterConds[key];
     return `<span class="booster-chip ${ok ? 'ok' : 'fail'}">${ok ? '✓' : '×'} ${label}</span>`;
   }).join('');
+
+  // IVP gate sub-block: IVP<55 OR VIX<15 (SPEC-105 v2 Gate F).
+  // Show live IVP/VIX values so PM sees distance-to-threshold, not just pass/fail.
+  const ivpBranchOk = !!boosterConds.ivp_ok;
+  const vixBranchOk = !!boosterConds.low_vix_escape_ok;
+  const gatePass    = !!boosterConds.ivp_gate_pass;
+  const ivpChipLabel = liveIvp252 != null ? `IVP252 ${liveIvp252.toFixed(1)}` : 'IVP252 —';
+  const vixChipLabel = liveVix    != null ? `VIX ${liveVix.toFixed(1)}`       : 'VIX —';
+  const gateBlockHtml = `
+    <div class="booster-gate">
+      <span class="booster-gate-label">IVP gate</span>
+      <span class="booster-chip ${ivpBranchOk ? 'ok' : 'fail'}">${ivpBranchOk ? '✓' : '×'} ${ivpChipLabel} &lt; 55</span>
+      <span class="booster-gate-or">OR</span>
+      <span class="booster-chip ${vixBranchOk ? 'ok' : 'fail'}">${vixBranchOk ? '✓' : '×'} ${vixChipLabel} &lt; 15</span>
+      <span class="booster-gate-arrow">→</span>
+      <span class="booster-gate-result ${gatePass ? 'ok' : 'fail'}">${gatePass ? '✓ PASS' : '× FAIL'}</span>
+    </div>`;
+
   const boosterHtml = `
     <div class="booster-panel ${boosterPanelCls}">
+      <div class="booster-panel-head">B4 booster gate (cap ${fmtPct(caps.R1_spx_pm_pool_cap_pct ?? 80)} → ${fmtPct(caps.CAP_SPX_BENIGN_BOOSTER ?? 90)})</div>
       <div class="booster-row">
         <span class="booster-label">${boosterLabel}</span>
         <span class="booster-cap-line">${boosterCapLine}</span>
         <span class="booster-meta">Stage 1 shadow: observation only unless PM approves active mode.</span>
       </div>
       <div class="booster-chips">${boosterConditionsHtml}</div>
+      ${gateBlockHtml}
     </div>`;
 
   // Monitors block (SPEC-104) — pulled from /api/sleeve-governance/state.monitors
