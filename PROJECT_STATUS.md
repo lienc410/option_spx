@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-19 (**SPEC-105 v2 DONE + DEPLOYED old Air**。Q074.2 Gate F amendment live in Stage 1 shadow: B4 IVP gate refined from `IVP_252 < 55` to `IVP_252 < 55 OR VIX < 15`。Production SPX cap remains `80%` unless PM later approves active mode。API/dashboard fields `ivp_ok`, `low_vix_escape_ok`, `ivp_gate_pass` and shadow-log diagnostic `gate_f_only` verified on old Air；cache refresh 5/5 OK。Regression PASS: SPEC-103/104/105 = 27/27。)
+Last Updated: 2026-05-20 (**Q075 CLOSED — DOCUMENT outcome**。IVP-blocked day replacement strategy（IC / BCS / C2 全路径）。2nd Quant G4 Final Verdict: DOCUMENT。ΔROE +0.004pp / +0.007pp — sub-threshold，不出 SPEC。Layer-3 framework 确立。Reject list 永久记录 — `See: research/q075/q075_p4_memo.md`, `task/q075_p4_g4_2nd_quant_review_2026-05-20_Review.md`)
 Owner: Planner or PM
 
 ## Current Phase

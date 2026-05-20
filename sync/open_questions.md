@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-05-18（**Session 2026-05-13→05-18 全收口**。Q071/Q073/Q074 PROMOTE，SPEC-101/102/104/105 DEPLOYED。当前：Arch-3 normal state + B4 booster shadow Stage 1 + Q042 Sleeve A Stage 1=12.5%）
+最后更新：2026-05-20（**Q075 CLOSED — DOCUMENT**。IVP-blocked day IC/BCS/C2 全路径 ΔROE sub-threshold。Layer-3 framework 确立。不出 SPEC）
 
 ---
 
@@ -33,6 +33,20 @@
 ---
 
 ## 策略设计待解决
+
+### Q075 — IVP-Blocked Day Layer-3 Replacement Strategy
+
+- **状态**：**resolved** (Q075 CLOSED — **DOCUMENT**，2026-05-20，2nd Quant G4 Final PASS)
+- **结论**：在当前 $894k NLV 规模下 IVP-blocked 日替代策略（IC / BCS / C2）经济性 sub-threshold，不出 SPEC。Layer-3 framework 确立但暂不实施
+- **研究路径**：Framing（PASS w/ 6 revisions）→ P0（Type D 5% sanity check + §6 措辞软化）→ P1（Type C 50% stress 发现，PAUSE → limited P2）→ P2（IC + BCS PASS base，mark model 有偏）→ P3（IC w25/w35 advance；BCS dead 4/4；C2 翻负）→ P4（ΔROE +0.004pp / +0.007pp → DOCUMENT）
+- **DOCUMENT 依据**：IC w25 / IC w35 ΔROE 分别 +0.004pp / +0.007pp，远低于 SPEC threshold（+0.25pp = Q074 booster 基准）。结构本身 clean 但 1× research sizing 经济性不支撑
+- **永久 Reject list**（Q075 内不再 reopen）：BCS（4/4 melt-up 全 fail）/ C2 short-DTE BPS（refactored model 翻负）/ IC w15（credit cushion 不足，Mild shock fail）/ Calendar / diagonal（P1 seed 未通过）/ Multi-entry cluster（P0 excluded）
+- **Layer-3 Framework（确立）**：Layer-1 survival / Layer-2 benign income / Layer-3 IVP-blocked replacement — framework 完整，下次类似研究有 anchor
+- **Revisit 条件**（不是 Q075 续作，需独立 research item）：NLV 规模显著增长 / sizing appetite 变化 / PM 操作带宽扩展；Type C 50% stress 数据点必须作为 anchor
+- **研究副产品**：P3 mtm_at() mark model 是未来 Q07X 标准（P2 简化公式被淘汰）；feedback_layer_n_replacement_outcome.md + sequencing 原则已沉淀
+- **来源**：`research/q075/q075_p4_memo.md`, `task/q075_p4_g4_2nd_quant_review_2026-05-20_Review.md`
+
+---
 
 ### Q074 — Bull Regime Booster / Layer-2 Income Optimization
 

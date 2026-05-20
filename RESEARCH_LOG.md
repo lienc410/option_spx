@@ -1,6 +1,23 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-18 (**Session 2026-05-13→05-18 全收口**。Q074 CLOSED PROMOTE B4 staged。SPEC-105 DEPLOYED Stage 1 shadow。B4 booster 8-gate benign confirm，SPX cap 90% when active，Layer-1 caps/triggers unchanged。Combined NLV $894k，booster inactive（IVP≥55 blocks），cap regime normal=80%）
+Last Updated: 2026-05-20 (**Q075 CLOSED — DOCUMENT**。IVP-blocked day replacement strategy 全路径完成。ΔROE +0.004pp / +0.007pp sub-threshold，不出 SPEC。Layer-3 framework 确立。Mark model P3 mtm_at() 标准化。Type C 50% stress 数据点存档）
+
+### R-20260520-01 — Q075: IVP-Blocked Day Layer-3 Replacement Strategy — CLOSED DOCUMENT
+
+- **Topic**: 在 SPEC-105 B4 booster 研究中观察到 IVP≥55 日为"cash / BOXX days"（blocked）。Q075 研究在 blocked 日是否有 Layer-3 替代策略（IC / BCS / C2 等）在当前规模下经济可行
+- **Method**: Framing → P0（三方锚定 + Type D sanity）→ P1（attribution + Type C stress 发现）→ P2（IC + BCS base, mark model 校正）→ P3（candidate advance: IC w25/w35 survive；BCS / C2 / IC w15 fail）→ P4（full validation + ΔROE quantification）→ 2nd Quant G4（DOCUMENT verdict）
+- **Verdict: DOCUMENT（不出 SPEC）**：
+  - IC w25 ΔROE: +0.004pp；IC w35 ΔROE: +0.007pp
+  - 对比 Q074 booster threshold +0.25pp — 远低于 production threshold
+  - 结构本身 clean（tail-invariant / negatively correlated / stress-adjacent robust / no capital conflict），但 1× research sizing 经济性不支撑
+- **永久 Reject list**：BCS（4/4 melt-up analogs 全 fail）/ C2（refactored mark model 翻负）/ IC w15（credit cushion 不足，Mild shock fail）/ Calendar（P1 未过）/ Multi-entry cluster（P0 excluded）
+- **Layer-3 Framework 确立**：Layer-1 survival / Layer-2 benign income / Layer-3 IVP-blocked replacement — 完整 framework，未来研究有 anchor
+- **研究副产品**：
+  - P3 mtm_at() 是未来 Q07X mark model 标准（P2 简化公式被淘汰）
+  - Type C 50% stress 数据点：任何 IVP-blocked 替代策略研究必须先 reference 此数
+  - feedback_layer_n_replacement_outcome.md：替代策略 sub-threshold 时 DOCUMENT 正确，不用 scaling 推翻 verdict
+- **Revisit 条件**：NLV 规模 / sizing appetite / PM 带宽显著变化；独立 research item，不是 Q075 续作
+- **来源**：`research/q075/q075_p4_memo.md`, `task/q075_p4_g4_2nd_quant_review_2026-05-20_Review.md`, `task/q075_framing_2nd_quant_review_packet_2026-05-19.md`
 
 ### R-20260518-01 — Q074: Bull Regime Booster / Layer-2 Income Optimization — CLOSED PROMOTE B4 staged
 
