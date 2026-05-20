@@ -1,0 +1,4 @@
+variant,n_transitions_total,n_transitions_with_booster,mild,acute,failed_benign,cum_incremental_pnl_10d_usd,worst_single_episode_usd,worst_single_episode_pct_nlv
+B4_current,2929,171,123,48,41,213893.0,-1304.0,-0.1458612975391499
+B4_F,2929,184,131,53,44,220391.0,-1304.0,-0.1458612975391499
+B4_F2,2929,176,123,53,41,219813.0,-1304.0,-0.1458612975391499

@@ -451,3 +451,28 @@ Validation:
 Known operational note:
 - Deployment must keep Stage 1 shadow. Do not set `SPX_BENIGN_BOOSTER_MODE=active` without a separate PM approval gate.
 - After old Air deploy, refresh SPX / ES / Q041 backtest caches per SPEC-105 §14 handoff note #8.
+
+---
+
+## 15. SPEC-105 v2 Amendment (2026-05-19)
+
+**Status**: amended by `task/SPEC-105-v2.md`.
+
+Change:
+
+```diff
+- IVP_252 < 55
++ IVP_252 < 55 OR VIX < 15
+```
+
+Everything else remains unchanged:
+
+- `CAP_SPX_BENIGN_BOOSTER = 90.0`
+- Stage 1 shadow default
+- production SPX cap remains `80%` in shadow
+- state priority remains second-leg `40%` > stress `50%` > booster `90%` > normal `80%`
+- SPEC-104 caps and R5/R6 trigger definitions unchanged
+
+Additional diagnostic:
+
+- `data/q074_booster_shadow.jsonl` entries include `gate_f_only`, true when the booster passes only through the low-absolute-VIX escape branch (`IVP_252 >= 55 AND VIX < 15`).

@@ -295,13 +295,35 @@ def booster_signal_conditions(market_state: dict) -> dict:
         "vix_ok": bool(vix is not None and vix < 22.0),
         "vix5d_ok": bool(vix_5d_change is not None and vix_5d_change <= 1.5),
         "ivp_ok": bool(ivp252 is not None and ivp252 < 55.0),
+        "low_vix_escape_ok": bool(vix is not None and vix < 15.0),
+        "ivp_gate_pass": bool((ivp252 is not None and ivp252 < 55.0) or (vix is not None and vix < 15.0)),
     }
 
 
 def b4_benign_active(market_state: dict) -> bool:
     """Q074 B4 moderate 90% booster activation criteria."""
     cond = booster_signal_conditions(market_state)
-    return all(cond.values())
+    required = (
+        "warmed",
+        "no_stress",
+        "no_second_leg",
+        "trend_ok",
+        "ddath_ok",
+        "vix_ok",
+        "vix5d_ok",
+        "ivp_gate_pass",
+    )
+    return all(bool(cond.get(key)) for key in required)
+
+
+def gate_f_only_active(market_state: dict) -> bool:
+    """SPEC-105 v2 diagnostic: active only because low absolute VIX bypassed IVP."""
+    cond = booster_signal_conditions(market_state)
+    return bool(
+        b4_benign_active(market_state)
+        and not cond.get("ivp_ok")
+        and cond.get("low_vix_escape_ok")
+    )
 
 
 def active_spx_cap(market_state: dict, mode: str | None = None) -> tuple[float, str]:
@@ -760,6 +782,7 @@ def record_state_snapshot(send_alerts: bool = False) -> dict:
         "active_spx_pm_cap_regime": state.get("active_spx_pm_cap_regime"),
         "active_spx_pm_cap_pct": state.get("active_spx_pm_cap_pct"),
         "booster_shadow_cap_pct": (state.get("caps") or {}).get("booster_shadow_cap_pct"),
+        "gate_f_only": gate_f_only_active(state.get("market") or {}),
         "conditions": state.get("booster_signal_conditions"),
         "market": state.get("market"),
     })

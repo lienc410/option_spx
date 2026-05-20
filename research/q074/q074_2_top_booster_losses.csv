@@ -1,0 +1,16 @@
+candidate,trigger_date,lookback_days,booster_active_in_window,incremental_pnl_usd,incremental_pct_nlv,severity,failed_benign,window
+B4_current,2014-01-31,10,5,-1304.0,-0.146,mild,True,10d
+B4_current,2014-02-03,10,4,-1144.0,-0.128,mild,True,10d
+B4_current,2014-02-06,10,1,-1102.0,-0.123,mild,True,10d
+B4_current,2014-02-05,10,2,-1031.0,-0.115,mild,True,10d
+B4_current,2013-08-28,10,2,-562.0,-0.063,mild,True,10d
+B4_F,2014-01-31,10,5,-1304.0,-0.146,mild,True,10d
+B4_F,2014-02-03,10,4,-1144.0,-0.128,mild,True,10d
+B4_F,2014-02-06,10,1,-1102.0,-0.123,mild,True,10d
+B4_F,2014-02-05,10,2,-1031.0,-0.115,mild,True,10d
+B4_F,2014-12-18,10,3,-653.0,-0.073,mild,True,10d
+B4_F2,2014-01-31,10,5,-1304.0,-0.146,mild,True,10d
+B4_F2,2014-02-03,10,4,-1144.0,-0.128,mild,True,10d
+B4_F2,2014-02-06,10,1,-1102.0,-0.123,mild,True,10d
+B4_F2,2014-02-05,10,2,-1031.0,-0.115,mild,True,10d
+B4_F2,2013-08-28,10,2,-562.0,-0.063,mild,True,10d

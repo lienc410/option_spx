@@ -87,6 +87,17 @@ class Spec105Tests(unittest.TestCase):
         self.assertFalse(gov.b4_benign_active(_benign_market(stress_episode_active=True)))
         self.assertFalse(gov.b4_benign_active(_benign_market(second_leg_active=True)))
 
+    def test_gate_f_low_vix_escape_refines_ivp_gate(self):
+        self.assertTrue(gov.b4_benign_active(_benign_market(ivp252=70.0, vix=14.5)))
+        self.assertFalse(gov.b4_benign_active(_benign_market(ivp252=70.0, vix=16.0)))
+        self.assertTrue(gov.b4_benign_active(_benign_market(ivp252=40.0, vix=16.0)))
+
+        cond = gov.booster_signal_conditions(_benign_market(ivp252=70.0, vix=14.5))
+        self.assertFalse(cond["ivp_ok"])
+        self.assertTrue(cond["low_vix_escape_ok"])
+        self.assertTrue(cond["ivp_gate_pass"])
+        self.assertTrue(gov.gate_f_only_active(_benign_market(ivp252=70.0, vix=14.5)))
+
     def test_active_spx_cap_priority_and_shadow_mode(self):
         self.assertEqual(gov.CAP_SPX_BENIGN_BOOSTER, 90.0)
         self.assertEqual(gov.active_spx_cap(_benign_market(second_leg_active=True), mode="active"), (40.0, "second_leg"))
@@ -148,6 +159,18 @@ class Spec105Tests(unittest.TestCase):
         row = gov.BOOSTER_SHADOW_LOG_PATH.read_text().strip()
         self.assertIn('"booster_active": true', row)
         self.assertIn('"booster_shadow_cap_pct": 90.0', row)
+        self.assertIn('"gate_f_only": false', row)
+
+    def test_shadow_snapshot_writes_gate_f_only_diagnostic(self):
+        gate_f_state = _state(booster=True, mode="shadow")
+        gate_f_state["market"] = _benign_market(ivp252=70.0, vix=14.5)
+        gate_f_state["booster_signal_conditions"] = gov.booster_signal_conditions(gate_f_state["market"])
+        gate_f_state["booster_active"] = gov.b4_benign_active(gate_f_state["market"])
+        with patch("strategy.sleeve_governance.current_governance_state", return_value=gate_f_state):
+            gov.record_state_snapshot(send_alerts=False)
+
+        row = gov.BOOSTER_SHADOW_LOG_PATH.read_text().strip()
+        self.assertIn('"gate_f_only": true', row)
 
     def test_q074_b4_reference_numbers_reproduce(self):
         path = REPO_ROOT / "research/q074/q074_p2_candidate_results.csv"
@@ -157,6 +180,17 @@ class Spec105Tests(unittest.TestCase):
         self.assertAlmostEqual(float(row["net_ann_roe_pct"]), 8.20, delta=0.10)
         self.assertAlmostEqual(float(row["max_dd_pct"]), -8.71, delta=0.50)
         self.assertAlmostEqual(float(row["worst_20d_pct"]), -7.04, delta=0.30)
+
+    def test_q074_2_gate_f_reference_numbers_reproduce(self):
+        path = REPO_ROOT / "research/q074/q074_2_portfolio_metrics.csv"
+        with path.open() as f:
+            row = next(r for r in csv.DictReader(f) if r["candidate"] == "B4_F")
+
+        self.assertAlmostEqual(float(row["ann_roe_pct"]), 8.214, delta=0.05)
+        self.assertAlmostEqual(float(row["max_dd_pct"]), -8.71, delta=0.30)
+        self.assertAlmostEqual(float(row["worst_20d_pct"]), -7.04, delta=0.20)
+        self.assertAlmostEqual(float(row["worst_63d_pct"]), -8.66, delta=0.30)
+        self.assertAlmostEqual(float(row["booster_pct_of_normal"]), 39.8, delta=2.0)
 
 
 if __name__ == "__main__":

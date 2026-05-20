@@ -2283,6 +2283,8 @@ function _renderGovernance() {
     ['vix_ok', 'VIX < 22'],
     ['vix5d_ok', 'VIX 5d ≤ +1.5'],
     ['ivp_ok', 'IVP252 < 55'],
+    ['low_vix_escape_ok', 'OR VIX < 15'],
+    ['ivp_gate_pass', 'IVP gate pass'],
   ];
   const boosterConditionsHtml = boosterCondLabels.map(([key, label]) => {
     const ok = !!boosterConds[key];
