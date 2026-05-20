@@ -1,7 +1,7 @@
 # SPEC-105 v2 Handoff — B4 Booster IVP Gate Refinement
 
 **Date**: 2026-05-19
-**Status**: DONE locally; old Air deploy pending
+**Status**: DONE + deployed old Air
 **Scope**: narrow amendment to SPEC-105 v1 Gate F
 
 ## Summary
@@ -93,13 +93,32 @@ Q074.2 reference row checked from `research/q074/q074_2_portfolio_metrics.csv`:
 
 ## Deployment Notes
 
-Deploy to old Air with existing Stage 1 shadow posture:
+Deployed to old Air with existing Stage 1 shadow posture:
 
 - do not set `SPX_BENIGN_BOOSTER_MODE=active`
 - restart `com.spxstrat.web`
 - restart `com.spxstrat.bot`
 - verify `/api/sleeve-governance/state` contains the three new condition fields
 - run `scripts/refresh_backtest_caches.py`
+
+Deployment verification completed 2026-05-19:
+
+- old Air HEAD: `b5ae27b`
+- `com.spxstrat.web` restarted
+- `com.spxstrat.bot` restarted
+- `venv/bin/python -m unittest tests.test_spec_105 -v` → 10/10 PASS on old Air
+- `booster_mode()` → `shadow`
+- Gate F synthetic smoke:
+  - `ivp252=70`, `vix=14.5` → `b4_benign_active=True`, `gate_f_only=True`
+- `/api/sleeve-governance/state` → 200
+- Runtime payload includes:
+  - `ivp_ok`
+  - `low_vix_escape_ok`
+  - `ivp_gate_pass`
+- `/` Portfolio Command Center → 200 and contains `OR VIX < 15` / `IVP gate pass`
+- `/api/recommendation` → 200
+- `data/q074_booster_shadow.jsonl` latest row includes `gate_f_only`
+- `scripts/refresh_backtest_caches.py` → 5/5 endpoints OK
 
 ## Follow-Up Risk
 
