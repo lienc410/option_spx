@@ -32,7 +32,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .nav-link { font-size:0.76rem;padding:5px 10px;border-radius:5px;color:var(--text-2);text-decoration:none;transition:0.15s; }
 .nav-link:hover { color:var(--text);background:var(--surface-hi); }
 .nav-link.active { color:var(--orange);background:var(--orange-bg); }
-.nav-right { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-muted); }
+.nav-right { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2); }
 
 .page { max-width:880px;margin:0 auto;padding:28px 24px 60px; }
 .page-hero { margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border); }
@@ -78,7 +78,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .gauge-val { font-family:var(--f-mono);font-size:0.60rem; }
 .gauge-track { height:8px;background:var(--border-2);border-radius:9999px;overflow:hidden; }
 .gauge-fill { height:100%;border-radius:9999px;transition:width 0.4s; }
-.gauge-sub { font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);margin-top:4px; }
+.gauge-sub { font-family:var(--f-ui);font-size:0.58rem;color:var(--text-2);margin-top:4px; }
 
 /* ── Chart ── */
 .chart-wrap { background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:20px;margin-bottom:16px; }
@@ -90,7 +90,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 
 /* ── Active position ── */
 .pos-table { width:100%;border-collapse:collapse; }
-.pos-table th { font-family:var(--f-ui);font-size:0.58rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);padding:6px 10px;text-align:left;border-bottom:1px solid var(--border-2); }
+.pos-table th { font-family:var(--f-ui);font-size:0.58rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-2);padding:6px 10px;text-align:left;border-bottom:1px solid var(--border-2); }
 .pos-table td { font-family:var(--f-mono);font-size:0.70rem;color:var(--text-2);padding:7px 10px;border-bottom:1px solid var(--border); }
 .pos-table td:first-child { color:var(--text); }
 .pos-none { font-family:var(--f-ui);font-size:0.68rem;color:var(--text-muted);font-style:italic;padding:16px 0; }
@@ -104,7 +104,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .spec-shared-title { font-family:var(--f-ui);font-size:0.65rem;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px; }
 .spec-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px 20px; }
 .spec-item { display:flex;flex-direction:column;gap:2px; }
-.spec-key { font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em; }
+.spec-key { font-family:var(--f-ui);font-size:0.58rem;color:var(--text-2);text-transform:uppercase;letter-spacing:0.06em; }
 .spec-val { font-family:var(--f-mono);font-size:0.72rem;color:var(--text-2); }
 .spec-val b { color:var(--text);font-weight:500; }
 .spec-sleeve-grid { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
@@ -113,11 +113,11 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .spec-sleeve-id { font-family:var(--f-mono);font-size:0.90rem;font-weight:600; }
 .spec-sleeve-body { padding:10px 16px;display:flex;flex-direction:column;gap:7px; }
 .spec-row { display:flex;gap:6px;align-items:baseline; }
-.spec-row-key { font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;flex:0 0 72px; }
+.spec-row-key { font-family:var(--f-ui);font-size:0.58rem;color:var(--text-2);text-transform:uppercase;letter-spacing:0.06em;flex:0 0 72px; }
 .spec-row-val { font-family:var(--f-mono);font-size:0.68rem;color:var(--text-2); }
 .spec-row-val b { color:var(--text);font-weight:500; }
 .spec-divider { height:1px;background:var(--border);margin:4px 0; }
-.spec-guard { font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);line-height:1.5;padding-top:6px;border-top:1px solid var(--border);margin-top:2px; }
+.spec-guard { font-family:var(--f-ui);font-size:0.58rem;color:var(--text-2);line-height:1.5;padding-top:6px;border-top:1px solid var(--border);margin-top:2px; }
 
 @media (max-width:700px) { .sleeve-grid,.spec-sleeve-grid { grid-template-columns:1fr; } }
 
@@ -422,7 +422,7 @@ async function loadState() {
             : '(used only after ddATH ≤ −4% triggers)';
           return `<div style="padding:9px 16px;border-top:1px solid var(--border);background:var(--surface-hi);font-family:var(--f-mono);font-size:0.62rem;color:var(--text-2)"
                        title="armed=待 ddATH ≤ -4% 触发；触发后此 sleeve 可分配池上限为 ${cur} NLV，目标分阶 ramp 到 ${tgt}">
-            <span style="color:var(--blue);font-weight:600">SPEC-104</span> · Stage ${stage} of 4 · ${allocLabel} <strong style="color:var(--text)">${cur}</strong> <span style="color:var(--text-muted);font-size:0.92em">${allocNote}</span> · Target <strong style="color:var(--text)">${tgt}</strong>
+            <span style="color:var(--blue);font-weight:600">SPEC-104</span> · Stage ${stage} of 4 · ${allocLabel} <strong style="color:var(--text)">${cur}</strong> <span style="color:var(--text-2);font-size:0.92em">${allocNote}</span> · Target <strong style="color:var(--text)">${tgt}</strong>
           </div>`;
         })()}
       </div>
@@ -617,11 +617,11 @@ async function openQ042Modal(kind, sleeve) {
           <input id="q042-exp" class="modal-input" type="date">
         </div>
         <div class="modal-field">
-          <label class="modal-label">Long Strike (ATM) <span style="color:var(--text-muted);font-size:0.55rem;text-transform:none;letter-spacing:0">click row to select</span></label>
+          <label class="modal-label">Long Strike (ATM) <span style="color:var(--text-2);font-size:0.55rem;text-transform:none;letter-spacing:0">click row to select</span></label>
           <input id="q042-long" class="modal-input" type="number" step="5">
         </div>
         <div class="modal-field">
-          <label class="modal-label">Short Strike (OTM) <span style="color:var(--text-muted);font-size:0.55rem;text-transform:none;letter-spacing:0">click row to select</span></label>
+          <label class="modal-label">Short Strike (OTM) <span style="color:var(--text-2);font-size:0.55rem;text-transform:none;letter-spacing:0">click row to select</span></label>
           <input id="q042-short" class="modal-input" type="number" step="5">
         </div>
         <div class="modal-field">
@@ -629,7 +629,7 @@ async function openQ042Modal(kind, sleeve) {
           <input id="q042-contracts" class="modal-input" type="number" min="1" step="1" value="1">
         </div>
         <div class="modal-field">
-          <label class="modal-label">Est. Debit ($) <span style="color:var(--text-muted);font-size:0.55rem;text-transform:none;letter-spacing:0">live mid or BSM</span></label>
+          <label class="modal-label">Est. Debit ($) <span style="color:var(--text-2);font-size:0.55rem;text-transform:none;letter-spacing:0">live mid or BSM</span></label>
           <input id="q042-est-debit" class="modal-input" type="number" step="0.01" placeholder="from chain or BSM">
         </div>
         <div class="modal-field">
@@ -644,7 +644,7 @@ async function openQ042Modal(kind, sleeve) {
           <div class="scan-wrap" id="q042-scan-wrap"></div>
         </div>
         <div class="modal-field">
-          <label class="modal-label">Fill Debit ($) <span style="color:var(--text-muted);font-size:0.55rem;text-transform:none;letter-spacing:0">leave blank until executed</span></label>
+          <label class="modal-label">Fill Debit ($) <span style="color:var(--text-2);font-size:0.55rem;text-transform:none;letter-spacing:0">leave blank until executed</span></label>
           <input id="q042-fill-debit" class="modal-input" type="number" step="0.01" placeholder="actual fill">
         </div>
         <div class="modal-field">

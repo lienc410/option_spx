@@ -33,7 +33,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .nav-link { font-family:var(--f-ui);font-size:0.72rem;color:var(--text-2);text-decoration:none;padding:6px 10px;border-radius:5px;transition:0.12s; }
 .nav-link:hover { color:var(--text);background:var(--surface-hi); }
 .nav-link.active { color:var(--gold);background:var(--gold-bg); }
-.nav-right { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-muted); }
+.nav-right { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2); }
 
 .page { max-width:880px;margin:0 auto;padding:32px 24px 64px; }
 .page-hero { margin-bottom:24px; }
@@ -53,7 +53,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 
 .metric-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px; }
 .metric-cell { background:var(--surface-hi);border:1px solid var(--border-2);border-radius:8px;padding:12px 14px; }
-.metric-key { font-family:var(--f-ui);font-size:0.56rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px; }
+.metric-key { font-family:var(--f-ui);font-size:0.56rem;color:var(--text-2);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px; }
 .metric-val { font-family:var(--f-mono);font-size:1.30rem;font-weight:500;color:var(--text);line-height:1.1; }
 .metric-val.warn { color:var(--orange); }
 .metric-val.muted { color:var(--text-muted); }
@@ -72,12 +72,12 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 
 /* Performance metric cards (Q042-style) */
 .metric-card { background:var(--surface-hi);border:1px solid var(--border-2);border-radius:8px;padding:12px 14px; }
-.metric-label { font-family:var(--f-ui);font-size:0.56rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px; }
+.metric-label { font-family:var(--f-ui);font-size:0.56rem;color:var(--text-2);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px; }
 .metric-value { font-family:var(--f-mono);font-size:1.18rem;font-weight:500;color:var(--text);line-height:1.1; }
 .metric-value.up   { color:var(--green); }
 .metric-value.down { color:var(--red); }
 .metric-value.warn { color:var(--orange); }
-.metric-sub { font-family:var(--f-ui);font-size:0.60rem;color:var(--text-muted);margin-top:4px; }
+.metric-sub { font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2);margin-top:4px; }
 
 .todo-list { display:flex;flex-direction:column;gap:10px; }
 .todo-row { display:flex;gap:14px;font-family:var(--f-ui);font-size:0.70rem;color:var(--text-2);line-height:1.5; }
@@ -92,11 +92,11 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .discipline-card { background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:18px 22px; }
 .discipline-row { display:flex;gap:18px;padding:10px 0;border-bottom:1px solid var(--border); }
 .discipline-row:last-of-type { border-bottom:none;padding-bottom:4px; }
-.discipline-key { flex:0 0 100px;font-family:var(--f-ui);font-size:0.60rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;padding-top:2px; }
+.discipline-key { flex:0 0 100px;font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2);text-transform:uppercase;letter-spacing:0.08em;padding-top:2px; }
 .discipline-val { flex:1;font-family:var(--f-ui);font-size:0.72rem;color:var(--text-2);line-height:1.6; }
 .discipline-val strong { color:var(--text);font-weight:500; }
 .discipline-val code { font-family:var(--f-mono);font-size:0.68rem;background:var(--surface-hi);padding:1px 5px;border-radius:3px;color:var(--text); }
-.discipline-footnote { margin-top:14px;padding-top:12px;border-top:1px solid var(--border-2);font-family:var(--f-ui);font-size:0.62rem;color:var(--text-muted);line-height:1.5; }
+.discipline-footnote { margin-top:14px;padding-top:12px;border-top:1px solid var(--border-2);font-family:var(--f-ui);font-size:0.62rem;color:var(--text-2);line-height:1.5; }
 </style>
 </head>
 <body>
@@ -145,7 +145,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
   <!-- Performance analytics: SPX return during aftermath windows -->
   <div class="card" id="perf-card">
     <div class="card-title">SPX Direction During Aftermath Windows
-      <span style="font-size:0.62rem;font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:normal;margin-left:8px">
+      <span style="font-size:0.62rem;font-weight:400;color:var(--text-2);text-transform:none;letter-spacing:normal;margin-left:8px">
         — market-state distribution, NOT strategy P&amp;L (V3-A trade WR is 90.9% per Q064 R-20260512-03)
       </span>
     </div>
@@ -157,7 +157,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
   <!-- V3-A Strategy Performance: actual strategy P&L (separate from SPX direction) -->
   <div class="card" id="v3a-perf-card">
     <div class="card-title">V3-A IC_HV Strategy Performance
-      <span style="font-size:0.62rem;font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:normal;margin-left:8px">
+      <span style="font-size:0.62rem;font-weight:400;color:var(--text-2);text-transform:none;letter-spacing:normal;margin-left:8px">
         — actual P&amp;L from SPEC-064 aftermath fires (BEARISH/NEUTRAL + IV HIGH + aftermath) · Q064 R-20260512-03
       </span>
     </div>
@@ -187,7 +187,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
           </div>
         </div>
         <div class="range-btns">
-          <span style="font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);margin-right:4px">Overlay:</span>
+          <span style="font-family:var(--f-ui);font-size:0.58rem;color:var(--text-2);margin-right:4px">Overlay:</span>
           <button class="range-btn active" data-ov="none"  onclick="setSpxOverlay('none')">None</button>
           <button class="range-btn" data-ov="dd"    onclick="setSpxOverlay('dd')">Drawdown</button>
           <button class="range-btn" data-ov="vix"   onclick="setSpxOverlay('vix')">VIX</button>
@@ -198,7 +198,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
           <button class="range-btn" data-range="3yr"  onclick="setSpxRange('3yr')">3yr</button>
           <button class="range-btn" data-range="5yr"  onclick="setSpxRange('5yr')">5yr</button>
           <button class="range-btn active" data-range="all" onclick="setSpxRange('all')">All</button>
-          <button class="range-btn" style="color:var(--text-muted);margin-left:4px" onclick="resetSpxZoom()" title="Reset drag-zoom">↩ 全局</button>
+          <button class="range-btn" style="color:var(--text-2);margin-left:4px" onclick="resetSpxZoom()" title="Reset drag-zoom">↩ 全局</button>
         </div>
       </div>
     </div>
@@ -397,8 +397,8 @@ async function loadAll() {
       <div class="metric-cell"><div class="metric-key">Historical Windows</div><div class="metric-val warn">${hist.total_windows??'—'}</div></div>
       <div class="metric-cell"><div class="metric-key">Total Active Days</div><div class="metric-val">${hist.total_active_days??'—'}</div></div>
       <div class="metric-cell"><div class="metric-key">Active % of Days</div><div class="metric-val ${(hist.active_days_pct??0)>=5?'warn':'muted'}">${fmt(hist.active_days_pct,2)}%</div></div>
-      <div class="metric-cell"><div class="metric-key">Avg Window</div><div class="metric-val">${fmt(hist.avg_window_days,1)} <span style="font-size:0.55rem;color:var(--text-muted)">days</span></div></div>
-      <div class="metric-cell"><div class="metric-key">Max Window</div><div class="metric-val">${hist.max_window_days??'—'} <span style="font-size:0.55rem;color:var(--text-muted)">days</span></div></div>
+      <div class="metric-cell"><div class="metric-key">Avg Window</div><div class="metric-val">${fmt(hist.avg_window_days,1)} <span style="font-size:0.55rem;color:var(--text-2)">days</span></div></div>
+      <div class="metric-cell"><div class="metric-key">Max Window</div><div class="metric-val">${hist.max_window_days??'—'} <span style="font-size:0.55rem;color:var(--text-2)">days</span></div></div>
       <div class="metric-cell"><div class="metric-key">Last Window</div><div class="metric-val muted" style="font-size:0.78rem">${hist.last_window?.start||'—'}</div></div>
       <div class="metric-cell"><div class="metric-key">Scan Range</div><div class="metric-val muted" style="font-size:0.78rem">${scanRange}</div></div>
     `;
@@ -586,7 +586,7 @@ function renderWindowsTable(windows, trades, gates) {
   if (!sec) return;
   if (!windows.length) { sec.innerHTML='<div class="empty-msg">No historical windows scanned</div>'; return; }
   const recent = [...windows].reverse().slice(0,30);
-  const th = s => `<th style="font-family:var(--f-ui);font-size:0.56rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--border-2)">${s}</th>`;
+  const th = s => `<th style="font-family:var(--f-ui);font-size:0.56rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-2);text-align:left;padding:8px 10px;border-bottom:1px solid var(--border-2)">${s}</th>`;
   const fmtPnl = v => v >= 0 ? `+$${Math.round(v).toLocaleString()}` : `-$${Math.abs(Math.round(v)).toLocaleString()}`;
 
   sec.innerHTML = `
@@ -602,13 +602,13 @@ function renderWindowsTable(windows, trades, gates) {
         if (wTrades.length) {
           const pnlColor = totalPnl >= 0 ? 'var(--green)' : 'var(--orange)';
           tradeCell = `<span style="color:${pnlColor}">${fmtPnl(totalPnl)}</span>`
-            + ` <span style="color:var(--text-muted);font-size:0.58rem">${wTrades.length}笔 ${wins}W/${wTrades.length-wins}L</span>`;
+            + ` <span style="color:var(--text-2);font-size:0.58rem">${wTrades.length}笔 ${wins}W/${wTrades.length-wins}L</span>`;
         } else {
           const gateEntry = (gates||{})[w.start];
           if (gateEntry) {
             const label  = typeof gateEntry === 'object' ? (gateEntry.label  || gateEntry) : gateEntry;
             const detail = typeof gateEntry === 'object' ? (gateEntry.detail || '')        : '';
-            tradeCell = `<span style="color:var(--text-muted);font-size:0.60rem;font-style:italic" title="${detail.replace(/"/g,'&quot;')}">${label}</span>`;
+            tradeCell = `<span style="color:var(--text-2);font-size:0.60rem;font-style:italic" title="${detail.replace(/"/g,'&quot;')}">${label}</span>`;
           } else {
             tradeCell = '<span style="color:var(--text-muted)">—</span>';
           }
@@ -620,13 +620,13 @@ function renderWindowsTable(windows, trades, gates) {
           <td style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2);padding:8px 10px;border-bottom:1px solid var(--border)">${w.days}</td>
           <td style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2);padding:8px 10px;border-bottom:1px solid var(--border)">${fmt(w.peak_at_start,1)}</td>
           <td style="font-family:var(--f-mono);font-size:0.65rem;color:var(--orange);padding:8px 10px;border-bottom:1px solid var(--border)">${fmt(w.max_off_peak_pct,1)}%</td>
-          <td style="font-family:var(--f-mono);font-size:0.65rem;padding:8px 10px;border-bottom:1px solid var(--border);color:${w.spx_ret>0?'var(--green)':w.spx_ret<0?'var(--orange)':'var(--text-muted)'}">${w.spx_ret!=null?(w.spx_ret>=0?'+':'')+fmt(w.spx_ret,1)+'%':'—'}</td>
+          <td style="font-family:var(--f-mono);font-size:0.65rem;padding:8px 10px;border-bottom:1px solid var(--border);color:${w.spx_ret>0?'var(--green)':w.spx_ret<0?'var(--orange)':'var(--text-2)'}">${w.spx_ret!=null?(w.spx_ret>=0?'+':'')+fmt(w.spx_ret,1)+'%':'—'}</td>
           <td style="font-family:var(--f-mono);font-size:0.65rem;padding:8px 10px;border-bottom:1px solid var(--border)">${tradeCell}</td>
         </tr>`;
       }).join('')}
       </tbody>
     </table>
-    ${windows.length>30?`<div style="font-family:var(--f-ui);font-size:0.62rem;color:var(--text-muted);padding:10px 10px 0;font-style:italic">Showing 30 most recent of ${windows.length} total windows.</div>`:''}
+    ${windows.length>30?`<div style="font-family:var(--f-ui);font-size:0.62rem;color:var(--text-2);padding:10px 10px 0;font-style:italic">Showing 30 most recent of ${windows.length} total windows.</div>`:''}
   `;
 }
 

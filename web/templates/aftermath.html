@@ -31,7 +31,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .nav-link { font-family:var(--f-ui);font-size:0.72rem;color:var(--text-2);text-decoration:none;padding:6px 10px;border-radius:5px;transition:0.12s; }
 .nav-link:hover { color:var(--text);background:var(--surface-hi); }
 .nav-link.active { color:var(--gold);background:var(--gold-bg); }
-.nav-right { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-muted); }
+.nav-right { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2); }
 
 .page { max-width:880px;margin:0 auto;padding:32px 24px 64px; }
 .page-hero { margin-bottom:24px; }
@@ -50,7 +50,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 
 .status-row { display:flex;flex-wrap:wrap;gap:24px;align-items:baseline; }
 .status-cell { display:flex;flex-direction:column;gap:4px; }
-.status-key { font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em; }
+.status-key { font-family:var(--f-ui);font-size:0.58rem;color:var(--text-2);text-transform:uppercase;letter-spacing:0.08em; }
 .status-val { font-family:var(--f-mono);font-size:1.10rem;color:var(--text);font-weight:500; }
 .status-val.muted { color:var(--text-muted); }
 .status-val.warn { color:var(--orange); }
@@ -62,7 +62,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 
 .trigger-list { display:flex;flex-direction:column;gap:10px; }
 .trigger-row { display:flex;gap:14px;font-family:var(--f-ui);font-size:0.72rem;color:var(--text-2);line-height:1.5; }
-.trigger-key { flex:0 0 130px;color:var(--text-muted);font-family:var(--f-mono);font-size:0.65rem;text-transform:uppercase;letter-spacing:0.05em;padding-top:2px; }
+.trigger-key { flex:0 0 130px;color:var(--text-2);font-family:var(--f-mono);font-size:0.65rem;text-transform:uppercase;letter-spacing:0.05em;padding-top:2px; }
 .trigger-val { flex:1; }
 .trigger-val code { font-family:var(--f-mono);font-size:0.68rem;background:var(--surface-hi);padding:1px 5px;border-radius:3px;color:var(--text); }
 
@@ -179,7 +179,7 @@ async function loadStatus() {
     const pillCls = d.active ? 'active' : 'wait';
     const pillLabel = d.active ? 'ACTIVE' : 'WAIT';
     const reasonText = !d.active && d.reason
-      ? `<span style="font-family:var(--f-ui);font-size:0.65rem;color:var(--text-muted);margin-left:12px;font-style:italic">${d.reason}</span>`
+      ? `<span style="font-family:var(--f-ui);font-size:0.65rem;color:var(--text-2);margin-left:12px;font-style:italic">${d.reason}</span>`
       : '';
 
     const offPeakColor = d.off_peak_pct != null && d.off_peak_pct >= 10 ? 'ok' : '';

@@ -144,12 +144,12 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .ctrl-btn:hover { background: var(--border); color: var(--text); }
 .ctrl-btn.active { background: var(--gold-bg); border-color: var(--gold-border); color: var(--gold); }
 
-.ctrl-label { font-family: var(--f-ui); font-size: 0.60rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+.ctrl-label { font-family: var(--f-ui); font-size: 0.60rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); }
 .ctrl-spacer { flex: 1; }
 .reset-btn {
   font-family: var(--f-mono); font-size: 0.62rem; padding: 3px 9px;
   background: transparent; border: 1px solid var(--border-2);
-  border-radius: 4px; color: var(--text-muted); cursor: pointer;
+  border-radius: 4px; color: var(--text-2); cursor: pointer;
 }
 .reset-btn:hover { color: var(--text-2); border-color: var(--border); }
 
@@ -159,11 +159,11 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .discipline-card { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 18px 22px; }
 .discipline-row { display: flex; gap: 18px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .discipline-row:last-of-type { border-bottom: none; padding-bottom: 4px; }
-.discipline-key { flex: 0 0 100px; font-family: var(--f-ui); font-size: 0.60rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; padding-top: 2px; }
+.discipline-key { flex: 0 0 100px; font-family: var(--f-ui); font-size: 0.60rem; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.08em; padding-top: 2px; }
 .discipline-val { flex: 1; font-family: var(--f-ui); font-size: 0.72rem; color: var(--text-2); line-height: 1.6; }
 .discipline-val strong { color: var(--text); font-weight: 500; }
 .discipline-val code { font-family: var(--f-mono); font-size: 0.68rem; background: var(--surface-hi); padding: 1px 5px; border-radius: 3px; color: var(--text); }
-.discipline-footnote { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-2); font-family: var(--f-ui); font-size: 0.62rem; color: var(--text-muted); line-height: 1.5; }
+.discipline-footnote { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-2); font-family: var(--f-ui); font-size: 0.62rem; color: var(--text-2); line-height: 1.5; }
 
 /* ── Strategy spec annotation (matches es.html) ── */
 .spec-card { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 14px 16px; margin-bottom: 12px; }
@@ -383,7 +383,7 @@ function renderCrisis(rows) {
     return;
   }
   const trs = rows.map(r => `<tr>
-    <td><strong>${r.window || '—'}</strong><br><span style="font-size:0.60rem;color:var(--text-muted)">${r.start || ''}–${r.end || ''}</span></td>
+    <td><strong>${r.window || '—'}</strong><br><span style="font-size:0.60rem;color:var(--text-2)">${r.start || ''}–${r.end || ''}</span></td>
     <td>${r.config || '—'}</td>
     <td>${fmt(r.n_active, 0)}</td>
     <td class="${r.window_pnl_pct_nlv >= 0 ? 'up' : 'down'}">${fmt(r.window_pnl_pct_nlv, 2)}%</td>

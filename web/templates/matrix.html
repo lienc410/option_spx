@@ -353,7 +353,7 @@ table.mt-tbl { width: 100%; border-collapse: collapse; min-width: 640px; }
 
 .footer {
   border-top: 1px solid var(--border); margin-top: 20px; padding: 13px 24px;
-  text-align: center; font-size: 0.67rem; color: var(--text-muted); font-style: italic;
+  text-align: center; font-size: 0.67rem; color: var(--text-2); font-style: italic;
 }
 
 .hidden { display: none !important; }
@@ -423,7 +423,7 @@ table.mt-tbl { width: 100%; border-collapse: collapse; min-width: 640px; }
 
   <!-- Legend -->
   <div class="legend">
-    <span style="color:var(--text-muted);font-weight:600;font-size:0.6rem;letter-spacing:.08em;text-transform:uppercase">Direction:</span>
+    <span style="color:var(--text-2);font-weight:600;font-size:0.6rem;letter-spacing:.08em;text-transform:uppercase">Direction:</span>
     <span class="leg-item"><span class="leg-dot" style="background:var(--green)"></span> Bullish</span>
     <span class="leg-item"><span class="leg-dot" style="background:var(--red)"></span> Bearish</span>
     <span class="leg-item"><span class="leg-dot" style="background:var(--gold)"></span> Neutral / Both</span>
@@ -669,7 +669,7 @@ function buildMatrix(regime) {
         : '';
       cell.innerHTML = `
         <div class="cell-strategy" style="color:${DIR_COLOR[sd.direction]}">${sd.name}</div>
-        <div class="cell-tags">${DIR_TAG[sd.direction]}${guardrailTag}<span class="ctag" style="background:rgba(96,104,128,.08);color:var(--text-muted);border:1px solid rgba(96,104,128,.15);font-size:.52rem">${sd.underlying}</span></div>
+        <div class="cell-tags">${DIR_TAG[sd.direction]}${guardrailTag}<span class="ctag" style="background:rgba(96,104,128,.08);color:var(--text-2);border:1px solid rgba(96,104,128,.15);font-size:.52rem">${sd.underlying}</span></div>
         ${statHtml}`;
       cell.addEventListener('click', () => selectCell(cell, strat, regime, iv.key, trend));
       grid.appendChild(cell);
@@ -871,7 +871,7 @@ async function loadMatrixTrades(strat, regime, ivKey, trendKey) {
   if (strat === 'reduce_wait') {
     document.getElementById('mt-count').textContent = '—';
     document.getElementById('mt-tbl-body').innerHTML =
-      '<tr><td colspan="12" style="text-align:center;color:var(--text-muted);padding:20px;font-style:italic">Reduce / Wait means no new trade is opened for this signal path, so there is no trade log for this cell.</td></tr>';
+      '<tr><td colspan="12" style="text-align:center;color:var(--text-2);padding:20px;font-style:italic">Reduce / Wait means no new trade is opened for this signal path, so there is no trade log for this cell.</td></tr>';
     section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     return;
   }
@@ -937,7 +937,7 @@ async function loadMatrixTrades(strat, regime, ivKey, trendKey) {
     const tr = document.createElement('tr');
     if (isMatch) tr.className = 'mt-match-row';
     tr.innerHTML = `
-      <td class="num" style="color:var(--text-muted)">${i+1}</td>
+      <td class="num" style="color:var(--text-2)">${i+1}</td>
       <td>${matchTag}</td>
       <td class="num">${t.entry_date}</td>
       <td class="num">${t.exit_date}</td>

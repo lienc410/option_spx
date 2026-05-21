@@ -35,7 +35,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .nav-link { font-size:0.76rem;padding:5px 10px;border-radius:5px;color:var(--text-2);text-decoration:none;transition:0.15s; }
 .nav-link:hover { color:var(--text);background:var(--surface-hi); }
 .nav-link.active { color:var(--green);background:var(--green-bg); }
-.nav-right { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-muted); }
+.nav-right { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2); }
 
 .page { max-width:1100px;margin:0 auto;padding:28px 24px 60px; }
 .page-hero { margin-bottom:20px; }
@@ -86,11 +86,11 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .discipline-card-sym { font-family:var(--f-mono);font-size:0.80rem;color:var(--text);font-weight:500;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border-2); }
 .discipline-row { display:flex;gap:18px;padding:8px 0;border-bottom:1px solid var(--border); }
 .discipline-row:last-of-type { border-bottom:none;padding-bottom:4px; }
-.discipline-key { flex:0 0 100px;font-family:var(--f-ui);font-size:0.60rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;padding-top:2px; }
+.discipline-key { flex:0 0 100px;font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2);text-transform:uppercase;letter-spacing:0.08em;padding-top:2px; }
 .discipline-val { flex:1;font-family:var(--f-ui);font-size:0.72rem;color:var(--text-2);line-height:1.6; }
 .discipline-val strong { color:var(--text);font-weight:500; }
 .discipline-val code { font-family:var(--f-mono);font-size:0.68rem;background:var(--surface-hi);padding:1px 5px;border-radius:3px;color:var(--text); }
-.discipline-footnote { font-family:var(--f-ui);font-size:0.62rem;color:var(--text-muted);line-height:1.5;padding:8px 22px 0;margin-top:-6px; }
+.discipline-footnote { font-family:var(--f-ui);font-size:0.62rem;color:var(--text-2);line-height:1.5;padding:8px 22px 0;margin-top:-6px; }
 .overlay-toggles { display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px; }
 .range-btns { display:flex;gap:4px;align-items:center; }
 .range-btn { font-family:var(--f-mono);font-size:0.60rem;padding:2px 9px;border-radius:4px;border:1px solid var(--border-2);background:none;color:var(--text-2);cursor:pointer;transition:0.12s; }
@@ -118,7 +118,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .up { color:var(--green); } .down { color:var(--red); } .warn { color:var(--orange); } .dim { color:var(--text-2); }
 
 .trades-wrap { background:var(--surface);border:1px solid var(--border);border-radius:9px;overflow:hidden; }
-.trades-hd { display:grid;grid-template-columns:90px 90px 80px 70px 72px 72px 80px 80px;padding:8px 16px;background:var(--surface-hi);border-bottom:1px solid var(--border-2);font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em; }
+.trades-hd { display:grid;grid-template-columns:90px 90px 80px 70px 72px 72px 80px 80px;padding:8px 16px;background:var(--surface-hi);border-bottom:1px solid var(--border-2);font-family:var(--f-ui);font-size:0.58rem;color:var(--text-2);text-transform:uppercase;letter-spacing:0.06em; }
 .trades-body { max-height:280px;overflow-y:auto; }
 .trade-row { display:grid;grid-template-columns:90px 90px 80px 70px 72px 72px 80px 80px;padding:6px 16px;border-bottom:1px solid var(--border);font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2); }
 .trade-row:last-child { border-bottom:none; }
@@ -920,7 +920,7 @@ function render(data) {
 
       <div class="two-col-charts">
       <div class="chart-wrap" style="margin-bottom:0">
-        <div class="chart-title" style="margin-bottom:12px">P&L by DTE at Close <span style="font-size:0.58rem;color:var(--text-muted)">(backtest data)</span></div>
+        <div class="chart-title" style="margin-bottom:12px">P&L by DTE at Close <span style="font-size:0.58rem;color:var(--text-2)">(backtest data)</span></div>
           <canvas id="dte-${s.symbol}" height="150" style="width:100%"></canvas>
         </div>
         <div class="chart-wrap" style="margin-bottom:0">
@@ -950,7 +950,7 @@ function render(data) {
         const avg=s.n_trades>0?s.total_pnl/s.n_trades:null;
         const col=COLORS[s.symbol]||'#C4CEEC';
         return `<div class="compare-card" style="border-top:3px solid ${col}">
-          <div class="compare-hd"><span class="compare-sym" style="color:${col}">${s.symbol}</span><span style="font-family:var(--f-ui);font-size:0.60rem;color:var(--text-muted)">Tier 2 CSP</span></div>
+          <div class="compare-hd"><span class="compare-sym" style="color:${col}">${s.symbol}</span><span style="font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2)">Tier 2 CSP</span></div>
           <div class="compare-rows">
             <div class="compare-row"><span class="compare-lbl">Win Rate</span><span class="compare-val ${s.win_rate_pct>=80?'up':'warn'}">${s.win_rate_pct.toFixed(1)}%</span></div>
             <div class="compare-row"><span class="compare-lbl">Stop Rate</span><span class="compare-val ${s.stop_rate_pct>20?'down':'dim'}">${s.stop_rate_pct.toFixed(1)}%</span></div>

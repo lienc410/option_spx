@@ -33,7 +33,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .nav-link { font-size:0.76rem;padding:5px 10px;border-radius:5px;color:var(--text-2);text-decoration:none;transition:0.15s; }
 .nav-link:hover { color:var(--text);background:var(--surface-hi); }
 .nav-link.active { color:var(--orange);background:var(--orange-bg); }
-.nav-right { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-muted); }
+.nav-right { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2); }
 
 .page { max-width:1100px;margin:0 auto;padding:28px 24px 60px; }
 .page-hero { margin-bottom:20px; }
@@ -71,15 +71,15 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .discipline-card { background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:18px 22px; }
 .discipline-row { display:flex;gap:18px;padding:10px 0;border-bottom:1px solid var(--border); }
 .discipline-row:last-of-type { border-bottom:none;padding-bottom:4px; }
-.discipline-key { flex:0 0 100px;font-family:var(--f-ui);font-size:0.60rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;padding-top:2px; }
+.discipline-key { flex:0 0 100px;font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2);text-transform:uppercase;letter-spacing:0.08em;padding-top:2px; }
 .discipline-val { flex:1;font-family:var(--f-ui);font-size:0.72rem;color:var(--text-2);line-height:1.6; }
 .discipline-val strong { color:var(--text);font-weight:500; }
 .discipline-val code { font-family:var(--f-mono);font-size:0.68rem;background:var(--surface-hi);padding:1px 5px;border-radius:3px;color:var(--text); }
-.discipline-footnote { margin-top:14px;padding-top:12px;border-top:1px solid var(--border-2);font-family:var(--f-ui);font-size:0.62rem;color:var(--text-muted);line-height:1.5; }
+.discipline-footnote { margin-top:14px;padding-top:12px;border-top:1px solid var(--border-2);font-family:var(--f-ui);font-size:0.62rem;color:var(--text-2);line-height:1.5; }
 
 /* C9 comparison table */
 .cmp-table { width:100%;border-collapse:collapse; }
-.cmp-table th { font-family:var(--f-ui);font-size:0.58rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);padding:6px 12px;text-align:left;border-bottom:1px solid var(--border-2); }
+.cmp-table th { font-family:var(--f-ui);font-size:0.58rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-2);padding:6px 12px;text-align:left;border-bottom:1px solid var(--border-2); }
 .cmp-table td { font-family:var(--f-mono);font-size:0.72rem;color:var(--text-2);padding:8px 12px;border-bottom:1px solid var(--border); }
 .cmp-table td:first-child { color:var(--text); }
 .cmp-table tr:last-child td { border-bottom:none; }
@@ -231,7 +231,7 @@ function render(bt, spxHist, paper, vixHist) {
     <div class="metric-grid">
       <div class="metric-card">
         <div class="metric-label">Total Trades</div>
-        <div class="metric-value">${totalN}${openTrades.length ? ` <span style="font-size:0.65rem;color:var(--text-muted)">+${openTrades.length} OPEN</span>` : ''}</div>
+        <div class="metric-value">${totalN}${openTrades.length ? ` <span style="font-size:0.65rem;color:var(--text-2)">+${openTrades.length} OPEN</span>` : ''}</div>
         <div class="metric-sub">${firstDate || '—'} → ${lastDate || '—'}</div>
       </div>
       <div class="metric-card">
@@ -277,7 +277,7 @@ function render(bt, spxHist, paper, vixHist) {
         <span class="chart-title">▲ 入场 / ▽ 出场 · <span style="color:#42CC7C">●绿=盈</span> · <span style="color:#E08040">●橙=亏</span> · 实心=Sleeve A · 空心=Sleeve B</span>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <div class="range-btns">
-            <span style="font-family:var(--f-ui);font-size:0.58rem;color:var(--text-muted);margin-right:4px">Overlay:</span>
+            <span style="font-family:var(--f-ui);font-size:0.58rem;color:var(--text-2);margin-right:4px">Overlay:</span>
             <button class="range-btn active" data-ov="none"  onclick="setC6Overlay('none')">None</button>
             <button class="range-btn" data-ov="pnl"   onclick="setC6Overlay('pnl')">Cum. P&L</button>
             <button class="range-btn" data-ov="dd"    onclick="setC6Overlay('dd')">Drawdown</button>
@@ -290,7 +290,7 @@ function render(bt, spxHist, paper, vixHist) {
             <button class="range-btn" data-range="5yr"  onclick="setC6Range('5yr')">5yr</button>
             <button class="range-btn" data-range="10yr" onclick="setC6Range('10yr')">10yr</button>
             <button class="range-btn active" data-range="all" onclick="setC6Range('all')">All</button>
-            <button class="range-btn" style="color:var(--text-muted);margin-left:4px" onclick="resetC6Zoom()" title="Reset drag-zoom">↩ 全局</button>
+            <button class="range-btn" style="color:var(--text-2);margin-left:4px" onclick="resetC6Zoom()" title="Reset drag-zoom">↩ 全局</button>
           </div>
         </div>
       </div>
@@ -315,7 +315,7 @@ function render(bt, spxHist, paper, vixHist) {
             <div class="chart-legend-item"><div class="chart-legend-line" style="background:#4888E8"></div>Sleeve A</div>
             <div class="chart-legend-item"><div class="chart-legend-line" style="background:#E08040"></div>Sleeve B</div>
           </div>
-          <button class="range-btn" style="color:var(--text-muted)" onclick="if(charts.c7)charts.c7.resetZoom()" title="Reset drag-zoom">↩ 全局</button>
+          <button class="range-btn" style="color:var(--text-2)" onclick="if(charts.c7)charts.c7.resetZoom()" title="Reset drag-zoom">↩ 全局</button>
         </div>
       </div>
       <canvas id="c7-chart" height="180" style="width:100%"></canvas>

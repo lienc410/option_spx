@@ -122,7 +122,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .check.pass { border-color: var(--green-border); background: var(--green-bg); }
 .check.fail { border-color: var(--red-border);   background: var(--red-bg); }
 .check-label { font-family: var(--f-ui); font-size: 0.68rem; color: var(--text); margin-bottom: 2px; }
-.check-key   { font-family: var(--f-mono); font-size: 0.58rem; color: var(--text-muted); }
+.check-key   { font-family: var(--f-mono); font-size: 0.58rem; color: var(--text-2); }
 .signal-bar { margin-top: 12px; padding: 11px 13px; border-radius: 8px; border: 1px solid var(--border-2); font-size: 0.78rem; }
 .signal-bar.live  { border-color: var(--green-border); background: var(--green-bg); }
 .signal-bar.block { border-color: var(--orange-border); background: var(--orange-bg); }
@@ -223,7 +223,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     <div class="page-meta">
       ES High-Vol Sell Put Ladder · VIX ≥ 22 · paper/shadow observation
       <span style="color:var(--text-muted);margin-left:8px">·</span>
-      <a href="/es" style="color:var(--text-muted);text-decoration:none;font-size:0.60rem;margin-left:4px" title="legacy single-slot /ES strategy (no longer trading)">Legacy /ES view →</a>
+      <a href="/es" style="color:var(--text-2);text-decoration:none;font-size:0.60rem;margin-left:4px" title="legacy single-slot /ES strategy (no longer trading)">Legacy /ES view →</a>
     </div>
   </div>
 
@@ -308,7 +308,7 @@ function renderVix(live) {
     <div class="vix-big ${cls}">${fmt(live.vix_current, 1)}</div>
     <div class="vix-meta">
       Distance to gate: <strong class="${dist >= 0 ? 'ok' : 'warn'}">${dist != null ? (dist >= 0 ? '+' : '') + fmt(dist, 1) : '—'}</strong>
-      vs threshold 22 · <span style="color:var(--text-muted)">${live.vix_source || '—'}</span>
+      vs threshold 22 · <span style="color:var(--text-2)">${live.vix_source || '—'}</span>
     </div>
     <div class="vix-mini-grid">
       <div class="mini-cell"><div class="mini-k">5TD Avg</div><div class="mini-v">${fmt(live.vix_5td_avg, 1)}</div></div>
@@ -468,7 +468,7 @@ function openHvlModal(kind) {
           <input id="hvl-exp" class="modal-input" type="date" value="${exp}">
         </div>
         <div class="modal-field">
-          <label class="modal-label">Short Strike <span style="color:var(--text-muted);font-size:0.55rem;text-transform:none;letter-spacing:0">click row to select</span></label>
+          <label class="modal-label">Short Strike <span style="color:var(--text-2);font-size:0.55rem;text-transform:none;letter-spacing:0">click row to select</span></label>
           <input id="hvl-strike" class="modal-input" type="number" step="5" placeholder="select row below…">
         </div>
         <div class="modal-field">
@@ -476,7 +476,7 @@ function openHvlModal(kind) {
           <input id="hvl-contracts" class="modal-input" type="number" min="1" step="1" value="1">
         </div>
         <div class="modal-field">
-          <label class="modal-label">Model Premium ($) <span style="color:var(--text-muted);font-size:0.55rem;text-transform:none;letter-spacing:0">live mid or BSM</span></label>
+          <label class="modal-label">Model Premium ($) <span style="color:var(--text-2);font-size:0.55rem;text-transform:none;letter-spacing:0">live mid or BSM</span></label>
           <input id="hvl-model-prem" class="modal-input" type="number" step="0.01" placeholder="from chain" onchange="_hvlSyncEntryFromModel()">
         </div>
         <div class="modal-field">

@@ -678,7 +678,7 @@ body {
   border-top: 1px solid var(--border);
   margin-top: 20px; padding: 13px 24px;
   text-align: center; font-size: 0.67rem;
-  color: var(--text-muted); font-style: italic;
+  color: var(--text-2); font-style: italic;
 }
 
 .hidden { display: none !important; }
@@ -1234,7 +1234,7 @@ function renderPosition(p) {
   panel.innerHTML = `
     <div class="pos-dot"></div>
     <div class="pos-body">
-      <div class="pos-name">${strategyName}${paperBadge} <span style="color:var(--text-muted);font-weight:400">on ${p.underlying}</span></div>
+      <div class="pos-name">${strategyName}${paperBadge} <span style="color:var(--text-2);font-weight:400">on ${p.underlying}</span></div>
       <div class="pos-meta">Opened ${p.opened_at}${dteLine ? '  ·  ' + dteLine : ''}${rollLine}</div>
       ${posRows}
       ${notesHtml}
@@ -2060,25 +2060,25 @@ function hidePosGreekHelp() { document.getElementById('pos-greek-help-overlay').
       <div>
         <span style="font-family:var(--f-mono);font-weight:700;color:var(--blue)">Δ×n &nbsp;Position Delta</span><br>
         整仓对 SPX <strong>每移动 1 点</strong>的盈亏（美元）。<br>
-        <span style="color:var(--text-muted)">例：+63 $/pt = SPX 涨 1 点盈利 $63，跌 1 点亏损 $63。Bull put spread 为正 Delta，看涨方向。</span>
+        <span style="color:var(--text-2)">例：+63 $/pt = SPX 涨 1 点盈利 $63，跌 1 点亏损 $63。Bull put spread 为正 Delta，看涨方向。</span>
       </div>
       <div>
         <span style="font-family:var(--f-mono);font-weight:700;color:var(--blue)">Γ×n &nbsp;Position Gamma</span><br>
         Delta 对 SPX 的<strong>变化速率</strong>（二阶风险）。<br>
-        <span style="color:var(--text-muted)">SPX 每移动 1 点，Position Delta 随之改变 Γ×n。做空 spread 通常 Gamma 为正（凸性不利，大幅波动对持仓不利）。</span>
+        <span style="color:var(--text-2)">SPX 每移动 1 点，Position Delta 随之改变 Γ×n。做空 spread 通常 Gamma 为正（凸性不利，大幅波动对持仓不利）。</span>
       </div>
       <div>
         <span style="font-family:var(--f-mono);font-weight:700;color:var(--blue)">Θ×n &nbsp;Position Theta</span><br>
         整仓<strong>每日时间价值</strong>变化（美元/天）。<br>
-        <span style="color:var(--text-muted)">正值 = 每天时间流逝对仓位有利（做空期权收 theta）。例：+$313/d = 每个交易日"自然"盈利 $313，假设 SPX 和 IV 不变。</span>
+        <span style="color:var(--text-2)">正值 = 每天时间流逝对仓位有利（做空期权收 theta）。例：+$313/d = 每个交易日"自然"盈利 $313，假设 SPX 和 IV 不变。</span>
       </div>
       <div>
         <span style="font-family:var(--f-mono);font-weight:700;color:var(--blue)">V×n &nbsp;Position Vega</span><br>
         整仓对 <strong>IV 每变动 1 vol 点</strong>的敏感度（美元）。<br>
-        <span style="color:var(--text-muted)">负值 = 做空 Vega，IV 上升对仓位不利。例：−$486/vol = VIX / IV 每上升 1 点，仓位亏损 $486。</span>
+        <span style="color:var(--text-2)">负值 = 做空 Vega，IV 上升对仓位不利。例：−$486/vol = VIX / IV 每上升 1 点，仓位亏损 $486。</span>
       </div>
     </div>
-    <div style="margin-top:16px;font-size:0.63rem;color:var(--text-muted)">所有数值 = 单张合约 Greek × 全部张数 × 乘数（100）。基于 Schwab 实时期权链报价。</div>
+    <div style="margin-top:16px;font-size:0.63rem;color:var(--text-2)">所有数值 = 单张合约 Greek × 全部张数 × 乘数（100）。基于 Schwab 实时期权链报价。</div>
   </div>
 </div>
 </body>

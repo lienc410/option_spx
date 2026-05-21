@@ -220,7 +220,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 /* ── Footer ── */
 .footer {
   text-align: center; padding: 20px;
-  font-size: 0.68rem; color: var(--text-muted);
+  font-size: 0.68rem; color: var(--text-2);
   border-top: 1px solid var(--border);
 }
 </style>
@@ -493,11 +493,11 @@ BP = net_debit_paid × $100<br>
       <div style="margin-bottom:4px">
         <div class="bp-bar-label">
           <span style="color:var(--text-muted)">— Usable BP ceiling (70%) —</span>
-          <span style="color:var(--text-muted); font-family:var(--f-mono)">70%</span>
+          <span style="color:var(--text-2); font-family:var(--f-mono)">70%</span>
         </div>
         <div class="bp-bar-track"><div class="bp-bar-fill" style="width:100%; background:var(--border-2)"></div></div>
       </div>
-      <div style="margin-top:10px; font-size:0.72rem; color:var(--text-muted)">
+      <div style="margin-top:10px; font-size:0.72rem; color:var(--text-2)">
         Bar scaled to 70% usable ceiling. Single-position system: max 1 trade open at a time.
       </div>
     </div>
@@ -612,26 +612,26 @@ BP = net_debit_paid × $100<br>
       </tr></thead>
       <tbody>
         <tr>
-          <td style="color:var(--text-muted)">1</td>
+          <td style="color:var(--text-2)">1</td>
           <td>Increase risk_pct from 2% → 3–4%?</td>
           <td>Scales PnL linearly; also scales drawdown linearly. Sharpe unchanged.
             Max single-trade BP stays ≤ 40% (IC at 4% risk_pct ≈ 14.4%).</td>
         </tr>
         <tr>
-          <td style="color:var(--text-muted)">2</td>
+          <td style="color:var(--text-2)">2</td>
           <td>Size by BP% (not premium%) — target fixed BP% per trade?</td>
           <td>BPS gets fewer contracts (large BP footprint) vs diagonal (tiny BP).
             Reduces concentration in high-BP strategies; may hurt PnL on diagonals
             which dominate the win-rate.</td>
         </tr>
         <tr>
-          <td style="color:var(--text-muted)">3</td>
+          <td style="color:var(--text-2)">3</td>
           <td>Cap on Iron Condor BP relative to account?</td>
           <td>IC uses 7–12% BP with low absolute PnL contribution. Explicit cap at 8%
             may require reducing wing width or passing on some IC entries.</td>
         </tr>
         <tr>
-          <td style="color:var(--text-muted)">4</td>
+          <td style="color:var(--text-2)">4</td>
           <td>Allow 2 simultaneous positions (split budget)?</td>
           <td>While diagonal is open (2% BP), a BPS can coexist (6% BP) → combined
             8% BP. Requires overlapping-position logic in backtest engine. Significant
