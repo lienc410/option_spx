@@ -760,6 +760,26 @@ def _spread_live_snapshot_from_chain(state: dict | None, positions_payload: dict
     structure = "4-leg condor" if len(leg_rows) == 4 else "2-leg spread"
     leg_payload = {str(item["spec"]["name"]): item["row"] for item in leg_rows}
 
+    # Freshness: take the *oldest* leg quoteTimeInLong (worst-of, matches the
+    # ETrade convention) so PM sees the weaker side, not the optimistic one.
+    leg_quote_times = []
+    for item in leg_rows:
+        raw = item["row"].get("quoteTimeInLong")
+        try:
+            if raw not in (None, ""):
+                leg_quote_times.append(int(raw))
+        except (TypeError, ValueError):
+            pass
+    quote_time = None
+    if leg_quote_times:
+        worst_ms = min(leg_quote_times)
+        try:
+            quote_time = datetime.fromtimestamp(
+                worst_ms / 1000.0, tz=ZoneInfo("UTC"),
+            ).astimezone(_ET).isoformat(timespec="seconds")
+        except (TypeError, ValueError, OSError):
+            quote_time = None
+
     return {
         "visible": True,
         "stale": positions_payload.get("stale", False),
@@ -776,6 +796,9 @@ def _spread_live_snapshot_from_chain(state: dict | None, positions_payload: dict
         "pricing_source": "spread_quote",
         "structure": structure,
         "legs": leg_payload,
+        # Freshness (Schwab convention — boolean realtime + ISO quote_time)
+        "realtime":   None,   # chain-level flag not preserved by chain helper yet
+        "quote_time": quote_time,
     }
 
 
@@ -851,7 +874,7 @@ def spread_quote_for_strikes(
     }
     result = _spread_live_snapshot_from_chain(mock_state, {})
     if result:
-        out = {k: result[k] for k in ("visible", "mark", "bid", "ask")
+        out = {k: result[k] for k in ("visible", "mark", "bid", "ask", "quote_time", "realtime")
                if k in result}
         out.setdefault("visible", True)
         _cache_put(cache_key, out)
@@ -903,4 +926,8 @@ def live_position_snapshot(state: dict | None) -> dict:
         "unrealized_pnl": pos.get("unrealized_pnl"),
         "trade_log_pnl": entry,
         "symbol": pos.get("symbol"),
+        # Positions endpoint doesn't expose per-quote freshness; mark "unknown"
+        # so the chip falls through to grey rather than green/yellow.
+        "realtime":   None,
+        "quote_time": None,
     }

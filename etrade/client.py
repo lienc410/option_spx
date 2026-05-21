@@ -284,7 +284,16 @@ def get_option_spread_quote(
             bid = _num(opt.get("bid"))
             ask = _num(opt.get("ask"))
             mark = round((bid + ask) / 2, 2) if bid is not None and ask is not None else None
-            return {"bid": bid, "ask": ask, "mark": mark}
+            # Freshness fields live at the QuoteData row top level (peer to Product / Option).
+            # If E-Trade omits them, leave None and frontend defaults to "unknown".
+            return {
+                "bid": bid,
+                "ask": ask,
+                "mark": mark,
+                "quote_status":  row.get("quoteStatus"),
+                "ah_flag":       row.get("ahFlag"),
+                "date_time_utc": row.get("dateTimeUTC"),
+            }
 
         short = extract(short_strike)
         long_ = extract(long_strike)
@@ -303,6 +312,28 @@ def get_option_spread_quote(
             if spread_bid is not None and spread_ask is not None
             else None
         )
+        # Spread freshness = worst-of the two legs. PM sees the spread mark as a
+        # single number, so its freshness can only be as good as the weaker leg.
+        # Rank: lower index = better. Unknown/missing → DELAYED (safe default).
+        _QS_RANK = {
+            "REALTIME": 0,
+            "INDICATIVE_REALTIME": 1,
+            "EH_REALTIME": 2,
+            "CLOSING": 3,
+            "DELAYED": 4,
+            "EH_BEFORE_OPEN": 5,
+            "EH_CLOSED": 6,
+            "INVALID": 7,
+        }
+        def _worse(a: str | None, b: str | None) -> str | None:
+            ra = _QS_RANK.get(a, 4)  # unknown ≈ DELAYED
+            rb = _QS_RANK.get(b, 4)
+            return a if ra >= rb else b
+        spread_status = _worse(short.get("quote_status"), long_.get("quote_status"))
+        spread_dt_utc = None
+        for dt in (short.get("date_time_utc"), long_.get("date_time_utc")):
+            if dt is not None and (spread_dt_utc is None or dt < spread_dt_utc):
+                spread_dt_utc = dt  # older of the two — matches worst-of timing
         result = {
             "visible": spread_mark is not None,
             "mark": spread_mark,
@@ -311,6 +342,9 @@ def get_option_spread_quote(
             "short_leg": short,
             "long_leg": long_,
             "source": "etrade_quote",
+            "quote_status":  spread_status,
+            "ah_flag":       bool(short.get("ah_flag")) or bool(long_.get("ah_flag")),
+            "date_time_utc": spread_dt_utc,
         }
         _cache_put(cache_key, result)
         return result
