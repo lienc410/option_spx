@@ -2002,6 +2002,13 @@ def api_portfolio_nlv_change():
             return None
         return round((today_combined - anchor) / anchor * 100.0, 2)
 
+    # Source label: surface which accounts are contributing to the live NLV
+    # so the hero can disambiguate Schwab-only vs combined.
+    source_parts = []
+    if schwab_nlv > 0: source_parts.append("Schwab")
+    if etrade_nlv > 0: source_parts.append("ETrade")
+    source_label = "Live · " + "+".join(source_parts) if source_parts else "Live"
+
     return jsonify({
         "status": "available",
         "today_nlv": round(today_combined, 2),
@@ -2012,6 +2019,9 @@ def api_portfolio_nlv_change():
         "mtd_pct": _pct_from(mtd_rows),
         "ytd_pct": _pct_from(ytd_rows),
         "history_days": len(records),
+        "source_label": source_label,
+        "schwab_nlv": round(schwab_nlv, 2),
+        "etrade_nlv": round(etrade_nlv, 2),
     })
 
 
