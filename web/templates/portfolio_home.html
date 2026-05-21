@@ -1567,7 +1567,7 @@ async function loadNLVChange() {
       ? `<span style="color:var(--text-2)"> · YTD</span> <span style="color:${d.ytd_pct>=0?'var(--green)':'var(--red)'}">${d.ytd_pct>=0?'+':'−'}${Math.abs(d.ytd_pct).toFixed(1)}%</span>`
       : '';
     const sourceTag = d.source_label
-      ? ` <span style="color:var(--text-muted);font-size:0.82em">(${d.source_label})</span>`
+      ? ` <span style="color:var(--text-2);font-size:0.82em">(${d.source_label})</span>`
       : '';
     el.innerHTML =
       `<span style="color:var(--text-2)">NLV</span> ` +
