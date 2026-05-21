@@ -626,9 +626,13 @@ def _get_option_chain_exact_expiry(
     )
     res.raise_for_status()
     payload = res.json()
-    # Chain-level realtime flag — stamped on each row so the downstream
-    # _spread_live_snapshot_from_chain can surface freshness without re-fetch.
-    chain_realtime = payload.get("realtime") if isinstance(payload, dict) else None
+    # Chain-level freshness flag: Schwab returns `isDelayed: bool`. We
+    # surface it as `realtime` (inverse) so the rest of the codebase uses
+    # the positive convention. Stamp it on every row so downstream
+    # _spread_live_snapshot_from_chain can read it without re-fetch.
+    chain_realtime = None
+    if isinstance(payload, dict) and "isDelayed" in payload:
+        chain_realtime = not bool(payload.get("isDelayed"))
     rows = _parse_chain_response(payload, option_type)
     filtered = [row for row in rows if str(row.get("expiry") or "") == expiry_date]
     if chain_realtime is not None:
