@@ -1696,15 +1696,20 @@ async function loadQ042() {
     else if (data.sleeve_b?.in_watching) { badgeCls = 'badge-warning'; badgeLabel = 'B WATCH'; }
     applyBadge('badge-q042', { cls: badgeCls, label: badgeLabel });
 
-    // Signals row
+    // Signals row — surface "distance to trigger" so PM sees armed state is design-correct
+    // (per signals/q042_trigger.py: Sleeve A fires when ddATH ≤ -4%, Sleeve B at -15%).
     const dd = data.ddath_pct;
     const ddColor = dd <= -15 ? 'var(--red)' : dd <= -4 ? 'var(--orange)' : 'var(--text-2)';
+    const triggerLabel = (typeof dd === 'number' && dd > -4 && !hasOpenA)
+      ? `<span style="color:var(--text-muted)">(距 A 触发 ${(dd - (-4)).toFixed(2)}%)</span>`
+      : '';
     const bpPart = data.combined_bp_pct != null
       ? `<span style="color:var(--text-muted)">BP</span><span style="color:var(--text-2)">${fmtPct(data.combined_bp_pct)}</span>`
       : '';
     sigEl.innerHTML =
       `<span style="color:var(--text-muted)">ddATH</span>` +
       `<span style="color:${ddColor};font-weight:600">${fmtPct(dd)}</span>` +
+      triggerLabel +
       `<span style="color:var(--text-muted)">SPX</span>` +
       `<span>${fmtPrice(data.spx_close)}</span>` +
       `<span style="color:var(--text-muted)">ATH</span>` +

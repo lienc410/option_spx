@@ -415,8 +415,14 @@ async function loadState() {
           const stage = String(a.stage || 'stage_1').replace('stage_', '');
           const cur = a.production_cap_pct != null ? a.production_cap_pct.toFixed(1) + '%' : '—';
           const tgt = a.target_cap_pct != null ? a.target_cap_pct.toFixed(1) + '%' : '—';
-          return `<div style="padding:9px 16px;border-top:1px solid var(--border);background:var(--surface-hi);font-family:var(--f-mono);font-size:0.62rem;color:var(--text-2)">
-            <span style="color:var(--blue);font-weight:600">SPEC-104</span> · Stage ${stage} of 4 · Current cap <strong style="color:var(--text)">${cur}</strong> · Target <strong style="color:var(--text)">${tgt}</strong>
+          const hasPos = !!a.active_position;
+          const allocLabel = hasPos ? 'Allocated' : 'Potential allocation';
+          const allocNote  = hasPos
+            ? '(currently deployed)'
+            : '(used only after ddATH ≤ −4% triggers)';
+          return `<div style="padding:9px 16px;border-top:1px solid var(--border);background:var(--surface-hi);font-family:var(--f-mono);font-size:0.62rem;color:var(--text-2)"
+                       title="armed=待 ddATH ≤ -4% 触发；触发后此 sleeve 可分配池上限为 ${cur} NLV，目标分阶 ramp 到 ${tgt}">
+            <span style="color:var(--blue);font-weight:600">SPEC-104</span> · Stage ${stage} of 4 · ${allocLabel} <strong style="color:var(--text)">${cur}</strong> <span style="color:var(--text-muted);font-size:0.92em">${allocNote}</span> · Target <strong style="color:var(--text)">${tgt}</strong>
           </div>`;
         })()}
       </div>
