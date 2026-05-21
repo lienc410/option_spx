@@ -275,6 +275,8 @@ def _parse_chain_response(payload: dict, option_type: str) -> list[dict]:
                     "low": contract.get("lowPrice"),
                     "close": contract.get("closePrice"),
                     "last": contract.get("last"),
+                    "quote_time_in_long": contract.get("quoteTimeInLong"),
+                    "trade_time_in_long": contract.get("tradeTimeInLong"),
                 })
     return rows
 
@@ -760,11 +762,13 @@ def _spread_live_snapshot_from_chain(state: dict | None, positions_payload: dict
     structure = "4-leg condor" if len(leg_rows) == 4 else "2-leg spread"
     leg_payload = {str(item["spec"]["name"]): item["row"] for item in leg_rows}
 
-    # Freshness: take the *oldest* leg quoteTimeInLong (worst-of, matches the
-    # ETrade convention) so PM sees the weaker side, not the optimistic one.
+    # Freshness: take the *oldest* leg quote_time_in_long (worst-of, matches
+    # the ETrade convention) so PM sees the weaker side, not the optimistic
+    # one. Field is normalized from Schwab's quoteTimeInLong (ms unix) at
+    # chain-row build time (see _get_option_chain_exact_expiry rows.append).
     leg_quote_times = []
     for item in leg_rows:
-        raw = item["row"].get("quoteTimeInLong")
+        raw = item["row"].get("quote_time_in_long") or item["row"].get("quoteTimeInLong")
         try:
             if raw not in (None, ""):
                 leg_quote_times.append(int(raw))
