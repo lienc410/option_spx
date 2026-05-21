@@ -572,6 +572,21 @@ body {
 
 .snapshot-note { font-family: var(--f-ui); font-size: 0.65rem; color: var(--text-2); margin-top: 10px; font-style: italic; }
 .snapshot-unavail { font-family: var(--f-ui); font-size: 0.72rem; color: var(--text-2); font-style: italic; padding: 8px 0; }
+
+/* Quote freshness chip — surfaces Schwab realtime/quote_time + ETrade quoteStatus.
+   Color reflects how trustworthy "mark" is right now (15min delay vs live vs CLOSING settlement window). */
+.quote-chip {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-family: var(--f-mono); font-size: 0.50rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 1px 5px; border-radius: 3px; border: 1px solid transparent;
+  white-space: nowrap; cursor: help;
+}
+.quote-chip.q-realtime { background: var(--green-bg);  border-color: var(--green-border);  color: var(--green); }
+.quote-chip.q-delayed  { background: var(--gold-bg);   border-color: var(--gold-border);   color: var(--gold); }
+.quote-chip.q-closing  { background: var(--orange-bg); border-color: var(--orange-border); color: var(--orange); }
+.quote-chip.q-indicative { background: var(--blue-bg); border-color: var(--blue-border);   color: var(--blue); }
+.quote-chip.q-unknown  { background: var(--gray-bg);   border-color: var(--gray-border);   color: var(--text-2); }
 .account-rail-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1182,6 +1197,53 @@ function fmtPrice(n) {
     : '—';
 }
 
+// ── Quote-freshness chip ──────────────────────────────────────────────────────
+// Surfaces Schwab realtime/quote_time and ETrade quoteStatus/dateTimeUTC so PM
+// can tell if mark is live, 15-min delayed, or a CLOSING settlement print.
+function quoteFreshnessChip(live, acct) {
+  if (!live || !live.visible) return '';
+  // Resolve a display label + tier class.
+  let label = '—', cls = 'q-unknown', tsRaw = null;
+  if (acct === 'etrade') {
+    const s = String(live.quote_status || '').toUpperCase();
+    tsRaw = live.date_time_utc;
+    if (s === 'REALTIME')            { label = 'REALTIME';   cls = 'q-realtime'; }
+    else if (s === 'INDICATIVE_REALTIME') { label = 'INDIC';  cls = 'q-indicative'; }
+    else if (s === 'EH_REALTIME')    { label = 'EH RT';      cls = 'q-closing'; }   // after-hours live → orange
+    else if (s === 'CLOSING')        { label = 'CLOSING';    cls = 'q-closing'; }
+    else if (s === 'DELAYED')        { label = 'DELAYED';    cls = 'q-delayed'; }
+    else if (s === 'EH_BEFORE_OPEN') { label = 'PRE-OPEN';   cls = 'q-unknown'; }
+    else if (s === 'EH_CLOSED')      { label = 'CLOSED';     cls = 'q-unknown'; }
+    else if (s === 'INVALID')        { label = 'INVALID';    cls = 'q-unknown'; }
+    else                              { label = 'UNKNOWN';   cls = 'q-unknown'; }
+  } else {  // schwab convention
+    const rt = live.realtime;
+    tsRaw = live.quote_time;
+    if (rt === true)        { label = 'REALTIME'; cls = 'q-realtime'; }
+    else if (rt === false)  { label = 'DELAYED';  cls = 'q-delayed'; }
+    else if (tsRaw)         { label = 'QUOTE';    cls = 'q-unknown'; }   // have time but no rt flag
+    else                    return '';   // no info at all — render nothing instead of misleading grey
+  }
+  // Build hover tooltip: "Last update: <ET timestamp>"
+  let tipTs = '';
+  if (tsRaw) {
+    if (typeof tsRaw === 'number') {
+      // ETrade date_time_utc is unix seconds
+      try {
+        tipTs = new Date(tsRaw * 1000).toLocaleString('en-US', {
+          timeZone: 'America/New_York',
+          hour12: false, year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit', second: '2-digit',
+        }) + ' ET';
+      } catch (_) { tipTs = String(tsRaw); }
+    } else {
+      tipTs = String(tsRaw);   // Schwab already ISO ET
+    }
+  }
+  const title = tipTs ? `Last update: ${tipTs}` : 'No timestamp available';
+  return `<span class="quote-chip ${cls}" title="${title}">${label}</span>`;
+}
+
 // ── Signal chip builder ───────────────────────────────────────────────────────
 function sigChip(label, value, cls, note) {
   const notePart = note ? `<span class="sig-note">${note}</span>` : '';
@@ -1378,12 +1440,13 @@ async function loadSpx() {
           const mkBaHtml = _liveForAcct.visible
             ? `<span style="font-family:var(--f-mono);font-size:0.64rem;color:var(--text-2);white-space:nowrap"><strong style="color:var(--text)">M</strong> ${fmt(_liveForAcct.mark)} · <strong style="color:var(--text)">B</strong> ${fmt(_liveForAcct.bid)} · <strong style="color:var(--text)">A</strong> ${fmt(_liveForAcct.ask)}</span>`
             : '';
+          const freshChip = quoteFreshnessChip(_liveForAcct, acct);
           return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid var(--border)">
             ${acctBadge(acct)}
             <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-2)">${strikes}</span>
             <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-2)">${n}× @ ${premStr}</span>
             ${tgtHtml}
-            <span style="display:flex;gap:8px;align-items:center;margin-left:auto">${pnlHtml}${mkBaHtml}</span>
+            <span style="display:flex;gap:8px;align-items:center;margin-left:auto">${pnlHtml}${mkBaHtml}${freshChip}</span>
           </div>`;
         }).join('');
         // Live risk block — always rendered; shows placeholder outside market hours
