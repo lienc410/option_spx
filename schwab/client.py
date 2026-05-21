@@ -625,8 +625,15 @@ def _get_option_chain_exact_expiry(
         timeout=20,
     )
     res.raise_for_status()
-    rows = _parse_chain_response(res.json(), option_type)
+    payload = res.json()
+    # Chain-level realtime flag — stamped on each row so the downstream
+    # _spread_live_snapshot_from_chain can surface freshness without re-fetch.
+    chain_realtime = payload.get("realtime") if isinstance(payload, dict) else None
+    rows = _parse_chain_response(payload, option_type)
     filtered = [row for row in rows if str(row.get("expiry") or "") == expiry_date]
+    if chain_realtime is not None:
+        for row in filtered:
+            row.setdefault("realtime", chain_realtime)
     if center_strike is not None and filtered:
         filtered = sorted(
             filtered,
@@ -800,8 +807,11 @@ def _spread_live_snapshot_from_chain(state: dict | None, positions_payload: dict
         "pricing_source": "spread_quote",
         "structure": structure,
         "legs": leg_payload,
-        # Freshness (Schwab convention — boolean realtime + ISO quote_time)
-        "realtime":   None,   # chain-level flag not preserved by chain helper yet
+        # Freshness (Schwab convention — boolean realtime + ISO quote_time).
+        # realtime comes from chain payload, stamped per row at parse time;
+        # quote_time is worst-of leg quote_time_in_long (oldest).
+        "realtime":   next((item["row"].get("realtime") for item in leg_rows
+                            if item["row"].get("realtime") is not None), None),
         "quote_time": quote_time,
     }
 
