@@ -796,6 +796,12 @@ body {
 }
 .booster-chip.ok   { background: var(--green-bg); border-color: var(--green-border); color: var(--green); }
 .booster-chip.fail { background: var(--red-bg);   border-color: var(--red-border);   color: var(--red); }
+/* 4-tier buffer coloring for numeric booster conditions (Robust / Marginal / Fragile / Fail).
+   Thresholds: ≥5pt robust · 2-5pt marginal · <2pt fragile · <0pt fail. */
+.booster-chip.tier-robust   { background: var(--green-bg);  border-color: var(--green-border);  color: var(--green); }
+.booster-chip.tier-marginal { background: var(--gold-bg);   border-color: var(--gold-border);   color: var(--gold); }
+.booster-chip.tier-fragile  { background: var(--orange-bg); border-color: var(--orange-border); color: var(--orange); }
+.booster-chip.tier-fail     { background: var(--red-bg);    border-color: var(--red-border);    color: var(--red); }
 .booster-panel-head {
   font-family: var(--f-ui); font-size: 0.56rem; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.08em;
@@ -2297,6 +2303,28 @@ function _renderGovernance() {
   const market = state.market || {};
   const liveVix    = (typeof market.vix    === 'number') ? market.vix    : null;
   const liveIvp252 = (typeof market.ivp252 === 'number') ? market.ivp252 : null;
+  const liveVix5d  = (typeof market.vix_5d_change === 'number') ? market.vix_5d_change : null;
+  const liveDdathPct = (typeof market.ddath === 'number') ? market.ddath * 100 : null;  // decimal → %
+  const liveSpx    = (typeof market.spx_close === 'number') ? market.spx_close : null;
+  const liveMa50   = (typeof market.ma50   === 'number') ? market.ma50 : null;
+  const liveTrendGap = (liveSpx != null && liveMa50 != null && liveMa50 > 0)
+    ? (liveSpx - liveMa50) / liveMa50 * 100 : null;
+
+  // Buffer tier classifier: distance-to-threshold in natural unit per condition.
+  // Robust ≥5 · Marginal 2-5 · Fragile <2 · Fail <0  (per PM spec 2026-05-21).
+  function _bufTier(buf) {
+    if (typeof buf !== 'number' || isNaN(buf)) return 'tier-unknown';
+    if (buf < 0)  return 'tier-fail';
+    if (buf < 2)  return 'tier-fragile';
+    if (buf < 5)  return 'tier-marginal';
+    return            'tier-robust';
+  }
+  function _fmtBuf(buf, unit) {
+    if (typeof buf !== 'number' || isNaN(buf)) return '';
+    const s = buf >= 0 ? '+' : '−';
+    return ` ${s}${Math.abs(buf).toFixed(1)}${unit || 'pt'}`;
+  }
+
   const boosterLabel = boosterActive
     ? (boosterMode === 'active' ? 'BOOSTER ACTIVE' : 'BOOSTER SHADOW')
     : (boosterMode === 'disabled' ? 'BOOSTER DISABLED' : 'BOOSTER OFF');
@@ -2307,34 +2335,73 @@ function _renderGovernance() {
     ? `would cap ${fmtPct(caps.CAP_SPX_BENIGN_BOOSTER || 90)} · effective ${fmtPct(activeCapPct)}`
     : `effective ${fmtPct(activeCapPct)}`;
 
-  // 7 independent B4 conditions (rendered as flat chips)
-  const boosterCondLabels = [
+  // 3 binary B4 conditions — no buffer concept, keep ok/fail coloring.
+  const binaryChipsHtml = [
     ['warmed',        'data warmed'],
     ['no_stress',     'no stress'],
     ['no_second_leg', 'no 2nd-leg'],
-    ['trend_ok',      'SPX > MA50'],
-    ['ddath_ok',      'ddATH > -4%'],
-    ['vix_ok',        'VIX < 22'],
-    ['vix5d_ok',      'VIX 5d ≤ +1.5'],
-  ];
-  const boosterConditionsHtml = boosterCondLabels.map(([key, label]) => {
+  ].map(([key, label]) => {
     const ok = !!boosterConds[key];
     return `<span class="booster-chip ${ok ? 'ok' : 'fail'}">${ok ? '✓' : '×'} ${label}</span>`;
   }).join('');
 
+  // 4 numeric B4 conditions — buffer-tier coloring shows distance to fail boundary.
+  // trend_ok: SPX > MA50 → buffer = (SPX-MA50)/MA50 in %
+  const trendBuf = liveTrendGap;
+  const trendLabel = liveTrendGap != null
+    ? `SPX ${liveTrendGap >= 0 ? '+' : '−'}${Math.abs(liveTrendGap).toFixed(1)}% &gt; MA50${_fmtBuf(trendBuf, '%')}`
+    : 'SPX &gt; MA50';
+  // ddath_ok: ddATH > -4% → buffer = ddATH% - (-4) (in percentage points)
+  const ddathBuf = liveDdathPct != null ? (liveDdathPct - (-4.0)) : null;
+  const ddathLabel = liveDdathPct != null
+    ? `ddATH ${liveDdathPct >= 0 ? '+' : '−'}${Math.abs(liveDdathPct).toFixed(2)}% &gt; −4%${_fmtBuf(ddathBuf, 'pp')}`
+    : 'ddATH &gt; −4%';
+  // vix_ok: VIX < 22 → buffer = 22 - VIX
+  const vixBuf = liveVix != null ? (22.0 - liveVix) : null;
+  const vixLabel = liveVix != null
+    ? `VIX ${liveVix.toFixed(1)} &lt; 22${_fmtBuf(vixBuf)}`
+    : 'VIX &lt; 22';
+  // vix5d_ok: VIX 5d change ≤ +1.5 → buffer = 1.5 - vix5d
+  const vix5dBuf = liveVix5d != null ? (1.5 - liveVix5d) : null;
+  const vix5dLabel = liveVix5d != null
+    ? `VIX5d ${liveVix5d >= 0 ? '+' : '−'}${Math.abs(liveVix5d).toFixed(2)} ≤ +1.5${_fmtBuf(vix5dBuf)}`
+    : 'VIX 5d ≤ +1.5';
+
+  const numericChipsHtml = [
+    {key: 'trend_ok',  buf: trendBuf,  label: trendLabel},
+    {key: 'ddath_ok',  buf: ddathBuf,  label: ddathLabel},
+    {key: 'vix_ok',    buf: vixBuf,    label: vixLabel},
+    {key: 'vix5d_ok',  buf: vix5dBuf,  label: vix5dLabel},
+  ].map(c => {
+    const ok = !!boosterConds[c.key];
+    const tier = ok ? _bufTier(c.buf) : 'tier-fail';
+    const mark = ok ? '✓' : '×';
+    return `<span class="booster-chip ${tier}">${mark} ${c.label}</span>`;
+  }).join('');
+
+  const boosterConditionsHtml = binaryChipsHtml + numericChipsHtml;
+
   // IVP gate sub-block: IVP<55 OR VIX<15 (SPEC-105 v2 Gate F).
-  // Show live IVP/VIX values so PM sees distance-to-threshold, not just pass/fail.
+  // Show live IVP/VIX values + buffer tier so PM sees distance-to-threshold.
   const ivpBranchOk = !!boosterConds.ivp_ok;
   const vixBranchOk = !!boosterConds.low_vix_escape_ok;
   const gatePass    = !!boosterConds.ivp_gate_pass;
-  const ivpChipLabel = liveIvp252 != null ? `IVP252 ${liveIvp252.toFixed(1)}` : 'IVP252 —';
-  const vixChipLabel = liveVix    != null ? `VIX ${liveVix.toFixed(1)}`       : 'VIX —';
+  const ivpBuf      = liveIvp252 != null ? (55.0 - liveIvp252) : null;
+  const vixEscBuf   = liveVix    != null ? (15.0 - liveVix)    : null;
+  const ivpTierEff  = ivpBranchOk ? _bufTier(ivpBuf)    : 'tier-fail';
+  const vixEscTier  = vixBranchOk ? _bufTier(vixEscBuf) : 'tier-fail';
+  const ivpChipLabel = liveIvp252 != null
+    ? `IVP252 ${liveIvp252.toFixed(1)} &lt; 55${_fmtBuf(ivpBuf)}`
+    : 'IVP252 — &lt; 55';
+  const vixChipLabel = liveVix != null
+    ? `VIX ${liveVix.toFixed(1)} &lt; 15${_fmtBuf(vixEscBuf)}`
+    : 'VIX — &lt; 15';
   const gateBlockHtml = `
     <div class="booster-gate">
       <span class="booster-gate-label">IVP gate</span>
-      <span class="booster-chip ${ivpBranchOk ? 'ok' : 'fail'}">${ivpBranchOk ? '✓' : '×'} ${ivpChipLabel} &lt; 55</span>
+      <span class="booster-chip ${ivpTierEff}">${ivpBranchOk ? '✓' : '×'} ${ivpChipLabel}</span>
       <span class="booster-gate-or">OR</span>
-      <span class="booster-chip ${vixBranchOk ? 'ok' : 'fail'}">${vixBranchOk ? '✓' : '×'} ${vixChipLabel} &lt; 15</span>
+      <span class="booster-chip ${vixEscTier}">${vixBranchOk ? '✓' : '×'} ${vixChipLabel}</span>
       <span class="booster-gate-arrow">→</span>
       <span class="booster-gate-result ${gatePass ? 'ok' : 'fail'}">${gatePass ? '✓ PASS' : '× FAIL'}</span>
     </div>`;
