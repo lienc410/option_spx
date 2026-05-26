@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-20 (**Q075 CLOSED — DOCUMENT outcome**。IVP-blocked day replacement strategy（IC / BCS / C2 全路径）。2nd Quant G4 Final Verdict: DOCUMENT。ΔROE +0.004pp / +0.007pp — sub-threshold，不出 SPEC。Layer-3 framework 确立。Reject list 永久记录 — `See: research/q075/q075_p4_memo.md`, `task/q075_p4_g4_2nd_quant_review_2026-05-20_Review.md`)
+Last Updated: 2026-05-26 (**SPEC-106 APPROVED，FE 实施中。Q077 stub PARKED**。SPEC-106：Strategy Matrix Selector-Consistency & Payoff Semantics（UX bug fix + payoff_type labels + 36-cell audit + IV helper text）。Q077：Structure-Aware Strike Placement defer，应用 feedback_layer_n_replacement_outcome framework pre-screen — `See: task/SPEC-106.md`, `task/q077_structure_feature_framing_stub_2026-05-26.md`)
 Owner: Planner or PM
 
 ## Current Phase
@@ -28,7 +28,9 @@ Owner: Planner or PM
 
 ## Active APPROVED Specs
 
-- None currently. **Future seeds**（PM-discretionary，no time-lock）：Q042 Stage 2/3 ramp（per §2.2 gates）/ SPEC-105 Stage 2 active mode / HV Ladder re-promotion（separate SPEC）/ Q042 Sleeve B（forward sample > 3-5 trades）
+- **SPEC-106** — Strategy Matrix Selector-Consistency & Payoff Semantics. **APPROVED 2026-05-26，FE 实施中**（est. CC ~4h / Human ~1.5 days）. 4 Parts：A（matrix cell 主标签 = selector.py verdict）/ B（payoff_type: CREDIT/DEBIT/WAIT/BLOCKED/RESEARCH_ONLY）/ C（36-cell audit script，4 VIX × 3 IV × 3 trend）/ D（IV helper text，解释 credit vs debit 策略 IV 偏好相反）. 新 endpoint `/api/strategy-matrix`，13 ACs. 设计原则：selector.py 是策略真值，matrix 是显示层，前端不复制 selector 逻辑（§10 实施纪律）— `See: task/SPEC-106.md`
+
+**Future seeds**（PM-discretionary）：Q042 Stage 2/3 ramp / SPEC-105 Stage 2 active mode / HV Ladder re-promotion / Q042 Sleeve B（n > 3-5 trades）/ Q077 PARKED（structure feature，见 open_questions.md）
 
 ## Current Production State Snapshot (2026-05-18)
 

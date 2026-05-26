@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-05-20（**Q075 CLOSED — DOCUMENT**。IVP-blocked day IC/BCS/C2 全路径 ΔROE sub-threshold。Layer-3 framework 确立。不出 SPEC）
+最后更新：2026-05-26（**SPEC-106 APPROVED（FE 实施中）+ Q077 stub PARKED**。Matrix display-vs-selector drift UX bug fix。Structure feature research 应用 framework pre-screen → defer）
 
 ---
 
@@ -33,6 +33,22 @@
 ---
 
 ## 策略设计待解决
+
+### Q077 — Structure-Aware Strike Placement (PARKED)
+
+- **状态**：**PARKED** 2026-05-26（pre-screen via framework → defer，不开 P0）
+- **触发背景**：PM 观察 TradingView "Flat Top & Bottom Indicator v2"；cross-AI 评估 + 二轮 reviewer 修正后，Quant 判断 expected edge sub-threshold
+- **Defer 依据**：reviewer 自己 prior 为 "edge ≈ 0 或 very small" → 触发不到 Soft +0.05pp 阈值。应用 `feedback_layer_n_replacement_outcome` framework：预期 sub-threshold 即 DOCUMENT，不必跑 P0 才下结论
+- **保留内容**（stub file: `task/q077_structure_feature_framing_stub_2026-05-26.md`）：
+  - 3 项方法学改进：event vs state distinction / SPEC-030 transferability nuance / distance-as-state formulation
+  - 4 个 daily-data feature 候选：Level Clustering / Range Compression / Bounce Symmetry / Distance to Pivot
+- **激活条件**（任一满足，需独立 PM 决策）：
+  1. SPEC-106 deployed + stable 2 周 AND 前端 audit threads ≤ 2
+  2. 出现具体 worst-trade episode 与结构位 cleanly 相关
+  3. PM 显式批准 bandwidth
+- **当前 bandwidth 状态**：PM 5 并行 thread 满载（SPEC-106 / 前端 audit / monitoring）
+
+---
 
 ### Q075 — IVP-Blocked Day Layer-3 Replacement Strategy
 

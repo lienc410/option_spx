@@ -1,6 +1,19 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-20 (**Q075 CLOSED — DOCUMENT**。IVP-blocked day replacement strategy 全路径完成。ΔROE +0.004pp / +0.007pp sub-threshold，不出 SPEC。Layer-3 framework 确立。Mark model P3 mtm_at() 标准化。Type C 50% stress 数据点存档）
+Last Updated: 2026-05-26 (**SPEC-106 APPROVED（FE 实施中）+ Q077 stub PARKED**。Matrix selector-consistency UX bug：selector.py:1083-1088 gate 与 matrix display 不一致；IV 偏好在 credit vs debit 策略下语义翻转。4-Part fix + 36-cell audit + /api/strategy-matrix。Q077 structure feature pre-screen defer）
+
+### R-20260526-01 — SPEC-106 Trigger: Strategy Matrix Display Drift + Q077 Stub
+
+- **Topic**: PM 发现 matrix cell 显示 "Bull Put Spread" 但 selector.py 实际给 REDUCE_WAIT（SPEC-060 gate）；IV 轴在 credit vs debit 策略下语义相反（LOW_VOL debit 喜欢低 IV，NORMAL/HIGH_VOL credit 喜欢高 IV），matrix 未解释
+- **2nd Quant Verdict（q076 review packet）**：UX bug，不是 quant model bug。策略真值层正确；显示层有两处语义漂移
+- **SPEC-106 4-Part Fix**：
+  - A: matrix cell 主标签改为 selector.py 实际 verdict（非历史 strategy name）
+  - B: 每 cell 加 `payoff_type` 标签（CREDIT / DEBIT / WAIT / BLOCKED / RESEARCH_ONLY）
+  - C: 36-cell selector-vs-matrix audit script（4 VIX × 3 IV × 3 trend，防未来漂移）
+  - D: UI helper text 解释 IV 在 credit vs debit 策略含义不同
+- **Design Principle 确立（§10 实施纪律）**：`selector.py` 是策略真值；matrix 是显示层；前端不复制 selector 逻辑
+- **Q077 Stub（PARKED）**：Structure-Aware Strike Placement。Cross-AI + reviewer 评估后，reviewer prior "edge ≈ 0 or very small" → 应用 `feedback_layer_n_replacement_outcome` framework pre-screen → defer（不开 P0）。Stub 保留 3 方法学改进 + 4 feature 候选 + 激活条件
+- **来源**：`task/SPEC-106.md`, `task/q076_matrix_consistency_2nd_quant_review_2026-05-26_Review.md`, `task/q077_structure_feature_framing_stub_2026-05-26.md`
 
 ### R-20260520-01 — Q075: IVP-Blocked Day Layer-3 Replacement Strategy — CLOSED DOCUMENT
 
