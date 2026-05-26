@@ -76,6 +76,36 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   border-radius: 9px; padding: 13px 18px; margin-bottom: 18px;
   font-size: 0.76rem;
 }
+
+/* SPEC-106 — collapsible helper text + per-cell payoff_type pills */
+.matrix-helper { background: var(--surface); border: 1px solid var(--border-2); border-radius: 9px; margin-bottom: 18px; }
+.matrix-helper > summary { font-family: var(--f-ui); font-size: 0.68rem; color: var(--text-2); padding: 10px 16px; cursor: pointer; list-style: none; user-select: none; }
+.matrix-helper > summary::-webkit-details-marker { display: none; }
+.matrix-helper-body { padding: 0 18px 14px; font-family: var(--f-ui); font-size: 0.66rem; color: var(--text-2); line-height: 1.55; }
+.matrix-helper-body ul { margin: 0; padding-left: 18px; }
+.matrix-helper-body li { margin-bottom: 5px; }
+.matrix-helper-body strong { color: var(--text); }
+.matrix-helper-body em { color: var(--text); font-style: italic; }
+.pf-pill {
+  display: inline-block; font-family: var(--f-mono); font-size: 0.54rem; font-weight: 600;
+  letter-spacing: 0.06em; padding: 1px 6px; border-radius: 3px; border: 1px solid transparent;
+  margin: 0 2px;
+}
+.pf-pill.pf-credit    { background: var(--gold-bg);   border-color: var(--gold-border);   color: var(--gold); }
+.pf-pill.pf-debit     { background: var(--blue-bg);   border-color: var(--blue-border);   color: var(--blue); }
+.pf-pill.pf-wait      { background: var(--gray-bg);   border-color: var(--gray-border);   color: var(--text-2); }
+.pf-pill.pf-research  { background: var(--red-bg);    border-color: var(--red-border);    color: var(--red); }
+.pf-pill.pf-neutral   { background: var(--surface-hi); border-color: var(--border-2);     color: var(--text-2); }
+.pf-pill.pf-blocked   { background: var(--red-bg);    border-color: var(--red-border);    color: var(--red); }
+.mcell.gated .cell-strategy { color: var(--orange) !important; }
+.mcell.gated .cell-strategy-reason {
+  font-family: var(--f-mono); font-size: 0.55rem; color: var(--text-2);
+  margin-top: 4px; line-height: 1.4;
+}
+.mcell .cell-hist-ref {
+  font-family: var(--f-ui); font-size: 0.54rem; color: var(--text-2);
+  margin-top: 3px; font-style: italic;
+}
 .sb-label { color: var(--text-2); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; font-size: 0.6rem; }
 .sb-chip {
   display: inline-flex; align-items: center; gap: 5px;
@@ -398,6 +428,24 @@ table.mt-tbl { width: 100%; border-collapse: collapse; min-width: 640px; }
     <span class="sb-loading"><span class="spinner"></span>&nbsp; Loading current signals…</span>
   </div>
 
+  <!-- SPEC-106 §2.4 — how to read the matrix -->
+  <details class="matrix-helper" id="matrix-helper">
+    <summary>ℹ️  How to read this matrix</summary>
+    <div class="matrix-helper-body">
+      <ul>
+        <li><strong>Strategy name = current selector verdict (live)</strong>, not historical stats. If selector returns <em>REDUCE_WAIT</em>, the cell shows it as the verdict — overriding what backtest history alone would suggest.</li>
+        <li><strong>Payoff type</strong> labels:
+          <span class="pf-pill pf-credit">CREDIT</span> sell premium (needs adequate IV);
+          <span class="pf-pill pf-debit">DEBIT</span> buy structure (benefits from cheap options);
+          <span class="pf-pill pf-wait">WAIT</span> no statistical edge in this cell.</li>
+        <li><strong>IV level has regime-dependent meaning:</strong>
+          under <em>LOW_VOL</em> regime, low IV is favourable (cheap options to buy);
+          under <em>NORMAL / HIGH_VOL</em> regimes, low IV is unfavourable (premium too thin to sell).</li>
+        <li><strong>Historical stats</strong> (WR / avg / n) are reference only. Hidden on gated cells to avoid the "REDUCE_WAIT but WR 82%" contradiction. Source of truth is the live verdict above the stats.</li>
+      </ul>
+    </div>
+  </details>
+
   <!-- VIX regime tabs -->
   <div class="regime-tabs">
     <div class="regime-tab" id="tab-low"  onclick="setTab('LOW_VOL')">
@@ -520,6 +568,7 @@ let activeTab     = 'NORMAL';
 let selectedCell  = null;
 let _stratStats   = {};   // { "3y": { "bull_put_spread": {n,win_rate}, ... }, "10y": {...}, "all": {...} }
 let _cellStats    = {};   // { "3y": { "NORMAL|NEUTRAL|BULLISH": {n,win_rate}, ... }, "10y": {...}, "all": {...} }
+let _matrixLive   = {};   // SPEC-106: { "REGIME|IV|TREND": cell_dict_from_/api/strategy-matrix }
 
 function effectiveIvBucket(iv) {
   const ivRank = Number(iv.iv_rank ?? 0);
@@ -538,6 +587,22 @@ async function loadStrategyCatalog() {
   const data = await res.json();
   STRAT = data.strategies || {};
   MATRIX = data.matrix || {};
+}
+
+// SPEC-106 — pull live verdict + payoff_type for all 36 cells from the
+// selector-consistency endpoint. This is the source of truth for what
+// each cell shows; the static MATRIX above is only a fallback for the
+// canonical strategy key used to look up backtest stats.
+async function loadStrategyMatrix() {
+  try {
+    const res = await fetch('/api/strategy-matrix');
+    if (!res.ok) return;
+    const data = await res.json();
+    _matrixLive = {};
+    (data.cells || []).forEach(c => { _matrixLive[c.cell_id] = c; });
+  } catch (e) {
+    _matrixLive = {};
+  }
 }
 
 function strategyName(key) {
@@ -617,13 +682,23 @@ function buildMatrix(regime) {
                     <span class="mh-iv-sub">${iv.sub}</span>`;
     grid.appendChild(rh);
 
-    // Strategy cells
+    // Strategy cells — primary source: /api/strategy-matrix (live selector verdict).
+    // Fallback: static MATRIX catalog (used only when live endpoint hasn't loaded yet).
     TREND_COLS.forEach((trend, ci) => {
-      const strat = MATRIX[regime][iv.key][trend];
-      const sd = STRAT[strat];
-      const isCurrent = (regime === currentRegime && iv.key === currentIV && trend === currentTrend);
+      const cellId = `${regime}|${iv.key}|${trend}`;
+      const liveCell = _matrixLive[cellId];
+      // Canonical strategy key for stats lookup (live cell carries it; fall back to static MATRIX)
+      const canonicalKeyForStats = (liveCell && liveCell.canonical_key) || MATRIX[regime][iv.key][trend];
+      // Verdict strategy key controls the cell's primary label + color
+      const isGated = liveCell && liveCell.gated;
+      const verdictKey = isGated ? 'reduce_wait' : (canonicalKeyForStats || MATRIX[regime][iv.key][trend]);
+      const strat = verdictKey;
+      const sd = STRAT[strat] || STRAT[canonicalKeyForStats] || { name: liveCell?.selector_verdict || '—', direction: 'wait', underlying: '—' };
+      const isCurrent = liveCell
+        ? !!liveCell.is_current_active_cell
+        : (regime === currentRegime && iv.key === currentIV && trend === currentTrend);
       const cell = document.createElement('div');
-      cell.className = 'mcell' + (isCurrent ? ' current' : '');
+      cell.className = 'mcell' + (isCurrent ? ' current' : '') + (isGated ? ' gated' : '');
       cell.dataset.strat = strat;
       const cellKey = `${regime}|${iv.key}|${trend}`;
       const s3   = (_stratStats['3y']  || {})[strat];
@@ -667,9 +742,26 @@ function buildMatrix(regime) {
       const guardrailTag = (isCurrent && currentStrategy && currentStrategy !== strat)
         ? `<span class="ctag ctag-wait">${window.__guardrailLabel || 'Guardrail Override'}</span>`
         : '';
+      // SPEC-106 — payoff_type pill + (when gated) reason + historical-ref line
+      const payoff = (liveCell && liveCell.payoff_type) || 'NEUTRAL_PREMIUM';
+      const payoffCls = {
+        CREDIT: 'pf-credit', DEBIT: 'pf-debit', WAIT: 'pf-wait',
+        RESEARCH_ONLY: 'pf-research', NEUTRAL_PREMIUM: 'pf-neutral', BLOCKED: 'pf-blocked',
+      }[payoff] || 'pf-neutral';
+      const payoffPill = `<span class="pf-pill ${payoffCls}">${payoff.replace('_', ' ')}</span>`;
+      // Primary label: when gated, show REDUCE_WAIT in orange (handled by .gated CSS).
+      const primaryName = isGated ? 'REDUCE_WAIT' : sd.name;
+      const reasonLine = isGated && liveCell?.reason
+        ? `<div class="cell-strategy-reason">${liveCell.reason.length > 100 ? liveCell.reason.slice(0, 97) + '…' : liveCell.reason}</div>`
+        : '';
+      const histRefLine = isGated && liveCell?.historical_reference_strategy
+        ? `<div class="cell-hist-ref">Historical ref: ${liveCell.historical_reference_strategy}</div>`
+        : '';
       cell.innerHTML = `
-        <div class="cell-strategy" style="color:${DIR_COLOR[sd.direction]}">${sd.name}</div>
-        <div class="cell-tags">${DIR_TAG[sd.direction]}${guardrailTag}<span class="ctag" style="background:rgba(96,104,128,.08);color:var(--text-2);border:1px solid rgba(96,104,128,.15);font-size:.52rem">${sd.underlying}</span></div>
+        <div class="cell-strategy" style="${isGated ? '' : 'color:' + DIR_COLOR[sd.direction]}">${primaryName}</div>
+        ${reasonLine}
+        <div class="cell-tags">${DIR_TAG[sd.direction]}${guardrailTag}${payoffPill}<span class="ctag" style="background:rgba(96,104,128,.08);color:var(--text-2);border:1px solid rgba(96,104,128,.15);font-size:.52rem">${sd.underlying}</span></div>
+        ${histRefLine}
         ${statHtml}`;
       cell.addEventListener('click', () => selectCell(cell, strat, regime, iv.key, trend));
       grid.appendChild(cell);
@@ -961,9 +1053,11 @@ document.getElementById('nav-date').textContent = new Date().toLocaleDateString(
   weekday:'short', month:'short', day:'numeric', year:'numeric'
 });
 
-// Load catalog first so matrix/detail rendering uses the canonical source of truth.
+// Load catalog + live matrix (SPEC-106) before first render so cells show
+// live selector verdicts (including REDUCE_WAIT gates) not stale catalog names.
 (async () => {
   await loadStrategyCatalog();
+  await loadStrategyMatrix();
   setTab('NORMAL');
   loadSignals();
   loadStratStats();

@@ -232,6 +232,20 @@ body {
   color: var(--text); line-height: 1.05;
   margin-bottom: 6px;
 }
+/* SPEC-106 payoff_type badge — colored pill next to strategy name */
+.pf-pill {
+  display: inline-block; vertical-align: middle;
+  font-family: var(--f-mono); font-size: 0.55rem; font-weight: 600;
+  letter-spacing: 0.06em; padding: 2px 7px; border-radius: 4px;
+  border: 1px solid transparent; margin-left: 6px;
+  font-style: normal;
+}
+.pf-pill.pf-credit    { background: var(--gold-bg);   border-color: var(--gold-border);   color: var(--gold); }
+.pf-pill.pf-debit     { background: var(--blue-bg);   border-color: var(--blue-border);   color: var(--blue); }
+.pf-pill.pf-wait      { background: var(--gray-bg);   border-color: var(--gray-border);   color: var(--text-2); }
+.pf-pill.pf-research  { background: var(--red-bg);    border-color: var(--red-border);    color: var(--red); }
+.pf-pill.pf-neutral   { background: var(--surface-hi); border-color: var(--border-2);     color: var(--text-2); }
+.pf-pill.pf-blocked   { background: var(--red-bg);    border-color: var(--red-border);    color: var(--red); }
 .rec-meta {
   font-family: var(--f-mono); font-size: 0.67rem;
   color: var(--text-2);
@@ -1007,10 +1021,19 @@ function buildCard(d) {
     if ((s.n || 0) < 5) return 'n too small';
     return `WR ${s.win_rate}% · n ${s.n}`;
   };
+  // SPEC-106 — payoff_type badge next to strategy name so PM sees CREDIT vs DEBIT vs WAIT
+  const payoff = d.payoff_type || '';
+  const payoffCls = {
+    CREDIT: 'pf-credit', DEBIT: 'pf-debit', WAIT: 'pf-wait',
+    RESEARCH_ONLY: 'pf-research', NEUTRAL_PREMIUM: 'pf-neutral', BLOCKED: 'pf-blocked',
+  }[payoff] || '';
+  const payoffBadge = payoff
+    ? `<span class="pf-pill ${payoffCls}" title="payoff type — selector taxonomy">${payoff.replace('_', ' ')}</span>`
+    : '';
   return `
     <div class="rec-hd">
       <span class="rec-emoji">${emoji}</span>
-      <div class="rec-name">${d.strategy}</div>
+      <div class="rec-name">${d.strategy} ${payoffBadge}</div>
       <div class="rec-meta">
         <span style="color:${actionColor};font-weight:600">${d.position_action || ''}</span>
         &nbsp;·&nbsp;<span>${d.underlying}</span>&nbsp;·&nbsp;<span>${d.vix_snapshot.date}</span>

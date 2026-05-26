@@ -226,6 +226,39 @@ class StrategyName(str, Enum):
     REDUCE_WAIT         = "Reduce / Wait"
 
 
+# SPEC-106 §2.2 + §3.2 — payoff-type taxonomy. Pure mapping; does NOT influence
+# select_strategy decisions. Used by the /api/strategy-matrix surface and the
+# UI helper text so PM sees that "low IV under LOW_VOL = debit buy" vs "low IV
+# under NORMAL = credit premium too thin" are semantically opposite regimes.
+def get_payoff_type(strategy_name: str | None) -> str:
+    """Map a strategy display-name → payoff taxonomy bucket.
+
+    Buckets:
+      CREDIT          — net-credit short-premium (BPS / IC / BCS_HV) — needs IV
+      DEBIT           — net-debit long-vol structure (BCD / Calendar) — wants cheap options
+      NEUTRAL_PREMIUM — mixed / unmapped (default fallback)
+      WAIT            — REDUCE_WAIT (no statistical edge in this cell)
+      RESEARCH_ONLY   — Stress Put Ladder / paper-only (0% production cap)
+    """
+    if strategy_name is None:
+        return "WAIT"
+    name = str(strategy_name).strip()
+    if name in {"Reduce / Wait", "REDUCE_WAIT"}:
+        return "WAIT"
+    if name in {
+        "Bull Put Spread", "Bull Put Spread (High Vol)",
+        "Iron Condor", "Iron Condor (High Vol)",
+        "Bear Call Spread (High Vol)", "Bear Call Spread",
+        "ES Short Put",
+    }:
+        return "CREDIT"
+    if name in {"Bull Call Diagonal", "Bear Call Diagonal", "Calendar", "Diagonal"}:
+        return "DEBIT"
+    if name in {"Stress Put Ladder", "HV Ladder"}:
+        return "RESEARCH_ONLY"
+    return "NEUTRAL_PREMIUM"
+
+
 @dataclass
 class Leg:
     action:   str          # "BUY" or "SELL"
@@ -266,6 +299,9 @@ class Recommendation:
     overlay_f_fail_closed: bool = False
     shock_mode: str = "disabled"
     local_spike: bool = False
+    # SPEC-106 — payoff taxonomy (CREDIT / DEBIT / WAIT / NEUTRAL_PREMIUM /
+    # RESEARCH_ONLY). Auto-populated by _build_recommendation / _reduce_wait.
+    payoff_type: str = ""
 
     def summary(self) -> str:
         """Single-line summary for quick reading."""
@@ -418,6 +454,7 @@ def _build_recommendation(
         overlay_f_fail_closed = False,
         shock_mode = params.shock_mode,
         local_spike = local_spike,
+        payoff_type = get_payoff_type(strategy.value),
     )
 
 

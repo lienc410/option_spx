@@ -760,6 +760,221 @@ def api_strategy_catalog():
     return jsonify(strategy_catalog_payload())
 
 
+# ── SPEC-106: Strategy Matrix selector-consistency endpoint ─────────────────
+# Synthesizes one snapshot per (vix_regime, iv_bucket, trend) cell and asks
+# strategy.selector.select_strategy() what it would return *right now*. PM
+# sees the live verdict (which can be REDUCE_WAIT under SPEC-060 etc) instead
+# of a stale static catalog name. selector.py remains the only source of truth.
+
+_STRATEGY_MATRIX_CACHE: dict = {}
+_STRATEGY_MATRIX_TTL_SEC = 300  # 5min — market state can't shift cells faster
+
+
+def _synth_vix_snapshot(regime: str, params=None):
+    """Build a VixSnapshot representative of the given regime.
+
+    Numeric values chosen *inside* each band so EXTREME_VOL fires its own gate:
+      LOW_VOL     → VIX 11   (< 15)
+      NORMAL      → VIX 17   (15-22)
+      HIGH_VOL    → VIX 26   (22-extreme_vix, default 35)
+      EXTREME_VOL → VIX 40   (≥ extreme_vix)
+    """
+    from signals.vix_regime import VixSnapshot, Regime, Trend
+    vix_value = {
+        "LOW_VOL":     11.0,
+        "NORMAL":      17.0,
+        "HIGH_VOL":    26.0,
+        "EXTREME_VOL": 40.0,
+    }[regime]
+    # EXTREME_VOL routes through the HIGH_VOL branch in selector + an extreme gate
+    regime_enum = Regime.HIGH_VOL if regime == "EXTREME_VOL" else Regime(regime)
+    return VixSnapshot(
+        date="synthetic",
+        vix=vix_value,
+        regime=regime_enum,
+        trend=Trend.FLAT,
+        vix_5d_avg=vix_value,
+        vix_5d_ago=vix_value,
+        transition_warning=False,
+        vix3m=None,
+        backwardation=False,
+        vix_peak_10d=vix_value,
+    )
+
+
+def _synth_iv_snapshot(iv_bucket: str):
+    """IVSnapshot per bucket. IVR and IVP picked together to avoid the
+    _effective_iv_signal divergence override (>15pt gap → IVP wins)."""
+    from signals.iv_rank import IVSnapshot, IVSignal
+    if iv_bucket == "HIGH":
+        ivr, ivp, ivp63 = 70.0, 72.0, 60.0
+        sig = IVSignal.HIGH
+    elif iv_bucket == "NEUTRAL":
+        ivr, ivp, ivp63 = 45.0, 48.0, 45.0
+        sig = IVSignal.NEUTRAL
+    else:  # LOW
+        ivr, ivp, ivp63 = 20.0, 22.0, 25.0
+        sig = IVSignal.LOW
+    return IVSnapshot(
+        date="synthetic",
+        vix=17.0,
+        iv_rank=ivr,
+        iv_percentile=ivp,
+        iv_signal=sig,
+        iv_52w_high=85.0,
+        iv_52w_low=10.0,
+        ivp63=ivp63,
+        ivp252=ivp,
+        regime_decay=False,
+    )
+
+
+def _synth_trend_snapshot(trend: str):
+    """TrendSnapshot per direction; gap_pct chosen well outside the ±1% band."""
+    from signals.trend import TrendSnapshot, TrendSignal
+    spx = 5000.0
+    gap_pct = {"BULLISH": 0.03, "NEUTRAL": 0.0, "BEARISH": -0.03}[trend]
+    ma50 = spx / (1.0 + gap_pct)
+    return TrendSnapshot(
+        date="synthetic",
+        spx=spx,
+        ma20=ma50,
+        ma50=ma50,
+        ma_gap_pct=gap_pct,
+        signal=TrendSignal(trend),
+        above_200=True,
+    )
+
+
+def _live_active_cell() -> tuple[str, str, str] | None:
+    """Pull current live (vix_regime, iv_bucket, trend) tuple from get_recommendation.
+    Returns None if data not available (e.g., outside market hours warm-up)."""
+    try:
+        from strategy.selector import get_recommendation
+        rec = get_recommendation()
+        if rec is None:
+            return None
+        regime = rec.vix_snapshot.regime.value
+        # EXTREME_VOL is signaled via vix >= params.extreme_vix even when regime enum is HIGH_VOL
+        from strategy.selector import DEFAULT_PARAMS
+        if regime == "HIGH_VOL" and rec.vix_snapshot.vix >= DEFAULT_PARAMS.extreme_vix:
+            regime = "EXTREME_VOL"
+        # IV bucket: re-derive from snapshot using selector convention
+        iv_sig = rec.iv_snapshot.iv_signal.value  # HIGH / NEUTRAL / LOW
+        trend = rec.trend_snapshot.signal.value   # BULLISH / NEUTRAL / BEARISH
+        return (regime, iv_sig, trend)
+    except Exception:
+        return None
+
+
+@app.route("/api/strategy-matrix")
+def api_strategy_matrix():
+    """SPEC-106 — return 36 cells (4 vix_regime × 3 iv × 3 trend) with live
+    selector verdict + payoff_type + historical reference stats."""
+    cache_key = "strategy_matrix"
+    cached = _STRATEGY_MATRIX_CACHE.get(cache_key)
+    now = time.time()
+    if cached and (now - cached[0]) < _STRATEGY_MATRIX_TTL_SEC:
+        return jsonify(cached[1])
+
+    from strategy.selector import select_strategy, get_payoff_type, DEFAULT_PARAMS
+    from strategy.catalog import strategy_descriptor
+
+    regimes = ("LOW_VOL", "NORMAL", "HIGH_VOL", "EXTREME_VOL")
+    iv_buckets = ("HIGH", "NEUTRAL", "LOW")
+    trends = ("BULLISH", "NEUTRAL", "BEARISH")
+
+    # Historical reference stats (best-effort; if cache unavailable, set None)
+    stats_payload: dict = {}
+    try:
+        with app.test_client() as c:
+            resp = c.get("/api/backtest/stats")
+            if resp.status_code == 200:
+                stats_payload = resp.get_json() or {}
+    except Exception:
+        stats_payload = {}
+
+    live_active = _live_active_cell()
+
+    cells = []
+    for regime in regimes:
+        vix = _synth_vix_snapshot(regime)
+        for iv_bucket in iv_buckets:
+            iv = _synth_iv_snapshot(iv_bucket)
+            for trend in trends:
+                trend_snap = _synth_trend_snapshot(trend)
+                try:
+                    rec = select_strategy(vix, iv, trend_snap, DEFAULT_PARAMS)
+                    verdict = rec.strategy.value
+                    reason = rec.rationale
+                    payoff = rec.payoff_type or get_payoff_type(verdict)
+                    canonical = rec.canonical_strategy or verdict
+                    gated = verdict == "Reduce / Wait"
+                except Exception as exc:
+                    verdict = "Reduce / Wait"
+                    reason = f"selector error: {exc}"
+                    payoff = "WAIT"
+                    canonical = ""
+                    gated = True
+
+                # Historical reference strategy key for stats lookup —
+                # use canonical (the strategy the system *would* trade if not gated).
+                # selector.canonical_strategy already supplies this.
+                hist_strategy_name = canonical or verdict
+                try:
+                    hist_key = strategy_descriptor(hist_strategy_name).key
+                except Exception:
+                    hist_key = None
+
+                def _stat(period: str, key: str | None):
+                    if not key:
+                        return None
+                    return (stats_payload.get(period) or {}).get(key)
+
+                s3 = _stat("3y", hist_key)
+                s10 = _stat("10y", hist_key)
+                sAll = _stat("all", hist_key)
+
+                cell_id = f"{regime}|{iv_bucket}|{trend}"
+                is_active = (live_active is not None and
+                             live_active == (regime, iv_bucket, trend))
+
+                cells.append({
+                    "cell_id":         cell_id,
+                    "vix_regime":      regime,
+                    "iv_bucket":       iv_bucket,
+                    "trend":           trend,
+                    "selector_verdict": verdict,
+                    "strategy":        None if gated else verdict,
+                    "historical_reference_strategy": hist_strategy_name if gated else None,
+                    "reason":          reason,
+                    "payoff_type":     payoff,
+                    "canonical_key":   hist_key,
+                    "gated":           gated,
+                    "is_current_active_cell": is_active,
+                    # historical stats: only populate when NOT gated, per SPEC-106 §10
+                    # ("avoid 'REDUCE_WAIT but WR 82%' contradiction")
+                    "wr_3y":   None if gated else (s3 or {}).get("win_rate"),
+                    "wr_10y":  None if gated else (s10 or {}).get("win_rate"),
+                    "wr_all":  None if gated else (sAll or {}).get("win_rate"),
+                    "avg_pnl_3y": None if gated else (s3 or {}).get("avg_pnl"),
+                    "n_3y":    None if gated else (s3 or {}).get("n"),
+                })
+
+    payload = {
+        "as_of":   datetime.now(_ET).isoformat(timespec="seconds"),
+        "cells":   cells,
+        "live_active_cell": list(live_active) if live_active else None,
+        "params":  {
+            "extreme_vix_threshold": DEFAULT_PARAMS.extreme_vix,
+            "ivp_low_threshold": 40,
+            "ivp_high_threshold": 70,
+        },
+    }
+    _STRATEGY_MATRIX_CACHE[cache_key] = (now, payload)
+    return jsonify(payload)
+
+
 ## ── Q041 Sleeves manual trade ledger ─────────────────────────────────────────
 
 Q041_ACTIVE_SLEEVES = {
