@@ -68,6 +68,12 @@ _STRIKE_COUNT: dict[str, int] = {
 _DTE_WINDOW: dict[str, int] = {
     "$SPX": 180,
 }
+_CHAIN_FALLBACK_PROFILES: dict[str, list[tuple[int, int]]] = {
+    "$SPX": [(120, 180), (100, 180), (80, 120)],
+    "QQQ": [(300, 400), (240, 300), (180, 240)],
+    "_default": [(300, 300), (200, 240), (120, 180)],
+}
+_RETRYABLE_CHAIN_STATUS = {429, 502, 503, 504}
 
 
 def _logger(verbose: bool) -> logging.Logger:
@@ -99,25 +105,61 @@ def _headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {ensure_access_token()}"}
 
 
+def _chain_request_profiles(api_sym: str) -> list[tuple[int, int]]:
+    base = (
+        _STRIKE_COUNT.get(api_sym, 500),
+        _DTE_WINDOW.get(api_sym, DTE_WINDOW_DAYS),
+    )
+    fallbacks = _CHAIN_FALLBACK_PROFILES.get(
+        api_sym,
+        _CHAIN_FALLBACK_PROFILES["_default"],
+    )
+    profiles: list[tuple[int, int]] = []
+    for profile in [base, *fallbacks]:
+        if profile not in profiles:
+            profiles.append(profile)
+    return profiles
+
+
 def _fetch_full_chain(symbol: str) -> tuple[list[dict], list[dict]]:
     """Pull full multi-expiry chain — both call and put exp maps in one call."""
     today = date.today()
     api_sym = _marketdata_symbol(symbol)
-    params = {
-        "symbol": api_sym,
-        "contractType": "ALL",
-        "strikeCount": _STRIKE_COUNT.get(api_sym, 500),
-        "includeQuotes": "TRUE",
-        "fromDate": today.isoformat(),
-        "toDate": (today + timedelta(days=_DTE_WINDOW.get(api_sym, DTE_WINDOW_DAYS))).isoformat(),
-    }
-    res = requests.get(
-        f"{BASE_URL}/marketdata/v1/chains",
-        params=params,
-        headers=_headers(),
-        timeout=HTTP_TIMEOUT,
-    )
-    res.raise_for_status()
+    last_error: Exception | None = None
+    log = logging.getLogger("q041_collect")
+    for idx, (strike_count, dte_window) in enumerate(_chain_request_profiles(api_sym)):
+        params = {
+            "symbol": api_sym,
+            "contractType": "ALL",
+            "strikeCount": strike_count,
+            "includeQuotes": "TRUE",
+            "fromDate": today.isoformat(),
+            "toDate": (today + timedelta(days=dte_window)).isoformat(),
+        }
+        try:
+            res = requests.get(
+                f"{BASE_URL}/marketdata/v1/chains",
+                params=params,
+                headers=_headers(),
+                timeout=HTTP_TIMEOUT,
+            )
+            res.raise_for_status()
+            break
+        except requests.HTTPError as exc:
+            last_error = exc
+            status_code = exc.response.status_code if exc.response is not None else None
+            if status_code not in _RETRYABLE_CHAIN_STATUS or idx == len(_chain_request_profiles(api_sym)) - 1:
+                raise
+            log.warning(
+                "chain fetch retry symbol=%s status=%s strikeCount=%s dteWindow=%s",
+                symbol,
+                status_code,
+                strike_count,
+                dte_window,
+            )
+            time.sleep(1.0 + idx)
+    else:
+        raise last_error or RuntimeError(f"chain fetch failed for {symbol}")
     payload = res.json()
     calls = _parse_chain_response(payload, "CALL")
     puts = _parse_chain_response(payload, "PUT")

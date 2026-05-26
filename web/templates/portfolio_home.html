@@ -1831,8 +1831,13 @@ async function loadSchwabAuthBanner() {
   if (!banner) return;
   try {
     const s = await fetch('/api/schwab/status').then(r => r.json());
-    // Show banner when configured but not authenticated (refresh token expired)
-    if (s.configured && !s.authenticated) {
+    // Show banner only when Schwab needs a human OAuth re-auth. Access tokens
+    // expire intraday and are refreshable; that should not be shown as outage.
+    const needsReauth = s.configured && (
+      s.requires_reauth ||
+      (!s.authenticated && s.refresh_token_valid === false)
+    );
+    if (needsReauth) {
       const labelEl = document.getElementById('schwab-banner-label');
       if (labelEl) {
         const refreshIn = s.refresh_expires_in;
@@ -1841,7 +1846,7 @@ async function loadSchwabAuthBanner() {
           : null;
         labelEl.textContent = ageHrs != null
           ? `Schwab refresh token 已过期 ${ageHrs}h — SPX live + chain scans degraded.`
-          : 'Schwab token 失效 — SPX live + chain scans degraded.';
+          : 'Schwab refresh token 需要重新授权 — SPX live + chain scans degraded.';
       }
       banner.classList.add('shown');
     } else {

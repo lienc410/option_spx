@@ -67,6 +67,9 @@ def token_status() -> dict:
         return {
             "configured": False,
             "authenticated": False,
+            "access_token_valid": False,
+            "refresh_token_valid": False,
+            "requires_reauth": False,
             "token_expires_in": None,
             "refresh_expires_in": None,
             "stale": False,
@@ -75,6 +78,9 @@ def token_status() -> dict:
         return {
             "configured": True,
             "authenticated": False,
+            "access_token_valid": False,
+            "refresh_token_valid": False,
+            "requires_reauth": True,
             "token_expires_in": None,
             "refresh_expires_in": None,
             "stale": False,
@@ -84,9 +90,17 @@ def token_status() -> dict:
     refresh_expires_at = _parse_dt(token.get("refresh_expires_at"))
     token_in = int((expires_at - now).total_seconds()) if expires_at else None
     refresh_in = int((refresh_expires_at - now).total_seconds()) if refresh_expires_at else None
+    access_token_valid = bool(token_in and token_in > 0)
+    refresh_token_valid = bool(
+        token.get("refresh_token")
+        and (refresh_in is None or refresh_in > 0)
+    )
     return {
         "configured": True,
-        "authenticated": bool(token_in and token_in > 0),
+        "authenticated": access_token_valid,
+        "access_token_valid": access_token_valid,
+        "refresh_token_valid": refresh_token_valid,
+        "requires_reauth": not refresh_token_valid,
         "token_expires_in": token_in,
         "refresh_expires_in": refresh_in,
         "stale": False,
