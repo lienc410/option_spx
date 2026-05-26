@@ -1,6 +1,6 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-26 (**SPEC-106 APPROVED（FE 实施中）+ Q077 stub PARKED**。Matrix selector-consistency UX bug：selector.py:1083-1088 gate 与 matrix display 不一致；IV 偏好在 credit vs debit 策略下语义翻转。4-Part fix + 36-cell audit + /api/strategy-matrix。Q077 structure feature pre-screen defer）
+Last Updated: 2026-05-26 (**SPEC-106 SHIPPED**。18/36 cells gated（50%）standalone finding。selector.py 0 改动 = quant risk 零。IV-divergence edge case implicit AC by reviewer。deploy fixture ops policy gap 浮出。Low-priority backlog 3 项记录）
 
 ### R-20260526-01 — SPEC-106 Trigger: Strategy Matrix Display Drift + Q077 Stub
 

@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-05-26（**SPEC-106 APPROVED（FE 实施中）+ Q077 stub PARKED**。Matrix display-vs-selector drift UX bug fix。Structure feature research 应用 framework pre-screen → defer）
+最后更新：2026-05-26（**SPEC-106 SHIPPED ✓**。18/36 cells gated（50%）standalone finding。selector.py 0 改动。Q042 ddATH -0.91%，Booster IVP 53 vs 55（2pt 警戒）)
 
 ---
 

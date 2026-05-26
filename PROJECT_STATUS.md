@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-26 (**SPEC-106 APPROVED，FE 实施中。Q077 stub PARKED**。SPEC-106：Strategy Matrix Selector-Consistency & Payoff Semantics（UX bug fix + payoff_type labels + 36-cell audit + IV helper text）。Q077：Structure-Aware Strike Placement defer，应用 feedback_layer_n_replacement_outcome framework pre-screen — `See: task/SPEC-106.md`, `task/q077_structure_feature_framing_stub_2026-05-26.md`)
+Last Updated: 2026-05-26 (**SPEC-106 SHIPPED ✓**。Strategy Matrix Selector-Consistency & Payoff Semantics 完成。Standalone finding: 18/36 cells gated（50% of matrix）。selector.py 0 改动 = quant risk 零。Low-priority backlog 3 项浮出：force_refresh / deploy fixture policy / 50% gated helper text — `See: task/SPEC-106.md`)
 Owner: Planner or PM
 
 ## Current Phase
@@ -28,17 +28,21 @@ Owner: Planner or PM
 
 ## Active APPROVED Specs
 
-- **SPEC-106** — Strategy Matrix Selector-Consistency & Payoff Semantics. **APPROVED 2026-05-26，FE 实施中**（est. CC ~4h / Human ~1.5 days）. 4 Parts：A（matrix cell 主标签 = selector.py verdict）/ B（payoff_type: CREDIT/DEBIT/WAIT/BLOCKED/RESEARCH_ONLY）/ C（36-cell audit script，4 VIX × 3 IV × 3 trend）/ D（IV helper text，解释 credit vs debit 策略 IV 偏好相反）. 新 endpoint `/api/strategy-matrix`，13 ACs. 设计原则：selector.py 是策略真值，matrix 是显示层，前端不复制 selector 逻辑（§10 实施纪律）— `See: task/SPEC-106.md`
+_(currently empty)_
 
-**Future seeds**（PM-discretionary）：Q042 Stage 2/3 ramp / SPEC-105 Stage 2 active mode / HV Ladder re-promotion / Q042 Sleeve B（n > 3-5 trades）/ Q077 PARKED（structure feature，见 open_questions.md）
+**Future seeds**（PM-discretionary）：Q042 Stage 2/3 ramp / SPEC-105 Stage 2 active mode / HV Ladder re-promotion / Q042 Sleeve B（n > 3-5 trades）/ Q077 PARKED
 
-## Current Production State Snapshot (2026-05-18)
+**Low-priority backlog**（PM-discretionary，no time-lock）：
+- `/api/strategy-matrix?force_refresh=1`（等有 external audit / monitoring 需求再加）
+- `doc/DEPLOY_FIXTURES.md`（列 data/*.json 哪些是 deploy fixture vs ephemeral cache vs gitignored artifact；mini-spec 给 dev）
+- Helper text 加 "~50% of cells gated under current rules" base rate（future P3 enhancement，不动 SPEC-106）
+
+## Current Production State Snapshot (2026-05-26)
 
 ```
-Combined NLV:           $894k  (Schwab $601k + E-Trade $293k)
 SPX cap regime:         normal → active cap 80% (R1)
-Booster:                inactive (IVP ≥ 55 blocks); mode = shadow (Stage 1)
-Q042 Sleeve A:          Stage 1, cap 12.5%, target 17.5%
+Booster:                inactive (IVP 53 vs 55 threshold — 2pt 警戒); mode = shadow (Stage 1)
+Q042 Sleeve A:          Stage 1, cap 12.5%, target 17.5% | ddATH -0.91% (far from -4% trigger)
 Q042 Sleeve B:          research-only (production 0%)
 HV Ladder:              paper/research signal only (production 0%)
 Stress regime (R5):     inactive
@@ -47,6 +51,8 @@ Expected Net Ann ROE:   7.95% (Layer-1 Arch-3) → 8.20% when booster Stage 2 ac
 ```
 
 ## Recently Closed Specs
+
+- `SPEC-106` — Strategy Matrix Selector-Consistency & Payoff Semantics. Closed **DONE + SHIPPED 2026-05-26**. 4-Part fix：A（matrix cell 主标签 = selector.py verdict）/ B（payoff_type: CREDIT/DEBIT/WAIT/BLOCKED/RESEARCH_ONLY）/ C（36-cell audit script）/ D（IV helper text）. 新 endpoint `/api/strategy-matrix`. **Standalone finding: 18/36 cells gated（50%）**：LOW_VOL 5 / NORMAL 4 / EXTREME_VOL 9 全 block. **selector.py 0 改动 = quant risk 零**（纯展示层 fix，该类 work 的 reference template）。IV-divergence edge case（_effective_iv_signal vs raw iv_signal, IVR/IVP >15pt 分歧）由 reviewer 发现——implicit AC，非 13 ACs 范围内。`backtest_stats_cache.json` deploy fixture 身份在实施中两次被误删，暴露 deploy fixture ops policy gap（low-priority backlog）。Follow-up backlog：①force_refresh 低优先级；②`doc/DEPLOY_FIXTURES.md` 中优先级；③50% gated helper text future P3 — `See: task/SPEC-106.md`
 
 - `SPEC-105` — Q074 Bull Regime Booster Overlay. Closed **DONE + DEPLOYED old Air 2026-05-18 in Stage 1 shadow; amended by SPEC-105-v2 and deployed 2026-05-19**. Implements B4 benign-regime booster signal on top of SPEC-104 Arch-3 without changing Layer-1 caps/triggers. Adds `CAP_SPX_BENIGN_BOOSTER=90.0`, `b4_benign_active()`, `active_spx_cap()`, booster condition fields in `/api/sleeve-governance/state`, Portfolio Command Center booster status/condition chips, `data/q074_booster_shadow.jsonl`, and booster transition alert hook. Mandatory initial posture is Stage 1 shadow: signal can show `booster_shadow`, but effective production SPX cap remains `80%` unless PM later approves active mode. v2 Gate F refines IVP gate to `IVP_252 < 55 OR VIX < 15` and adds `gate_f_only` diagnostic. Q074.2 B4_F reference row reproduced: Net ROE `8.2143%`, MaxDD `-8.715%`, W20d `-7.042%`, W63d `-8.656%`, booster active `39.805%` of normal days. Regression PASS: `tests.test_spec_103 + tests.test_spec_104 + tests.test_spec_105` = 27/27. old Air v2 verified: API fields present, dashboard chips present, `gate_f_only` in shadow log, cache refresh 5/5 OK — `See: task/SPEC-105.md`, `task/SPEC-105-v2.md`, `task/SPEC-105-v2_handoff.md`, `research/q074/q074_2_validation_memo.md`
 
