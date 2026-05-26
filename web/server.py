@@ -848,19 +848,31 @@ def _synth_trend_snapshot(trend: str):
 
 def _live_active_cell() -> tuple[str, str, str] | None:
     """Pull current live (vix_regime, iv_bucket, trend) tuple from get_recommendation.
-    Returns None if data not available (e.g., outside market hours warm-up)."""
+
+    IV bucket must use selector.py:_effective_iv_signal — NOT raw iv_signal —
+    because selector routing applies an IVP override when IVR/IVP diverge by
+    >15 points. Using raw iv_signal would mis-highlight the NOW cell exactly
+    in the divergence scenarios the project already handles (e.g., post-spike
+    where IVR collapses faster than IVP).
+
+    Returns None if data not available (e.g., outside market hours warm-up).
+    """
     try:
-        from strategy.selector import get_recommendation
+        from strategy.selector import (
+            DEFAULT_PARAMS,
+            _effective_iv_signal,
+            get_recommendation,
+        )
         rec = get_recommendation()
         if rec is None:
             return None
         regime = rec.vix_snapshot.regime.value
         # EXTREME_VOL is signaled via vix >= params.extreme_vix even when regime enum is HIGH_VOL
-        from strategy.selector import DEFAULT_PARAMS
         if regime == "HIGH_VOL" and rec.vix_snapshot.vix >= DEFAULT_PARAMS.extreme_vix:
             regime = "EXTREME_VOL"
-        # IV bucket: re-derive from snapshot using selector convention
-        iv_sig = rec.iv_snapshot.iv_signal.value  # HIGH / NEUTRAL / LOW
+        # Apply IVR/IVP divergence override identically to the selector's
+        # routing decision — keeps NOW cell highlight aligned with selector verdict.
+        iv_sig = _effective_iv_signal(rec.iv_snapshot).value
         trend = rec.trend_snapshot.signal.value   # BULLISH / NEUTRAL / BEARISH
         return (regime, iv_sig, trend)
     except Exception:

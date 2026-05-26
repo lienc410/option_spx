@@ -15,3 +15,8 @@ data/market_cache/
 data/*.txt
 data/*.jsonl
 .gstack/
+
+# SPEC-106 — runtime audit output; regenerate via scripts/matrix_consistency_audit.py
+data/matrix_consistency_audit_*.csv
+# Auto-warmed by /api/backtest/stats; embeds date+params hash, not a fixture
+data/backtest_stats_cache.json

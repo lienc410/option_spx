@@ -110,6 +110,51 @@ class StrategyMatrixEndpointTests(unittest.TestCase):
             self.assertEqual(cell["payoff_type"], "WAIT")
 
 
+class LiveActiveCellIVDivergenceTests(unittest.TestCase):
+    """Code-review finding 2026-05-26: _live_active_cell() must use selector's
+    _effective_iv_signal (IVP override fires when IVR/IVP diverge by >15pt),
+    not raw iv_signal. Otherwise the NOW highlight points to the wrong cell."""
+
+    def test_iv_divergence_promotes_ivp_high(self):
+        from unittest.mock import patch
+        from signals.iv_rank import IVSnapshot, IVSignal
+        from signals.trend import TrendSignal, TrendSnapshot
+        from signals.vix_regime import Regime, Trend, VixSnapshot
+        from strategy.selector import Recommendation, StrategyName
+        from web.server import _live_active_cell
+
+        # Diverged inputs: IVR signal says NEUTRAL (40), IVP says HIGH (72) — override path
+        iv = IVSnapshot(
+            date="t", vix=17.0, iv_rank=40.0, iv_percentile=72.0,
+            iv_signal=IVSignal.NEUTRAL, iv_52w_high=85.0, iv_52w_low=10.0,
+            ivp63=60.0, ivp252=72.0, regime_decay=False,
+        )
+        vix = VixSnapshot(
+            date="t", vix=17.0, regime=Regime.NORMAL, trend=Trend.FLAT,
+            vix_5d_avg=17.0, vix_5d_ago=17.0, transition_warning=False,
+            vix3m=None, backwardation=False, vix_peak_10d=17.0,
+        )
+        trend = TrendSnapshot(
+            date="t", spx=5000.0, ma20=4850.0, ma50=4850.0,
+            ma_gap_pct=0.031, signal=TrendSignal.BULLISH, above_200=True,
+        )
+        fake_rec = Recommendation(
+            strategy_key="bull_put_spread",
+            strategy=StrategyName.BULL_PUT_SPREAD,
+            underlying="SPX", legs=[],
+            max_risk="—", target_return="—",
+            size_rule="—", roll_rule="—",
+            rationale="test", position_action="OPEN",
+            vix_snapshot=vix, iv_snapshot=iv, trend_snapshot=trend,
+        )
+        with patch("strategy.selector.get_recommendation", return_value=fake_rec):
+            result = _live_active_cell()
+        self.assertEqual(
+            result, ("NORMAL", "HIGH", "BULLISH"),
+            msg=f"_live_active_cell should apply IVP override; got {result}",
+        )
+
+
 class SelectorPayoffPopulationTests(unittest.TestCase):
     """SPEC-106 §10 — Recommendation dataclass carries payoff_type."""
 
