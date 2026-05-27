@@ -476,13 +476,17 @@ function _renderNlvChart() {
     partialBanner.remove();
   }
 
-  // Chart.js 4 segment API: dash the line between any two points where at
-  // least one endpoint is synthetic — that brackets the partial run with
-  // dashed boundary segments per spec.
+  // Chart.js 4 segment API: dash determined by the segment's RIGHT endpoint
+  // only. PM rule (2026-05-26): "synthetic 数据点的左侧用虚线，真实数据点左
+  // 侧用实线" — i.e., the line *into* a synthetic point is dashed (uncertainty
+  // in the destination), but the line into a real point is solid even when
+  // the previous point was synthetic (we've returned to measured ground).
+  // So 5/25(synth) → 5/26(real) renders solid; 5/21(real) → 5/22(synth)
+  // renders dashed.
   const dashIfTouchesSynthetic = (ctx) =>
-    (synthetic[ctx.p0DataIndex] || synthetic[ctx.p1DataIndex]) ? [6, 4] : undefined;
+    synthetic[ctx.p1DataIndex] ? [6, 4] : undefined;
   const colorIfTouchesSynthetic = (ctx) =>
-    (synthetic[ctx.p0DataIndex] || synthetic[ctx.p1DataIndex])
+    synthetic[ctx.p1DataIndex]
       ? 'rgba(201,168,64,0.45)'   // dimmer gold for synthetic segments
       : 'rgba(201,168,64,0.85)';
 
@@ -614,11 +618,12 @@ function _renderBpChart() {
     bpBanner.remove();
   }
 
-  // Chart.js segment helpers — dim border & dash on synthetic stretches
+  // Chart.js segment helpers — right-endpoint rule (see NLV chart comment).
+  // synth → real edges render solid; real/synth → synth render dashed.
   const dashOnSynth = ctx =>
-    (synthetic[ctx.p0DataIndex] || synthetic[ctx.p1DataIndex]) ? [6, 4] : undefined;
+    synthetic[ctx.p1DataIndex] ? [6, 4] : undefined;
   const dimBorder = (solid, dim) => ctx =>
-    (synthetic[ctx.p0DataIndex] || synthetic[ctx.p1DataIndex]) ? dim : solid;
+    synthetic[ctx.p1DataIndex] ? dim : solid;
 
   const ctx = document.getElementById('bp-chart').getContext('2d');
   if (_charts.bp) _charts.bp.destroy();
