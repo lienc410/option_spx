@@ -1,6 +1,6 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-26 (**Q076 CLOSED + SPEC-107 APPROVED** — Intraday Recommendation Governance。21d jitter window (P1) + 12mo robustness (P3) + 4 rounds 2nd Quant review (R1-R7 + E1-E7) all PASS。A2a IVP hysteresis [42-53 entry / 35-57 hold] + scheduled actionable at 10:30/15:30 ET + 7-layer priority stack + 7-class bypass + Q077 forward-compat flag。12mo replay: flips -54%, ≤3h -92%, EOD 93.2%. Awaiting Developer F1-F7. Scope 守住: governance only, 不改 selector semantics; low-IVP entry-only 仍属 Q077 PARKED.)
+Last Updated: 2026-05-26 (**Q076 CLOSED + SPEC-107 DONE + DEPLOYED old Air** commit 00c551b。Intraday Recommendation Governance live。AC7 Quant joint validation 发现 + fix 3 个 structural bugs (entry-band else leak / `rec.underlying` state-key drift / state-position coupling)，re-run AC7 PASS: flips=92, ≤3h=3, RT=20, EOD 93.2% (exact P3 match)。SPEC-107 + adjacent regression 53/53。Quant 下一节点: 30-day live decision-log retrospective (2026-06-25)。)
 
 ### R-20260526-02 — Q076: Intraday Recommendation Replay → SPEC-107 APPROVED
 
@@ -45,6 +45,8 @@ Last Updated: 2026-05-26 (**Q076 CLOSED + SPEC-107 APPROVED** — Intraday Recom
   - `research/intraday/q076_hourly_recommendation_replay.py` + `q076_p2_mitigation_replay.py` + `q076_p3_robustness_12mo.py`
   - `research/intraday/q076_*_variants*.csv` + `q076_p3_metrics_*.csv` (data outputs)
   - `data/market_cache/spx_vix_1h_aligned_1mo.pkl` + `spx_vix_1h_aligned_12mo.pkl` (replay source data)
+
+**Update 2026-05-26 (SPEC-107 DONE + DEPLOYED old Air)**: commit 00c551b. Developer 完成 F1-F7 implementation; deployed to old Air; web/bot 重启；`/`, `/spx`, `/api/recommendation` 都返回 200 with intraday_governance payload; `data/intraday_governance_state.json` + `data/intraday_governance_log.jsonl` 生成。**AC7 joint Quant validation**: Developer 初版 replay 不达 envelope (flips=101, ≤3h=7, RT=24)。Quant 诊断出 3 个 structural bugs in `strategy/intraday_governance.py`: (1) entry-band else clause emitted `governed=baseline_strategy` violating SPEC §A entry-band gate; (2) `_state_key` used `rec.underlying` fallback which flipped to "—" on baseline="Reduce/Wait" causing key drift + state loss; (3) state key included `position_id` and read was gated by `active_position`, losing hysteresis state across sched-bar-decides-to-open ↔ broker-not-yet-open boundary. Fixes applied + 2 unit tests updated (assertions encoded old buggy behaviour). Re-run AC7: flips=92, ≤3h=3, round_trips=20, EOD agreement **93.2% — exact P3 match**. SPEC-107 + adjacent suites (103/104/105/106): 53/53 PASS. Quant validation memo: `task/SPEC-107_ac7_quant_validation_2026-05-26.md`. SPEC-107 marked DONE. **Next Quant intervention**: 30-day live decision-log retrospective per SPEC §Deferred 1 (2026-06-25); 6-month multi-regime live validation per §Deferred 2.
 
 ---
 
