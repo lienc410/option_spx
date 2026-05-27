@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-05-26（**Q076 CLOSED + SPEC-107 APPROVED（awaiting Developer F1-F7）**。Intraday recommendation governance：IVP hysteresis [42-53 entry/35-57 hold] + 10:30/15:30 scheduled windows + 7-layer priority stack。4 轮 2nd Quant review all PASS）
+最后更新：2026-05-26（**SPEC-107 DONE + DEPLOYED old Air**（commit 00c551b）。AC7 Quant joint validation PASS：flips 92 / ≤3h 3 / RT 20 / EOD 93.2%（exact P3 match）。3-bug fix 记录。53/53 tests PASS。Quant 下一节点：2026-06-25 30-day retrospective）
 
 ---
 
@@ -36,7 +36,7 @@
 
 ### Q076 — Intraday Recommendation Governance
 
-- **状态**：**resolved** (Q076 CLOSED — PROMOTE → SPEC-107 APPROVED 2026-05-26)
+- **状态**：**resolved** (Q076 CLOSED — SPEC-107 **DONE + DEPLOYED old Air** 2026-05-26，commit 00c551b)
 - **结论**：A2a + B 方案。IVP hysteresis + scheduled windows + 7-layer priority stack。Daily backtest engine / selector strategy semantics / SPEC-103 daemon 均不改动
 - **研究路径**：P1 诊断（21d jitter window 分析）→ P2（6 variants，4 rounds 2nd Quant review）→ P3（12mo robustness）→ 4 轮 review all PASS（R1-R7 + E1-E7）
 - **A2a + B 核心配置**：
@@ -46,8 +46,14 @@
   - Forward-compat flag：`INTRADAY_HYS_LOWER_FORCE_CLOSE` 给 Q077 low-IVP entry 留 hook
 - **12mo robustness（P3）**：flips -54% / ≤3h transitions -92% / EOD-confirmed 93.2%
 - **守住的边界**：A2b deviation cuts 全执行 / selector semantics 不动 / daily engine 不动
-- **SPEC-107 9 ACs，F1-F7 phases**：Quant 在 F5/F6 回介入（AC7 12mo replay + AC8 HIGH_VOL/STRESS regression）
-- **来源**：`task/SPEC-107.md`, `research/intraday/q076_p1~p3_findings_2026-05-26.md`
+- **AC7 Quant joint validation（3 bugs found + fixed）**：
+  - Entry-band else clause 错误 emit governed = baseline（违反 §A entry-band）
+  - `rec.underlying` fallback 在 baseline 切 Wait 时产生 state-key drift
+  - state-position coupling + position_id in key → sched/broker 边界丢失 hysteresis 记忆
+  - Re-run AC7 PASS：flips=92（envelope 93±5）/ ≤3h=3（≤4）/ RT=20（18±2）/ EOD 93.2%（≥92%，exact P3 match）
+- **53/53 tests PASS**（SPEC-107 + adjacent regression）
+- **Quant 下一节点**：2026-06-25（30-day live decision-log retrospective：actionable events / override rate / bypass 频率）；6mo multi-regime validation（至少一次 HIGH_VOL，验证 AC8 invariant）
+- **来源**：`task/SPEC-107.md`, `task/SPEC-107_ac7_quant_validation_2026-05-26.md`, `research/intraday/q076_p1~p3_findings_2026-05-26.md`
 
 ---
 
