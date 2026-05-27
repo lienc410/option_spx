@@ -164,10 +164,19 @@ def _normalize_balance_payload(payload: dict) -> dict:
         "configured": True,
         "authenticated": True,
         "net_liquidation": _num(realtime.get("netMv") or portfolio_margin.get("liquidatingEquity")),
-        "maintenance_margin": _num(portfolio_margin.get("totalMarginRqmts")
-        or portfolio_margin.get("totalHouseRequirement")
-        or computed.get("maintenanceCall")
-        or computed.get("marginBalance")),
+        # SPEC-107 followup 2026-05-27: ETrade `totalMarginRqmts` is the
+        # authoritative PM/Reg-T maintenance margin requirement (= house
+        # requirement when broker applies house surcharge). DO NOT silently
+        # fall back to `maintenanceCall` (which is a $ call amount, normally 0)
+        # nor `marginBalance` (which is the outstanding margin LOAN balance —
+        # not a margin requirement; using it would misreport maintenance by
+        # 100%+ if the requirement fields go null). If both real fields are
+        # absent, returning None forces downstream (portfolio_surface) to show
+        # "—" rather than disguising loan balance as BP usage.
+        "maintenance_margin": _num(
+            portfolio_margin.get("totalMarginRqmts")
+            or portfolio_margin.get("totalHouseRequirement")
+        ),
         "cash_balance": _num(computed.get("cashAvailableForWithdrawal")
         or computed.get("totalAvailableForWithdrawal")
         or computed.get("cashBalance")),

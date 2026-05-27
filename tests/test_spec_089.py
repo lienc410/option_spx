@@ -227,6 +227,57 @@ class Spec089Tests(unittest.TestCase):
         self.assertEqual(data["bp_usage_by_bucket"]["etrade_maintenance_bp_pct"], 5.0)
         self.assertEqual(data["account_breakdown"]["combined_maintenance_margin"], 110000.0)
 
+    def test_maintenance_margin_field_mapping_invariants(self) -> None:
+        """SPEC-107 followup 2026-05-27 — guard against silent field drift.
+
+        ETrade `totalMarginRqmts` is the authoritative maintenance margin
+        requirement. Historically the fallback chain also accepted
+        `maintenanceCall` (a $ call amount, normally 0) and `marginBalance`
+        (the outstanding margin LOAN balance — not a requirement). If
+        ETrade's response changes shape, falling back to loan balance would
+        misreport BP usage by 100%+. This test pins the contract:
+
+          - totalMarginRqmts wins if present
+          - totalHouseRequirement wins if only it is present
+          - both absent → maintenance_margin is None (no fake fallback)
+          - marginBalance / maintenanceCall must NEVER substitute for
+            maintenance_margin
+        """
+        normalize = etrade_client._normalize_balance_payload
+
+        # Case 1: totalMarginRqmts wins
+        n = normalize({"BalanceResponse": {"Computed": {
+            "PortfolioMargin": {
+                "totalMarginRqmts": "141833.06",
+                "totalHouseRequirement": "120000.00",
+            },
+            "marginBalance": "22792.52",
+        }}})
+        self.assertAlmostEqual(n["maintenance_margin"], 141833.06, places=2)
+
+        # Case 2: totalHouseRequirement is fallback when totalMarginRqmts absent
+        n = normalize({"BalanceResponse": {"Computed": {
+            "PortfolioMargin": {"totalHouseRequirement": "99999.00"},
+            "marginBalance": "22792.52",
+        }}})
+        self.assertAlmostEqual(n["maintenance_margin"], 99999.00, places=2)
+
+        # Case 3: both requirement fields absent → None, NOT marginBalance
+        n = normalize({"BalanceResponse": {"Computed": {
+            "PortfolioMargin": {},
+            "marginBalance": "22792.52",
+            "maintenanceCall": "5000.00",
+        }}})
+        self.assertIsNone(
+            n["maintenance_margin"],
+            "must NOT fall back to marginBalance or maintenanceCall — those "
+            "are loan balance / call amount, not maintenance requirement",
+        )
+
+        # Case 4: defensive — empty payload also returns None, no crash
+        n = normalize({"BalanceResponse": {"Computed": {}}})
+        self.assertIsNone(n["maintenance_margin"])
+
     def test_ac7_etrade_module_does_not_call_market_data_apis(self) -> None:
         source = Path("etrade/client.py").read_text() + "\n" + Path("etrade/auth.py").read_text()
         for forbidden in ("get_quote", "get_option_chain", "quotes", "chains", "marketdata"):
