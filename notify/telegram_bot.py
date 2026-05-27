@@ -1419,6 +1419,55 @@ async def scheduled_push(bot: Bot, chat_id: str) -> None:
         log.exception("Scheduled push failed")
 
 
+def _format_governance_decision(rec: Recommendation, decision) -> str:
+    label = "🚨 Hard Exit" if decision.is_bypass_event else "⚡ Actionable Decision"
+    if decision.is_bypass_event and decision.bypass_type:
+        label += f" · {_h(decision.bypass_type)}"
+    override = ""
+    if decision.override_baseline:
+        override = (
+            f"\n<b>Baseline:</b> {_h(decision.selector_baseline_position_action)} "
+            f"{_h(decision.selector_baseline_strategy)}"
+        )
+    next_line = (
+        f"\n<b>Next:</b> <code>{_h(decision.next_actionable_decision_at)}</code>"
+        if decision.next_actionable_decision_at else ""
+    )
+    return (
+        f"{label}\n"
+        f"{'─' * 32}\n"
+        f"<b>Final:</b> <code>{_h(decision.governed_position_action)}</code> "
+        f"{_h(decision.governed_strategy)}{override}\n"
+        f"<b>Layer:</b> <code>{decision.final_priority_layer}</code> {_h(decision.final_priority_name)}\n"
+        f"<b>Signals:</b> VIX <code>{decision.vix}</code> · IVP <code>{decision.ivp252}</code> · "
+        f"Regime <code>{_h(decision.regime)}</code>\n"
+        f"<b>Why:</b> <i>{_h(getattr(rec, 'rationale', '') or '')}</i>"
+        f"{next_line}"
+    )
+
+
+async def scheduled_intraday_governance_push(bot: Bot, chat_id: str) -> None:
+    if not is_trading_day():
+        log.info("Not a trading day — skipping SPEC-107 governance push.")
+        return
+    try:
+        from strategy.intraday_governance import evaluate_recommendation
+
+        rec = get_recommendation(use_intraday=True)
+        decision = evaluate_recommendation(rec, position=read_state())
+        if not decision.actionable:
+            log.info("SPEC-107 governance push skipped — observation bar only.")
+            return
+        await bot.send_message(
+            chat_id=chat_id,
+            text=_format_governance_decision(rec, decision),
+            parse_mode=ParseMode.HTML,
+        )
+        log.info("SPEC-107 governance decision sent.")
+    except Exception:
+        log.exception("SPEC-107 governance push failed")
+
+
 async def scheduled_eod_push(bot: Bot, chat_id: str) -> None:
     if not is_trading_day():
         log.info("Not a trading day — skipping EOD push.")
@@ -1493,6 +1542,15 @@ def main() -> None:
             id="eod_push",
             name="EOD signal snapshot push",
         )
+
+        for hour, minute in ((10, 30), (15, 30)):
+            scheduler.add_job(
+                scheduled_intraday_governance_push,
+                CronTrigger(day_of_week="mon-fri", hour=hour, minute=minute, timezone=ET),
+                args=[application.bot, chat_id],
+                id=f"spec107_governance_{hour:02d}{minute:02d}",
+                name=f"SPEC-107 governance decision {hour:02d}:{minute:02d}",
+            )
 
         # 09:30 ET: reset intraday state for the new session
         scheduler.add_job(

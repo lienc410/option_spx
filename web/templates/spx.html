@@ -105,6 +105,18 @@ body {
   margin-bottom: 12px;
 }
 .decision-strip { padding: 12px 16px; }
+.decision-strip.observation {
+  border-color: rgba(95, 111, 135, 0.28);
+  background: linear-gradient(135deg, rgba(95, 111, 135, 0.10), var(--surface));
+}
+.decision-strip.actionable {
+  border-color: var(--gold-border);
+  background: linear-gradient(135deg, var(--gold-bg), var(--surface));
+}
+.decision-strip.hard-exit {
+  border-color: var(--red-border);
+  background: linear-gradient(135deg, var(--red-bg), var(--surface));
+}
 .decision-main {
   display: flex;
   align-items: center;
@@ -138,6 +150,13 @@ body {
 }
 .decision-line { font-size: 0.72rem; color: var(--text-2); }
 .decision-line strong { color: var(--text); font-weight: 600; }
+.decision-governance-label {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
 .decision-loading {
   font-size: 0.74rem;
   color: var(--text-2);
@@ -1092,11 +1111,38 @@ function dteEstimate(meta, p) {
 
 function renderDecisionStrip(d) {
   const strip = document.getElementById('decision-strip');
-  const actionClass = d.position_action === 'OPEN' ? 'action-open'
-    : d.position_action === 'HOLD' ? 'action-hold'
-    : d.position_action === 'CLOSE_AND_OPEN' ? 'action-shift'
+  const gov = d.intraday_governance || {};
+  const finalAction = gov.governed_position_action || d.position_action;
+  const finalStrategy = gov.governed_strategy || d.strategy;
+  const actionClass = finalAction === 'OPEN' ? 'action-open'
+    : finalAction === 'HOLD' ? 'action-hold'
+    : finalAction === 'CLOSE_AND_OPEN' ? 'action-shift'
     : 'action-wait';
+  const nextActionableText = (() => {
+    if (!gov.next_actionable_decision_at) return null;
+    const next = new Date(gov.next_actionable_decision_at);
+    if (Number.isNaN(next.getTime())) return gov.next_actionable_decision_at;
+    const mins = Math.max(0, Math.round((next - new Date()) / 60000));
+    const hh = String(next.getHours()).padStart(2, '0');
+    const mm = String(next.getMinutes()).padStart(2, '0');
+    if (mins >= 60) return `${hh}:${mm} ET (~${Math.floor(mins / 60)}h ${mins % 60}m)`;
+    return `${hh}:${mm} ET (~${mins}m)`;
+  })();
+  const isBypass = !!gov.is_bypass_event;
+  const isActionable = !!gov.actionable;
+  const govLabel = isBypass
+    ? `🚨 Hard Exit · ${gov.bypass_type || gov.bypass_reason || 'rule'}`
+    : isActionable
+      ? '⚡ Actionable Decision'
+      : '📊 State Observation · auto-evaluated at 10:30 / 15:30 ET';
+  strip.classList.remove('observation', 'actionable', 'hard-exit');
+  strip.classList.add(isBypass ? 'hard-exit' : isActionable ? 'actionable' : 'observation');
   const lines = [];
+  lines.push(`<div class="decision-line decision-governance-label">${govLabel}</div>`);
+  if (gov.status === 'unavailable') lines.push(`<div class="decision-line"><strong>Governance:</strong> unavailable (${gov.error || 'fail-soft'})</div>`);
+  if (gov.final_priority_name) lines.push(`<div class="decision-line"><strong>Priority:</strong> L${gov.final_priority_layer} · ${gov.final_priority_name}</div>`);
+  if (gov.override_baseline) lines.push(`<div class="decision-line"><strong>Baseline:</strong> ${d.position_action} · ${d.strategy}</div>`);
+  if (!isActionable && nextActionableText) lines.push(`<div class="decision-line"><strong>Next decision:</strong> ${nextActionableText}</div>`);
   if (d.guardrail_label) lines.push(`<div class="decision-line"><strong>Blocked by:</strong> ${d.guardrail_label}</div>`);
   if (d.canonical_strategy && d.canonical_strategy !== d.strategy) lines.push(`<div class="decision-line"><strong>Canonical:</strong> ${d.canonical_strategy}</div>`);
   if (d.re_enable_hint) lines.push(`<div class="decision-line"><strong>Re-enable:</strong> ${d.re_enable_hint}</div>`);
@@ -1104,8 +1150,8 @@ function renderDecisionStrip(d) {
   if (!lines.length) lines.push('<div class="decision-line"><strong>Status:</strong> no blockers</div>');
   strip.innerHTML = `
     <div class="decision-main">
-      <span class="action-pill ${actionClass}">${d.position_action}</span>
-      <span class="decision-strategy">${d.strategy}</span>
+      <span class="action-pill ${actionClass}">${finalAction}</span>
+      <span class="decision-strategy">${finalStrategy}</span>
     </div>
     <div class="decision-lines">${lines.join('')}</div>`;
 }
@@ -1175,10 +1221,18 @@ function renderPosition(p) {
   const panel = document.getElementById('pos-panel');
   const actions = document.getElementById('pos-actions');
   if (!p || !p.open) {
+    const gov = CURRENT_REC?.intraday_governance || {};
+    const canOpen = !!gov.actionable;
+    const next = gov.next_actionable_decision_at ? new Date(gov.next_actionable_decision_at) : null;
+    const nextText = next && !Number.isNaN(next.getTime())
+      ? `${String(next.getHours()).padStart(2, '0')}:${String(next.getMinutes()).padStart(2, '0')} ET`
+      : 'next scheduled bar';
     CURRENT_POS = null;
     panel.className = 'pos-panel pos-empty';
     panel.innerHTML = '<span>No open position on record.</span>';
-    actions.innerHTML = `<button class="action-btn primary" onclick="openTradeModal('open')">+ Open Position</button>`;
+    actions.innerHTML = canOpen
+      ? `<button class="action-btn primary" onclick="openTradeModal('open')">+ Open Position</button>`
+      : `<button class="action-btn" disabled title="SPEC-107 non-scheduled observations are not actionable">Next actionable: ${nextText}</button>`;
     return;
   }
   panel.className = 'pos-panel';

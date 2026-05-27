@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-26 (**SPEC-107 APPROVED by PM** — Intraday Recommendation Governance。Q076 P1-P3 full chain (21d jitter window + 12mo robustness) + 4 rounds 2nd Quant review (R1-R7 + E1-E7) all PASS。A2a + B：IVP hysteresis [42-53 entry / 35-57 hold] + scheduled actionable at 10:30 / 15:30 ET + 7-layer priority stack (hard-risk always wins) + 9 AC + Q077 forward-compat flag。12mo replay: flips -54%, ≤3h -92%, EOD 93.2%. Awaiting Developer F1-F7 implementation — `See: task/SPEC-107.md`, `research/intraday/q076_p3_findings_2026-05-26.md`)
+Last Updated: 2026-05-26 (**SPEC-107 DONE** — Intraday Recommendation Governance implemented. Q076 A2a+B now lives as execution governance only: IVP hysteresis [42-53 entry / 35-57 hold], scheduled actionable bars 10:30 / 15:30 ET, 7-layer hard-risk priority stack, decision log, SPX dashboard state-observation UX, and Telegram scheduled governance pushes. AC7 joint Quant validation PASS: flips 92, ≤3h episodes 3, round_trips 20, EOD agreement 93.2%. Deployment to old Air / 30-day live review is the runtime follow-through — `See: task/SPEC-107.md`, `task/SPEC-107_ac7_quant_validation_2026-05-26.md`)
 Owner: Planner or PM
 
 ## Current Phase
@@ -28,7 +28,7 @@ Owner: Planner or PM
 
 ## Active APPROVED Specs
 
-- `SPEC-107` — Intraday Recommendation Governance. **APPROVED 2026-05-26，待 Developer 实施 F1-F7。** Q076 P1-P3 + 4 rounds 2nd Quant review。Augmented intraday governance：A2a IVP hysteresis [42-53 entry / 35-57 hold] + scheduled actionable at 10:30 / 15:30 ET + 7-layer priority stack (hard-risk always wins) + 7-class bypass list + decision log 19 fields + Q077 forward-compat flag `INTRADAY_HYS_LOWER_FORCE_CLOSE`。**12mo replay**: flips -54%, ≤3h episodes -92%, EOD agreement 93.2%。9 ACs：hysteresis + sched cadence + bypass + frontend state observation + actionable banner + decision log + 12mo replay match + HIGH_VOL regression + config flag。F1-F7 plan: backend (F1-F3) → frontend (F4) → backtest replay (F5-F6) → deploy + 30d review (F7). **不改 selector semantics**；low-IVP entry-only review 仍属 Q077 PARKED — `See: task/SPEC-107.md`, `research/intraday/q076_p3_findings_2026-05-26.md`
+- None.
 
 **Future seeds**（PM-discretionary）：Q042 Stage 2/3 ramp / SPEC-105 Stage 2 active mode / HV Ladder re-promotion / Q042 Sleeve B（n > 3-5 trades）/ Q077 PARKED
 
@@ -51,6 +51,8 @@ Expected Net Ann ROE:   7.95% (Layer-1 Arch-3) → 8.20% when booster Stage 2 ac
 ```
 
 ## Recently Closed Specs
+
+- `SPEC-107` — Intraday Recommendation Governance. Closed **DONE 2026-05-26**. Implements Q076 A2a+B as execution governance only: `strategy/intraday_governance.py` with IVP hysteresis [42-53 entry / 35-57 hold], stable SPX governance state key, NYSE-calendar scheduled actionable bars at 10:30 / 15:30 ET, 7-class bypass / 7-layer priority stack, `data/intraday_governance_state.json`, `data/intraday_governance_log.jsonl`, `/api/recommendation` governance payload, SPX dashboard State Observation / Actionable / Hard Exit UX, and Telegram scheduled governance pushes. AC7 joint Quant validation PASS: `intraday_flips=92`, `episodes_le_3h=3`, `round_trips=20`, `eod_agreement_pct=93.2%`. Adjacent regression PASS: SPEC-103/104/105/106 + SPEC-107 = 53/53. Does not change selector semantics; Q077 low-IVP semantics remains separate/parked. Deferred: old Air runtime observation + 30-day decision-log retrospective — `See: task/SPEC-107.md`, `task/SPEC-107_handoff.md`, `task/SPEC-107_ac7_quant_validation_2026-05-26.md`
 
 - `SPEC-106` — Strategy Matrix Selector-Consistency & Payoff Semantics. Closed **DONE + SHIPPED 2026-05-26**. 4-Part fix：A（matrix cell 主标签 = selector.py verdict）/ B（payoff_type: CREDIT/DEBIT/WAIT/BLOCKED/RESEARCH_ONLY）/ C（36-cell audit script）/ D（IV helper text）. 新 endpoint `/api/strategy-matrix`. **Standalone finding: 18/36 cells gated（50%）**：LOW_VOL 5 / NORMAL 4 / EXTREME_VOL 9 全 block. **selector.py 0 改动 = quant risk 零**（纯展示层 fix，该类 work 的 reference template）。IV-divergence edge case（_effective_iv_signal vs raw iv_signal, IVR/IVP >15pt 分歧）由 reviewer 发现——implicit AC，非 13 ACs 范围内。`backtest_stats_cache.json` deploy fixture 身份在实施中两次被误删，暴露 deploy fixture ops policy gap（low-priority backlog）。Follow-up backlog：①force_refresh 低优先级；②`doc/DEPLOY_FIXTURES.md` 中优先级；③50% gated helper text future P3 — `See: task/SPEC-106.md`
 

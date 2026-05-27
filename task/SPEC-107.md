@@ -1,6 +1,6 @@
 # SPEC-107: Intraday Recommendation Governance
 
-Status: APPROVED (PM 2026-05-26) — awaiting Developer implementation (F1-F7)
+Status: DONE (2026-05-26) — implemented, AC7/AC8 PASS, deployed to old Air pending runtime smoke
 
 ## Design Source
 

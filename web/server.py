@@ -302,7 +302,28 @@ def api_recommendation():
     from strategy.selector import get_recommendation
     try:
         rec = get_recommendation(use_intraday=_is_market_hours())
-        return _json_dc(rec)
+        payload = asdict(rec)
+        try:
+            from strategy.intraday_governance import decision_payload, evaluate_recommendation
+            from strategy.state import read_state
+
+            decision = evaluate_recommendation(
+                rec,
+                now=datetime.now(_ET),
+                position=read_state(),
+            )
+            payload["intraday_governance"] = decision_payload(decision)
+        except Exception as gov_exc:
+            payload["intraday_governance"] = {
+                "status": "unavailable",
+                "error": str(gov_exc),
+                "actionable": False,
+                "final_priority_name": "raw_selector",
+            }
+        return app.response_class(
+            json.dumps(payload, cls=_EnumEncoder, default=str),
+            mimetype="application/json",
+        )
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 
