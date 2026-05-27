@@ -271,6 +271,31 @@ let _nlvWindow = 90;
 let _charts = {};
 let _accountView = (typeof localStorage !== 'undefined' && localStorage.getItem('journal_account_view')) || 'all';
 
+// US market holidays — mirror of research/q041/collect_massive_snapshot.py
+// _US_HOLIDAYS_{2025,2026}. Keep in sync when the python source updates.
+// Charts hide weekends + these dates so the NLV/BP lines don't drift across
+// non-trading days (broker closures, Memorial Day, etc).
+const _US_MARKET_HOLIDAYS = new Set([
+  // 2025
+  '2025-01-01','2025-01-20','2025-02-17','2025-04-18','2025-05-26',
+  '2025-07-04','2025-09-01','2025-11-27','2025-12-25',
+  // 2026
+  '2026-01-01','2026-01-19','2026-02-16','2026-04-03','2026-05-25',
+  '2026-07-03','2026-09-07','2026-11-26','2026-12-25',
+  // 2027 (forward-loaded so chart doesn't silently drop the list)
+  '2027-01-01','2027-01-18','2027-02-15','2027-03-26','2027-05-31',
+  '2027-07-05','2027-09-06','2027-11-25','2027-12-24',
+]);
+function _isTradingDay(isoDate) {
+  if (!isoDate) return false;
+  if (_US_MARKET_HOLIDAYS.has(isoDate)) return false;
+  // Date.parse + getUTCDay to avoid local-tz shifts on YYYY-MM-DD strings
+  const d = new Date(isoDate + 'T00:00:00Z');
+  const wd = d.getUTCDay();   // 0=Sun, 6=Sat
+  return wd >= 1 && wd <= 5;
+}
+function _tradingRecords() { return _records.filter(r => _isTradingDay(r.date)); }
+
 // Pull NLV for the currently-selected account view (with fallback to combined)
 function _acctNlv(rec) {
   if (!rec) return null;
@@ -406,10 +431,13 @@ function _renderLatest() {
 }
 
 function _windowSlice() {
-  if (_nlvWindow === 'all') return _records;
+  // Charts: trading days only (skips Sat/Sun + US market holidays so the
+  // NLV/BP lines compare apples-to-apples across closures).
+  const tradingOnly = _tradingRecords();
+  if (_nlvWindow === 'all') return tradingOnly;
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - _nlvWindow);
   const cutStr = cutoff.toISOString().slice(0, 10);
-  return _records.filter(r => (r.date || '') >= cutStr);
+  return tradingOnly.filter(r => (r.date || '') >= cutStr);
 }
 
 function _renderNlvChart() {
@@ -551,7 +579,8 @@ function _renderNlvChart() {
 }
 
 function _renderBpChart() {
-  const labels = _records.map(r => r.date);
+  const rows = _tradingRecords();   // trading days only (skip Sat/Sun + holidays)
+  const labels = rows.map(r => r.date);
 
   // Same partial / forward-fill discipline as NLV chart: when a row has
   // partial_accounts, the strategy BP values reflect only one broker and
@@ -562,7 +591,7 @@ function _renderBpChart() {
   let lastSpx = null, lastLadder = null, lastDdPct = null, lastNlv = null;
   let lastSpxDate = null, lastLadderDate = null, lastDdDate = null, lastNlvDate = null;
   const spx = [], ladder = [], dd = [], synthetic = [], fillSource = [];
-  for (const r of _records) {
+  for (const r of rows) {
     const isPartial = Array.isArray(r.partial_accounts) && r.partial_accounts.length > 0;
     // SPX Spread BP$ — combined across accounts; partial when any account missing
     const spxRaw = r.strategies?.spx_spread?.bp_dollars;
@@ -696,9 +725,10 @@ function _renderBpChart() {
 
 // Regime strip — colored bars per day showing regime + aftermath/DD overlay flags
 function _renderRegimeStrip() {
-  const labels = _records.map(r => r.date);
+  const rows = _tradingRecords();   // trading days only
+  const labels = rows.map(r => r.date);
   // Use scatter dataset with custom colors to draw daily regime markers
-  const data = _records.map((r, i) => ({ x: r.date, y: 1, _regime: r.regime?.name || 'normal', _aftermath: !!r.regime?.aftermath_active, _dd: !!(r.strategies?.dd_overlay?.sleeve_a_armed || r.strategies?.dd_overlay?.sleeve_a_active) }));
+  const data = rows.map((r, i) => ({ x: r.date, y: 1, _regime: r.regime?.name || 'normal', _aftermath: !!r.regime?.aftermath_active, _dd: !!(r.strategies?.dd_overlay?.sleeve_a_armed || r.strategies?.dd_overlay?.sleeve_a_active) }));
   const bgColors = data.map(d => d._regime === 'second' ? 'rgba(224,72,98,0.75)' : d._regime === 'stress' ? 'rgba(224,128,64,0.75)' : 'rgba(66,204,124,0.55)');
   const ctx = document.getElementById('regime-strip').getContext('2d');
   if (_charts.regime) _charts.regime.destroy();
@@ -726,9 +756,10 @@ function _renderRegimeStrip() {
 }
 
 function _renderMarketChart() {
-  const labels = _records.map(r => r.date);
-  const vix = _records.map(r => r.market?.vix);
-  const ivRank = _records.map(r => r.market?.iv_rank);
+  const rows = _tradingRecords();   // trading days only
+  const labels = rows.map(r => r.date);
+  const vix = rows.map(r => r.market?.vix);
+  const ivRank = rows.map(r => r.market?.iv_rank);
   const ctx = document.getElementById('market-chart').getContext('2d');
   if (_charts.market) _charts.market.destroy();
   _charts.market = new Chart(ctx, {
@@ -736,8 +767,8 @@ function _renderMarketChart() {
     data: {
       labels,
       datasets: [
-        { label: 'VIX', data: vix, borderColor: 'rgba(72,136,232,0.85)', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: _records.length < 20 ? 2 : 0, tension: 0.2, yAxisID: 'y' },
-        { label: 'IV Rank', data: ivRank, borderColor: 'rgba(224,128,64,0.75)', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: _records.length < 20 ? 2 : 0, tension: 0.2, borderDash: [4, 3], yAxisID: 'y1' },
+        { label: 'VIX', data: vix, borderColor: 'rgba(72,136,232,0.85)', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: rows.length < 20 ? 2 : 0, tension: 0.2, yAxisID: 'y' },
+        { label: 'IV Rank', data: ivRank, borderColor: 'rgba(224,128,64,0.75)', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: rows.length < 20 ? 2 : 0, tension: 0.2, borderDash: [4, 3], yAxisID: 'y1' },
       ],
     },
     options: {
