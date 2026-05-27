@@ -548,13 +548,78 @@ function _renderNlvChart() {
 
 function _renderBpChart() {
   const labels = _records.map(r => r.date);
-  const spx     = _records.map(r => (r.strategies?.spx_spread?.bp_dollars  || 0) / 1000);
-  const ladder  = _records.map(r => (r.strategies?.stress_put_ladder?.bp_dollars || 0) / 1000);
-  const dd      = _records.map(r => {
-    const pct = r.strategies?.dd_overlay?.bp_pct;
-    const nlv = r.combined_nlv;
-    return (pct != null && nlv) ? (pct/100 * nlv / 1000) : 0;
-  });
+
+  // Same partial / forward-fill discipline as NLV chart: when a row has
+  // partial_accounts, the strategy BP values reflect only one broker and
+  // collapse the stacked area dramatically (e.g., SPX Spread BP dropped
+  // $134k on 2026-05-22 just because ETrade was unauthenticated). Forward-
+  // fill each bucket from the last full row and dash the synthetic
+  // segments so PM sees "reconstructed, not measured".
+  let lastSpx = null, lastLadder = null, lastDdPct = null, lastNlv = null;
+  let lastSpxDate = null, lastLadderDate = null, lastDdDate = null, lastNlvDate = null;
+  const spx = [], ladder = [], dd = [], synthetic = [], fillSource = [];
+  for (const r of _records) {
+    const isPartial = Array.isArray(r.partial_accounts) && r.partial_accounts.length > 0;
+    // SPX Spread BP$ — combined across accounts; partial when any account missing
+    const spxRaw = r.strategies?.spx_spread?.bp_dollars;
+    const ladderRaw = r.strategies?.stress_put_ladder?.bp_dollars;
+    const ddPctRaw = r.strategies?.dd_overlay?.bp_pct;
+    const nlvRaw = r.combined_nlv;
+    let spxUsed    = spxRaw,    spxSynth    = false;
+    let ladderUsed = ladderRaw, ladderSynth = false;
+    let ddPctUsed  = ddPctRaw,  ddSynth     = false;
+    let nlvUsed    = nlvRaw,    nlvSynth    = false;
+    // Forward-fill on partial rows OR when a bucket is explicitly missing
+    if (isPartial || spxRaw == null) {
+      if (lastSpx != null) { spxUsed = lastSpx; spxSynth = true; }
+    }
+    if (isPartial || ladderRaw == null) {
+      if (lastLadder != null) { ladderUsed = lastLadder; ladderSynth = true; }
+    }
+    if (isPartial || ddPctRaw == null) {
+      if (lastDdPct != null) { ddPctUsed = lastDdPct; ddSynth = true; }
+    }
+    if (nlvRaw == null && lastNlv != null) { nlvUsed = lastNlv; nlvSynth = true; }
+    // Update trackers only on real-data days
+    if (!isPartial) {
+      if (spxRaw    != null) { lastSpx    = spxRaw;    lastSpxDate    = r.date; }
+      if (ladderRaw != null) { lastLadder = ladderRaw; lastLadderDate = r.date; }
+      if (ddPctRaw  != null) { lastDdPct  = ddPctRaw;  lastDdDate     = r.date; }
+      if (nlvRaw    != null) { lastNlv    = nlvRaw;    lastNlvDate    = r.date; }
+    }
+    spx.push((spxUsed || 0) / 1000);
+    ladder.push((ladderUsed || 0) / 1000);
+    const ddDollars = (ddPctUsed != null && nlvUsed) ? (ddPctUsed / 100 * nlvUsed) : 0;
+    dd.push(ddDollars / 1000);
+    const rowSynth = spxSynth || ladderSynth || ddSynth || nlvSynth || isPartial;
+    synthetic.push(rowSynth);
+    fillSource.push(rowSynth ? { spx: spxSynth ? lastSpxDate : null,
+                                  ladder: ladderSynth ? lastLadderDate : null,
+                                  dd: ddSynth ? lastDdDate : null,
+                                  nlv: nlvSynth ? lastNlvDate : null } : null);
+  }
+
+  // Banner above BP chart (same orange .partial-banner CSS as NLV chart)
+  const bpCtxWrap = document.getElementById('bp-chart').parentElement;
+  let bpBanner = bpCtxWrap.parentElement.querySelector('.partial-banner.bp');
+  const partialDates = labels.filter((_, i) => synthetic[i]);
+  if (partialDates.length > 0) {
+    const dateList = partialDates.length <= 5
+      ? partialDates.join(', ')
+      : `${partialDates.slice(0, 3).join(', ')} … +${partialDates.length - 3} more`;
+    const html = `<div class="partial-banner bp">⚠ Partial data on ${dateList} — one account unavailable; BP stack forward-fills each bucket from the last full day (dashed segments).</div>`;
+    if (bpBanner) bpBanner.outerHTML = html;
+    else bpCtxWrap.insertAdjacentHTML('beforebegin', html);
+  } else if (bpBanner) {
+    bpBanner.remove();
+  }
+
+  // Chart.js segment helpers — dim border & dash on synthetic stretches
+  const dashOnSynth = ctx =>
+    (synthetic[ctx.p0DataIndex] || synthetic[ctx.p1DataIndex]) ? [6, 4] : undefined;
+  const dimBorder = (solid, dim) => ctx =>
+    (synthetic[ctx.p0DataIndex] || synthetic[ctx.p1DataIndex]) ? dim : solid;
+
   const ctx = document.getElementById('bp-chart').getContext('2d');
   if (_charts.bp) _charts.bp.destroy();
   _charts.bp = new Chart(ctx, {
@@ -562,16 +627,59 @@ function _renderBpChart() {
     data: {
       labels,
       datasets: [
-        { label: 'SPX Spread',         data: spx,    backgroundColor: 'rgba(201,168,64,0.45)',  borderColor: 'rgba(201,168,64,0.85)', fill: 'origin', tension: 0.1, pointRadius: 0 },
-        { label: 'Stress Put Ladder',  data: ladder, backgroundColor: 'rgba(72,136,232,0.35)',  borderColor: 'rgba(72,136,232,0.75)', fill: '-1',    tension: 0.1, pointRadius: 0 },
-        { label: 'DD Overlay',         data: dd,     backgroundColor: 'rgba(224,72,98,0.30)',   borderColor: 'rgba(224,72,98,0.70)',  fill: '-1',    tension: 0.1, pointRadius: 0 },
+        {
+          label: 'SPX Spread', data: spx,
+          backgroundColor: 'rgba(201,168,64,0.45)',
+          borderColor:     'rgba(201,168,64,0.85)',
+          fill: 'origin', tension: 0.1, pointRadius: 0,
+          segment: {
+            borderColor: dimBorder('rgba(201,168,64,0.85)', 'rgba(201,168,64,0.45)'),
+            borderDash:  dashOnSynth,
+          },
+        },
+        {
+          label: 'Stress Put Ladder', data: ladder,
+          backgroundColor: 'rgba(72,136,232,0.35)',
+          borderColor:     'rgba(72,136,232,0.75)',
+          fill: '-1', tension: 0.1, pointRadius: 0,
+          segment: {
+            borderColor: dimBorder('rgba(72,136,232,0.75)', 'rgba(72,136,232,0.40)'),
+            borderDash:  dashOnSynth,
+          },
+        },
+        {
+          label: 'DD Overlay', data: dd,
+          backgroundColor: 'rgba(224,72,98,0.30)',
+          borderColor:     'rgba(224,72,98,0.70)',
+          fill: '-1', tension: 0.1, pointRadius: 0,
+          segment: {
+            borderColor: dimBorder('rgba(224,72,98,0.70)', 'rgba(224,72,98,0.40)'),
+            borderDash:  dashOnSynth,
+          },
+        },
       ],
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { position: 'top', labels: { color: '#C4CEEC', font: { size: 11, family: "'DM Sans'" }, boxWidth: 12 } },
-        tooltip: { callbacks: { label: c => `  ${c.dataset.label}: $${(c.parsed.y * 1000).toLocaleString(undefined, {maximumFractionDigits: 0})}` } },
+        tooltip: {
+          callbacks: {
+            label: c => {
+              const i = c.dataIndex;
+              const base = `  ${c.dataset.label}: $${(c.parsed.y * 1000).toLocaleString(undefined, {maximumFractionDigits: 0})}`;
+              if (synthetic[i]) {
+                const src = fillSource[i] || {};
+                const bucketSrc = c.dataset.label === 'SPX Spread' ? src.spx
+                               : c.dataset.label === 'Stress Put Ladder' ? src.ladder
+                               : c.dataset.label === 'DD Overlay' ? (src.dd || src.nlv)
+                               : null;
+                return base + (bucketSrc ? `  (fwd-fill from ${bucketSrc})` : '  (synthetic)');
+              }
+              return base;
+            },
+          },
+        },
       },
       scales: {
         x: { ticks: { color: '#606880', maxTicksLimit: 10, font: { family: "'JetBrains Mono', monospace", size: 10 } }, grid: { color: 'rgba(25,30,51,0.8)' }, stacked: true },
