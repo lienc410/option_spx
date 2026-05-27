@@ -2222,7 +2222,12 @@ def api_portfolio_nlv_change():
         # Fall back to most recent recorded value
         today_combined = float(records[-1].get("combined_nlv") or 0.0)
 
-    prior = [r for r in records if r.get("date") and r["date"] < today_iso]
+    # Skip rows where combined_nlv is None (partial — e.g., ETrade auth expired)
+    # so prev/MTD/YTD anchors compare apples-to-apples against full-portfolio days.
+    def _is_full(r: dict) -> bool:
+        return r.get("combined_nlv") is not None and not r.get("partial_accounts")
+
+    prior = [r for r in records if r.get("date") and r["date"] < today_iso and _is_full(r)]
     if not prior:
         return jsonify({
             "status": "first_day",
@@ -2234,13 +2239,13 @@ def api_portfolio_nlv_change():
     change_dollars = today_combined - prev_nlv
     change_pct = (change_dollars / prev_nlv * 100.0) if prev_nlv > 0 else 0.0
 
-    # MTD / YTD
+    # MTD / YTD — same partial-skip discipline
     from datetime import date as _date
     today_date = _date.fromisoformat(today_iso)
     mtd_start = today_date.replace(day=1).isoformat()
     ytd_start = today_date.replace(month=1, day=1).isoformat()
-    mtd_rows = [r for r in records if r.get("date") and r["date"] >= mtd_start and r["date"] < today_iso]
-    ytd_rows = [r for r in records if r.get("date") and r["date"] >= ytd_start and r["date"] < today_iso]
+    mtd_rows = [r for r in records if r.get("date") and r["date"] >= mtd_start and r["date"] < today_iso and _is_full(r)]
+    ytd_rows = [r for r in records if r.get("date") and r["date"] >= ytd_start and r["date"] < today_iso and _is_full(r)]
 
     def _pct_from(rows):
         if not rows:

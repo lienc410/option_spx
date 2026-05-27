@@ -95,6 +95,11 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 
 /* Chart panel */
 .chart-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 16px; margin-bottom: 12px; }
+.partial-banner {
+  font-family: var(--f-ui); font-size: 0.60rem; color: var(--orange);
+  background: var(--orange-bg); border: 1px solid var(--orange-border);
+  border-radius: 5px; padding: 6px 10px; margin-bottom: 8px;
+}
 .chart-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid var(--border); }
 .ctrl-label { font-family: var(--f-ui); font-size: 0.60rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); }
 .btn-group { display: flex; gap: 3px; }
@@ -411,20 +416,61 @@ function _renderNlvChart() {
   const rows = _windowSlice();
   const labels = rows.map(r => r.date);
   const values = rows.map(r => _acctNlv(r));
+  // Partial-day detection: rows where the current view's NLV is unknown
+  // because an account dropped out (E*Trade refresh-token expired, etc).
+  // For 'all' view we use partial_accounts directly; for single-account
+  // views we just check if that account's nlv is null.
+  const partialRows = rows.map(r => {
+    if (_accountView === 'all') return Array.isArray(r.partial_accounts) && r.partial_accounts.length > 0;
+    return _acctNlv(r) == null;
+  });
+  const partialDates = labels.filter((_, i) => partialRows[i]);
+  // Show a small banner above the chart listing partial dates (≤5 shown inline)
+  const ctxWrap = document.getElementById('nlv-chart').parentElement;
+  let partialBanner = ctxWrap.parentElement.querySelector('.partial-banner');
+  if (partialDates.length > 0) {
+    const dateList = partialDates.length <= 5
+      ? partialDates.join(', ')
+      : `${partialDates.slice(0, 3).join(', ')} … +${partialDates.length - 3} more`;
+    const html = `<div class="partial-banner">⚠ Partial data on ${dateList} — one account unavailable that day (gap shown on chart).</div>`;
+    if (partialBanner) partialBanner.outerHTML = html;
+    else ctxWrap.insertAdjacentHTML('beforebegin', html);
+  } else if (partialBanner) {
+    partialBanner.remove();
+  }
   const ctx = document.getElementById('nlv-chart').getContext('2d');
   if (_charts.nlv) _charts.nlv.destroy();
   _charts.nlv = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
-      datasets: [{ label: `${_acctLabel()} NLV`, data: values, borderColor: 'rgba(201,168,64,0.85)', backgroundColor: 'rgba(201,168,64,0.08)', borderWidth: 1.5, pointRadius: rows.length < 20 ? 3 : 0, tension: 0.1, fill: true }],
+      datasets: [{
+        label: `${_acctLabel()} NLV`,
+        data: values,
+        borderColor: 'rgba(201,168,64,0.85)',
+        backgroundColor: 'rgba(201,168,64,0.08)',
+        borderWidth: 1.5,
+        pointRadius: rows.length < 20 ? 3 : 0,
+        tension: 0.1,
+        fill: true,
+        spanGaps: false,  // SPEC: null → visible gap, not a misleading line across partial days
+      }],
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
         zoom: { zoom: { drag: { enabled: true, backgroundColor: 'rgba(72,136,232,0.09)', borderColor: 'rgba(72,136,232,0.45)', borderWidth: 1 }, mode: 'x' } },
-        tooltip: { callbacks: { label: c => `  ${_acctLabel()} NLV: ${fmt$(c.parsed.y)}` } },
+        tooltip: {
+          callbacks: {
+            label: c => {
+              if (c.parsed.y == null || Number.isNaN(c.parsed.y)) {
+                return `  ${_acctLabel()} NLV: partial — one account unavailable`;
+              }
+              return `  ${_acctLabel()} NLV: ${fmt$(c.parsed.y)}`;
+            },
+          },
+        },
       },
       scales: {
         x: { ticks: { color: '#606880', font: { family: "'JetBrains Mono', monospace", size: 10 }, maxTicksLimit: 10 }, grid: { color: 'rgba(25,30,51,0.8)' } },

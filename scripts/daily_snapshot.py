@@ -86,7 +86,18 @@ def build_record() -> dict | None:
     if not schwab_nlv:
         print("[daily_snapshot] schwab_nlv missing — aborting", file=sys.stderr)
         return None
-    combined_nlv = schwab_nlv + (etrade_nlv or 0.0)
+    # When ETrade is unauthenticated (refresh-token expired, etc), do NOT silently
+    # treat etrade_nlv as 0 — that produces an artificial $X drop in combined_nlv
+    # on the journal NLV curve when in reality ETrade just wasn't visible. Mark
+    # the row as partial so downstream consumers (journal chart, nlv-change
+    # endpoint) can skip / annotate rather than draw a misleading line.
+    partial_accounts: list[str] = []
+    if etrade_nlv is None and accounts.get("etrade_nlv") is None:
+        partial_accounts.append("etrade")
+    combined_nlv = (
+        None if partial_accounts
+        else schwab_nlv + (etrade_nlv or 0.0)
+    )
 
     # Best-effort fetches — None if unavailable
     gov       = _fetch("/api/sleeve-governance/state") or {}
@@ -151,7 +162,11 @@ def build_record() -> dict | None:
         "date": today,
         "ts": datetime.now(ET).isoformat(timespec="seconds"),
         "schema_version": SCHEMA_VERSION,
-        "combined_nlv": round(combined_nlv, 2),
+        "combined_nlv": round(combined_nlv, 2) if combined_nlv is not None else None,
+        # Accounts present in this snapshot but with no data this run (e.g.,
+        # ETrade refresh-token expired). When non-empty, combined_nlv is None
+        # and downstream chart/aggregations must skip or gap this row.
+        "partial_accounts": partial_accounts,
 
         "accounts": {
             "schwab": {
@@ -224,7 +239,11 @@ def main() -> int:
     HISTORY.parent.mkdir(parents=True, exist_ok=True)
     with HISTORY.open("a") as f:
         f.write(json.dumps(rec) + "\n")
-    print(f"[daily_snapshot] saved date={today} combined_nlv=${rec['combined_nlv']:,.2f}")
+    if rec.get("combined_nlv") is None:
+        partial = ",".join(rec.get("partial_accounts") or [])
+        print(f"[daily_snapshot] saved date={today} combined_nlv=PARTIAL ({partial} missing)")
+    else:
+        print(f"[daily_snapshot] saved date={today} combined_nlv=${rec['combined_nlv']:,.2f}")
     return 0
 
 
