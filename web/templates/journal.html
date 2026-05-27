@@ -415,29 +415,77 @@ function _windowSlice() {
 function _renderNlvChart() {
   const rows = _windowSlice();
   const labels = rows.map(r => r.date);
-  const values = rows.map(r => _acctNlv(r));
-  // Partial-day detection: rows where the current view's NLV is unknown
-  // because an account dropped out (E*Trade refresh-token expired, etc).
-  // For 'all' view we use partial_accounts directly; for single-account
-  // views we just check if that account's nlv is null.
-  const partialRows = rows.map(r => {
-    if (_accountView === 'all') return Array.isArray(r.partial_accounts) && r.partial_accounts.length > 0;
-    return _acctNlv(r) == null;
-  });
-  const partialDates = labels.filter((_, i) => partialRows[i]);
-  // Show a small banner above the chart listing partial dates (≤5 shown inline)
+
+  // Build per-row series with forward-fill for any account that's missing.
+  // A row is "synthetic" if forward-fill was applied for the current view.
+  // Segments touching a synthetic point are rendered as dashed lines so PM
+  // sees the visual cue ("this stretch is reconstructed, not measured") on
+  // both the entry segment (last_full → first_partial) and the exit
+  // segment (last_partial → first_full) per request 2026-05-26.
+  let lastSchwab = null, lastEtrade = null;
+  let lastSchwabDate = null, lastEtradeDate = null;
+  const values = [];
+  const synthetic = [];
+  const fillSource = [];  // {schwab_from?, etrade_from?} per partial row, for tooltip
+
+  for (const r of rows) {
+    const s = r.accounts?.schwab?.nlv ?? null;
+    const e = r.accounts?.etrade?.nlv ?? null;
+    let usedS = s, usedE = e;
+    let synthS = false, synthE = false;
+    let srcS = null,  srcE = null;
+    if (s == null && lastSchwab != null) { usedS = lastSchwab; synthS = true; srcS = lastSchwabDate; }
+    if (e == null && lastEtrade != null) { usedE = lastEtrade; synthE = true; srcE = lastEtradeDate; }
+    if (s != null) { lastSchwab = s; lastSchwabDate = r.date; }
+    if (e != null) { lastEtrade = e; lastEtradeDate = r.date; }
+
+    let v = null, isSynth = false, src = null;
+    if (_accountView === 'schwab') {
+      v = usedS;
+      isSynth = synthS;
+      src = synthS ? { schwab_from: srcS } : null;
+    } else if (_accountView === 'etrade') {
+      v = usedE;
+      isSynth = synthE;
+      src = synthE ? { etrade_from: srcE } : null;
+    } else {  // 'all'
+      v = (usedS != null && usedE != null) ? (usedS + usedE) : null;
+      isSynth = synthS || synthE;
+      src = isSynth ? { schwab_from: synthS ? srcS : null, etrade_from: synthE ? srcE : null } : null;
+    }
+    values.push(v);
+    synthetic.push(isSynth);
+    fillSource.push(src);
+  }
+
+  const partialDates = labels.filter((_, i) => synthetic[i]);
+
+  // Banner above the chart describing the forward-fill behavior so PM sees the
+  // dashed segments are intentional, not a rendering bug.
   const ctxWrap = document.getElementById('nlv-chart').parentElement;
   let partialBanner = ctxWrap.parentElement.querySelector('.partial-banner');
   if (partialDates.length > 0) {
     const dateList = partialDates.length <= 5
       ? partialDates.join(', ')
       : `${partialDates.slice(0, 3).join(', ')} … +${partialDates.length - 3} more`;
-    const html = `<div class="partial-banner">⚠ Partial data on ${dateList} — one account unavailable that day (gap shown on chart).</div>`;
+    const missingAcct = _accountView === 'all' ? 'one account' : _acctLabel();
+    const html = `<div class="partial-banner">⚠ Partial data on ${dateList} — ${missingAcct} unavailable; chart forward-fills the last known value (dashed segments).</div>`;
     if (partialBanner) partialBanner.outerHTML = html;
     else ctxWrap.insertAdjacentHTML('beforebegin', html);
   } else if (partialBanner) {
     partialBanner.remove();
   }
+
+  // Chart.js 4 segment API: dash the line between any two points where at
+  // least one endpoint is synthetic — that brackets the partial run with
+  // dashed boundary segments per spec.
+  const dashIfTouchesSynthetic = (ctx) =>
+    (synthetic[ctx.p0DataIndex] || synthetic[ctx.p1DataIndex]) ? [6, 4] : undefined;
+  const colorIfTouchesSynthetic = (ctx) =>
+    (synthetic[ctx.p0DataIndex] || synthetic[ctx.p1DataIndex])
+      ? 'rgba(201,168,64,0.45)'   // dimmer gold for synthetic segments
+      : 'rgba(201,168,64,0.85)';
+
   const ctx = document.getElementById('nlv-chart').getContext('2d');
   if (_charts.nlv) _charts.nlv.destroy();
   _charts.nlv = new Chart(ctx, {
@@ -450,10 +498,19 @@ function _renderNlvChart() {
         borderColor: 'rgba(201,168,64,0.85)',
         backgroundColor: 'rgba(201,168,64,0.08)',
         borderWidth: 1.5,
-        pointRadius: rows.length < 20 ? 3 : 0,
+        // Synthetic points get a hollow/dimmer marker so PM can spot them at
+        // any radius. Real points keep the default solid fill.
+        pointRadius:           ctx => synthetic[ctx.dataIndex] ? 3 : (rows.length < 20 ? 3 : 0),
+        pointBorderColor:      ctx => synthetic[ctx.dataIndex] ? 'rgba(201,168,64,0.85)' : 'rgba(201,168,64,0.85)',
+        pointBackgroundColor:  ctx => synthetic[ctx.dataIndex] ? 'rgba(13,16,32,1)' : 'rgba(201,168,64,0.85)',
+        pointHoverRadius:      4,
         tension: 0.1,
         fill: true,
-        spanGaps: false,  // SPEC: null → visible gap, not a misleading line across partial days
+        spanGaps: true,        // forward-fill produces continuous values; segment API does dash styling
+        segment: {
+          borderColor: colorIfTouchesSynthetic,
+          borderDash:  dashIfTouchesSynthetic,
+        },
       }],
     },
     options: {
@@ -464,8 +521,17 @@ function _renderNlvChart() {
         tooltip: {
           callbacks: {
             label: c => {
+              const i = c.dataIndex;
               if (c.parsed.y == null || Number.isNaN(c.parsed.y)) {
-                return `  ${_acctLabel()} NLV: partial — one account unavailable`;
+                return `  ${_acctLabel()} NLV: unavailable`;
+              }
+              if (synthetic[i]) {
+                const src = fillSource[i] || {};
+                const parts = [];
+                if (src.schwab_from) parts.push(`Schwab fwd-fill from ${src.schwab_from}`);
+                if (src.etrade_from) parts.push(`ETrade fwd-fill from ${src.etrade_from}`);
+                const note = parts.length ? `  (${parts.join('; ')})` : '  (synthetic)';
+                return `  ${_acctLabel()} NLV: ${fmt$(c.parsed.y)}${note}`;
               }
               return `  ${_acctLabel()} NLV: ${fmt$(c.parsed.y)}`;
             },
