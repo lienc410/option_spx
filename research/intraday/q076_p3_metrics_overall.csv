@@ -1,0 +1,5 @@
+sample,variant,n_bars,n_days,intraday_flips,flips_per_day,switching_days,open_close_mismatch_days,n_bps_episodes,median_hold_hours,episodes_le_3h,bps_opens,bps_closes,round_trips,friction_5contracts_usd,friction_10contracts_usd,eod_agreement_pct
+all_12mo,baseline,1736,251,204,0.813,82,54,56,2.0,40,56,53,53,1325.0,7950.0,100.0
+all_12mo,A2a,1736,251,152,0.606,64,47,30,8.0,10,30,27,27,675.0,4050.0,93.2
+all_12mo,B,1736,251,109,0.434,90,73,29,5.0,7,28,27,27,675.0,4050.0,99.6
+all_12mo,A2a_B,1736,251,93,0.371,82,72,22,13.0,3,21,18,18,450.0,2700.0,93.2

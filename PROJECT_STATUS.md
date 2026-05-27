@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-26 (**SPEC-106 SHIPPED ✓**。Strategy Matrix Selector-Consistency & Payoff Semantics 完成。Standalone finding: 18/36 cells gated（50% of matrix）。selector.py 0 改动 = quant risk 零。Low-priority backlog 3 项浮出：force_refresh / deploy fixture policy / 50% gated helper text — `See: task/SPEC-106.md`)
+Last Updated: 2026-05-26 (**SPEC-107 APPROVED by PM** — Intraday Recommendation Governance。Q076 P1-P3 full chain (21d jitter window + 12mo robustness) + 4 rounds 2nd Quant review (R1-R7 + E1-E7) all PASS。A2a + B：IVP hysteresis [42-53 entry / 35-57 hold] + scheduled actionable at 10:30 / 15:30 ET + 7-layer priority stack (hard-risk always wins) + 9 AC + Q077 forward-compat flag。12mo replay: flips -54%, ≤3h -92%, EOD 93.2%. Awaiting Developer F1-F7 implementation — `See: task/SPEC-107.md`, `research/intraday/q076_p3_findings_2026-05-26.md`)
 Owner: Planner or PM
 
 ## Current Phase
@@ -28,7 +28,7 @@ Owner: Planner or PM
 
 ## Active APPROVED Specs
 
-_(currently empty)_
+- `SPEC-107` — Intraday Recommendation Governance. **APPROVED 2026-05-26，待 Developer 实施 F1-F7。** Q076 P1-P3 + 4 rounds 2nd Quant review。Augmented intraday governance：A2a IVP hysteresis [42-53 entry / 35-57 hold] + scheduled actionable at 10:30 / 15:30 ET + 7-layer priority stack (hard-risk always wins) + 7-class bypass list + decision log 19 fields + Q077 forward-compat flag `INTRADAY_HYS_LOWER_FORCE_CLOSE`。**12mo replay**: flips -54%, ≤3h episodes -92%, EOD agreement 93.2%。9 ACs：hysteresis + sched cadence + bypass + frontend state observation + actionable banner + decision log + 12mo replay match + HIGH_VOL regression + config flag。F1-F7 plan: backend (F1-F3) → frontend (F4) → backtest replay (F5-F6) → deploy + 30d review (F7). **不改 selector semantics**；low-IVP entry-only review 仍属 Q077 PARKED — `See: task/SPEC-107.md`, `research/intraday/q076_p3_findings_2026-05-26.md`
 
 **Future seeds**（PM-discretionary）：Q042 Stage 2/3 ramp / SPEC-105 Stage 2 active mode / HV Ladder re-promotion / Q042 Sleeve B（n > 3-5 trades）/ Q077 PARKED
 

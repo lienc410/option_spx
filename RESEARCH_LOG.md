@@ -1,6 +1,52 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-26 (**SPEC-106 SHIPPED**。18/36 cells gated（50%）standalone finding。selector.py 0 改动 = quant risk 零。IV-divergence edge case implicit AC by reviewer。deploy fixture ops policy gap 浮出。Low-priority backlog 3 项记录）
+Last Updated: 2026-05-26 (**Q076 CLOSED + SPEC-107 APPROVED** — Intraday Recommendation Governance。21d jitter window (P1) + 12mo robustness (P3) + 4 rounds 2nd Quant review (R1-R7 + E1-E7) all PASS。A2a IVP hysteresis [42-53 entry / 35-57 hold] + scheduled actionable at 10:30/15:30 ET + 7-layer priority stack + 7-class bypass + Q077 forward-compat flag。12mo replay: flips -54%, ≤3h -92%, EOD 93.2%. Awaiting Developer F1-F7. Scope 守住: governance only, 不改 selector semantics; low-IVP entry-only 仍属 Q077 PARKED.)
+
+### R-20260526-02 — Q076: Intraday Recommendation Replay → SPEC-107 APPROVED
+
+- **Topic**: PM 问 "如果完全按现在 selector 推荐逻辑日内开关仓，会发生什么？" 触发 Q076 (`research/intraday/`)。Frontend `/api/recommendation` 是 intraday-aware，每小时根据当时 VIX/SPX 更新；若 PM 真按每小时 rec 执行 → 把 35-45 DTE BPS theta 策略变成 day trade。
+- **Method**: 三阶段研究 + 四轮 2nd Quant review。
+  - **P1 (21-day jitter window)**: 拉 1mo 1h SPX+VIX (Yahoo `interval=1h period=1mo`), 在 147 hourly bars 上重放 selector logic (`get_current_snapshot` + `select_strategy` with intraday VIX/SPX override but EOD daily baseline). 发现 15 flips / 21 days (71% per day), 6/21 天 open ≠ close strategy, 持仓 episode 中位 4h (4/8 ≤ 3h)
+  - **P2 (mitigation replay)**: 测 6 variants (baseline / A2a / A2b / B / A2a+B / A2b+B). A2a = production semantics (low-IVP forces close); A2b = entry-only deviation. PM verdict: **A2a + B (不改 selector semantics)**. Low-IVP semantics 另开 Q077 PARKED.
+  - **P3 (12mo robustness)**: 拉 1y 1h SPX+VIX, 251 trading days × 1736 bars. Replay 4 variants 跨 NEUTRAL/HIGH_VOL/STRESS/LOW_VOL regimes. **A2a + B PASS PM hard targets**: flips -54%, ≤3h episodes -92%, EOD agreement 93.2%
+- **Findings**:
+  - **Root cause of churn**: IVP_252 = 55 hard threshold 在 NEUTRAL regime (VIX 14-22) 抖动。最小 flip 距离: VIX 16.87 → 17.00 (+0.13)
+  - **Govenance dormancy invariant**: HIGH_VOL (VIX 22-30, 203 bars) + STRESS (≥30, 10 bars) regime governance **0 BPS episodes** —— baseline 自然推 IC/IC_HV/Aftermath，governance 自动 defer
+  - **A2a + B 等价 A2b**: P3 数据上 A2a + B 与 A2b 同 3 round-trips / 7 flips / 90.5% EOD. 选 A2a + B 是治理边界判断（不改 selector）而非数据偏好
+  - **Sched-eval 1h latency caveat**: 49 non-BPS baseline disagreement bars 100% 在 non-sched bars (09:30 / 11:30 / 12:30 / 13:30 / 14:30)，0 at sched bars (10:30 / 15:30) —— sched-eval 按设计工作，但 hard signals 需 bypass list 处理
+  - **12mo friction savings**: $875-5,250/year (5-10 contracts size)
+- **Verdict**: **Q076 CLOSED + SPEC-107 APPROVED**. A2a + B (IVP hysteresis [42-53 entry / 35-57 hold] + scheduled actionable at 10:30 / 15:30 ET) implemented as execution-governance layer. **不改 selector strategy semantics**. Low-IVP entry-only semantics (A2b alternative) parked as Q077 future research.
+- **Recommendation**: SPEC-107 implements 6 scope sections + 9 ACs:
+  - A. A2a hysteresis state machine (configurable bands; state persistence)
+  - B. Scheduled actionable cadence (10:30 / 15:30 ET; NYSE calendar; half-day rule)
+  - C. 7-class bypass list (manual / stop-loss + lifecycle / SPEC-103 daemon / EXTREME_VOL / hard_exit metadata / stale_data_failsafe)
+  - D. Frontend State Observation vs Actionable Decision visual split
+  - E. Decision log JSONL (19 fields including `last/next_actionable_decision_at`, `final_priority_layer`, `bypass_type`)
+  - F. **7-layer priority stack** with explicit "hard-risk always wins" principle
+  - AC9: forward-compat flag `INTRADAY_HYS_LOWER_FORCE_CLOSE` (default `True`) for future Q077
+- **Confidence**: High — 12mo cross-regime validation; 4 rounds 2nd Quant review all PASS; sched-eval caveat addressed via bypass list architecture
+- **Caveats**:
+  - 12mo sample lacks 2008/2020-level stress regime (deferred validation 2 will catch in live)
+  - Hysteresis band [42-53 / 35-57] from PM round-2 proposal, no sensitivity test (deferred 3)
+  - Implementation drift risk → AC7 12mo replay match + AC8 HIGH_VOL/STRESS regression test lock invariants
+- **Next**:
+  - Developer implements F1-F7 (backend → frontend → backtest replay → deploy → 30-day live review)
+  - Quant intervention at F5-F6 (joint AC7/AC8 validation) and 6-month deferred validation
+  - Q077 low-IVP entry-only semantics is independent track, not blocking
+- **Related**: SPEC-103 (sleeve stress governance — bypass priority dependency), SPEC-064 (Aftermath BPS_HV permission gate — NOT governed by SPEC-107), SPEC-091 (VIX settling sidecar)
+- **Output**:
+  - `task/SPEC-107.md` (APPROVED)
+  - `task/SPEC-107_2nd_quant_review_packet_2026-05-26.md` + `_Review.md` (round 1 — R1-R7)
+  - `task/SPEC-107_2nd_quant_review_packet_round2_2026-05-26.md` + `_Review.md` (round 2 — E1-E7)
+  - `task/q076_phase2_2nd_quant_review_2026-05-26.md` + `_Verdict.md`
+  - `research/intraday/q076_findings_2026-05-26.md` (P1)
+  - `research/intraday/q076_p2_findings_2026-05-26.md` (P2 6-variant)
+  - `research/intraday/q076_p3_findings_2026-05-26.md` (P3 12mo robustness)
+  - `research/intraday/q076_hourly_recommendation_replay.py` + `q076_p2_mitigation_replay.py` + `q076_p3_robustness_12mo.py`
+  - `research/intraday/q076_*_variants*.csv` + `q076_p3_metrics_*.csv` (data outputs)
+  - `data/market_cache/spx_vix_1h_aligned_1mo.pkl` + `spx_vix_1h_aligned_12mo.pkl` (replay source data)
+
+---
 
 ### R-20260526-01 — SPEC-106 Trigger: Strategy Matrix Display Drift + Q077 Stub
 
