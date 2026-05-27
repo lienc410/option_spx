@@ -1171,6 +1171,20 @@ body {
     <div id="snapshot-body">
       <div class="snapshot-unavail">Loading portfolio data…</div>
     </div>
+    <!-- Position composition by market value -->
+    <div class="pos-comp-section" id="pos-comp-section" style="margin-top:16px">
+      <div class="pos-comp-header">
+        <span class="pos-comp-title">Account Positions — Market Value</span>
+      </div>
+      <div class="pos-col-header">
+        <div class="pos-col-symbol"></div>
+        <div class="pos-col-bar"></div>
+        <div class="pos-col-label">Mkt Value</div>
+        <div class="pos-col-label">Weight</div>
+        <div class="pos-col-label">Δ%</div>
+      </div>
+      <div id="pos-comp-bars"><div class="snapshot-unavail">Loading positions…</div></div>
+    </div>
     <div class="governance-panel" id="governance-panel">
       <div class="pos-comp-header">
         <span class="pos-comp-title">Sleeve Stress Governance</span>
@@ -1185,20 +1199,6 @@ body {
         <span class="intraday-gov-label">Intraday Gov</span>
         <a id="intraday-gov-chip" class="gov-chip" href="/spx" title="">—</a>
       </div>
-    </div>
-    <!-- Position composition by market value -->
-    <div class="pos-comp-section" id="pos-comp-section" style="margin-top:16px">
-      <div class="pos-comp-header">
-        <span class="pos-comp-title">Account Positions — Market Value</span>
-      </div>
-      <div class="pos-col-header">
-        <div class="pos-col-symbol"></div>
-        <div class="pos-col-bar"></div>
-        <div class="pos-col-label">Mkt Value</div>
-        <div class="pos-col-label">Weight</div>
-        <div class="pos-col-label">Δ%</div>
-      </div>
-      <div id="pos-comp-bars"><div class="snapshot-unavail">Loading positions…</div></div>
     </div>
   </div>
 
