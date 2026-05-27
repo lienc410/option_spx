@@ -630,6 +630,30 @@ body {
   padding-top: 14px;
   border-top: 1px solid var(--border);
 }
+/* SPEC-107 — intraday governance chip row at panel bottom */
+.intraday-gov-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 14px; margin-top: 10px;
+  border-top: 1px solid var(--border);
+  font-family: var(--f-ui); font-size: 0.62rem;
+}
+.intraday-gov-label {
+  font-weight: 600; color: var(--text-2);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  flex: 0 0 auto;
+}
+.gov-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--f-mono); font-size: 0.62rem; font-weight: 600;
+  padding: 3px 10px; border-radius: 5px;
+  border: 1px solid transparent; text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+  cursor: pointer; white-space: nowrap;
+}
+.gov-chip:hover  { filter: brightness(1.15); }
+.gov-chip-danger { background: var(--red-bg);    border-color: var(--red-border);    color: var(--red); }
+.gov-chip-active { background: var(--green-bg);  border-color: var(--green-border);  color: var(--green); }
+.gov-chip-muted  { background: var(--gray-bg);   border-color: var(--gray-border);   color: var(--text-2); }
 .governance-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1152,6 +1176,15 @@ body {
         <span class="pos-comp-title">Sleeve Stress Governance</span>
       </div>
       <div id="governance-body"><div class="snapshot-unavail">Loading governance state…</div></div>
+      <!-- SPEC-107: intraday governance chip lives as one row at the bottom of
+           the panel so PM sees both account-layer (R1-R6) and recommendation-
+           layer (SPEC-107) governance signals in one place. Loaded independently
+           from _renderGovernance via loadIntradayGov() — fail-soft (hidden on
+           API error). -->
+      <div id="intraday-gov-row" class="intraday-gov-row" style="display:none">
+        <span class="intraday-gov-label">Intraday Gov</span>
+        <a id="intraday-gov-chip" class="gov-chip" href="/spx" title="">—</a>
+      </div>
     </div>
     <!-- Position composition by market value -->
     <div class="pos-comp-section" id="pos-comp-section" style="margin-top:16px">
@@ -3062,14 +3095,114 @@ function _initDefaultView() {
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
+// SPEC-107 — Intraday Governance chip (read-only summary of
+// /api/recommendation.intraday_governance for the home page).
+// Fail-soft: any error hides the chip silently; never breaks the home page.
+// Backend untouched; data already exists. See task/SPEC-107_home_governance_chip_handoff.md
+const _BYPASS_LABELS = {
+  manual_override:     'Manual Override',
+  broker_stop_loss:    'Broker Stop-Loss',
+  lifecycle_exit:      'Lifecycle Exit (Roll / TP / DTE 21)',
+  spec_103_r5:         'SPEC-103 R5 Stress Cap',
+  spec_103_r6:         'SPEC-103 R6 Second-Leg Block',
+  extreme_vol:         'EXTREME_VOL (VIX ≥ 40)',
+  selector_hard_exit:  'Selector Hard Exit',
+  stale_data_failsafe: 'Stale Data Failsafe',
+};
+function _humanizeBypass(t) { return _BYPASS_LABELS[t] || (t ? String(t) : 'Bypass'); }
+
+function _formatGovCountdown(nextIso) {
+  if (!nextIso) {
+    console.warn('intraday_governance: next_actionable_decision_at is null');
+    return 'next time unavailable';
+  }
+  const now = new Date();
+  const next = new Date(nextIso);
+  if (isNaN(next.getTime())) return 'next time unavailable';
+  const diffMs = next.getTime() - now.getTime();
+  const hh = next.getHours().toString().padStart(2, '0');
+  const mm = next.getMinutes().toString().padStart(2, '0');
+  const barLabel = `${hh}:${mm} ET`;
+  if (diffMs <= 0) return `next ${barLabel} · imminent`;
+  // Same calendar day?
+  const sameDay = next.toDateString() === now.toDateString();
+  if (sameDay) {
+    const totalMin = Math.floor(diffMs / 60000);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return h > 0 ? `next ${barLabel} in ${h}h ${m}m` : `next ${barLabel} in ${m}m`;
+  }
+  // Tomorrow?
+  const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+  if (next.toDateString() === tomorrow.toDateString()) return `next ${barLabel} tomorrow`;
+  // Further out — e.g., long weekend
+  const weekday = next.toLocaleDateString('en-US', { weekday: 'short' });
+  const dd = String(next.getMonth() + 1).padStart(2, '0') + '-' + String(next.getDate()).padStart(2, '0');
+  return `next ${barLabel} ${weekday} ${dd}`;
+}
+
+function _formatGovTimestamp(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleString('en-US', {
+    month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }) + ' ET';
+}
+
+async function loadIntradayGov() {
+  const row  = document.getElementById('intraday-gov-row');
+  const chip = document.getElementById('intraday-gov-chip');
+  if (!row || !chip) return;
+  try {
+    const res = await fetch('/api/recommendation');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const gov = data && data.intraday_governance;
+    if (!gov) { row.style.display = 'none'; return; }
+
+    let label, cls;
+    if (gov.is_bypass_event && gov.bypass_type) {
+      label = `🚨 Hard Exit · ${_humanizeBypass(gov.bypass_type)}`;
+      cls = 'gov-chip gov-chip-danger';
+    } else if (gov.actionable) {
+      label = '⚡ Actionable Decision';
+      cls = 'gov-chip gov-chip-active';
+    } else {
+      label = `📊 State Observation · ${_formatGovCountdown(gov.next_actionable_decision_at)}`;
+      cls = 'gov-chip gov-chip-muted';
+    }
+
+    // Tooltip (newline-separated; browsers render as single-line title with
+    // line breaks). last_actionable may be null in the first ~30 days after
+    // deploy — render '—' instead of treating as error per handoff §"What NOT to do".
+    const lastActStr = _formatGovTimestamp(gov.last_actionable_decision_at) || '—';
+    const tooltip =
+      `Governed: ${gov.governed_strategy || '—'} (${gov.governed_position_action || '—'})\n` +
+      `Priority: layer ${gov.final_priority_layer ?? '—'} · ${gov.final_priority_name || '—'}\n` +
+      `Last actionable: ${lastActStr}\n` +
+      `Click to open /spx for full UI`;
+
+    chip.textContent = label;
+    chip.className = cls;
+    chip.title = tooltip;
+    row.style.display = 'flex';
+  } catch (e) {
+    console.warn('intraday_governance fetch failed', e);
+    row.style.display = 'none';   // fail-soft
+  }
+}
+
 (async () => {
   _initDefaultView();
-  await Promise.allSettled([loadSpx(), loadSettling(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadSchwabAuthBanner(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition()]);
+  await Promise.allSettled([loadSpx(), loadSettling(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadSchwabAuthBanner(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition(), loadIntradayGov()]);
   const ts = document.getElementById('sync-ts');
   if (ts) ts.textContent = 'loaded ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
   // Auto-refresh: strategy cards (recommendation+position) every 60s — picks up close→re-entry transitions
-  setInterval(() => Promise.allSettled([loadSpx(), loadSettling(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadSchwabAuthBanner(), loadEtradeAuthBanner()]), 60 * 1000);
+  // Intraday governance chip rides the same cadence (it reads /api/recommendation already fetched by loadSpx).
+  setInterval(() => Promise.allSettled([loadSpx(), loadSettling(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadSchwabAuthBanner(), loadEtradeAuthBanner(), loadIntradayGov()]), 60 * 1000);
   // Snapshot + Schwab positions every 5min — heavier, less frequent
   setInterval(() => Promise.allSettled([loadSnapshot(), loadGovernance(), loadPositionComposition()]), 5 * 60 * 1000);
 })();
