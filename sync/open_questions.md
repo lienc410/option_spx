@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-05-26（**SPEC-106 SHIPPED ✓**。18/36 cells gated（50%）standalone finding。selector.py 0 改动。Q042 ddATH -0.91%，Booster IVP 53 vs 55（2pt 警戒）)
+最后更新：2026-05-26（**Q076 CLOSED + SPEC-107 APPROVED（awaiting Developer F1-F7）**。Intraday recommendation governance：IVP hysteresis [42-53 entry/35-57 hold] + 10:30/15:30 scheduled windows + 7-layer priority stack。4 轮 2nd Quant review all PASS）
 
 ---
 
@@ -33,6 +33,23 @@
 ---
 
 ## 策略设计待解决
+
+### Q076 — Intraday Recommendation Governance
+
+- **状态**：**resolved** (Q076 CLOSED — PROMOTE → SPEC-107 APPROVED 2026-05-26)
+- **结论**：A2a + B 方案。IVP hysteresis + scheduled windows + 7-layer priority stack。Daily backtest engine / selector strategy semantics / SPEC-103 daemon 均不改动
+- **研究路径**：P1 诊断（21d jitter window 分析）→ P2（6 variants，4 rounds 2nd Quant review）→ P3（12mo robustness）→ 4 轮 review all PASS（R1-R7 + E1-E7）
+- **A2a + B 核心配置**：
+  - IVP hysteresis：[42, 53] entry-only window / [35, 57] hold window
+  - Scheduled actionable windows：10:30 ET + 15:30 ET
+  - 7-layer priority stack：hard-risk always wins（EXTREME_VOL / second-leg / stress）
+  - Forward-compat flag：`INTRADAY_HYS_LOWER_FORCE_CLOSE` 给 Q077 low-IVP entry 留 hook
+- **12mo robustness（P3）**：flips -54% / ≤3h transitions -92% / EOD-confirmed 93.2%
+- **守住的边界**：A2b deviation cuts 全执行 / selector semantics 不动 / daily engine 不动
+- **SPEC-107 9 ACs，F1-F7 phases**：Quant 在 F5/F6 回介入（AC7 12mo replay + AC8 HIGH_VOL/STRESS regression）
+- **来源**：`task/SPEC-107.md`, `research/intraday/q076_p1~p3_findings_2026-05-26.md`
+
+---
 
 ### Q077 — Structure-Aware Strike Placement (PARKED)
 
