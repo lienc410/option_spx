@@ -461,3 +461,11 @@
   outline: 2px solid var(--gold-border);
   outline-offset: 2px;
 }
+
+/* Defensive: force form controls to inherit the page's font family.
+   Without this, browsers fall back to user-agent defaults (Times New Roman
+   on <select>, Arial on some <input>) which leak into the page typography
+   and break the three-font system declared in DESIGN.md. */
+button, select, input, textarea, optgroup {
+  font-family: inherit;
+}
