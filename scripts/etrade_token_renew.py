@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-E-Trade token renewal — runs via launchd at 23:45 ET daily on oldair.
+E-Trade token renewal — runs via launchd at 23:30 ET daily on oldair.
 
 Calls E-Trade's renew_access_token API while the current token is still
 valid (before midnight ET). This extends the token for another 24 hours
 with zero user interaction — no password, no browser, no verifier.
 
 Only requires full re-auth (etrade_reauth.py) if:
-  - This cron fails AND the token expires (e.g. machine was off at 23:45)
+  - This cron fails AND the token expires (e.g. machine was off at 23:30)
   - OR the oauth_token is revoked on E-Trade's side
 """
 
