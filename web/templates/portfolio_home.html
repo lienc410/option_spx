@@ -1461,7 +1461,7 @@ async function loadSpx() {
             }, 0)
           : (live.combined_trade_log_pnl ?? null);
         const pnlCls = pnl == null ? '' : pnl >= 0 ? 'profit' : 'loss';
-        const pnlStr = pnl != null ? (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(0) : '—';
+        const pnlStr = pnl != null ? (pnl >= 0 ? '+$' : '-$') + Math.round(Math.abs(pnl)).toLocaleString() : '—';
         const acctBadge = a => {
           const isEt = a === 'etrade';
           return `<span style="font-family:var(--f-ui);font-size:0.60rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:${isEt ? 'var(--orange)' : 'var(--blue)'};background:var(--theme-lit-131);border:1px solid var(--theme-lit-134);padding:1px 6px;border-radius:4px">${isEt ? 'E-Trade' : 'Schwab'}</span>`;
