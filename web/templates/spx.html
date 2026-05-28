@@ -1377,9 +1377,10 @@ function renderStrikeScan(draft) {
     const limitValue = document.getElementById('open-scan-limit')?.value || '5';
     const visibleRows = limitValue === 'all' ? rows : rows.slice(0, Number(limitValue || 5));
     if (!rows.length) {
-      if (draft.strategy_key === 'bull_call_diagonal' && slot === 'long_leg') {
-        return `<div class="scan-box"><div class="scan-head"><span>${label}</span><span>Skipped</span></div><div class="scan-note">Scanner skipped this 90 DTE long leg by spec.</div></div>`;
-      }
+      // 90 DTE long-leg scan is now enabled for BCD (was "skipped by spec"
+      // pre-2026-05-28). If rows still empty, it's a real scan fallback —
+      // e.g. Schwab chain temporarily unavailable for the 90 DTE expiry —
+      // not an intentional skip.
       return `<div class="scan-box"><div class="scan-head"><span>${label}</span><span>Fallback</span></div>${empty}</div>`;
     }
     const rowsHtml = visibleRows.map((row, idx) => {

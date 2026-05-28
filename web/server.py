@@ -4369,9 +4369,15 @@ def api_position_open_draft():
             try:
                 scan_slots: dict[str, int] = {}
                 if rec.strategy_key == "bull_call_diagonal":
+                    # Per BCD catalog spec: short leg = 45 DTE δ0.30 CALL,
+                    # long leg = 90 DTE δ0.70 deep-ITM CALL. Scan BOTH so PM
+                    # can confirm/swap the long-leg strike on a real chain.
                     short_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "SELL" and l["option"] == "CALL"), None)
+                    long_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "BUY" and l["option"] == "CALL"), None)
                     if short_idx is not None:
                         scan_slots["short_leg"] = short_idx
+                    if long_idx is not None:
+                        scan_slots["long_leg"] = long_idx
                 elif rec.strategy_key in {"iron_condor", "iron_condor_hv"}:
                     short_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "SELL" and l["option"] == "CALL"), None)
                     long_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "BUY" and l["option"] == "CALL"), None)
