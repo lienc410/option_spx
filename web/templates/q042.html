@@ -8,24 +8,15 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec108"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec108">
+<script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
 <style>
 *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
-:root {
-  --bg:#080A13; --surface:#0D1020; --surface-hi:#131728;
-  --border:#191E33; --border-2:#232A42;
-  --text:#C4CEEC; --text-2:#606880; --text-muted:#363C52;
-  --gold:#C9A840; --gold-bg:rgba(201,168,64,0.07); --gold-border:rgba(201,168,64,0.22);
-  --green:#42CC7C; --green-bg:rgba(66,204,124,0.07); --green-border:rgba(66,204,124,0.22);
-  --red:#E04862; --red-bg:rgba(224,72,98,0.07); --red-border:rgba(224,72,98,0.22);
-  --blue:#4888E8; --blue-bg:rgba(72,136,232,0.07); --blue-border:rgba(72,136,232,0.22);
-  --orange:#E08040; --orange-bg:rgba(224,128,64,0.07); --orange-border:rgba(224,128,64,0.22);
-  --gray-bg:rgba(96,104,128,0.08); --gray-border:rgba(96,104,128,0.2);
-  --f-display:'Newsreader',Georgia,serif; --f-mono:'JetBrains Mono','Courier New',monospace; --f-ui:'DM Sans',system-ui,sans-serif;
-}
 html { font-size:14px; }
 body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-height:100vh; line-height:1.55; }
 
-.nav { position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:50px;background:rgba(8,10,19,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border); }
+.nav { position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:50px;background:var(--nav-bg-strong);backdrop-filter:blur(12px);border-bottom:1px solid var(--border); }
 .nav-brand { font-family:var(--f-display);font-size:1.05rem;color:var(--gold); }
 .nav-brand em { font-style:italic; }
 .nav-links { display:flex;gap:2px; }
@@ -45,7 +36,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .page-tab.active { color:var(--text);background:var(--surface-hi);border-color:var(--border-2); }
 .page-tab:hover:not(.active) { color:var(--text-2);background:var(--surface); }
 
-.caveat-banner { background:rgba(72,136,232,0.07);border:1px solid rgba(72,136,232,0.22);border-radius:7px;padding:9px 14px;font-family:var(--f-ui);font-size:0.62rem;color:var(--blue);margin-bottom:20px;line-height:1.5; }
+.caveat-banner { background:var(--blue-bg);border:1px solid var(--blue-border);border-radius:7px;padding:9px 14px;font-family:var(--f-ui);font-size:0.62rem;color:var(--blue);margin-bottom:20px;line-height:1.5; }
 
 .section-label { font-family:var(--f-ui);font-size:0.60rem;font-weight:700;letter-spacing:0.13em;text-transform:uppercase;color:var(--text-2);margin:24px 0 12px; }
 .section-label:first-of-type { margin-top:0; }
@@ -126,7 +117,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .action-btn { padding: 7px 12px; border-radius: 6px; border: 1px solid var(--border-2); background: var(--surface); color: var(--text); cursor: pointer; font-size: 0.74rem; transition: all .15s; }
 .action-btn:hover { border-color: var(--gold); color: var(--gold); }
 .action-btn.primary { background: var(--gold-bg); border-color: var(--gold-border); color: var(--gold); }
-.modal-wrap { position: fixed; inset: 0; background: rgba(8,10,19,0.72); display: flex; align-items: flex-start; justify-content: center; padding: 20px; z-index: 300; overflow-y: auto; }
+.modal-wrap { position: fixed; inset: 0; background: var(--theme-lit-151); display: flex; align-items: flex-start; justify-content: center; padding: 20px; z-index: 300; overflow-y: auto; }
 .modal-wrap.hidden { display: none; }
 .modal { width: min(580px, 100%); background: var(--surface); border: 1px solid var(--border-2); border-radius: 12px; padding: 20px 22px; max-height: calc(100vh - 40px); overflow-y: auto; margin: auto 0; }
 .modal-hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
@@ -148,20 +139,20 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 
 /* Strike scan (cloned from /spx pattern) */
 .scan-wrap { display: grid; gap: 8px; }
-.scan-box { border: 1px solid var(--border); border-radius: 8px; background: linear-gradient(180deg, rgba(72,136,232,0.05), transparent 28%), var(--surface-hi); overflow: hidden; }
+.scan-box { border: 1px solid var(--border); border-radius: 8px; background: linear-gradient(180deg, var(--theme-lit-127), transparent 28%), var(--surface-hi); overflow: hidden; }
 .scan-head { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 0.60rem; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); }
 .scan-note { padding: 8px 10px; font-size: 0.7rem; color: var(--text-2); }
 .scan-table-wrap { max-height: 200px; overflow: auto; }
 .scan-table { width: 100%; border-collapse: collapse; font-family: var(--f-mono, 'JetBrains Mono', monospace); }
 .scan-table th { text-align: left; padding: 6px 8px; font-size: 0.55rem; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); border-bottom: 1px solid var(--border); }
-.scan-table td { padding: 6px 8px; font-size: 0.65rem; color: var(--text); border-bottom: 1px solid rgba(35,42,66,0.45); }
+.scan-table td { padding: 6px 8px; font-size: 0.65rem; color: var(--text); border-bottom: 1px solid var(--theme-lit-100); }
 .scan-table tr:last-child td { border-bottom: none; }
 .scan-row { cursor: pointer; transition: background .12s ease; }
-.scan-row:hover { background: rgba(201,168,64,0.06); }
-.scan-row.recommended { background: rgba(66,204,124,0.07); }
-.scan-row.selected { box-shadow: inset 0 0 0 1px var(--gold-border); background: rgba(201,168,64,0.08); }
+.scan-row:hover { background: var(--theme-lit-028); }
+.scan-row.recommended { background: var(--green-bg); }
+.scan-row.selected { box-shadow: inset 0 0 0 1px var(--gold-border); background: var(--theme-lit-029); }
 .scan-row.warn td { color: var(--orange); }
-.scan-row.gap-mid td { color: #d6c26a; }
+.scan-row.gap-mid td { color: var(--gold-soft); }
 .scan-row.gap-high td { color: var(--red); }
 .scan-star { color: var(--gold); margin-right: 4px; }
 </style>
@@ -308,9 +299,9 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
     <div class="chart-hd">
       <span class="chart-title">SPX vs ATH（主轴）/ ddATH%（次轴）</span>
       <div class="chart-legend">
-        <div class="chart-legend-item"><div class="chart-legend-line" style="background:#4888E8"></div>SPX</div>
-        <div class="chart-legend-item"><div class="chart-legend-line" style="background:rgba(201,168,64,0.7)"></div>ATH</div>
-        <div class="chart-legend-item"><div class="chart-legend-line" style="background:#E08040;border-top:2px dashed #E08040;height:0"></div>ddATH%</div>
+        <div class="chart-legend-item"><div class="chart-legend-line" style="background:var(--blue)"></div>SPX</div>
+        <div class="chart-legend-item"><div class="chart-legend-line" style="background:var(--theme-lit-043)"></div>ATH</div>
+        <div class="chart-legend-item"><div class="chart-legend-line" style="background:var(--orange);border-top:2px dashed var(--orange);height:0"></div>ddATH%</div>
       </div>
     </div>
     <div id="spx-chart-area"><div class="loading-msg">Loading SPX history…</div></div>
@@ -531,17 +522,17 @@ async function loadSpxChart() {
         datasets: [
           {
             label: 'SPX', data: hist.map(h => h.close),
-            borderColor: '#4888E8', backgroundColor: 'transparent',
+            borderColor: 'var(--blue)', backgroundColor: 'transparent',
             borderWidth: 1.5, pointRadius: 0, tension: 0.1, yAxisID: 'yPrice', order: 1,
           },
           {
             label: 'ATH', data: hist.map(h => h.ath),
-            borderColor: 'rgba(201,168,64,0.60)', backgroundColor: 'transparent',
+            borderColor: 'var(--theme-lit-041)', backgroundColor: 'transparent',
             borderWidth: 1, borderDash: [4,3], pointRadius: 0, tension: 0, yAxisID: 'yPrice', order: 2,
           },
           {
             label: 'ddATH%', data: hist.map(h => h.ddath_pct),
-            borderColor: '#E08040', backgroundColor: 'rgba(224,128,64,0.06)',
+            borderColor: 'var(--orange)', backgroundColor: 'var(--theme-lit-054)',
             borderWidth: 1.2, pointRadius: 0, tension: 0.1, fill: 'origin', yAxisID: 'yDD', order: 3,
           },
         ],
@@ -557,12 +548,12 @@ async function loadSpxChart() {
           }},
         },
         scales: {
-          x: { type: 'category', ticks: { color:'#606880', font:{family:'JetBrains Mono',size:10}, maxTicksLimit:10, maxRotation:0,
-                 callback:(v,i) => { const d=hist[i]?.date; return d?d.slice(0,7):v; }}, grid:{color:'#191E33'} },
-          yPrice: { position:'left', ticks:{ color:'#606880', font:{family:'JetBrains Mono',size:10}, callback: v=>v.toLocaleString() }, grid:{color:'#191E33'} },
+          x: { type: 'category', ticks: { color:'var(--text-2)', font:{family:'JetBrains Mono',size:10}, maxTicksLimit:10, maxRotation:0,
+                 callback:(v,i) => { const d=hist[i]?.date; return d?d.slice(0,7):v; }}, grid:{color:'var(--border)'} },
+          yPrice: { position:'left', ticks:{ color:'var(--text-2)', font:{family:'JetBrains Mono',size:10}, callback: v=>v.toLocaleString() }, grid:{color:'var(--border)'} },
           yDD: {
             position: 'right', grid: { drawOnChartArea: false },
-            ticks: { color:'#606880', font:{family:'JetBrains Mono',size:10}, callback: v=>v.toFixed(1)+'%' },
+            ticks: { color:'var(--text-2)', font:{family:'JetBrains Mono',size:10}, callback: v=>v.toFixed(1)+'%' },
             // Add threshold reference lines via annotation is complex; use simple min/max
             min: Math.min(...hist.map(h=>h.ddath_pct), -17),
             max: 1,

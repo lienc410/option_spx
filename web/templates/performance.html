@@ -8,44 +8,20 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec108"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec108">
+<script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-:root {
-  --bg:            #080A13;
-  --surface:       #0D1020;
-  --surface-hi:    #131728;
-  --border:        #191E33;
-  --border-2:      #232A42;
-  --text:          #C4CEEC;
-  --text-2:        #606880;
-  --text-muted:    #363C52;
-  --gold:          #C9A840;
-  --gold-bg:       rgba(201,168,64,0.07);
-  --gold-border:   rgba(201,168,64,0.22);
-  --green:         #42CC7C;
-  --green-bg:      rgba(66,204,124,0.07);
-  --green-border:  rgba(66,204,124,0.22);
-  --red:           #E04862;
-  --red-bg:        rgba(224,72,98,0.07);
-  --red-border:    rgba(224,72,98,0.22);
-  --blue:          #4888E8;
-  --blue-bg:       rgba(72,136,232,0.07);
-  --orange:        #E08040;
-
-  --f-display: 'Newsreader', Georgia, serif;
-  --f-mono:    'JetBrains Mono', 'Courier New', monospace;
-  --f-ui:      'DM Sans', system-ui, sans-serif;
-}
-
 html { font-size: 14px; }
-body { font-family: var(--f-ui); background: radial-gradient(circle at top, rgba(72,136,232,0.08), transparent 38%), var(--bg); color: var(--text); min-height: 100vh; }
+body { font-family: var(--f-ui); background: radial-gradient(circle at top, var(--theme-lit-129), transparent 38%), var(--bg); color: var(--text); min-height: 100vh; }
 
 .nav {
   position: sticky; top: 0; z-index: 100;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 28px; height: 50px;
-  background: rgba(8,10,19,0.88); backdrop-filter: blur(10px);
+  background: var(--nav-bg); backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
 }
 .nav-brand { font-family: var(--f-display); font-size: 1.05rem; color: var(--text); }
@@ -94,7 +70,7 @@ body { font-family: var(--f-ui); background: radial-gradient(circle at top, rgba
   gap: 12px; margin-bottom: 18px;
 }
 .m-card {
-  background: linear-gradient(180deg, rgba(19,23,40,0.9), rgba(13,16,32,0.95));
+  background: linear-gradient(180deg, var(--theme-lit-018), var(--theme-lit-008));
   border: 1px solid var(--border-2);
   border-radius: 12px; padding: 16px 16px 14px;
   min-height: 108px;
@@ -144,7 +120,7 @@ tr:last-child td { border-bottom: none; }
 .open-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
 .open-card {
   border: 1px solid var(--border-2); border-radius: 10px; padding: 14px 14px 12px;
-  background: linear-gradient(180deg, rgba(72,136,232,0.06), transparent 30%), var(--surface-hi);
+  background: linear-gradient(180deg, var(--theme-lit-128), transparent 30%), var(--surface-hi);
 }
 .open-hd { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 10px; align-items: start; }
 .open-name { font-weight: 500; font-size: 0.9rem; color: var(--text); }
@@ -329,7 +305,7 @@ function strategyName(key, fallback) {
 }
 
 function colorFor(value) {
-  return Number(value || 0) >= 0 ? '#42CC7C' : '#E04862';
+  return Number(value || 0) >= 0 ? 'var(--green)' : 'var(--red)';
 }
 
 function renderSummary(summary) {
@@ -436,8 +412,8 @@ function renderCharts(monthly) {
       maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { ticks: { color: '#606880' }, grid: { display: false } },
-        y: { ticks: { color: '#606880' }, grid: { color: 'rgba(35,42,66,0.45)' } },
+        x: { ticks: { color: 'var(--text-2)' }, grid: { display: false } },
+        y: { ticks: { color: 'var(--text-2)' }, grid: { color: 'var(--theme-lit-100)' } },
       },
     },
   });
@@ -449,8 +425,8 @@ function renderCharts(monthly) {
       datasets: [{
         label: 'Cumulative P&L',
         data: cumulative,
-        borderColor: '#C9A840',
-        backgroundColor: 'rgba(201,168,64,0.12)',
+        borderColor: 'var(--gold)',
+        backgroundColor: 'var(--theme-lit-030)',
         fill: true,
         tension: 0.25,
         pointRadius: 3,
@@ -461,8 +437,8 @@ function renderCharts(monthly) {
       maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { ticks: { color: '#606880' }, grid: { display: false } },
-        y: { ticks: { color: '#606880' }, grid: { color: 'rgba(35,42,66,0.45)' } },
+        x: { ticks: { color: 'var(--text-2)' }, grid: { display: false } },
+        y: { ticks: { color: 'var(--text-2)' }, grid: { color: 'var(--theme-lit-100)' } },
       },
     },
   });

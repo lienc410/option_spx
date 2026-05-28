@@ -8,40 +8,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec108"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec108">
+<script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  --bg:            #080A13;
-  --surface:       #0D1020;
-  --surface-hi:    #131728;
-  --border:        #191E33;
-  --border-2:      #232A42;
-  --text:          #C4CEEC;
-  --text-2:        #606880;
-  --text-muted:    #363C52;
-  --gold:          #C9A840;
-  --gold-bg:       rgba(201,168,64,0.07);
-  --gold-border:   rgba(201,168,64,0.22);
-  --green:         #42CC7C;
-  --green-bg:      rgba(66,204,124,0.07);
-  --green-border:  rgba(66,204,124,0.22);
-  --red:           #E04862;
-  --red-bg:        rgba(224,72,98,0.07);
-  --red-border:    rgba(224,72,98,0.22);
-  --blue:          #4888E8;
-  --blue-bg:       rgba(72,136,232,0.07);
-  --blue-border:   rgba(72,136,232,0.22);
-  --orange:        #E08040;
-  --orange-bg:     rgba(224,128,64,0.07);
-  --orange-border: rgba(224,128,64,0.22);
-  --gray-bg:       rgba(96,104,128,0.08);
-  --gray-border:   rgba(96,104,128,0.2);
-
-  --f-display: 'Newsreader', Georgia, serif;
-  --f-mono:    'JetBrains Mono', 'Courier New', monospace;
-  --f-ui:      'DM Sans', system-ui, sans-serif;
-}
 
 html { font-size: 14px; }
 body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-height: 100vh; }
@@ -51,7 +22,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   position: sticky; top: 0; z-index: 100;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 28px; height: 50px;
-  background: rgba(8,10,19,0.88); backdrop-filter: blur(10px);
+  background: var(--nav-bg); backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
 }
 .nav-brand { font-family: var(--f-display); font-size: 1.05rem; color: var(--text); }
@@ -357,18 +328,18 @@ table.mt-tbl { width: 100%; border-collapse: collapse; min-width: 640px; }
 }
 .mt-tbl tbody tr:last-child td { border-bottom: none; }
 .mt-tbl tbody tr:hover td { background: var(--surface-hi); }
-.mt-tbl tbody tr.mt-match-row td { background: rgba(201,168,64,0.03); }
+.mt-tbl tbody tr.mt-match-row td { background: var(--theme-lit-026); }
 .mt-tag {
   display: inline-block; padding: 1px 6px; border-radius: 3px;
   font-size: 0.58rem; font-weight: 700; letter-spacing: 0.04em;
 }
 .mt-tag-match { background: var(--gold-bg); color: var(--gold); border: 1px solid var(--gold-border); }
-.mt-tag-other { background: rgba(96,104,128,.07); color: var(--text-2); border: 1px solid rgba(96,104,128,.18); }
+.mt-tag-other { background: var(--theme-lit-157); color: var(--text-2); border: 1px solid var(--theme-lit-160); }
 .reason-tag { display: inline-block; padding: 1px 7px; border-radius: 3px; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.05em; }
 .reason-profit { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
 .reason-stop   { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red-border); }
 .reason-roll   { background: var(--gold-bg);  color: var(--gold);  border: 1px solid var(--gold-border); }
-.reason-default { background: rgba(96,104,128,.07); color: var(--text-2); border: 1px solid rgba(96,104,128,.2); }
+.reason-default { background: var(--theme-lit-157); color: var(--text-2); border: 1px solid var(--theme-lit-161); }
 .num { font-family: var(--f-mono); font-size: 0.76rem; }
 .num.pos { color: var(--green); }
 .num.neg { color: var(--red); }
@@ -760,7 +731,7 @@ function buildMatrix(regime) {
       cell.innerHTML = `
         <div class="cell-strategy" style="${isGated ? '' : 'color:' + DIR_COLOR[sd.direction]}">${primaryName}</div>
         ${reasonLine}
-        <div class="cell-tags">${DIR_TAG[sd.direction]}${guardrailTag}${payoffPill}<span class="ctag" style="background:rgba(96,104,128,.08);color:var(--text-2);border:1px solid rgba(96,104,128,.15);font-size:.52rem">${sd.underlying}</span></div>
+        <div class="cell-tags">${DIR_TAG[sd.direction]}${guardrailTag}${payoffPill}<span class="ctag" style="background:var(--theme-lit-158);color:var(--text-2);border:1px solid var(--theme-lit-159);font-size:.52rem">${sd.underlying}</span></div>
         ${histRefLine}
         ${statHtml}`;
       cell.addEventListener('click', () => selectCell(cell, strat, regime, iv.key, trend));
@@ -859,15 +830,15 @@ async function loadSignals() {
 
     banner.innerHTML = `
       <span class="sb-label">Now</span>
-      <span class="sb-chip" style="background:rgba(0,0,0,.2);color:${regimeColor};border:1px solid ${regimeColor}33">
+      <span class="sb-chip" style="background:var(--shadow-chip);color:${regimeColor};border:1px solid ${regimeColor}33">
         VIX ${vix.vix.toFixed(1)} &nbsp;[${vix.regime}]
       </span>
       <span class="sb-arrow">→</span>
-      <span class="sb-chip" style="background:rgba(0,0,0,.2);color:${ivColor};border:1px solid ${ivColor}33">
+      <span class="sb-chip" style="background:var(--shadow-chip);color:${ivColor};border:1px solid ${ivColor}33">
         IV ${ivLabel} &nbsp;(IVP ${iv.iv_percentile.toFixed(0)})
       </span>
       <span class="sb-arrow">→</span>
-      <span class="sb-chip" style="background:rgba(0,0,0,.2);color:${trColor};border:1px solid ${trColor}33">
+      <span class="sb-chip" style="background:var(--shadow-chip);color:${trColor};border:1px solid ${trColor}33">
         ${tr.signal}
       </span>
       <span class="sb-result">→ &nbsp;<em>${curStratName}</em></span>

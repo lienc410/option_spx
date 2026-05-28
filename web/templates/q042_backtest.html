@@ -9,24 +9,15 @@
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+<script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec108"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec108">
+<script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
 <style>
 *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
-:root {
-  --bg:#080A13; --surface:#0D1020; --surface-hi:#131728;
-  --border:#191E33; --border-2:#232A42;
-  --text:#C4CEEC; --text-2:#606880; --text-muted:#363C52;
-  --gold:#C9A840; --gold-bg:rgba(201,168,64,0.07); --gold-border:rgba(201,168,64,0.22);
-  --green:#42CC7C; --green-bg:rgba(66,204,124,0.07); --green-border:rgba(66,204,124,0.22);
-  --red:#E04862; --red-bg:rgba(224,72,98,0.07);
-  --blue:#4888E8; --blue-bg:rgba(72,136,232,0.07); --blue-border:rgba(72,136,232,0.22);
-  --orange:#E08040; --orange-bg:rgba(224,128,64,0.07); --orange-border:rgba(224,128,64,0.22);
-  --gray-bg:rgba(96,104,128,0.08); --gray-border:rgba(96,104,128,0.2);
-  --f-display:'Newsreader',Georgia,serif; --f-mono:'JetBrains Mono','Courier New',monospace; --f-ui:'DM Sans',system-ui,sans-serif;
-}
 html { font-size:14px; }
 body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-height:100vh; }
 
-.nav { position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:50px;background:rgba(8,10,19,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border); }
+.nav { position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:50px;background:var(--nav-bg-strong);backdrop-filter:blur(12px);border-bottom:1px solid var(--border); }
 .nav-brand { font-family:var(--f-display);font-size:1.05rem;color:var(--gold); }
 .nav-brand em { font-style:italic; }
 .nav-links { display:flex;gap:2px; }
@@ -144,10 +135,10 @@ function fmtD(n) {
 function fmtDate(s) { return s?s.slice(0,10):'—'; }
 
 // P&L color constants
-const C_PROFIT_FILL   = 'rgba(66,204,124,0.90)';
-const C_PROFIT_BORDER = '#1a8c52';
-const C_LOSS_FILL     = 'rgba(224,128,64,0.90)';
-const C_LOSS_BORDER   = '#9a3412';
+const C_PROFIT_FILL   = 'var(--theme-lit-123)';
+const C_PROFIT_BORDER = 'var(--green-deep)';
+const C_LOSS_FILL     = 'var(--theme-lit-067)';
+const C_LOSS_BORDER   = 'var(--orange-deep)';
 
 // ── Build all charts after data loaded ───────────────────────────────────────
 function render(bt, spxHist, paper, vixHist) {
@@ -274,7 +265,7 @@ function render(bt, spxHist, paper, vixHist) {
     <div class="section-label">C6 · SPX Price — Trade Entry / Exit</div>
     <div class="chart-wrap">
       <div class="chart-hd">
-        <span class="chart-title">▲ 入场 / ▽ 出场 · <span style="color:#42CC7C">●绿=盈</span> · <span style="color:#E08040">●橙=亏</span> · 实心=Sleeve A · 空心=Sleeve B</span>
+        <span class="chart-title">▲ 入场 / ▽ 出场 · <span style="color:var(--green)">●绿=盈</span> · <span style="color:var(--orange)">●橙=亏</span> · 实心=Sleeve A · 空心=Sleeve B</span>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <div class="range-btns">
             <span style="font-family:var(--f-ui);font-size:0.58rem;color:var(--text-2);margin-right:4px">Overlay:</span>
@@ -312,8 +303,8 @@ function render(bt, spxHist, paper, vixHist) {
         <span class="chart-title">Cumulative realized P&L · A 蓝 / B 橙${paper.length ? ' · 虚线=paper' : ''}</span>
         <div style="display:flex;align-items:center;gap:8px">
           <div class="chart-legend">
-            <div class="chart-legend-item"><div class="chart-legend-line" style="background:#4888E8"></div>Sleeve A</div>
-            <div class="chart-legend-item"><div class="chart-legend-line" style="background:#E08040"></div>Sleeve B</div>
+            <div class="chart-legend-item"><div class="chart-legend-line" style="background:var(--blue)"></div>Sleeve A</div>
+            <div class="chart-legend-item"><div class="chart-legend-line" style="background:var(--orange)"></div>Sleeve B</div>
           </div>
           <button class="range-btn" style="color:var(--text-2)" onclick="if(charts.c7)charts.c7.resetZoom()" title="Reset drag-zoom">↩ 全局</button>
         </div>
@@ -464,10 +455,10 @@ function render(bt, spxHist, paper, vixHist) {
       const c=chart.ctx;
       c.save();
       c.beginPath(); c.moveTo(p1.x,p1.y); c.lineTo(p2.x,p2.y);
-      c.strokeStyle='rgba(255,255,255,0.28)'; c.lineWidth=1; c.setLineDash([3,4]); c.stroke();
+      c.strokeStyle='var(--chart-on-dark)'; c.lineWidth=1; c.setLineDash([3,4]); c.stroke();
       c.setLineDash([]);
       c.beginPath(); c.arc(p2.x,p2.y,10,0,Math.PI*2);
-      c.strokeStyle='rgba(255,255,255,0.55)'; c.lineWidth=1.5; c.stroke();
+      c.strokeStyle='var(--chart-on-dark-strong)'; c.lineWidth=1.5; c.stroke();
       c.restore();
     },
   };
@@ -476,8 +467,8 @@ function render(bt, spxHist, paper, vixHist) {
     plugins: [tradeConnector],
     type: 'line',
     data: { datasets: [
-      { type:'line',    label:'SPX',  data:spxLine, borderColor:'#4888E8', backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0.1, yAxisID:'yP', order:8 },
-      { type:'line',    label:'ATH',  data:athLine, borderColor:'rgba(201,168,64,0.50)', backgroundColor:'transparent', borderWidth:1, borderDash:[4,3], pointRadius:0, tension:0, yAxisID:'yP', order:7 },
+      { type:'line',    label:'SPX',  data:spxLine, borderColor:'var(--blue)', backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0.1, yAxisID:'yP', order:8 },
+      { type:'line',    label:'ATH',  data:athLine, borderColor:'var(--theme-lit-038)', backgroundColor:'transparent', borderWidth:1, borderDash:[4,3], pointRadius:0, tension:0, yAxisID:'yP', order:7 },
       { type:'scatter', label:'A ▲', data:entryAData,
         backgroundColor: ctx => (ctx.dataset.data[ctx.dataIndex]?.trade?.exit_pnl>0?C_PROFIT_FILL:C_LOSS_FILL),
         borderColor:     ctx => (ctx.dataset.data[ctx.dataIndex]?.trade?.exit_pnl>0?C_PROFIT_BORDER:C_LOSS_BORDER),
@@ -487,23 +478,23 @@ function render(bt, spxHist, paper, vixHist) {
         borderColor:     ctx => (ctx.dataset.data[ctx.dataIndex]?.trade?.exit_pnl>0?C_PROFIT_BORDER:C_LOSS_BORDER),
         borderWidth:1.5, pointStyle:'triangle', rotation:180, pointRadius:7, pointHoverRadius:10, yAxisID:'yP', order:2 },
       { type:'scatter', label:'B ▲', data:entryBData,
-        backgroundColor:'rgba(0,0,0,0)',
+        backgroundColor:'transparent',
         borderColor: ctx => (ctx.dataset.data[ctx.dataIndex]?.trade?.exit_pnl>0?C_PROFIT_BORDER:C_LOSS_BORDER),
         borderWidth:2.5, pointStyle:'triangle', rotation:0,   pointRadius:9, pointHoverRadius:12, yAxisID:'yP', order:2 },
       { type:'scatter', label:'B ▽', data:exitBData,
-        backgroundColor:'rgba(0,0,0,0)',
+        backgroundColor:'transparent',
         borderColor: ctx => (ctx.dataset.data[ctx.dataIndex]?.trade?.exit_pnl>0?C_PROFIT_BORDER:C_LOSS_BORDER),
         borderWidth:2.5, pointStyle:'triangle', rotation:180, pointRadius:8, pointHoverRadius:11, yAxisID:'yP', order:2 },
-      { type:'line', label:'VIX',        data:vixLine,  borderColor:'rgba(201,168,64,0.80)', backgroundColor:'transparent', borderWidth:1.2, pointRadius:0, tension:0, yAxisID:'yOv', hidden:true, order:6 },
-      { type:'line', label:'Drawdown %', data:ddLine,   borderColor:'rgba(224,72,98,0.80)',  backgroundColor:'rgba(224,72,98,0.06)', fill:true, borderWidth:1.2, pointRadius:0, tension:0, yAxisID:'yOv', hidden:true, order:6 },
-      { type:'line', label:'MA10',       data:ma10Line, borderColor:'rgba(140,100,220,0.70)', backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0, yAxisID:'yP', hidden:true, order:7, spanGaps:true },
-      { type:'line', label:'Cum. P&L · A', data:pnlALine, borderColor:'rgba(66,204,124,0.90)', backgroundColor:'transparent', borderWidth:1.8, pointRadius:0, stepped:'before', tension:0, yAxisID:'yPnL', hidden:true, order:3 },
-      { type:'line', label:'Cum. P&L · B', data:pnlBLine, borderColor:'rgba(224,128,64,0.90)', backgroundColor:'transparent', borderWidth:1.8, pointRadius:0, stepped:'before', tension:0, yAxisID:'yPnL', hidden:true, order:3 },
+      { type:'line', label:'VIX',        data:vixLine,  borderColor:'var(--theme-lit-048)', backgroundColor:'transparent', borderWidth:1.2, pointRadius:0, tension:0, yAxisID:'yOv', hidden:true, order:6 },
+      { type:'line', label:'Drawdown %', data:ddLine,   borderColor:'var(--theme-lit-086)',  backgroundColor:'var(--theme-lit-069)', fill:true, borderWidth:1.2, pointRadius:0, tension:0, yAxisID:'yOv', hidden:true, order:6 },
+      { type:'line', label:'MA10',       data:ma10Line, borderColor:'var(--theme-lit-015)', backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0, yAxisID:'yP', hidden:true, order:7, spanGaps:true },
+      { type:'line', label:'Cum. P&L · A', data:pnlALine, borderColor:'var(--theme-lit-123)', backgroundColor:'transparent', borderWidth:1.8, pointRadius:0, stepped:'before', tension:0, yAxisID:'yPnL', hidden:true, order:3 },
+      { type:'line', label:'Cum. P&L · B', data:pnlBLine, borderColor:'var(--theme-lit-067)', backgroundColor:'transparent', borderWidth:1.8, pointRadius:0, stepped:'before', tension:0, yAxisID:'yPnL', hidden:true, order:3 },
     ]},
     options: {
       responsive:true, animation:false,
       interaction:{mode:'nearest',intersect:true},
-      plugins: { zoom:{zoom:{drag:{enabled:true,backgroundColor:'rgba(72,136,232,0.09)',borderColor:'rgba(72,136,232,0.45)',borderWidth:1},mode:'x'}},legend:{display:false}, tooltip:{ callbacks:{
+      plugins: { zoom:{zoom:{drag:{enabled:true,backgroundColor:'var(--theme-lit-130)',borderColor:'var(--theme-lit-139)',borderWidth:1},mode:'x'}},legend:{display:false}, tooltip:{ callbacks:{
         label: ctx => {
           const t = ctx.raw?.trade;
           if (t) return [`Sleeve ${t.sleeve_id} · ${ctx.dataset.label}  ${fmtDate(t.entry_date)} → ${fmtDate(t.exit_date)}`, ` ddATH ${(t.ddath_at_signal||0).toFixed(2)}%  ·  P&L ${fmtD(t.exit_pnl)}`];
@@ -512,11 +503,11 @@ function render(bt, spxHist, paper, vixHist) {
         }
       }}},
       scales: {
-        x: { type:'linear', ticks:{color:'#606880',font:{family:'JetBrains Mono',size:9},maxTicksLimit:14,
-               callback:(v)=>{ const d=history[Math.round(v)]?.date; return d?d.slice(0,7):''; }}, grid:{color:'#191E33'} },
-        yP:   { position:'left',  ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},callback:v=>v.toLocaleString()}, grid:{color:'#191E33'} },
-        yOv:  { position:'right', display:false, ticks:{color:'#606880',font:{family:'JetBrains Mono',size:9}}, grid:{drawOnChartArea:false}, title:{display:true,text:'Overlay',color:'#363C52',font:{family:'DM Sans',size:9}} },
-        yPnL: { position:'right', display:false, ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},callback:v=>(v>=0?'+':'')+'$'+Math.round(v/1000)+'k'}, grid:{drawOnChartArea:false}, title:{display:true,text:'Cum. P&L',color:'#363C52',font:{family:'DM Sans',size:9}} },
+        x: { type:'linear', ticks:{color:'var(--text-2)',font:{family:'JetBrains Mono',size:9},maxTicksLimit:14,
+               callback:(v)=>{ const d=history[Math.round(v)]?.date; return d?d.slice(0,7):''; }}, grid:{color:'var(--border)'} },
+        yP:   { position:'left',  ticks:{color:'var(--text-2)',font:{family:'JetBrains Mono',size:10},callback:v=>v.toLocaleString()}, grid:{color:'var(--border)'} },
+        yOv:  { position:'right', display:false, ticks:{color:'var(--text-2)',font:{family:'JetBrains Mono',size:9}}, grid:{drawOnChartArea:false}, title:{display:true,text:'Overlay',color:'var(--text-muted)',font:{family:'DM Sans',size:9}} },
+        yPnL: { position:'right', display:false, ticks:{color:'var(--text-2)',font:{family:'JetBrains Mono',size:10},callback:v=>(v>=0?'+':'')+'$'+Math.round(v/1000)+'k'}, grid:{drawOnChartArea:false}, title:{display:true,text:'Cum. P&L',color:'var(--text-muted)',font:{family:'DM Sans',size:9}} },
       },
     },
   });
@@ -528,13 +519,13 @@ function render(bt, spxHist, paper, vixHist) {
   charts.c7 = new Chart(document.getElementById('c7-chart'), {
     type:'line',
     data:{ datasets:[
-      { label:'Sleeve A', data:pnlA, borderColor:'#4888E8', backgroundColor:'transparent', borderWidth:1.8, pointRadius:3, tension:0.1 },
-      { label:'Sleeve B', data:pnlB, borderColor:'#E08040', backgroundColor:'transparent', borderWidth:1.8, pointRadius:3, tension:0.1 },
+      { label:'Sleeve A', data:pnlA, borderColor:'var(--blue)', backgroundColor:'transparent', borderWidth:1.8, pointRadius:3, tension:0.1 },
+      { label:'Sleeve B', data:pnlB, borderColor:'var(--orange)', backgroundColor:'transparent', borderWidth:1.8, pointRadius:3, tension:0.1 },
     ]},
     options:{ responsive:true, animation:false,
-      plugins:{ zoom:{zoom:{drag:{enabled:true,backgroundColor:'rgba(72,136,232,0.09)',borderColor:'rgba(72,136,232,0.45)',borderWidth:1},mode:'x'}},legend:{display:false}, tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmtD(ctx.parsed.y)}`}} },
-      scales:{ x:{type:'category',ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},maxTicksLimit:10,maxRotation:0},grid:{color:'#191E33'}},
-        y:{ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},callback:v=>(v>=0?'+':'')+' $'+Math.round(v).toLocaleString()},grid:{color:'#191E33'}} } },
+      plugins:{ zoom:{zoom:{drag:{enabled:true,backgroundColor:'var(--theme-lit-130)',borderColor:'var(--theme-lit-139)',borderWidth:1},mode:'x'}},legend:{display:false}, tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmtD(ctx.parsed.y)}`}} },
+      scales:{ x:{type:'category',ticks:{color:'var(--text-2)',font:{family:'JetBrains Mono',size:10},maxTicksLimit:10,maxRotation:0},grid:{color:'var(--border)'}},
+        y:{ticks:{color:'var(--text-2)',font:{family:'JetBrains Mono',size:10},callback:v=>(v>=0?'+':'')+' $'+Math.round(v).toLocaleString()},grid:{color:'var(--border)'}} } },
   });
 
   // C8 — ddATH histogram
@@ -550,13 +541,13 @@ function render(bt, spxHist, paper, vixHist) {
   charts.c8 = new Chart(document.getElementById('c8-chart'),{
     type:'bar',
     data:{labels:ddLabels,datasets:[
-      {label:'A',data:ddA,backgroundColor:'rgba(72,136,232,0.70)',borderRadius:3},
-      {label:'B',data:ddB,backgroundColor:'rgba(224,128,64,0.70)',borderRadius:3}]},
+      {label:'A',data:ddA,backgroundColor:'var(--theme-lit-144)',borderRadius:3},
+      {label:'B',data:ddB,backgroundColor:'var(--theme-lit-065)',borderRadius:3}]},
     options:{responsive:true,animation:false,
-      plugins:{legend:{display:true,labels:{color:'#606880',font:{family:'DM Sans',size:11},boxWidth:10,boxHeight:10}},
+      plugins:{legend:{display:true,labels:{color:'var(--text-2)',font:{family:'DM Sans',size:11},boxWidth:10,boxHeight:10}},
         tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y} trades`}}},
-      scales:{x:{ticks:{color:'#606880',font:{family:'JetBrains Mono',size:9},maxRotation:0},grid:{color:'#191E33'}},
-        y:{ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},stepSize:1},grid:{color:'#191E33'}}}},
+      scales:{x:{ticks:{color:'var(--text-2)',font:{family:'JetBrains Mono',size:9},maxRotation:0},grid:{color:'var(--border)'}},
+        y:{ticks:{color:'var(--text-2)',font:{family:'JetBrains Mono',size:10},stepSize:1},grid:{color:'var(--border)'}}}},
   });
 
   // C10 — P&L by year
@@ -570,13 +561,13 @@ function render(bt, spxHist, paper, vixHist) {
   charts.c10 = new Chart(document.getElementById('c10-chart'),{
     type:'bar',
     data:{labels:yrLabels,datasets:[
-      {label:'A',data:yrLabels.map(y=>Math.round(yrPnL[y].A||0)),backgroundColor:'rgba(72,136,232,0.70)',borderRadius:3},
-      {label:'B',data:yrLabels.map(y=>Math.round(yrPnL[y].B||0)),backgroundColor:'rgba(224,128,64,0.70)',borderRadius:3}]},
+      {label:'A',data:yrLabels.map(y=>Math.round(yrPnL[y].A||0)),backgroundColor:'var(--theme-lit-144)',borderRadius:3},
+      {label:'B',data:yrLabels.map(y=>Math.round(yrPnL[y].B||0)),backgroundColor:'var(--theme-lit-065)',borderRadius:3}]},
     options:{responsive:true,animation:false,
-      plugins:{legend:{display:true,labels:{color:'#606880',font:{family:'DM Sans',size:11},boxWidth:10,boxHeight:10}},
+      plugins:{legend:{display:true,labels:{color:'var(--text-2)',font:{family:'DM Sans',size:11},boxWidth:10,boxHeight:10}},
         tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${fmtD(ctx.parsed.y)}`}}},
-      scales:{x:{stacked:true,ticks:{color:'#606880',font:{family:'JetBrains Mono',size:9},maxRotation:0},grid:{color:'#191E33'}},
-        y:{stacked:true,ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},callback:v=>'$'+Math.round(v).toLocaleString()},grid:{color:'#191E33'}}}},
+      scales:{x:{stacked:true,ticks:{color:'var(--text-2)',font:{family:'JetBrains Mono',size:9},maxRotation:0},grid:{color:'var(--border)'}},
+        y:{stacked:true,ticks:{color:'var(--text-2)',font:{family:'JetBrains Mono',size:10},callback:v=>'$'+Math.round(v).toLocaleString()},grid:{color:'var(--border)'}}}},
   });
 
   // C11 — BP timeline (account_pct %)
@@ -584,14 +575,14 @@ function render(bt, spxHist, paper, vixHist) {
   charts.c11 = new Chart(document.getElementById('c11-chart'),{
     type:'scatter',
     data:{datasets:[
-      {label:'A',data:tradesA.map(t=>({x:t.signal_date,y:t.account_pct})),backgroundColor:'rgba(72,136,232,0.70)',pointRadius:5},
-      {label:'B',data:tradesB.map(t=>({x:t.signal_date,y:t.account_pct})),backgroundColor:'rgba(224,128,64,0.70)',pointRadius:6},
+      {label:'A',data:tradesA.map(t=>({x:t.signal_date,y:t.account_pct})),backgroundColor:'var(--theme-lit-144)',pointRadius:5},
+      {label:'B',data:tradesB.map(t=>({x:t.signal_date,y:t.account_pct})),backgroundColor:'var(--theme-lit-065)',pointRadius:6},
     ]},
     options:{responsive:true,animation:false,
-      plugins:{legend:{display:true,labels:{color:'#606880',font:{family:'DM Sans',size:11},boxWidth:10,boxHeight:10}},
+      plugins:{legend:{display:true,labels:{color:'var(--text-2)',font:{family:'DM Sans',size:11},boxWidth:10,boxHeight:10}},
         tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label} ${fmtDate(ctx.raw.x)}: ${ctx.parsed.y>0?'+':''}${ctx.parsed.y.toFixed(2)}%`}}},
-      scales:{x:{type:'category',ticks:{color:'#606880',font:{family:'JetBrains Mono',size:9},maxTicksLimit:10,maxRotation:0},grid:{color:'#191E33'}},
-        y:{ticks:{color:'#606880',font:{family:'JetBrains Mono',size:10},callback:v=>(v>0?'+':'')+v.toFixed(1)+'%'},grid:{color:'#191E33'}}}},
+      scales:{x:{type:'category',ticks:{color:'var(--text-2)',font:{family:'JetBrains Mono',size:9},maxTicksLimit:10,maxRotation:0},grid:{color:'var(--border)'}},
+        y:{ticks:{color:'var(--text-2)',font:{family:'JetBrains Mono',size:10},callback:v=>(v>0?'+':'')+v.toFixed(1)+'%'},grid:{color:'var(--border)'}}}},
   });
 }
 

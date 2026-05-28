@@ -11,35 +11,11 @@
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <script src="{{ url_for('static', filename='spec072_helpers.js') }}"></script>
+<script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec108"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec108">
+<script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  --bg:            #080A13;
-  --surface:       #0D1020;
-  --surface-hi:    #131728;
-  --border:        #191E33;
-  --border-2:      #232A42;
-  --text:          #C4CEEC;
-  --text-2:        #606880;
-  --text-muted:    #363C52;
-  --gold:          #C9A840;
-  --gold-bg:       rgba(201,168,64,0.07);
-  --gold-border:   rgba(201,168,64,0.22);
-  --green:         #42CC7C;
-  --green-bg:      rgba(66,204,124,0.07);
-  --green-border:  rgba(66,204,124,0.22);
-  --red:           #E04862;
-  --red-bg:        rgba(224,72,98,0.07);
-  --red-border:    rgba(224,72,98,0.22);
-  --blue:          #4888E8;
-  --blue-bg:       rgba(72,136,232,0.07);
-  --orange:        #E08040;
-
-  --f-display: 'Newsreader', Georgia, serif;
-  --f-mono:    'JetBrains Mono', 'Courier New', monospace;
-  --f-ui:      'DM Sans', system-ui, sans-serif;
-}
 
 html { font-size: 14px; }
 body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-height: 100vh; }
@@ -49,7 +25,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   position: sticky; top: 0; z-index: 100;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 28px; height: 50px;
-  background: rgba(8,10,19,0.88); backdrop-filter: blur(10px);
+  background: var(--nav-bg); backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
 }
 .nav-brand { font-family: var(--f-display); font-size: 1.05rem; color: var(--text); }
@@ -113,7 +89,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   cursor: pointer; font-family: var(--f-ui); font-size: 0.78rem; font-weight: 500;
   letter-spacing: 0.03em; transition: all .15s;
 }
-.btn-run:hover:not(:disabled) { background: rgba(201,168,64,0.14); }
+.btn-run:hover:not(:disabled) { background: var(--theme-lit-031); }
 .btn-run:disabled { opacity: 0.45; cursor: not-allowed; }
 .run-status {
   font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-2);
@@ -145,12 +121,12 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   letter-spacing: 0.04em;
 }
 .meta-badge {
-  background: rgba(96,104,128,0.08);
+  background: var(--gray-bg);
   border: 1px solid var(--border-2);
   color: var(--text);
 }
 .stale-bar {
-  background: rgba(201,168,64,0.08);
+  background: var(--theme-lit-029);
   border-color: var(--gold-border);
   color: var(--text);
   font-size: 0.75rem;
@@ -213,12 +189,12 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 }
 .research-pill:hover { color: var(--text); border-color: var(--text-2); background: var(--surface-hi); }
 .research-pill.active-production { color: var(--gold); background: var(--gold-bg); border-color: var(--gold-border); }
-.research-pill.active-research { color: var(--blue); background: var(--blue-bg); border-color: rgba(72,136,232,0.36); }
+.research-pill.active-research { color: var(--blue); background: var(--blue-bg); border-color: var(--theme-lit-137); }
 .research-banner {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   margin-bottom: 10px; padding: 10px 14px;
-  border-radius: 8px; border: 1px solid rgba(72,136,232,0.28);
-  background: rgba(72,136,232,0.09); color: #A9C7F7;
+  border-radius: 8px; border: 1px solid var(--theme-lit-135);
+  background: var(--theme-lit-130); color: var(--blue-soft);
   font-size: 0.74rem;
 }
 .research-banner strong {
@@ -227,7 +203,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 }
 .research-scale-disclaimer {
   margin-bottom: 14px;
-  color: #B79CFF;
+  color: var(--purple);
   font-size: 0.72rem;
   font-weight: 600;
 }
@@ -239,16 +215,16 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   color: inherit;
 }
 .dual-stack .dual-est {
-  color: #B79CFF;
+  color: var(--purple);
   font-size: 0.72rem;
 }
 .legend-note {
   margin-top: 12px;
   font-size: 0.72rem;
-  color: #B79CFF;
+  color: var(--purple);
 }
 .legend-note a {
-  color: #B79CFF;
+  color: var(--purple);
   text-decoration: underline;
 }
 
@@ -290,7 +266,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid var(--border-2);
-  background: rgba(19,23,40,0.78);
+  background: var(--theme-lit-017);
   color: var(--text-2);
   font-family: var(--f-mono);
   font-size: 0.64rem;
@@ -298,7 +274,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 }
 .spx-aux-toggle:hover {
   color: var(--text);
-  border-color: rgba(224,128,64,0.30);
+  border-color: var(--theme-lit-060);
 }
 .spx-aux-toggle input {
   accent-color: var(--orange);
@@ -307,9 +283,9 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   width: 10px;
   height: 10px;
   border-radius: 2px;
-  background: rgba(224,128,64,0.22);
-  border: 1px solid rgba(224,128,64,0.58);
-  box-shadow: 0 0 0 1px rgba(8,10,19,0.45) inset;
+  background: var(--orange-border);
+  border: 1px solid var(--theme-lit-063);
+  box-shadow: 0 0 0 1px var(--theme-lit-150) inset;
 }
 .q019-flip-tooltip {
   position: absolute;
@@ -319,13 +295,13 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   pointer-events: none;
   padding: 10px 12px;
   border-radius: 8px;
-  border: 1px solid rgba(224,128,64,0.22);
-  background: rgba(13,16,32,0.96);
+  border: 1px solid var(--orange-border);
+  background: var(--theme-lit-009);
   color: var(--text);
-  box-shadow: 0 14px 34px rgba(0,0,0,0.30);
+  box-shadow: 0 14px 34px var(--shadow-soft);
 }
 .q019-flip-tooltip-title {
-  color: #F0C277;
+  color: var(--theme-lit-002);
   font-size: 0.69rem;
   font-weight: 600;
   margin-bottom: 6px;
@@ -351,7 +327,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   padding: 10px 12px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: rgba(19,23,40,0.72);
+  background: var(--theme-lit-016);
 }
 .spx-window-head {
   display: flex;
@@ -381,10 +357,10 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   background:
     linear-gradient(
       90deg,
-      rgba(201,168,64,0.22) 0%,
-      rgba(201,168,64,0.22) var(--window-cut),
-      rgba(201,168,64,0.92) var(--window-cut),
-      rgba(201,168,64,0.92) 100%
+      var(--gold-border) 0%,
+      var(--gold-border) var(--window-cut),
+      var(--theme-lit-051) var(--window-cut),
+      var(--theme-lit-051) 100%
     );
   border: 1px solid var(--gold-border);
   border-radius: 999px;
@@ -401,9 +377,9 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   height: 14px;
   margin-top: 1px;
   border-radius: 50%;
-  background: #F6E7A3;
-  border: 1px solid rgba(8,10,19,0.8);
-  box-shadow: 0 0 0 2px rgba(201,168,64,0.28);
+  background: var(--gold-pale);
+  border: 1px solid var(--theme-lit-153);
+  box-shadow: 0 0 0 2px var(--theme-lit-034);
 }
 .spx-window-slider::-moz-range-track {
   height: 100%;
@@ -414,9 +390,9 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #F6E7A3;
-  border: 1px solid rgba(8,10,19,0.8);
-  box-shadow: 0 0 0 2px rgba(201,168,64,0.28);
+  background: var(--gold-pale);
+  border: 1px solid var(--theme-lit-153);
+  box-shadow: 0 0 0 2px var(--theme-lit-034);
 }
 .spx-window-scale {
   margin-top: 6px;
@@ -435,8 +411,8 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   border: 1px solid var(--border);
   border-radius: 8px;
   background:
-    linear-gradient(180deg, rgba(19,23,40,0.96), rgba(13,16,32,0.92)),
-    radial-gradient(circle at top left, rgba(201,168,64,0.08), transparent 38%);
+    linear-gradient(180deg, var(--theme-lit-019), var(--theme-lit-007)),
+    radial-gradient(circle at top left, var(--theme-lit-029), transparent 38%);
 }
 .signal-matrix-row {
   display: grid;
@@ -457,12 +433,12 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   overflow: hidden;
   border-radius: 999px;
   border: 1px solid var(--border-2);
-  background: rgba(8,10,19,0.78);
+  background: var(--theme-lit-152);
 }
 .signal-matrix-seg {
   min-width: 1px;
   height: 100%;
-  border-right: 1px solid rgba(8,10,19,0.4);
+  border-right: 1px solid var(--theme-lit-149);
   position: relative;
 }
 .signal-matrix-seg:last-child { border-right: none; }
@@ -476,7 +452,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   font-family: var(--f-mono);
   font-size: 0.52rem;
   letter-spacing: 0.06em;
-  color: rgba(255,255,255,0.88);
+  color: var(--theme-lit-098);
   opacity: 0;
 }
 .signal-matrix-seg.show-label::after { opacity: 0.9; }
@@ -548,8 +524,8 @@ table.log-tbl { width: 100%; border-collapse: collapse; min-width: 980px; }
 .reason-profit  { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
 .reason-stop    { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red-border); }
 .reason-roll    { background: var(--gold-bg);  color: var(--gold);  border: 1px solid var(--gold-border); }
-.reason-open    { background: rgba(224,128,64,.10); color: var(--orange); border: 1px solid rgba(224,128,64,.28); }
-.reason-default { background: rgba(96,104,128,.07); color: var(--text-2); border: 1px solid rgba(96,104,128,.2); }
+.reason-open    { background: var(--theme-lit-052); color: var(--orange); border: 1px solid var(--theme-lit-053); }
+.reason-default { background: var(--theme-lit-157); color: var(--text-2); border: 1px solid var(--theme-lit-161); }
 
 /* ── Trade log filter bar ── */
 .log-filter-bar {
@@ -646,7 +622,7 @@ table.log-tbl { width: 100%; border-collapse: collapse; min-width: 980px; }
   cursor: pointer; font-family: var(--f-ui); font-size: 0.78rem; font-weight: 500;
   letter-spacing: 0.03em; transition: all .15s;
 }
-.btn-run-exp:hover:not(:disabled) { background: rgba(201,168,64,0.14); }
+.btn-run-exp:hover:not(:disabled) { background: var(--theme-lit-031); }
 .btn-run-exp:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn-auto {
   padding: 8px 18px;
@@ -655,7 +631,7 @@ table.log-tbl { width: 100%; border-collapse: collapse; min-width: 980px; }
   cursor: pointer; font-family: var(--f-ui); font-size: 0.78rem; font-weight: 500;
   letter-spacing: 0.03em; transition: all .15s;
 }
-.btn-auto:hover:not(:disabled) { background: rgba(72,136,232,0.14); }
+.btn-auto:hover:not(:disabled) { background: var(--theme-lit-132); }
 .btn-auto:disabled { opacity: 0.45; cursor: not-allowed; }
 .exp-status { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-2); }
 
@@ -735,7 +711,7 @@ table.exp-tbl { width: 100%; border-collapse: collapse; }
 }
 .exp-tbl tbody tr:last-child td { border-bottom: none; }
 .exp-tbl tbody tr:hover td { background: var(--surface-hi); }
-.exp-tbl tbody tr.best-row td { background: rgba(201,168,64,0.04); }
+.exp-tbl tbody tr.best-row td { background: var(--theme-lit-027); }
 .exp-select { accent-color: var(--blue); }
 .auto-tag {
   display: inline-block; padding: 1px 6px; border-radius: 3px;
@@ -1130,10 +1106,10 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
       <div class="spx-band-note" id="spx-band-note">Background bands are off. Pick a signal overlay to color the timeline by that signal only.</div>
       <div class="signal-matrix" id="signal-matrix"></div>
       <div class="equity-legend">
-        <span class="eq-leg-item"><span class="eq-arrow" style="color:#42CC7C">▲</span> Open — 盈利</span>
-        <span class="eq-leg-item"><span class="eq-arrow" style="color:#42CC7C">▼</span> Close — 盈利</span>
-        <span class="eq-leg-item"><span class="eq-arrow" style="color:#E04862">▲</span> Open — 亏损</span>
-        <span class="eq-leg-item"><span class="eq-arrow" style="color:#E04862">▼</span> Close — 亏损</span>
+        <span class="eq-leg-item"><span class="eq-arrow" style="color:var(--green)">▲</span> Open — 盈利</span>
+        <span class="eq-leg-item"><span class="eq-arrow" style="color:var(--green)">▼</span> Close — 盈利</span>
+        <span class="eq-leg-item"><span class="eq-arrow" style="color:var(--red)">▲</span> Open — 亏损</span>
+        <span class="eq-leg-item"><span class="eq-arrow" style="color:var(--red)">▼</span> Close — 亏损</span>
         <span class="eq-leg-item hidden" id="q019-flip-legend"><span class="q019-flip-swatch"></span> Q019 VIX Flip Day (Signal changed)</span>
       </div>
     </div>
@@ -1148,10 +1124,10 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
         </div>
       </div>
       <div class="equity-legend">
-        <span class="eq-leg-item"><span class="eq-arrow" style="color:#42CC7C">▲</span> Open — 盈利</span>
-        <span class="eq-leg-item"><span class="eq-arrow" style="color:#42CC7C">▼</span> Close — 盈利</span>
-        <span class="eq-leg-item"><span class="eq-arrow" style="color:#E04862">▲</span> Open — 亏损</span>
-        <span class="eq-leg-item"><span class="eq-arrow" style="color:#E04862">▼</span> Close — 亏损</span>
+        <span class="eq-leg-item"><span class="eq-arrow" style="color:var(--green)">▲</span> Open — 盈利</span>
+        <span class="eq-leg-item"><span class="eq-arrow" style="color:var(--green)">▼</span> Close — 盈利</span>
+        <span class="eq-leg-item"><span class="eq-arrow" style="color:var(--red)">▲</span> Open — 亏损</span>
+        <span class="eq-leg-item"><span class="eq-arrow" style="color:var(--red)">▼</span> Close — 亏损</span>
         <span class="eq-leg-note">箭头大小 ∝ 仓位大小</span>
       </div>
     </div>
@@ -1608,9 +1584,9 @@ function _downsample(arr, step) {
 }
 
 function regimeColor(r) {
-  if (r === 'HIGH_VOL') return '#E04862';
-  if (r === 'LOW_VOL')  return '#4888E8';
-  return '#C9A840';
+  if (r === 'HIGH_VOL') return 'var(--red)';
+  if (r === 'LOW_VOL')  return 'var(--blue)';
+  return 'var(--gold)';
 }
 
 function ivRankSignal(ivr) {
@@ -1668,29 +1644,29 @@ function signalLabel(value, key) {
 
 function signalFill(key, value, alpha = 0.14) {
   if (key === 'regime') {
-    if (value === 'LOW_VOL') return `rgba(72,136,232,${alpha})`;
-    if (value === 'HIGH_VOL') return `rgba(224,72,98,${alpha})`;
-    return `rgba(201,168,64,${alpha})`;
+    if (value === 'LOW_VOL') return themeRgba('blue', alpha);
+    if (value === 'HIGH_VOL') return themeRgba('red', alpha);
+    return themeRgba('gold', alpha);
   }
   if (key === 'ivr_signal' || key === 'ivp_bucket') {
-    if (value === 'LOW') return `rgba(72,136,232,${alpha})`;
-    if (value === 'HIGH') return `rgba(224,72,98,${alpha})`;
-    return `rgba(201,168,64,${alpha})`;
+    if (value === 'LOW') return themeRgba('blue', alpha);
+    if (value === 'HIGH') return themeRgba('red', alpha);
+    return themeRgba('gold', alpha);
   }
   if (key === 'trend') {
-    if (value === 'BULLISH') return `rgba(66,204,124,${alpha})`;
-    if (value === 'BEARISH') return `rgba(224,72,98,${alpha})`;
-    return `rgba(201,168,64,${alpha})`;
+    if (value === 'BULLISH') return themeRgba('green', alpha);
+    if (value === 'BEARISH') return themeRgba('red', alpha);
+    return themeRgba('gold', alpha);
   }
   if (key === 'strategy') {
-    if (value === 'Reduce / Wait') return `rgba(96,104,128,${alpha + 0.04})`;
-    if (value.includes('Iron Condor')) return `rgba(201,168,64,${alpha})`;
-    if (value.includes('Bull Put')) return `rgba(66,204,124,${alpha})`;
-    if (value.includes('Bull Call')) return `rgba(72,136,232,${alpha})`;
-    if (value.includes('Bear Call') || value.includes('Bear Put')) return `rgba(224,72,98,${alpha})`;
-    return `rgba(96,104,128,${alpha})`;
+    if (value === 'Reduce / Wait') return themeRgba('text-2', alpha + 0.04);
+    if (value.includes('Iron Condor')) return themeRgba('gold', alpha);
+    if (value.includes('Bull Put')) return themeRgba('green', alpha);
+    if (value.includes('Bull Call')) return themeRgba('blue', alpha);
+    if (value.includes('Bear Call') || value.includes('Bear Put')) return themeRgba('red', alpha);
+    return themeRgba('text-2', alpha);
   }
-  return `rgba(96,104,128,${alpha})`;
+  return themeRgba('text-2', alpha);
 }
 
 function signalStroke(key, value) {
@@ -1845,13 +1821,13 @@ function _makeChart(id, datasets, yOpts = {}, extraOpts = {}) {
         legend: {
           display: datasets.length > 1,
           labels: {
-            color: '#606880', font: { family: "'DM Sans'", size: 10 },
+            color: 'var(--text-2)', font: { family: "'DM Sans'", size: 10 },
             boxWidth: 12, padding: 10,
           },
         },
         tooltip: {
-          backgroundColor: '#0D1020', borderColor: '#2A3350', borderWidth: 1,
-          titleColor: '#C4CEEC', bodyColor: '#C4CEEC',
+          backgroundColor: 'var(--surface)', borderColor: 'var(--border-3)', borderWidth: 1,
+          titleColor: 'var(--text)', bodyColor: 'var(--text)',
           titleFont: { family: "'JetBrains Mono'", size: 10 },
           bodyFont:  { family: "'JetBrains Mono'", size: 11, weight: '600' },
           padding: 10,
@@ -1860,9 +1836,9 @@ function _makeChart(id, datasets, yOpts = {}, extraOpts = {}) {
       scales: {
         x: {
           type: 'category',
-          grid: { color: '#191E33' },
+          grid: { color: 'var(--border)' },
           ticks: {
-            color: '#363C52', font: { family: "'JetBrains Mono'", size: 9 },
+            color: 'var(--text-muted)', font: { family: "'JetBrains Mono'", size: 9 },
             maxTicksLimit: 10,
             callback: (_, i, arr) => {
               const ds = datasets[0]?.data || [];
@@ -1872,8 +1848,8 @@ function _makeChart(id, datasets, yOpts = {}, extraOpts = {}) {
           },
         },
         y: {
-          grid: { color: '#191E33' },
-          ticks: { color: '#606880', font: { family: "'JetBrains Mono'", size: 9 } },
+          grid: { color: 'var(--border)' },
+          ticks: { color: 'var(--text-2)', font: { family: "'JetBrains Mono'", size: 9 } },
           ...yOpts,
         },
       },
@@ -1907,13 +1883,13 @@ function renderSignalCharts(step) {
     {
       label: 'IV Rank',
       data: rows.map(r => ({ x: r.date, y: r.ivr })),
-      borderColor: '#C9A840', backgroundColor: 'transparent',
+      borderColor: 'var(--gold)', backgroundColor: 'transparent',
       borderWidth: 1.5, pointRadius: 0, tension: 0.3,
     },
     {
       label: 'IV %ile',
       data: rows.map(r => ({ x: r.date, y: r.ivp })),
-      borderColor: '#4888E8', backgroundColor: 'transparent',
+      borderColor: 'var(--blue)', backgroundColor: 'transparent',
       borderWidth: 1.2, pointRadius: 0, tension: 0.3,
       borderDash: [4, 3],
     },
@@ -1926,9 +1902,9 @@ function renderSignalCharts(step) {
   _makeChart('chart-trend', [{
     label: 'Gap %',
     data: rows.map(r => ({ x: r.date, y: r.trend_gap })),
-    borderColor: rows.map(r => r.trend_gap >= 0 ? '#42CC7C' : '#E04862'),
+    borderColor: rows.map(r => r.trend_gap >= 0 ? 'var(--green)' : 'var(--red)'),
     segment: {
-      borderColor: ctx => rows[ctx.p0DataIndex]?.trend_gap >= 0 ? '#42CC7C' : '#E04862',
+      borderColor: ctx => rows[ctx.p0DataIndex]?.trend_gap >= 0 ? 'var(--green)' : 'var(--red)',
     },
     backgroundColor: 'transparent',
     borderWidth: 1.5, pointRadius: 0, tension: 0.3,
@@ -1945,8 +1921,8 @@ function renderSignalCharts(step) {
   _makeChart('chart-vix5d', [{
     label: 'VIX 5d avg',
     data: rows.map(r => ({ x: r.date, y: r.vix_5d_avg })),
-    borderColor: '#8860D0',
-    backgroundColor: 'rgba(136,96,208,0.06)',
+    borderColor: 'var(--theme-lit-001)',
+    backgroundColor: 'var(--theme-lit-013)',
     fill: true,
     borderWidth: 1.5, pointRadius: 0, tension: 0.35,
   }], {
@@ -2334,9 +2310,9 @@ function buildSpxChartData(trades, isResearch = false) {
 
   // Open ▲: blue (neutral — win/loss unknown at entry)
   // Close ▽: green=win, red=loss
-  const openColor     = '#4888E8';
-  const closeWinColor = isResearch ? '#4888E8' : '#42CC7C';
-  const closeLossColor = isResearch ? '#E08040' : '#E04862';
+  const openColor     = 'var(--blue)';
+  const closeWinColor = isResearch ? 'var(--blue)' : 'var(--green)';
+  const closeLossColor = isResearch ? 'var(--orange)' : 'var(--red)';
   const ptColors = [];
   const ptRotation = [];
   const ptTrades = [];
@@ -2489,8 +2465,8 @@ function renderResults(data) {
     labels.push(ev.date);
     vals.push(cum);
     // Open ▲: blue (direction neutral until close); Close ▽: green=win red=loss
-    const c = ev.type === 'open' ? '#4888E8'
-      : ev.trade.exit_pnl >= 0 ? '#42CC7C' : '#E04862';
+    const c = ev.type === 'open' ? 'var(--blue)'
+      : ev.trade.exit_pnl >= 0 ? 'var(--green)' : 'var(--red)';
     ptColors.push(c);
     ptRotation.push(ev.type === 'open' ? 0 : 180);
     ptTrades.push(ev.trade);
@@ -2524,7 +2500,7 @@ function renderResults(data) {
       c.beginPath();
       c.moveTo(ptA.x, ptA.y);
       c.lineTo(ptB.x, ptB.y);
-      c.strokeStyle = 'rgba(255,255,255,0.20)';
+      c.strokeStyle = 'var(--chart-on-dark-faint)';
       c.lineWidth = 1;
       c.setLineDash([3, 4]);
       c.stroke();
@@ -2532,7 +2508,7 @@ function renderResults(data) {
       // Highlight ring around sibling
       c.beginPath();
       c.arc(ptB.x, ptB.y, (ptRadius[sib] || 6) + 5, 0, Math.PI * 2);
-      c.strokeStyle = '#FFFFFF';
+      c.strokeStyle = 'var(--white)';
       c.lineWidth = 1.5;
       c.globalAlpha = 0.70;
       c.stroke();
@@ -2542,14 +2518,14 @@ function renderResults(data) {
 
   if (equityChart) { equityChart.destroy(); equityChart = null; }
 
-  Chart.defaults.color = '#363C52';
-  Chart.defaults.borderColor = '#191E33';
+  Chart.defaults.color = 'var(--text-muted)';
+  Chart.defaults.borderColor = 'var(--border)';
 
   const ctx = document.getElementById('equity-chart').getContext('2d');
   const gradient = ctx.createLinearGradient(0, 0, 0, 220);
-  gradient.addColorStop(0,   'rgba(201,168,64,0.18)');
-  gradient.addColorStop(0.6, 'rgba(201,168,64,0.04)');
-  gradient.addColorStop(1,   'rgba(201,168,64,0)');
+  gradient.addColorStop(0,   'var(--theme-lit-032)');
+  gradient.addColorStop(0.6, 'var(--theme-lit-027)');
+  gradient.addColorStop(1,   'var(--theme-lit-025)');
 
   equityChart = new Chart(ctx, {
     plugins: [siblingPlugin],
@@ -2558,7 +2534,7 @@ function renderResults(data) {
       labels,
       datasets: [{
         data: vals,
-        borderColor: '#C9A840',
+        borderColor: 'var(--gold)',
         backgroundColor: gradient,
         borderWidth: 1.5,
         fill: true,
@@ -2579,15 +2555,15 @@ function renderResults(data) {
       maintainAspectRatio: false,
       interaction: { intersect: false, mode: 'nearest' },
       plugins: {
-        zoom: { zoom: { drag: { enabled:true, backgroundColor:'rgba(72,136,232,0.09)', borderColor:'rgba(72,136,232,0.45)', borderWidth:1 }, mode:'x' } },
+        zoom: { zoom: { drag: { enabled:true, backgroundColor:'var(--theme-lit-130)', borderColor:'var(--theme-lit-139)', borderWidth:1 }, mode:'x' } },
         legend: { display: false },
         tooltip: {
-          backgroundColor: '#0D1020',
-          borderColor: '#2A3350',
+          backgroundColor: 'var(--surface)',
+          borderColor: 'var(--border-3)',
           borderWidth: 1,
-          titleColor: '#C4CEEC',
-          bodyColor: '#C4CEEC',
-          footerColor: '#606880',
+          titleColor: 'var(--text)',
+          bodyColor: 'var(--text)',
+          footerColor: 'var(--text-2)',
           titleFont: { family: "'DM Sans'", size: 11, weight: '500' },
           bodyFont: { family: "'JetBrains Mono'", size: 12, weight: '600' },
           footerFont: { family: "'JetBrains Mono'", size: 10 },
@@ -2644,11 +2620,11 @@ function renderResults(data) {
             },
             labelColor: item => {
               const ev = events[item.dataIndex];
-              if (!ev) return { backgroundColor: '#606880', borderColor: '#606880' };
+              if (!ev) return { backgroundColor: 'var(--text-2)', borderColor: 'var(--text-2)' };
               // Open marker: always teal-ish; close: green=win red=loss
               const c = ev.type === 'open'
-                ? '#4888E8'   // blue for open — distinct from close win/loss
-                : ev.trade.exit_pnl >= 0 ? '#42CC7C' : '#E04862';
+                ? 'var(--blue)'   // blue for open — distinct from close win/loss
+                : ev.trade.exit_pnl >= 0 ? 'var(--green)' : 'var(--red)';
               return { backgroundColor: c, borderColor: c, borderRadius: 2 };
             },
           }
@@ -2661,16 +2637,16 @@ function renderResults(data) {
             tooltipFormat: 'yyyy-MM-dd',
             displayFormats: { day: 'MM-dd', month: 'yyyy-MM', year: 'yyyy' },
           },
-          grid: { color: '#191E33' },
+          grid: { color: 'var(--border)' },
           ticks: {
-            color: '#363C52', font: { family: "'JetBrains Mono'", size: 10 },
+            color: 'var(--text-muted)', font: { family: "'JetBrains Mono'", size: 10 },
             maxTicksLimit: 8,
           }
         },
         y: {
-          grid: { color: '#191E33' },
+          grid: { color: 'var(--border)' },
           ticks: {
-            color: '#606880',
+            color: 'var(--text-2)',
             font: { family: "'JetBrains Mono'", size: 10 },
             callback: v => (v >= 0 ? '+$' : '-$') + Math.abs(v).toLocaleString(),
           }
@@ -2739,7 +2715,7 @@ function renderAnnualPnlChart(trades) {
       ctx.save();
       ctx.font = "10px 'JetBrains Mono'";
       ctx.textAlign = 'center';
-      ctx.fillStyle = '#C9A840';
+      ctx.fillStyle = 'var(--gold)';
       years.forEach((year, idx) => {
         if (!stressYears.has(year)) return;
         const bar = meta.data[idx];
@@ -2757,8 +2733,8 @@ function renderAnnualPnlChart(trades) {
       labels: years,
       datasets: [{
         data: values,
-        backgroundColor: values.map(v => v >= 0 ? 'rgba(66,204,124,0.7)' : 'rgba(224,72,98,0.7)'),
-        borderColor: values.map(v => v >= 0 ? '#42CC7C' : '#E04862'),
+        backgroundColor: values.map(v => v >= 0 ? 'var(--theme-lit-118)' : 'var(--theme-lit-082)'),
+        borderColor: values.map(v => v >= 0 ? 'var(--green)' : 'var(--red)'),
         borderWidth: 1.2,
       }]
     },
@@ -2769,12 +2745,12 @@ function renderAnnualPnlChart(trades) {
       scales: {
         x: {
           grid: { display: false },
-          ticks: { color: '#606880', font: { family: "'JetBrains Mono'", size: 10 } }
+          ticks: { color: 'var(--text-2)', font: { family: "'JetBrains Mono'", size: 10 } }
         },
         y: {
-          grid: { color: '#191E33' },
+          grid: { color: 'var(--border)' },
           ticks: {
-            color: '#606880',
+            color: 'var(--text-2)',
             font: { family: "'JetBrains Mono'", size: 10 },
             callback: v => (v >= 0 ? '+$' : '-$') + Math.abs(v).toLocaleString(),
           }
@@ -2898,7 +2874,7 @@ function renderSpxChart() {
   const visiblePtColors      = eventIndexMap.map(i => ptColors[i]);
   const visiblePtRotation    = eventIndexMap.map(i => ptRotation[i]);
   // Open markers get a white border so they stand out from close markers on the chart
-  const visiblePtBorderColor = visibleEvents.map(ev => ev.type === 'open' ? 'rgba(255,255,255,0.60)' : 'transparent');
+  const visiblePtBorderColor = visibleEvents.map(ev => ev.type === 'open' ? 'var(--theme-lit-097)' : 'transparent');
   const visiblePtBorderWidth = visibleEvents.map(ev => ev.type === 'open' ? 1.5 : 0);
 
   const bandKey = overlaySignalKey(_spxOverlay);
@@ -2914,7 +2890,7 @@ function renderSpxChart() {
     {
       label: 'SPX',
       data: visibleRows.map(r => ({ x: r.date, y: r.spx })),
-      borderColor: 'rgba(72,136,232,0.55)',
+      borderColor: 'var(--theme-lit-141)',
       backgroundColor: 'transparent',
       borderWidth: 1.5,
       pointRadius: 0,
@@ -2959,7 +2935,7 @@ function renderSpxChart() {
     datasets.push({
       label: 'Cum. P&L',
       data: pnlData,
-      borderColor: 'rgba(201,168,64,0.75)',
+      borderColor: 'var(--theme-lit-046)',
       backgroundColor: 'transparent',
       borderWidth: 1.5,
       pointRadius: 0,
@@ -2990,7 +2966,7 @@ function renderSpxChart() {
     datasets.push({
       label: 'Drawdown',
       data: ddData,
-      borderColor: 'rgba(224,72,98,0.78)',
+      borderColor: 'var(--theme-lit-085)',
       backgroundColor: 'transparent',
       borderWidth: 1.5,
       pointRadius: 0,
@@ -3018,7 +2994,7 @@ function renderSpxChart() {
     datasets.push({
       label: 'Total BP Used %',
       data: bpData,
-      borderColor: 'rgba(136,96,208,0.82)',
+      borderColor: 'var(--theme-lit-014)',
       backgroundColor: 'transparent',
       borderWidth: 1.5,
       pointRadius: 0,
@@ -3030,7 +3006,7 @@ function renderSpxChart() {
     datasets.push({
       label: 'VIX',
       data: visibleRows.map(r => ({ x: r.date, y: r.vix })),
-      borderColor: 'rgba(224,72,98,0.65)',
+      borderColor: 'var(--theme-lit-081)',
       backgroundColor: 'transparent',
       borderWidth: 1.2,
       pointRadius: 0,
@@ -3042,7 +3018,7 @@ function renderSpxChart() {
     datasets.push({
       label: 'IV Rank',
       data: visibleRows.map(r => ({ x: r.date, y: r.ivr })),
-      borderColor: 'rgba(201,168,64,0.75)',
+      borderColor: 'var(--theme-lit-046)',
       backgroundColor: 'transparent',
       borderWidth: 1.2,
       pointRadius: 0,
@@ -3054,7 +3030,7 @@ function renderSpxChart() {
     datasets.push({
       label: 'IV %ile',
       data: visibleRows.map(r => ({ x: r.date, y: r.ivp })),
-      borderColor: 'rgba(72,136,232,0.75)',
+      borderColor: 'var(--theme-lit-145)',
       backgroundColor: 'transparent',
       borderWidth: 1.2,
       pointRadius: 0,
@@ -3066,13 +3042,13 @@ function renderSpxChart() {
     datasets.push({
       label: 'SPX Trend Gap',
       data: visibleRows.map(r => ({ x: r.date, y: r.trend_gap })),
-      borderColor: '#C9A840',
+      borderColor: 'var(--gold)',
       segment: {
         borderColor: ctx => {
           const row = visibleRows[ctx.p0DataIndex] || {};
-          return row.trend === 'BULLISH' ? '#42CC7C'
-            : row.trend === 'BEARISH' ? '#E04862'
-            : '#C9A840';
+          return row.trend === 'BULLISH' ? 'var(--green)'
+            : row.trend === 'BEARISH' ? 'var(--red)'
+            : 'var(--gold)';
         },
       },
       backgroundColor: 'transparent',
@@ -3105,10 +3081,10 @@ function renderSpxChart() {
       const c = chart.ctx;
       c.save();
       c.beginPath(); c.moveTo(ptA.x, ptA.y); c.lineTo(ptB.x, ptB.y);
-      c.strokeStyle = 'rgba(255,255,255,0.20)'; c.lineWidth = 1;
+      c.strokeStyle = 'var(--chart-on-dark-faint)'; c.lineWidth = 1;
       c.setLineDash([3, 4]); c.stroke(); c.setLineDash([]);
       c.beginPath(); c.arc(ptB.x, ptB.y, (visiblePtRadius[sib] || 6) + 5, 0, Math.PI * 2);
-      c.strokeStyle = '#FFFFFF'; c.lineWidth = 1.5; c.globalAlpha = 0.70; c.stroke();
+      c.strokeStyle = 'var(--white)'; c.lineWidth = 1.5; c.globalAlpha = 0.70; c.stroke();
       c.restore();
     },
   };
@@ -3147,7 +3123,7 @@ function renderSpxChart() {
         ctx.stroke();
 
         if (width > 86) {
-          ctx.fillStyle = 'rgba(196,206,236,0.34)';
+          ctx.fillStyle = 'var(--theme-lit-021)';
           ctx.font = width > 170 ? "500 10px 'JetBrains Mono'" : "500 9px 'JetBrains Mono'";
           ctx.textBaseline = 'top';
           const label = signalLabel(b.value, b.key);
@@ -3172,9 +3148,9 @@ function renderSpxChart() {
       const { ctx, chartArea } = chart;
       ctx.save();
       hits.forEach(hit => {
-        ctx.fillStyle = 'rgba(224,128,64,0.16)';
+        ctx.fillStyle = 'var(--theme-lit-057)';
         ctx.fillRect(hit.left, chartArea.top, hit.right - hit.left, chartArea.bottom - chartArea.top);
-        ctx.strokeStyle = 'rgba(240,194,119,0.42)';
+        ctx.strokeStyle = 'var(--theme-lit-089)';
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(hit.left, chartArea.top + 0.5);
@@ -3212,9 +3188,9 @@ function renderSpxChart() {
       if (!_showQ019FlipDays || !_q019HoveredHit) return;
       const { ctx, chartArea } = chart;
       ctx.save();
-      ctx.fillStyle = 'rgba(240,194,119,0.12)';
+      ctx.fillStyle = 'var(--theme-lit-088)';
       ctx.fillRect(_q019HoveredHit.left, chartArea.top, _q019HoveredHit.right - _q019HoveredHit.left, chartArea.bottom - chartArea.top);
-      ctx.strokeStyle = 'rgba(240,194,119,0.78)';
+      ctx.strokeStyle = 'var(--theme-lit-090)';
       ctx.lineWidth = 1.2;
       ctx.strokeRect(_q019HoveredHit.left + 0.5, chartArea.top + 0.5, (_q019HoveredHit.right - _q019HoveredHit.left) - 1, (chartArea.bottom - chartArea.top) - 1);
       ctx.restore();
@@ -3231,14 +3207,14 @@ function renderSpxChart() {
         tooltipFormat: 'yyyy-MM-dd',
         displayFormats: { day: 'MM-dd', month: 'yyyy-MM', year: 'yyyy' },
       },
-      grid: { color: '#191E33' },
-      ticks: { color: '#363C52', font: { family: "'JetBrains Mono'", size: 10 }, maxTicksLimit: 8 },
+      grid: { color: 'var(--border)' },
+      ticks: { color: 'var(--text-muted)', font: { family: "'JetBrains Mono'", size: 10 }, maxTicksLimit: 8 },
     },
     y: {
       position: 'left',
-      grid: { color: '#191E33' },
+      grid: { color: 'var(--border)' },
       ticks: {
-        color: '#606880', font: { family: "'JetBrains Mono'", size: 10 },
+        color: 'var(--text-2)', font: { family: "'JetBrains Mono'", size: 10 },
         callback: v => v.toLocaleString('en-US', { maximumFractionDigits: 0 }),
       },
     },
@@ -3248,7 +3224,7 @@ function renderSpxChart() {
       position: 'right',
       grid: { drawOnChartArea: false },
       ticks: {
-        color: '#606880', font: { family: "'JetBrains Mono'", size: 10 },
+        color: 'var(--text-2)', font: { family: "'JetBrains Mono'", size: 10 },
         callback: (_spxOverlay === 'pnl' || _spxOverlay === 'dd')
           ? v => (v >= 0 ? '+$' : '-$') + Math.abs(v / 1000).toFixed(0) + 'k'
           : _spxOverlay === 'bp'
@@ -3297,18 +3273,18 @@ function renderSpxChart() {
       animation: false,
       interaction: { intersect: false, mode: 'nearest' },
       plugins: {
-        zoom: { zoom: { drag: { enabled:true, backgroundColor:'rgba(72,136,232,0.09)', borderColor:'rgba(72,136,232,0.45)', borderWidth:1 }, mode:'x' } },
+        zoom: { zoom: { drag: { enabled:true, backgroundColor:'var(--theme-lit-130)', borderColor:'var(--theme-lit-139)', borderWidth:1 }, mode:'x' } },
         legend: {
           display: _spxOverlay !== 'none',
           labels: {
-            color: '#606880', font: { family: "'DM Sans'", size: 10 },
+            color: 'var(--text-2)', font: { family: "'DM Sans'", size: 10 },
             boxWidth: 12, padding: 10,
             filter: item => item.datasetIndex >= 1,
           },
         },
         tooltip: {
-          backgroundColor: '#0D1020', borderColor: '#2A3350', borderWidth: 1,
-          titleColor: '#C4CEEC', bodyColor: '#C4CEEC', footerColor: '#606880',
+          backgroundColor: 'var(--surface)', borderColor: 'var(--border-3)', borderWidth: 1,
+          titleColor: 'var(--text)', bodyColor: 'var(--text)', footerColor: 'var(--text-2)',
           titleFont: { family: "'DM Sans'", size: 11, weight: '500' },
           bodyFont:  { family: "'JetBrains Mono'", size: 12, weight: '600' },
           footerFont: { family: "'JetBrains Mono'", size: 10 },
@@ -3339,8 +3315,8 @@ function renderSpxChart() {
             },
             labelColor: item => {
               const c = isResearch
-                ? (visibleEvents[item.dataIndex].trade.exit_pnl >= 0 ? '#4888E8' : '#E08040')
-                : (visibleEvents[item.dataIndex].trade.exit_pnl >= 0 ? '#42CC7C' : '#E04862');
+                ? (visibleEvents[item.dataIndex].trade.exit_pnl >= 0 ? 'var(--blue)' : 'var(--orange)')
+                : (visibleEvents[item.dataIndex].trade.exit_pnl >= 0 ? 'var(--green)' : 'var(--red)');
               return { backgroundColor: c, borderColor: c, borderRadius: 2 };
             },
           },

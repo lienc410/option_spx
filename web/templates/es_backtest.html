@@ -9,21 +9,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+<script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec108"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec108">
+<script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-  --bg:#080A13; --surface:#0D1020; --surface-hi:#131728;
-  --border:#191E33; --border-2:#232A42;
-  --text:#C4CEEC; --text-2:#606880; --text-muted:#363C52;
-  --gold:#C9A840; --gold-bg:rgba(201,168,64,0.07); --gold-border:rgba(201,168,64,0.22);
-  --green:#42CC7C; --green-bg:rgba(66,204,124,0.07);
-  --red:#E04862; --red-bg:rgba(224,72,98,0.07);
-  --blue:#4888E8; --blue-bg:rgba(72,136,232,0.07);
-  --orange:#E08040; --orange-bg:rgba(224,128,64,0.07); --orange-border:rgba(224,128,64,0.22);
-  --f-display:'Newsreader',Georgia,serif;
-  --f-mono:'JetBrains Mono','Courier New',monospace;
-  --f-ui:'DM Sans',system-ui,sans-serif;
-}
 html { font-size: 14px; }
 body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-height: 100vh; }
 
@@ -31,7 +21,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   position: sticky; top: 0; z-index: 100;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 24px; height: 50px;
-  background: rgba(8,10,19,0.92); backdrop-filter: blur(12px);
+  background: var(--nav-bg-strong); backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
 }
 .nav-brand { font-family: var(--f-display); font-size: 1.05rem; color: var(--gold); }
@@ -67,7 +57,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   border: 1px solid var(--orange-border); background: var(--orange-bg); color: var(--orange);
   border-radius: 5px; cursor: pointer;
 }
-.run-btn:hover { background: rgba(224,128,64,0.15); }
+.run-btn:hover { background: var(--theme-lit-056); }
 .run-btn:disabled { opacity: 0.4; cursor: default; }
 
 .section-label {
@@ -376,7 +366,7 @@ function renderEsPriceChart() {
     x: ev.date,
     y: ev.type === 'open' ? ev.trade.entry_spx : ev.trade.exit_spx,
   }));
-  const ptColors    = visibleEvents.map(ev => ev.trade.pnl >= 0 ? '#42CC7C' : '#E04862');
+  const ptColors    = visibleEvents.map(ev => ev.trade.pnl >= 0 ? 'var(--green)' : 'var(--red)');
   const ptRotation  = visibleEvents.map(ev => ev.type === 'open' ? 0 : 180);
   const ptRadius    = visibleEvents.map(() => 5);
 
@@ -384,7 +374,7 @@ function renderEsPriceChart() {
     {
       label: 'SPX',
       data: visibleRows.map(r => ({ x: r.date, y: r.spx })),
-      borderColor: 'rgba(72,136,232,0.55)',
+      borderColor: 'var(--theme-lit-141)',
       backgroundColor: 'transparent',
       borderWidth: 1.5, pointRadius: 0, pointHitRadius: 0, tension: 0.1,
       yAxisID: 'y',
@@ -417,7 +407,7 @@ function renderEsPriceChart() {
     datasets.push({
       label: 'Cum. P&L',
       data: visibleRows.map(r => { cum += closePnlByDate.get(r.date) || 0; return { x: r.date, y: cum }; }),
-      borderColor: 'rgba(201,168,64,0.78)', backgroundColor: 'transparent',
+      borderColor: 'var(--theme-lit-047)', backgroundColor: 'transparent',
       borderWidth: 1.5, pointRadius: 0, pointHitRadius: 0, stepped: 'after', yAxisID: 'y2',
     });
   } else if (_esOverlay === 'dd') {
@@ -430,21 +420,21 @@ function renderEsPriceChart() {
     datasets.push({
       label: 'Drawdown',
       data: visibleRows.map(r => { cum += closePnlByDate.get(r.date) || 0; peak = Math.max(peak, cum); return { x: r.date, y: cum - peak }; }),
-      borderColor: 'rgba(224,72,98,0.78)', backgroundColor: 'transparent',
+      borderColor: 'var(--theme-lit-085)', backgroundColor: 'transparent',
       borderWidth: 1.5, pointRadius: 0, pointHitRadius: 0, stepped: 'after', yAxisID: 'y2',
     });
   } else if (_esOverlay === 'vix') {
     datasets.push({
       label: 'VIX',
       data: visibleRows.map(r => ({ x: r.date, y: r.vix })),
-      borderColor: 'rgba(224,72,98,0.65)', backgroundColor: 'transparent',
+      borderColor: 'var(--theme-lit-081)', backgroundColor: 'transparent',
       borderWidth: 1.2, pointRadius: 0, pointHitRadius: 0, tension: 0.3, yAxisID: 'y2',
     });
   } else if (_esOverlay === 'ivr') {
     datasets.push({
       label: 'IV Rank',
       data: visibleRows.map(r => ({ x: r.date, y: r.ivr })),
-      borderColor: 'rgba(201,168,64,0.72)', backgroundColor: 'transparent',
+      borderColor: 'var(--theme-lit-045)', backgroundColor: 'transparent',
       borderWidth: 1.2, pointRadius: 0, pointHitRadius: 0, tension: 0.3, yAxisID: 'y2',
     });
   } else if (_esOverlay === 'entry_vix') {
@@ -457,8 +447,8 @@ function renderEsPriceChart() {
       pointStyle: 'circle',
       pointRadius: 4,
       pointHoverRadius: 6,
-      pointBackgroundColor: 'rgba(201,168,64,0.85)',
-      pointBorderColor: 'rgba(201,168,64,0.85)',
+      pointBackgroundColor: 'var(--theme-lit-049)',
+      pointBorderColor: 'var(--theme-lit-049)',
       pointBorderWidth: 0,
       showLine: false,
       yAxisID: 'y2',
@@ -474,13 +464,13 @@ function renderEsPriceChart() {
       animation: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        zoom: { zoom: { drag: { enabled:true, backgroundColor:'rgba(72,136,232,0.09)', borderColor:'rgba(72,136,232,0.45)', borderWidth:1 }, mode:'x' } },
+        zoom: { zoom: { drag: { enabled:true, backgroundColor:'var(--theme-lit-130)', borderColor:'var(--theme-lit-139)', borderWidth:1 }, mode:'x' } },
         legend: { display: false },
         tooltip: {
-          backgroundColor: 'rgba(13,16,32,0.92)',
-          titleColor: '#C4CEEC',
-          bodyColor: '#606880',
-          borderColor: '#232A42',
+          backgroundColor: 'var(--theme-lit-007)',
+          titleColor: 'var(--text)',
+          bodyColor: 'var(--text-2)',
+          borderColor: 'var(--border-2)',
           borderWidth: 1,
           titleFont: { family: 'JetBrains Mono', size: 10 },
           bodyFont:  { family: 'JetBrains Mono', size: 10 },
@@ -515,23 +505,23 @@ function renderEsPriceChart() {
         x: {
           type: 'category',
           ticks: {
-            color: '#606880', font: { family: 'JetBrains Mono', size: 10 },
+            color: 'var(--text-2)', font: { family: 'JetBrains Mono', size: 10 },
             maxTicksLimit: 10, maxRotation: 0,
             callback: (v, i) => { const d = visibleRows[i]?.date; return d ? d.slice(0, 7) : ''; },
           },
-          grid: { color: '#191E33' },
+          grid: { color: 'var(--border)' },
         },
         y: {
           position: 'left',
-          ticks: { color: '#606880', font: { family: 'JetBrains Mono', size: 10 }, callback: v => v >= 1000 ? (v/1000).toFixed(0)+'k' : v },
-          grid: { color: '#191E33' },
-          title: { display: true, text: 'SPX Price', color: '#363C52', font: { family: 'DM Sans', size: 9 } },
+          ticks: { color: 'var(--text-2)', font: { family: 'JetBrains Mono', size: 10 }, callback: v => v >= 1000 ? (v/1000).toFixed(0)+'k' : v },
+          grid: { color: 'var(--border)' },
+          title: { display: true, text: 'SPX Price', color: 'var(--text-muted)', font: { family: 'DM Sans', size: 9 } },
         },
         y2: {
           display: hasY2,
           position: 'right',
           ticks: {
-            color: '#606880', font: { family: 'JetBrains Mono', size: 10 },
+            color: 'var(--text-2)', font: { family: 'JetBrains Mono', size: 10 },
             callback: v => {
               if (_esOverlay === 'pnl' || _esOverlay === 'dd')
                 return (v >= 0 ? '+' : '') + '$' + Math.round(v/1000) + 'k';
@@ -542,7 +532,7 @@ function renderEsPriceChart() {
           title: {
             display: hasY2,
             text: { pnl: 'Cum. P&L', dd: 'Drawdown', vix: 'VIX', ivr: 'IV Rank', entry_vix: 'Entry VIX', none: '' }[_esOverlay] || '',
-            color: '#363C52', font: { family: 'DM Sans', size: 9 },
+            color: 'var(--text-muted)', font: { family: 'DM Sans', size: 9 },
           },
         },
       },
@@ -718,7 +708,7 @@ function renderV2fPanel(v0Summary, v2fPayload) {
 
   // V2f tail risk disclosure — Q060 stress test finding, PM decision 2026-05-10
   const tailRiskHtml = `
-    <div class="caveat-warning" style="background:#fff3cd;border:1px solid #ffc107;border-radius:4px;padding:10px;margin-top:8px;">
+    <div class="caveat-warning" style="background:var(--theme-lit-004);border:1px solid var(--theme-lit-003);border-radius:4px;padding:10px;margin-top:8px;">
       <strong>⚠️ Tail Risk Disclosure</strong><br>
       Historical worst trade <strong>-9.24% NLV</strong> reflects 26-yr BS-flat data (worst observed: COVID 2020 V-shape recovery).
       This is <em>not</em> a tail bound.<br>
@@ -776,8 +766,8 @@ function buildEquityChart(filtered, baseline) {
   });
 
   const datasets = [];
-  if (filtered) datasets.push(toDataset(filtered, '#E08040', 'Trend Filter ON'));
-  if (baseline)  datasets.push(toDataset(baseline,  '#4888E8', 'No Filter'));
+  if (filtered) datasets.push(toDataset(filtered, 'var(--orange)', 'Trend Filter ON'));
+  if (baseline)  datasets.push(toDataset(baseline,  'var(--blue)', 'No Filter'));
 
   chartInstance = new Chart(canvas, {
     type: 'line',
@@ -786,24 +776,24 @@ function buildEquityChart(filtered, baseline) {
       responsive: true,
       animation: false,
       plugins: {
-        zoom: { zoom: { drag: { enabled:true, backgroundColor:'rgba(72,136,232,0.09)', borderColor:'rgba(72,136,232,0.45)', borderWidth:1 }, mode:'x' } },
+        zoom: { zoom: { drag: { enabled:true, backgroundColor:'var(--theme-lit-130)', borderColor:'var(--theme-lit-139)', borderWidth:1 }, mode:'x' } },
         legend: { display: false } },
       scales: {
         x: {
           type: 'category',
           ticks: {
-            color: '#606880', font: { family: 'JetBrains Mono', size: 10 },
+            color: 'var(--text-2)', font: { family: 'JetBrains Mono', size: 10 },
             maxTicksLimit: 8, maxRotation: 0,
             callback: (v, i, ticks) => {
               const d = datasets[0]?.data[i]?.x;
               return d ? d.slice(0, 7) : v;
             },
           },
-          grid: { color: '#191E33' },
+          grid: { color: 'var(--border)' },
         },
         y: {
-          ticks: { color: '#606880', font: { family: 'JetBrains Mono', size: 10 }, callback: v => '$'+Math.round(v).toLocaleString() },
-          grid: { color: '#191E33' },
+          ticks: { color: 'var(--text-2)', font: { family: 'JetBrains Mono', size: 10 }, callback: v => '$'+Math.round(v).toLocaleString() },
+          grid: { color: 'var(--border)' },
         },
       },
     },
@@ -884,10 +874,10 @@ async function _renderBacktestResult(data, start) {
       <button onclick="if(_esPriceChart)_esPriceChart.resetZoom()" style="font-family:var(--f-mono);font-size:0.60rem;padding:2px 9px;border-radius:4px;border:1px solid var(--border-2);background:none;color:var(--text-2);cursor:pointer" title="Reset drag-zoom">↩ 全局</button>
     </div>
     <div class="equity-legend">
-      <span><span class="eq-arrow" style="color:#42CC7C">▲</span> Open — profit</span>
-      <span><span class="eq-arrow" style="color:#42CC7C">▼</span> Close — profit</span>
-      <span><span class="eq-arrow" style="color:#E04862">▲</span> Open — loss</span>
-      <span><span class="eq-arrow" style="color:#E04862">▼</span> Close — loss</span>
+      <span><span class="eq-arrow" style="color:var(--green)">▲</span> Open — profit</span>
+      <span><span class="eq-arrow" style="color:var(--green)">▼</span> Close — profit</span>
+      <span><span class="eq-arrow" style="color:var(--red)">▲</span> Open — loss</span>
+      <span><span class="eq-arrow" style="color:var(--red)">▼</span> Close — loss</span>
     </div>`;
 
   const v0Charts = `
@@ -895,8 +885,8 @@ async function _renderBacktestResult(data, start) {
       <div class="chart-title">
         Portfolio Equity (${data.start_date} — today)
         <div class="chart-legend">
-          <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#E08040"></div>Trend Filter ON</div>
-          <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#4888E8"></div>No Filter</div>
+          <div class="chart-legend-item"><div class="chart-legend-dot" style="background:var(--orange)"></div>Trend Filter ON</div>
+          <div class="chart-legend-item"><div class="chart-legend-dot" style="background:var(--blue)"></div>No Filter</div>
         </div>
       </div>
       <canvas id="equity-chart" class="chart-canvas" height="180"></canvas>

@@ -7,42 +7,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec108"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec108">
+<script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  --bg:            #080A13;
-  --surface:       #0D1020;
-  --surface-hi:    #131728;
-  --border:        #191E33;
-  --border-2:      #232A42;
-  --text:          #C4CEEC;
-  --text-2:        #606880;
-  --text-muted:    #363C52;
-  --gold:          #C9A840;
-  --gold-bg:       rgba(201,168,64,0.07);
-  --gold-border:   rgba(201,168,64,0.22);
-  --green:         #42CC7C;
-  --green-bg:      rgba(66,204,124,0.07);
-  --green-border:  rgba(66,204,124,0.22);
-  --red:           #E04862;
-  --red-bg:        rgba(224,72,98,0.07);
-  --red-border:    rgba(224,72,98,0.22);
-  --blue:          #4888E8;
-  --blue-bg:       rgba(72,136,232,0.07);
-  --blue-border:   rgba(72,136,232,0.22);
-  --orange:        #E08040;
-  --orange-bg:     rgba(224,128,64,0.07);
-  --orange-border: rgba(224,128,64,0.22);
-  --gray-bg:       rgba(96,104,128,0.08);
-  --gray-border:   rgba(96,104,128,0.2);
-  /* Equity (E-Trade equity haircut) — desaturated green to separate from --green action state */
-  --green-equity:  #4a7c59;
-
-  --f-display: 'Newsreader', Georgia, serif;
-  --f-mono:    'JetBrains Mono', 'Courier New', monospace;
-  --f-ui:      'DM Sans', system-ui, sans-serif;
-}
 
 html { font-size: 14px; }
 body {
@@ -59,7 +28,7 @@ body {
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 28px;
   height: 50px;
-  background: rgba(8,10,19,0.88);
+  background: var(--nav-bg);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
 }
@@ -171,9 +140,9 @@ body {
   padding: 16px 20px;
   margin-bottom: 10px;
 }
-.strategy-card.tier-primary   { border-left-color: rgba(201,168,64,0.60); }
-.strategy-card.tier-secondary { border-left-color: rgba(224,128,64,0.55); }
-.strategy-card.tier-tertiary  { border-left-color: rgba(96,104,128,0.40); }
+.strategy-card.tier-primary   { border-left-color: var(--theme-lit-041); }
+.strategy-card.tier-secondary { border-left-color: var(--theme-lit-062); }
+.strategy-card.tier-tertiary  { border-left-color: var(--theme-lit-166); }
 
 /* Card header */
 .card-header {
@@ -291,8 +260,8 @@ body {
 .settling-panel {
   margin-top: 12px;
   padding: 11px 13px;
-  background: rgba(72,136,232,0.05);
-  border: 1px solid rgba(72,136,232,0.14);
+  background: var(--theme-lit-127);
+  border: 1px solid var(--theme-lit-132);
   border-radius: 8px;
 }
 .settling-header {
@@ -408,8 +377,8 @@ body {
   border-radius: 5px;
   padding: 3px 8px;
 }
-.leg-chip.leg-sell { border-color: rgba(224,72,98,0.25); color: var(--red); }
-.leg-chip.leg-buy  { border-color: rgba(72,136,232,0.25); color: var(--blue); }
+.leg-chip.leg-sell { border-color: var(--theme-lit-074); color: var(--red); }
+.leg-chip.leg-buy  { border-color: var(--theme-lit-134); color: var(--blue); }
 .leg-sep { font-family: var(--f-mono); font-size: 0.65rem; color: var(--text-muted); }
 
 /* ── Position strip ── */
@@ -543,7 +512,7 @@ body {
 }
 .bp-seg { height: 100%; transition: width 0.45s ease; }
 .bp-seg-spx    { background: var(--gold); }
-.bp-seg-es     { background: rgba(66,204,124,0.45); }
+.bp-seg-es     { background: var(--theme-lit-111); }
 .bp-seg-equity { background: var(--green-equity); }
 .bp-seg-q041   { background: var(--blue); }
 .bp-composite-legend { display: flex; gap: 16px; margin-top: 6px; flex-wrap: wrap; }
@@ -553,7 +522,7 @@ body {
 }
 .bp-legend-dot { width: 7px; height: 7px; border-radius: 9999px; flex-shrink: 0; }
 .dot-spx    { background: var(--gold); }
-.dot-es     { background: rgba(66,204,124,0.45); }
+.dot-es     { background: var(--theme-lit-111); }
 .dot-equity { background: var(--green-equity); }
 .dot-q041   { background: var(--blue); }
 .dot-idle   { background: var(--border-2); border: 1px solid var(--border); }
@@ -565,7 +534,7 @@ body {
 .bp-bucket-bar-wrap { flex: 1; height: 6px; background: var(--border-2); border-radius: 9999px; overflow: hidden; }
 .bp-bucket-bar { height: 100%; border-radius: 9999px; transition: width 0.45s ease; }
 .bar-spx    { background: var(--gold); }
-.bar-etrade { background: rgba(66,204,124,0.45); }
+.bar-etrade { background: var(--theme-lit-111); }
 .bar-equity { background: var(--green-equity); }
 .bar-q041   { background: var(--blue); }
 .bp-bucket-pct { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text); min-width: 42px; text-align: right; }
@@ -753,7 +722,7 @@ body {
   border-bottom: 1px solid var(--border);
   border-left: 1px solid var(--border);
 }
-.rm-cell.rc-active-normal   { background: rgba(196,206,236,0.04); }
+.rm-cell.rc-active-normal   { background: var(--theme-lit-020); }
 .rm-cell.rc-active-stress   { background: var(--orange-bg); }
 .rm-cell.rc-active-second   { background: var(--red-bg); }
 .rm-cell.rc-dim .rm-val     { color: var(--text-2); }
@@ -913,15 +882,15 @@ body {
   font-family: var(--f-mono); font-size: 0.58rem; letter-spacing: 0.10em;
   text-transform: uppercase; padding: 2px 8px; border-radius: 4px;
 }
-.reauth-banner.bn-red    .reauth-banner-tag { background: rgba(224,72,98,0.18); }
-.reauth-banner.bn-orange .reauth-banner-tag { background: rgba(224,128,64,0.18); }
+.reauth-banner.bn-red    .reauth-banner-tag { background: var(--theme-lit-073); }
+.reauth-banner.bn-orange .reauth-banner-tag { background: var(--theme-lit-058); }
 .reauth-banner-cta {
   font-family: var(--f-ui); font-size: 0.65rem;
   text-decoration: none; padding: 5px 12px;
   border-radius: 5px; border: 1px solid; white-space: nowrap;
 }
-.reauth-banner.bn-red    .reauth-banner-cta { color: var(--red);    border-color: var(--red-border);    background: rgba(224,72,98,0.10); }
-.reauth-banner.bn-orange .reauth-banner-cta { color: var(--orange); border-color: var(--orange-border); background: rgba(224,128,64,0.10); }
+.reauth-banner.bn-red    .reauth-banner-cta { color: var(--red);    border-color: var(--red-border);    background: var(--theme-lit-071); }
+.reauth-banner.bn-orange .reauth-banner-cta { color: var(--orange); border-color: var(--orange-border); background: var(--theme-lit-055); }
 
 /* ── Position composition bars ── */
 .pos-comp-section { margin-top: 4px; }
@@ -1490,7 +1459,7 @@ async function loadSpx() {
         const pnlStr = pnl != null ? (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(0) : '—';
         const acctBadge = a => {
           const isEt = a === 'etrade';
-          return `<span style="font-family:var(--f-ui);font-size:0.60rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:${isEt ? 'var(--orange)' : 'var(--blue)'};background:rgba(72,136,232,0.10);border:1px solid rgba(72,136,232,0.25);padding:1px 6px;border-radius:4px">${isEt ? 'E-Trade' : 'Schwab'}</span>`;
+          return `<span style="font-family:var(--f-ui);font-size:0.60rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:${isEt ? 'var(--orange)' : 'var(--blue)'};background:var(--theme-lit-131);border:1px solid var(--theme-lit-134);padding:1px 6px;border-radius:4px">${isEt ? 'E-Trade' : 'Schwab'}</span>`;
         };
         const posRows = allPositions.map(p => {
           const acct      = p.account || 'schwab';
@@ -1545,7 +1514,7 @@ async function loadSpx() {
           <div class="pos-item full" style="padding:4px 0;border-top:1px solid var(--border);margin-top:4px">
             <div style="font-family:var(--f-ui);font-size:0.58rem;font-weight:500;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-2);margin-bottom:3px;display:flex;align-items:center;gap:6px">
               <span>Live Risk (Schwab${live.pricing_source === 'positions_mark' ? ' · mark only' : ''})${live.visible && live.stale ? ' · stale' : ''}</span>
-              <span onclick="showPosGreekHelp()" style="cursor:pointer;width:14px;height:14px;border-radius:50%;background:rgba(100,120,180,0.18);color:var(--text-2);font-size:0.60rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;line-height:1;user-select:none" title="Position Greeks 解读">?</span>
+              <span onclick="showPosGreekHelp()" style="cursor:pointer;width:14px;height:14px;border-radius:50%;background:var(--theme-lit-006);color:var(--text-2);font-size:0.60rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;line-height:1;user-select:none" title="Position Greeks 解读">?</span>
             </div>
             ${liveStatusNote}
           </div>`;
@@ -2138,7 +2107,7 @@ function _renderMarginAllocation(data) {
     const optionsNote = etOptW > 0 ? 'SPX spread + E-Trade options' : 'SPX spread';
     const optionsRow = etOptW > 0
       ? splitBarHtml('Options Margin', optionsW, spxW, etOptW,
-          'rgba(201,168,64,0.85)', 'rgba(201,168,64,0.45)', optionsNote)
+          'var(--theme-lit-049)', 'var(--theme-lit-035)', optionsNote)
       : barHtml('Options Margin', optionsW, 'bar-spx', optionsNote);
     const sT2a = buckets.q041_tier2_bp_pct || 0;
     const sT3a = buckets.q041_tier3_bp_pct || 0;
@@ -2150,7 +2119,7 @@ function _renderMarginAllocation(data) {
       optionsRow +
       (etEqW > 0
         ? splitBarHtml('Equity Margin', equityW, eqW, etEqW,
-            'rgba(66,204,124,0.85)', 'rgba(66,204,124,0.38)', allEqNote)
+            'var(--theme-lit-122)', 'var(--theme-lit-109)', allEqNote)
         : barHtml('Equity Margin', equityW, 'bar-equity', allEqNote)) +
       barHtml('DD Overlay', doBp_a, 'bar-q041', 'paper') +
       sleevesRowsA;
@@ -2756,31 +2725,31 @@ const _ETF_SYMBOLS  = new Set([
 ]);
 function _schwabPosColor(pos, ref) {
   const cat = pos.category, sub = pos.sub_category;
-  if (cat === 'spx_options') return 'rgba(201,168,64,0.90)';           // dark gold
+  if (cat === 'spx_options') return 'var(--theme-lit-050)';           // dark gold
   if (cat === 'cash' || sub === 'cash_etf' || sub === 'money_market' || sub === 'cash')
-    return 'rgba(96,104,128,0.58)';                                     // dark gray
+    return 'var(--theme-lit-167)';                                     // dark gray
   if (sub === 'equity_etf') {
-    const s = ['rgba(66,204,124,0.92)','rgba(66,204,124,0.78)','rgba(66,204,124,0.65)',
-               'rgba(66,204,124,0.54)','rgba(66,204,124,0.45)'];
+    const s = ['var(--theme-lit-124)','var(--theme-lit-120)','var(--theme-lit-117)',
+               'var(--theme-lit-113)','var(--theme-lit-111)'];
     return s[(ref.i++) % s.length];                                     // dark green shades (ETF)
   }
   if (cat === 'equity' || cat === 'collective') {
-    const s = ['rgba(72,136,232,0.92)','rgba(72,136,232,0.78)','rgba(72,136,232,0.65)',
-               'rgba(72,136,232,0.54)','rgba(72,136,232,0.45)'];
+    const s = ['var(--theme-lit-148)','var(--theme-lit-146)','var(--theme-lit-142)',
+               'var(--theme-lit-140)','var(--theme-lit-139)'];
     return s[(ref.i++) % s.length];                                     // dark blue shades (stock)
   }
-  return 'rgba(96,104,128,0.30)';
+  return 'var(--theme-lit-164)';
 }
 
 function _etradePosColor(pos, ref) {
   const at = (pos.asset_type || '').toUpperCase();
-  if (at === 'OPTN' || at === 'OPTION') return 'rgba(201,168,64,0.48)'; // light gold
-  if (_CASH_SYMBOLS.has(pos.symbol))    return 'rgba(96,104,128,0.35)'; // light gray
+  if (at === 'OPTN' || at === 'OPTION') return 'var(--theme-lit-036)'; // light gold
+  if (_CASH_SYMBOLS.has(pos.symbol))    return 'var(--theme-lit-165)'; // light gray
   if (_ETF_SYMBOLS.has(pos.symbol)) {
-    const s = ['rgba(66,204,124,0.40)','rgba(66,204,124,0.32)','rgba(66,204,124,0.26)'];
+    const s = ['var(--theme-lit-110)','var(--theme-lit-108)','var(--theme-lit-106)'];
     return s[(ref.i++) % s.length];                                      // light green shades (ETF)
   }
-  const s = ['rgba(72,136,232,0.45)','rgba(72,136,232,0.36)','rgba(72,136,232,0.28)'];
+  const s = ['var(--theme-lit-139)','var(--theme-lit-137)','var(--theme-lit-135)'];
   return s[(ref.i++) % s.length];                                        // light blue shades (stock)
 }
 
@@ -2875,7 +2844,7 @@ function renderPositionBars() {
       const qty    = spxOpts.reduce((s, p) => s + Math.abs(p.quantity || 0), 0) / 2;
       const label  = `SPX Spread ${strikes} ×${qty}`;
       spxStratRow  = _posBarRow(label, netMv, netPnl,
-        Math.abs(netMv) / maxAbs * 100, 'rgba(201,168,64,0.70)', nlv);
+        Math.abs(netMv) / maxAbs * 100, 'var(--theme-lit-044)', nlv);
     }
     const nonCashET = nonSpxOpts.filter(p => !_CASH_SYMBOLS.has(p.symbol));
     const rows = nonSpxOpts.map(pos => {
@@ -2896,9 +2865,9 @@ function renderPositionBars() {
     const etCashMv = d.cash_balance || 0;
     const etCashPct = nlv > 0 && etCashMv > 0 ? etCashMv / nlv * 100 : null;
     const cashFooterET = `<div class="margin-footer" style="margin-top:4px">
-        <div class="margin-footer-left" style="color:rgba(32,188,164,0.9)">Cash + Cash ETF + Money Market</div>
+        <div class="margin-footer-left" style="color:var(--theme-lit-099)">Cash + Cash ETF + Money Market</div>
         <div class="margin-footer-right">
-          <span class="margin-badge" style="background:rgba(96,104,128,0.12);color:rgba(96,104,128,0.8);border-color:rgba(96,104,128,0.3)">${etCashMv > 0 ? _fmtMv(etCashMv) : '$0'} / ${etCashPct != null ? etCashPct.toFixed(1) + '%' : '0.0%'}</span>
+          <span class="margin-badge" style="background:var(--theme-lit-162);color:var(--theme-lit-168);border-color:var(--theme-lit-163)">${etCashMv > 0 ? _fmtMv(etCashMv) : '$0'} / ${etCashPct != null ? etCashPct.toFixed(1) + '%' : '0.0%'}</span>
         </div>
       </div>`;
     barsEl.innerHTML = spxStratRow + rows + _summaryRow(sumMvET, sumPnlET) + `
@@ -3008,10 +2977,10 @@ function renderPositionBars() {
           const totalAbs = Math.abs(pos._swMv) + Math.abs(pos._etMv);
           const ratioL = totalAbs > 0 ? Math.abs(pos._swMv) / totalAbs : 1;
           return _splitPosBarRow('SPX spread', mv, pos.unrealized_pnl, barW,
-            'rgba(201,168,64,0.90)', 'rgba(201,168,64,0.52)', ratioL, combinedNlv);
+            'var(--theme-lit-050)', 'var(--theme-lit-039)', ratioL, combinedNlv);
         }
         return _posBarRow('SPX spread', mv, pos.unrealized_pnl ?? null, barW,
-          'rgba(201,168,64,0.90)', combinedNlv);
+          'var(--theme-lit-050)', combinedNlv);
       }
       if (pos._split) {
         const totalAbs = Math.abs(pos._swMv) + Math.abs(pos._etMv);
@@ -3047,16 +3016,16 @@ function renderPositionBars() {
     const combinedCash = schwabCashAll + etCashAll;
     const combinedCashPct = combinedNlv > 0 && combinedCash > 0 ? combinedCash / combinedNlv * 100 : null;
     const cashFooterAll = `<div class="margin-footer" style="margin-top:4px">
-        <div class="margin-footer-left" style="color:rgba(32,188,164,0.9)">Cash + Cash ETF + Money Market</div>
+        <div class="margin-footer-left" style="color:var(--theme-lit-099)">Cash + Cash ETF + Money Market</div>
         <div class="margin-footer-right">
-          <span class="margin-badge" style="background:rgba(96,104,128,0.12);color:rgba(96,104,128,0.8);border-color:rgba(96,104,128,0.3)">${combinedCash > 0 ? _fmtMv(combinedCash) : '$0'} / ${combinedCashPct != null ? combinedCashPct.toFixed(1) + '%' : '0.0%'}</span>
+          <span class="margin-badge" style="background:var(--theme-lit-162);color:var(--theme-lit-168);border-color:var(--theme-lit-163)">${combinedCash > 0 ? _fmtMv(combinedCash) : '$0'} / ${combinedCashPct != null ? combinedCashPct.toFixed(1) + '%' : '0.0%'}</span>
         </div>
       </div>`;
     barsEl.innerHTML = rows + _summaryRow(sumMvAll, sumPnlAll) + `
       <div class="margin-footer">
         <div class="margin-footer-left">Combined NLV ${_fmtMv(combinedNlv)}
-          · Schwab <span style="color:rgba(66,204,124,0.90)">■</span>
-          · E-Trade <span style="color:rgba(66,204,124,0.38)">■</span>
+          · Schwab <span style="color:var(--theme-lit-123)">■</span>
+          · E-Trade <span style="color:var(--theme-lit-109)">■</span>
           · split bar = both</div>
         <div class="margin-footer-right">
           <span class="margin-badge">${_fmtMv(combMaint)} / ${combMPct != null ? combMPct.toFixed(1) + '%' : '—'}</span>
@@ -3090,9 +3059,9 @@ function renderPositionBars() {
   const totalCash = summary.total_cash_mv,  cashPct = summary.total_cash_pct;
   const cashFooter = totalCash > 1
     ? `<div class="margin-footer" style="margin-top:4px">
-        <div class="margin-footer-left" style="color:rgba(32,188,164,0.9)">Cash + Cash ETF + Money Market</div>
+        <div class="margin-footer-left" style="color:var(--theme-lit-099)">Cash + Cash ETF + Money Market</div>
         <div class="margin-footer-right">
-          <span class="margin-badge" style="background:rgba(96,104,128,0.12);color:rgba(96,104,128,0.8);border-color:rgba(96,104,128,0.3)">${_fmtMv(totalCash)} / ${cashPct != null ? cashPct.toFixed(1) + '%' : '—'}</span>
+          <span class="margin-badge" style="background:var(--theme-lit-162);color:var(--theme-lit-168);border-color:var(--theme-lit-163)">${_fmtMv(totalCash)} / ${cashPct != null ? cashPct.toFixed(1) + '%' : '—'}</span>
         </div>
       </div>` : '';
   barsEl.innerHTML = rows + _summaryRow(sumMvS, sumPnlS) + `
@@ -3258,7 +3227,7 @@ function hidePosGreekHelp() {
 }
 </script>
 
-<div id="pos-greek-help-overlay" onclick="if(event.target===this)hidePosGreekHelp()" style="display:none;position:fixed;inset:0;background:rgba(5,8,20,0.72);z-index:9999;align-items:center;justify-content:center">
+<div id="pos-greek-help-overlay" onclick="if(event.target===this)hidePosGreekHelp()" style="display:none;position:fixed;inset:0;background:var(--theme-lit-101);z-index:9999;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border-2);border-radius:10px;padding:24px 28px;max-width:480px;width:90%;font-family:var(--f-ui);position:relative">
     <button onclick="hidePosGreekHelp()" style="position:absolute;top:12px;right:14px;background:none;border:none;color:var(--text-muted);font-size:1.1rem;cursor:pointer;line-height:1">×</button>
     <div style="font-size:0.75rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-2);margin-bottom:16px">Position Greeks 解读</div>

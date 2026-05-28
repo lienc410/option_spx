@@ -9,34 +9,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+<script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec108"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec108">
+<script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  --bg:            #080A13;
-  --surface:       #0D1020;
-  --surface-hi:    #131728;
-  --border:        #191E33;
-  --border-2:      #232A42;
-  --text:          #C4CEEC;
-  --text-2:        #606880;
-  --text-muted:    #363C52;
-  --gold:          #C9A840;
-  --gold-bg:       rgba(201,168,64,0.07);
-  --gold-border:   rgba(201,168,64,0.22);
-  --green:         #42CC7C;
-  --green-bg:      rgba(66,204,124,0.07);
-  --red:           #E04862;
-  --red-bg:        rgba(224,72,98,0.07);
-  --orange:        #E08040;
-  --orange-bg:     rgba(224,128,64,0.07);
-  --orange-border: rgba(224,128,64,0.22);
-  --blue:          #4888E8;
-  --blue-bg:       rgba(72,136,232,0.07);
-  --f-display: 'Newsreader', Georgia, serif;
-  --f-mono:    'JetBrains Mono', 'Courier New', monospace;
-  --f-ui:      'DM Sans', system-ui, sans-serif;
-}
 
 html { font-size: 14px; }
 body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.55; }
@@ -46,7 +23,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   position: sticky; top: 0; z-index: 100;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 28px; height: 50px;
-  background: rgba(8,10,19,0.88); backdrop-filter: blur(10px);
+  background: var(--nav-bg); backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
 }
 .nav-brand { font-family: var(--f-display); font-size: 1.05rem; color: var(--text); letter-spacing: 0.01em; user-select: none; }
@@ -169,7 +146,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .spec-card { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 14px 16px; margin-bottom: 12px; }
 .card-structure { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
 .leg-chip { font-family: var(--f-mono); font-size: 0.65rem; color: var(--text-2); background: var(--surface-hi); border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px; }
-.leg-chip.leg-sell { border-color: rgba(224,72,98,0.25); color: var(--red); }
+.leg-chip.leg-sell { border-color: var(--theme-lit-074); color: var(--red); }
 .rule-row { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; border-bottom: 1px solid var(--border); }
 .rule-row:last-child { border-bottom: none; }
 .rule-key { font-family: var(--f-ui); font-size: 0.60rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); min-width: 90px; padding-top: 1px; }
@@ -218,7 +195,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     <a href="/es-backtest"       class="page-tab">/ES Archive</a>
   </div>
 
-  <div class="banner" style="border-color:rgba(245,158,11,.42);background:linear-gradient(135deg,rgba(245,158,11,.16),rgba(245,158,11,.04))">
+  <div class="banner" style="border-color:var(--theme-lit-093);background:linear-gradient(135deg,var(--theme-lit-092),var(--theme-lit-091))">
     <div class="banner-title" style="color:var(--orange)">⚠ SPEC-104 · Research-only / Paper-only</div>
     <div class="banner-body">
       ES High-Vol Sell Put Ladder — <strong>0% production allocation</strong>.
@@ -477,43 +454,43 @@ function _buildChartConfig(data, overlay, windowYrs) {
 
   // Overlay series (y1 right axis)
   let overlayDataset = null;
-  let y1Label = '', y1Color = 'rgba(72,136,232,0.7)';
+  let y1Label = '', y1Color = 'var(--theme-lit-143)';
   if (overlay === 'vix') {
-    y1Label = 'VIX'; y1Color = 'rgba(72,136,232,0.7)';
+    y1Label = 'VIX'; y1Color = 'var(--theme-lit-143)';
     overlayDataset = {
       label: 'VIX', data: vixVals,
-      borderColor: 'rgba(72,136,232,0.55)', backgroundColor: 'transparent',
+      borderColor: 'var(--theme-lit-141)', backgroundColor: 'transparent',
       borderWidth: 1, borderDash: [3, 3], pointRadius: 0, tension: 0,
       yAxisID: 'y1', order: 5,
     };
   } else if (overlay === 'pnl') {
-    y1Label = 'Cum. P&L ($k)'; y1Color = 'rgba(66,204,124,0.7)';
+    y1Label = 'Cum. P&L ($k)'; y1Color = 'var(--theme-lit-118)';
     const pnlVals = dates.map(d => {
       const r = curveByDate[d];
       return r != null && initialEquity != null ? Math.round((r.equity - initialEquity) / 1000) : null;
     });
     overlayDataset = {
       label: 'Cum. P&L', data: pnlVals,
-      borderColor: 'rgba(66,204,124,0.6)', backgroundColor: 'rgba(66,204,124,0.06)',
+      borderColor: 'var(--theme-lit-115)', backgroundColor: 'var(--theme-lit-103)',
       fill: true, borderWidth: 1.5, pointRadius: 0, tension: 0,
       yAxisID: 'y1', order: 5,
     };
   } else if (overlay === 'dd') {
-    y1Label = 'Drawdown'; y1Color = 'rgba(224,72,98,0.7)';
+    y1Label = 'Drawdown'; y1Color = 'var(--theme-lit-082)';
     const ddVals = dates.map(d => {
       const r = curveByDate[d];
       return r != null ? +(r.drawdown * 100).toFixed(2) : null;
     });
     overlayDataset = {
       label: 'Drawdown %', data: ddVals,
-      borderColor: 'rgba(224,72,98,0.55)', backgroundColor: 'rgba(224,72,98,0.07)',
+      borderColor: 'var(--theme-lit-079)', backgroundColor: 'var(--red-bg)',
       fill: true, borderWidth: 1, pointRadius: 0, tension: 0,
       yAxisID: 'y1', order: 5,
     };
   } else if (overlay === 'ma10') {
     y1Label = ''; overlayDataset = {
       label: 'SPX MA10', data: ma10,
-      borderColor: 'rgba(201,168,64,0.5)', backgroundColor: 'transparent',
+      borderColor: 'var(--theme-lit-037)', backgroundColor: 'transparent',
       borderWidth: 1, borderDash: [4, 3], pointRadius: 0, tension: 0,
       yAxisID: 'y', order: 5,
     };
@@ -523,7 +500,7 @@ function _buildChartConfig(data, overlay, windowYrs) {
     {
       label: 'SPX',
       data: spxVals,
-      borderColor: 'rgba(196,206,236,0.70)', backgroundColor: 'transparent',
+      borderColor: 'var(--theme-lit-024)', backgroundColor: 'transparent',
       borderWidth: 1.5, pointRadius: 0, tension: 0, yAxisID: 'y', order: 4,
     },
   ];
@@ -532,7 +509,7 @@ function _buildChartConfig(data, overlay, windowYrs) {
     datasets.push({
       label: 'VIX 22',
       data: dates.map(() => vixThr),
-      borderColor: 'rgba(224,128,64,0.40)', backgroundColor: 'transparent',
+      borderColor: 'var(--theme-lit-061)', backgroundColor: 'transparent',
       borderWidth: 1, borderDash: [6, 4], pointRadius: 0, yAxisID: 'y1', order: 6,
     });
   }
@@ -542,8 +519,8 @@ function _buildChartConfig(data, overlay, windowYrs) {
     data: entryWinPoints.length ? entryWinPoints : entryPoints,
     parsing: false, type: 'scatter',
     pointStyle: 'triangle', rotation: 0,
-    pointRadius: 7, pointBackgroundColor: 'rgba(66,204,124,0.90)',
-    pointBorderColor: 'rgba(66,204,124,1)', borderWidth: 0,
+    pointRadius: 7, pointBackgroundColor: 'var(--theme-lit-123)',
+    pointBorderColor: 'var(--theme-lit-125)', borderWidth: 0,
     yAxisID: 'y', order: 1,
   });
   if (entryLossPoints.length) {
@@ -552,8 +529,8 @@ function _buildChartConfig(data, overlay, windowYrs) {
       data: entryLossPoints,
       parsing: false, type: 'scatter',
       pointStyle: 'triangle', rotation: 0,
-      pointRadius: 7, pointBackgroundColor: 'rgba(224,128,64,0.90)',
-      pointBorderColor: 'rgba(224,128,64,1)', borderWidth: 0,
+      pointRadius: 7, pointBackgroundColor: 'var(--theme-lit-067)',
+      pointBorderColor: 'var(--theme-lit-068)', borderWidth: 0,
       yAxisID: 'y', order: 1,
     });
   }
@@ -565,7 +542,7 @@ function _buildChartConfig(data, overlay, windowYrs) {
       parsing: false, type: 'scatter',
       pointStyle: 'triangle', rotation: 180,
       pointRadius: 6, pointBackgroundColor: 'transparent',
-      pointBorderColor: 'rgba(66,204,124,0.80)', borderWidth: 1.5,
+      pointBorderColor: 'var(--theme-lit-121)', borderWidth: 1.5,
       yAxisID: 'y', order: 2,
     });
   }
@@ -576,7 +553,7 @@ function _buildChartConfig(data, overlay, windowYrs) {
       parsing: false, type: 'scatter',
       pointStyle: 'triangle', rotation: 180,
       pointRadius: 6, pointBackgroundColor: 'transparent',
-      pointBorderColor: 'rgba(224,72,98,0.80)', borderWidth: 1.5,
+      pointBorderColor: 'var(--theme-lit-086)', borderWidth: 1.5,
       yAxisID: 'y', order: 2,
     });
   }
@@ -592,10 +569,10 @@ function _buildChartConfig(data, overlay, windowYrs) {
         legend: {
           display: false,
         },
-        zoom: { zoom: { drag: { enabled: true, backgroundColor: 'rgba(72,136,232,0.09)', borderColor: 'rgba(72,136,232,0.45)', borderWidth: 1 }, mode: 'x' } },
+        zoom: { zoom: { drag: { enabled: true, backgroundColor: 'var(--theme-lit-130)', borderColor: 'var(--theme-lit-139)', borderWidth: 1 }, mode: 'x' } },
         tooltip: {
-          backgroundColor: '#0D1020', borderColor: '#232A42', borderWidth: 1,
-          titleColor: '#C4CEEC', bodyColor: '#606880',
+          backgroundColor: 'var(--surface)', borderColor: 'var(--border-2)', borderWidth: 1,
+          titleColor: 'var(--text)', bodyColor: 'var(--text-2)',
           titleFont: { family: "'JetBrains Mono', monospace", size: 11 },
           bodyFont:  { family: "'JetBrains Mono', monospace", size: 10 },
           callbacks: {
@@ -616,14 +593,14 @@ function _buildChartConfig(data, overlay, windowYrs) {
       },
       scales: {
         x: {
-          ticks: { color: '#606880', font: { family: "'JetBrains Mono', monospace", size: 10 }, maxTicksLimit: 14 },
-          grid: { color: 'rgba(25,30,51,0.8)' },
+          ticks: { color: 'var(--text-2)', font: { family: "'JetBrains Mono', monospace", size: 10 }, maxTicksLimit: 14 },
+          grid: { color: 'var(--theme-lit-095)' },
         },
         y: {
           position: 'left',
-          ticks: { color: '#606880', font: { family: "'JetBrains Mono', monospace", size: 10 } },
-          grid: { color: 'rgba(25,30,51,0.8)' },
-          title: { display: true, text: 'SPX', color: '#606880', font: { size: 10 } },
+          ticks: { color: 'var(--text-2)', font: { family: "'JetBrains Mono', monospace", size: 10 } },
+          grid: { color: 'var(--theme-lit-095)' },
+          title: { display: true, text: 'SPX', color: 'var(--text-2)', font: { size: 10 } },
         },
         y1: {
           display: hasY1,

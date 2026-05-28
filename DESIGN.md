@@ -89,7 +89,24 @@ This mixes an English imperative clause ("Daily selector tick decides entry") wi
 - `--orange: #E08040` / bg `rgba(224,128,64,0.07)` / border `rgba(224,128,64,0.22)` — warning / approaching threshold (2× credit stop, expiry <7d)
 - `--gray-bg: rgba(96,104,128,0.08)` / `--gray-border: rgba(96,104,128,0.2)` — disabled / NO ENTRY / blocked / read-only badge
 
-**Dark mode only:** This product has no light mode. The dark palette is canonical.
+**Theme system:** The product supports PM-controlled dark and light themes. The
+dark palette remains the historical baseline, while the warm off-white light
+palette is also canonical for dashboard use. New templates must link
+`web/static/theme.css`, must not define their own `:root` token block, and must
+express colors through the shared CSS variables.
+
+## Themes
+
+Theme state is client-side only: `<html data-theme="dark|light">` plus
+`localStorage["spx-theme"]`. Backend recommendation, routing, broker, and
+paper-trading semantics must not depend on theme state.
+
+Shared assets:
+- `web/static/theme_bootstrap.js` sets `data-theme` before paint.
+- `web/static/theme.css` owns all core color, typography, surface, and legacy
+literal tokens.
+- `web/static/theme.js` injects the nav toggle and exposes `themeColor()` /
+  `themeRgba()` helpers for Chart.js and JS-rendered UI.
 
 ## Action State Vocabulary
 

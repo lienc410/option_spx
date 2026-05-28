@@ -8,38 +8,11 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <script src="{{ url_for('static', filename='spec072_helpers.js') }}"></script>
+<script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec108"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec108">
+<script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  --bg:            #080A13;
-  --surface:       #0D1020;
-  --surface-hi:    #131728;
-  --border:        #191E33;
-  --border-2:      #232A42;
-  --text:          #C4CEEC;
-  --text-2:        #606880;
-  --text-muted:    #363C52;
-  --gold:          #C9A840;
-  --gold-bg:       rgba(201,168,64,0.07);
-  --gold-border:   rgba(201,168,64,0.22);
-  --green:         #42CC7C;
-  --green-bg:      rgba(66,204,124,0.07);
-  --green-border:  rgba(66,204,124,0.22);
-  --red:           #E04862;
-  --red-bg:        rgba(224,72,98,0.07);
-  --red-border:    rgba(224,72,98,0.22);
-  --blue:          #4888E8;
-  --blue-bg:       rgba(72,136,232,0.07);
-  --blue-border:   rgba(72,136,232,0.22);
-  --orange:        #E08040;
-  --orange-bg:     rgba(224,128,64,0.07);
-  --orange-border: rgba(224,128,64,0.22);
-
-  --f-display: 'Newsreader', Georgia, serif;
-  --f-mono:    'JetBrains Mono', 'Courier New', monospace;
-  --f-ui:      'DM Sans', system-ui, sans-serif;
-}
 
 html { font-size: 14px; }
 body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-height: 100vh; }
@@ -49,7 +22,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   position: sticky; top: 0; z-index: 100;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 28px; height: 50px;
-  background: rgba(8,10,19,0.88); backdrop-filter: blur(10px);
+  background: var(--nav-bg); backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
 }
 .nav-brand { font-family: var(--f-display); font-size: 1.05rem; color: var(--text); }
@@ -212,7 +185,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 }
 .live-box-row strong { color: var(--text); font-family: var(--f-mono); font-weight: 600; }
 .live-box-row .dual-est {
-  color: #B79CFF;
+  color: var(--purple);
   font-size: 0.74rem;
   margin-left: 6px;
 }

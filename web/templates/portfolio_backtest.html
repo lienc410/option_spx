@@ -9,39 +9,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+<script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec108"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec108">
+<script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  --bg:            #080A13;
-  --surface:       #0D1020;
-  --surface-hi:    #131728;
-  --border:        #191E33;
-  --border-2:      #232A42;
-  --text:          #C4CEEC;
-  --text-2:        #606880;
-  --text-muted:    #363C52;
-  --gold:          #C9A840;
-  --gold-bg:       rgba(201,168,64,0.07);
-  --gold-border:   rgba(201,168,64,0.22);
-  --green:         #42CC7C;
-  --green-bg:      rgba(66,204,124,0.07);
-  --green-border:  rgba(66,204,124,0.22);
-  --red:           #E04862;
-  --red-bg:        rgba(224,72,98,0.07);
-  --red-border:    rgba(224,72,98,0.22);
-  --blue:          #4888E8;
-  --blue-bg:       rgba(72,136,232,0.07);
-  --blue-border:   rgba(72,136,232,0.22);
-  --orange:        #E08040;
-  --orange-bg:     rgba(224,128,64,0.07);
-  --orange-border: rgba(224,128,64,0.22);
-  --gray-bg:       rgba(96,104,128,0.08);
-  --gray-border:   rgba(96,104,128,0.2);
-  --f-display: 'Newsreader', Georgia, serif;
-  --f-mono:    'JetBrains Mono', 'Courier New', monospace;
-  --f-ui:      'DM Sans', system-ui, sans-serif;
-}
 
 html { font-size: 14px; }
 body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.55; }
@@ -51,7 +23,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   position: sticky; top: 0; z-index: 100;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 28px; height: 50px;
-  background: rgba(8,10,19,0.88); backdrop-filter: blur(10px);
+  background: var(--nav-bg); backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
 }
 .nav-brand { font-family: var(--f-display); font-size: 1.05rem; color: var(--text); letter-spacing: 0.01em; user-select: none; }
@@ -177,7 +149,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .spec-card { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 14px 16px; margin-bottom: 12px; }
 .card-structure { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
 .leg-chip { font-family: var(--f-mono); font-size: 0.65rem; color: var(--text-2); background: var(--surface-hi); border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px; }
-.leg-chip.rule { border-color: rgba(72,136,232,0.25); color: var(--blue); }
+.leg-chip.rule { border-color: var(--theme-lit-134); color: var(--blue); }
 .rule-row { display: flex; gap: 8px; align-items: flex-start; padding: 5px 0; border-bottom: 1px solid var(--border); }
 .rule-row:last-child { border-bottom: none; }
 .rule-key { font-family: var(--f-ui); font-size: 0.60rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); min-width: 100px; padding-top: 1px; }
@@ -278,8 +250,8 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
       <span style="font-family:var(--f-mono);font-size:0.60rem;color:var(--text-2);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <span><span style="color:var(--green)">▲</span> HV 入场</span>
         <span><span style="color:var(--red)">✕</span> HV R6 阻断</span>
-        <span><span style="display:inline-block;width:12px;height:5px;background:rgba(201,168,64,0.65);border-radius:1px;vertical-align:middle;margin-right:3px"></span><span id="aftermath-legend">Aftermath</span></span>
-        <span><span style="display:inline-block;width:12px;height:5px;background:rgba(72,136,232,0.55);border-radius:1px;vertical-align:middle;margin-right:3px"></span><span id="dd-overlay-legend">DD Overlay</span></span>
+        <span><span style="display:inline-block;width:12px;height:5px;background:var(--theme-lit-042);border-radius:1px;vertical-align:middle;margin-right:3px"></span><span id="aftermath-legend">Aftermath</span></span>
+        <span><span style="display:inline-block;width:12px;height:5px;background:var(--theme-lit-141);border-radius:1px;vertical-align:middle;margin-right:3px"></span><span id="dd-overlay-legend">DD Overlay</span></span>
       </span>
       <button class="ctrl-btn" id="reg-reset" style="margin-left:4px">↩ 全局</button>
     </div>
@@ -381,8 +353,8 @@ const regimeBandsPlugin = {
       const x0 = x.getPixelForValue(bandStart);
       const x1 = x.getPixelForValue(endDate);
       ctx.fillStyle = bandRegime === 'second'
-        ? 'rgba(224,72,98,0.13)'
-        : 'rgba(224,128,64,0.10)';
+        ? 'var(--theme-lit-072)'
+        : 'var(--theme-lit-055)';
       ctx.fillRect(Math.min(x0, x1), ca.top, Math.abs(x1 - x0), ca.height);
     };
     for (let i = 0; i < slicedDates.length; i++) {
@@ -422,9 +394,9 @@ const regimeBandsPlugin = {
     };
 
     // Row 0 (bottom):  DD Overlay — blue
-    drawAnnotStrip(slicedDD, 'rgba(72,136,232,0.55)',  0);
+    drawAnnotStrip(slicedDD, 'var(--theme-lit-141)',  0);
     // Row 1 (above):   Aftermath  — amber
-    drawAnnotStrip(slicedAF, 'rgba(201,168,64,0.65)',  BAND_H + 1);
+    drawAnnotStrip(slicedAF, 'var(--theme-lit-042)',  BAND_H + 1);
 
     ctx.restore();
   }
@@ -463,31 +435,31 @@ function _buildRegimeConfig(data, overlay, windowYrs) {
   const hvBlockPts     = dates.filter(d => hvBlocked.has(d)).map(d => ({ x: d, y: allVix[allDates.indexOf(d)] }));
 
   let overlayDs = null;
-  let y1Label = '', y1Color = 'rgba(72,136,232,0.7)';
+  let y1Label = '', y1Color = 'var(--theme-lit-143)';
   if (overlay === 'spx') {
-    y1Label = 'SPX'; y1Color = 'rgba(196,206,236,0.7)';
-    overlayDs = { label: 'SPX', data: spx, borderColor: 'rgba(196,206,236,0.65)', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, tension: 0, yAxisID: 'y1', order: 6 };
+    y1Label = 'SPX'; y1Color = 'var(--theme-lit-023)';
+    overlayDs = { label: 'SPX', data: spx, borderColor: 'var(--theme-lit-022)', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, tension: 0, yAxisID: 'y1', order: 6 };
   } else if (overlay === 'ma10') {
-    y1Label = 'SPX MA10'; y1Color = 'rgba(201,168,64,0.7)';
-    overlayDs = { label: 'SPX MA10', data: ma10, borderColor: 'rgba(201,168,64,0.55)', backgroundColor: 'transparent', borderWidth: 1, borderDash: [4,3], pointRadius: 0, tension: 0, yAxisID: 'y1', order: 6 };
+    y1Label = 'SPX MA10'; y1Color = 'var(--theme-lit-043)';
+    overlayDs = { label: 'SPX MA10', data: ma10, borderColor: 'var(--theme-lit-040)', backgroundColor: 'transparent', borderWidth: 1, borderDash: [4,3], pointRadius: 0, tension: 0, yAxisID: 'y1', order: 6 };
   } else if (overlay === 'pnl') {
-    y1Label = 'Cum. P&L ($k)'; y1Color = 'rgba(66,204,124,0.7)';
+    y1Label = 'Cum. P&L ($k)'; y1Color = 'var(--theme-lit-118)';
     const pnlVals = dates.map(d => { const r = curveByDate[d]; return r && initEq != null ? +((r.equity - initEq)/1000).toFixed(1) : null; });
-    overlayDs = { label: 'Cum. P&L', data: pnlVals, borderColor: 'rgba(66,204,124,0.6)', backgroundColor: 'rgba(66,204,124,0.06)', fill: true, borderWidth: 1.5, pointRadius: 0, tension: 0, yAxisID: 'y1', order: 6 };
+    overlayDs = { label: 'Cum. P&L', data: pnlVals, borderColor: 'var(--theme-lit-115)', backgroundColor: 'var(--theme-lit-103)', fill: true, borderWidth: 1.5, pointRadius: 0, tension: 0, yAxisID: 'y1', order: 6 };
   } else if (overlay === 'dd') {
-    y1Label = 'Drawdown'; y1Color = 'rgba(224,72,98,0.7)';
+    y1Label = 'Drawdown'; y1Color = 'var(--theme-lit-082)';
     const ddVals = dates.map(d => { const r = curveByDate[d]; return r ? +(r.drawdown * 100).toFixed(2) : null; });
-    overlayDs = { label: 'Drawdown %', data: ddVals, borderColor: 'rgba(224,72,98,0.55)', backgroundColor: 'rgba(224,72,98,0.07)', fill: true, borderWidth: 1, pointRadius: 0, tension: 0, yAxisID: 'y1', order: 6 };
+    overlayDs = { label: 'Drawdown %', data: ddVals, borderColor: 'var(--theme-lit-079)', backgroundColor: 'var(--red-bg)', fill: true, borderWidth: 1, pointRadius: 0, tension: 0, yAxisID: 'y1', order: 6 };
   }
 
   const datasets = [
-    { label: 'VIX', data: vix, borderColor: 'rgba(72,136,232,0.55)', backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [3,3], pointRadius: 0, tension: 0, yAxisID: 'y', order: 5 },
-    { label: 'VIX 22', data: dates.map(() => 22), borderColor: 'rgba(224,128,64,0.40)', backgroundColor: 'transparent', borderWidth: 1, borderDash: [6,4], pointRadius: 0, yAxisID: 'y', order: 7 },
-    { label: 'VIX 25', data: dates.map(() => 25), borderColor: 'rgba(224,72,98,0.35)', backgroundColor: 'transparent', borderWidth: 1, borderDash: [4,4], pointRadius: 0, yAxisID: 'y', order: 7 },
+    { label: 'VIX', data: vix, borderColor: 'var(--theme-lit-141)', backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [3,3], pointRadius: 0, tension: 0, yAxisID: 'y', order: 5 },
+    { label: 'VIX 22', data: dates.map(() => 22), borderColor: 'var(--theme-lit-061)', backgroundColor: 'transparent', borderWidth: 1, borderDash: [6,4], pointRadius: 0, yAxisID: 'y', order: 7 },
+    { label: 'VIX 25', data: dates.map(() => 25), borderColor: 'var(--theme-lit-076)', backgroundColor: 'transparent', borderWidth: 1, borderDash: [4,4], pointRadius: 0, yAxisID: 'y', order: 7 },
   ];
   if (overlayDs) datasets.push(overlayDs);
-  datasets.push({ label: '▲ HV 入场', data: hvEntryPts, parsing: false, type: 'scatter', pointStyle: 'triangle', rotation: 0, pointRadius: 7, pointBackgroundColor: 'rgba(66,204,124,0.90)', pointBorderColor: 'rgba(66,204,124,1)', borderWidth: 0, yAxisID: 'y', order: 1 });
-  datasets.push({ label: '✕ HV R6 阻断', data: hvBlockPts, parsing: false, type: 'scatter', pointStyle: 'crossRot', pointRadius: 5, pointBackgroundColor: 'transparent', pointBorderColor: 'rgba(224,72,98,0.85)', borderWidth: 1.5, yAxisID: 'y', order: 2 });
+  datasets.push({ label: '▲ HV 入场', data: hvEntryPts, parsing: false, type: 'scatter', pointStyle: 'triangle', rotation: 0, pointRadius: 7, pointBackgroundColor: 'var(--theme-lit-123)', pointBorderColor: 'var(--theme-lit-125)', borderWidth: 0, yAxisID: 'y', order: 1 });
+  datasets.push({ label: '✕ HV R6 阻断', data: hvBlockPts, parsing: false, type: 'scatter', pointStyle: 'crossRot', pointRadius: 5, pointBackgroundColor: 'transparent', pointBorderColor: 'var(--theme-lit-087)', borderWidth: 1.5, yAxisID: 'y', order: 2 });
 
   const hasY1 = !!overlayDs;
   return {
@@ -498,10 +470,10 @@ function _buildRegimeConfig(data, overlay, windowYrs) {
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
-        zoom: { zoom: { drag: { enabled: true, backgroundColor: 'rgba(72,136,232,0.09)', borderColor: 'rgba(72,136,232,0.45)', borderWidth: 1 }, mode: 'x' } },
+        zoom: { zoom: { drag: { enabled: true, backgroundColor: 'var(--theme-lit-130)', borderColor: 'var(--theme-lit-139)', borderWidth: 1 }, mode: 'x' } },
         tooltip: {
-          backgroundColor: '#0D1020', borderColor: '#232A42', borderWidth: 1,
-          titleColor: '#C4CEEC', bodyColor: '#606880',
+          backgroundColor: 'var(--surface)', borderColor: 'var(--border-2)', borderWidth: 1,
+          titleColor: 'var(--text)', bodyColor: 'var(--text-2)',
           titleFont: { family: "'JetBrains Mono', monospace", size: 11 },
           bodyFont:  { family: "'JetBrains Mono', monospace", size: 10 },
           callbacks: {
@@ -518,8 +490,8 @@ function _buildRegimeConfig(data, overlay, windowYrs) {
         },
       },
       scales: {
-        x: { ticks: { color: '#606880', font: { family: "'JetBrains Mono', monospace", size: 10 }, maxTicksLimit: 14 }, grid: { color: 'rgba(25,30,51,0.8)' } },
-        y: { position: 'left', ticks: { color: 'rgba(72,136,232,0.7)', font: { family: "'JetBrains Mono', monospace", size: 10 } }, grid: { color: 'rgba(25,30,51,0.8)' }, title: { display: true, text: 'VIX', color: 'rgba(72,136,232,0.7)', font: { size: 10 } }, suggestedMin: 10 },
+        x: { ticks: { color: 'var(--text-2)', font: { family: "'JetBrains Mono', monospace", size: 10 }, maxTicksLimit: 14 }, grid: { color: 'var(--theme-lit-095)' } },
+        y: { position: 'left', ticks: { color: 'var(--theme-lit-143)', font: { family: "'JetBrains Mono', monospace", size: 10 } }, grid: { color: 'var(--theme-lit-095)' }, title: { display: true, text: 'VIX', color: 'var(--theme-lit-143)', font: { size: 10 } }, suggestedMin: 10 },
         y1: { display: hasY1, position: 'right', ticks: { color: y1Color, font: { family: "'JetBrains Mono', monospace", size: 10 } }, grid: { drawOnChartArea: false }, title: { display: !!y1Label, text: y1Label, color: y1Color, font: { size: 10 } } },
       },
     },
