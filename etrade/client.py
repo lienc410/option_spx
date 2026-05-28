@@ -362,6 +362,27 @@ def get_option_spread_quote(
         return {"visible": False, "error": str(exc)}
 
 
+def _etrade_spx_ticker(expiry: str) -> str:
+    """ETrade splits SPX into two distinct option tickers; Schwab does not.
+
+    - SPX  = AM-settled monthly, listed ONLY on 3rd Friday of each month
+    - SPXW = PM-settled weeklies, listed on all other Mon/Wed/Fri dates
+            (and ALSO on 3rd Friday as a separate PM-settled product)
+    Schwab returns AM-settled (3rd Fri) data under SPX symbol; PM-settled
+    weeklies also under SPX. We must disambiguate when querying ETrade.
+
+    Returns "SPX" for 3rd-Friday expiries, "SPXW" otherwise.
+    """
+    try:
+        y, m, d = expiry.split("-")
+        dt = datetime(int(y), int(m), int(d))
+    except (ValueError, TypeError):
+        return "SPXW"
+    if dt.weekday() != 4:  # not Friday → must be SPXW
+        return "SPXW"
+    return "SPX" if 15 <= dt.day <= 21 else "SPXW"
+
+
 def get_option_quotes_by_strike(
     underlier: str,
     expiry: str,
@@ -385,7 +406,10 @@ def get_option_quotes_by_strike(
     if not cleaned:
         return {}
     side = "CALL" if str(option_type).upper().startswith("C") else "PUT"
-    cache_key = f"optquotes:{underlier}:{expiry}:{side}:{','.join(f'{s:.0f}' for s in sorted(cleaned))}"
+    # ETrade SPX→SPXW disambiguation: caller passes Schwab's underlier
+    # ('SPX'), we pick the right ETrade ticker per expiry.
+    etrade_ticker = _etrade_spx_ticker(expiry) if str(underlier).upper() == "SPX" else underlier
+    cache_key = f"optquotes:{etrade_ticker}:{expiry}:{side}:{','.join(f'{s:.0f}' for s in sorted(cleaned))}"
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
@@ -393,7 +417,7 @@ def get_option_quotes_by_strike(
         return {}
     try:
         y, m, d = expiry.split("-")
-        symbols = [f"{underlier}:{y}:{m}:{d}:{side}:{int(round(s))}" for s in cleaned]
+        symbols = [f"{etrade_ticker}:{y}:{m}:{d}:{side}:{int(round(s))}" for s in cleaned]
         client = _market_client()
         payload = client.get_quote(symbols, detail_flag="options", resp_format="json")
         out: dict[float, dict] = {}
