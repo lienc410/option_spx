@@ -891,6 +891,11 @@ body {
 }
 .reauth-banner.bn-red    .reauth-banner-cta { color: var(--red);    border-color: var(--red-border);    background: var(--theme-lit-071); }
 .reauth-banner.bn-orange .reauth-banner-cta { color: var(--orange); border-color: var(--orange-border); background: var(--theme-lit-055); }
+/* Light theme: bump alpha so the CTA pill reads as a button against warm
+   off-white bg. Original 10% alpha tinted bg vanishes; 22% matches border
+   alpha and gives the reauth action the affordance it needs. */
+:root[data-theme="light"] .reauth-banner.bn-red    .reauth-banner-cta { background: rgba(200,50,79,0.22); }
+:root[data-theme="light"] .reauth-banner.bn-orange .reauth-banner-cta { background: rgba(184,94,23,0.22); }
 
 /* ── Position composition bars ── */
 .pos-comp-section { margin-top: 4px; }
