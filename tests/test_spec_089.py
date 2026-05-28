@@ -278,6 +278,66 @@ class Spec089Tests(unittest.TestCase):
         n = normalize({"BalanceResponse": {"Computed": {}}})
         self.assertIsNone(n["maintenance_margin"])
 
+    def test_per_account_bp_sums_all_positions_not_just_first(self) -> None:
+        """Regression for 2026-05-27 bug: an account holding multiple
+        concurrent BPS spreads (e.g. ETrade with 2× 7300/7000 + 1× 7200/6950)
+        was previously under-reported because `next()` only captured the
+        first state record. _sum_spx_bp_usage must aggregate all entries.
+        """
+        from web.portfolio_surface import _sum_spx_bp_usage
+
+        # Live state at time of fix (2026-05-27 production):
+        etrade_positions = [
+            {
+                "strategy_key": "bull_put_spread",
+                "account": "etrade",
+                "short_strike": 7300,
+                "long_strike": 7000,
+                "contracts": 2,
+            },
+            {
+                "strategy_key": "bull_put_spread",
+                "account": "etrade",
+                "short_strike": 7200,
+                "long_strike": 6950,
+                "contracts": 1,
+            },
+        ]
+        basis = 909_000.0  # combined NLV approx
+
+        result = _sum_spx_bp_usage(etrade_positions, basis)
+
+        # Spread 1: 300 width × 2 ct × $100 = $60,000
+        # Spread 2: 250 width × 1 ct × $100 = $25,000
+        # Total: $85,000
+        self.assertEqual(result["status"], "estimated")
+        self.assertEqual(result["bp_usage_dollars"], 85_000.0)
+        self.assertEqual(result["n_positions"], 2)
+
+        # Schwab side same logic, larger size
+        schwab_positions = [
+            {"strategy_key": "bull_put_spread", "account": "schwab",
+             "short_strike": 7300, "long_strike": 7000, "contracts": 4},
+            {"strategy_key": "bull_put_spread", "account": "schwab",
+             "short_strike": 7200, "long_strike": 6950, "contracts": 1},
+        ]
+        result = _sum_spx_bp_usage(schwab_positions, basis)
+        # 300 × 4 × 100 = $120,000 + 250 × 1 × 100 = $25,000 = $145,000
+        self.assertEqual(result["bp_usage_dollars"], 145_000.0)
+        self.assertEqual(result["n_positions"], 2)
+
+        # Empty / None → status none
+        self.assertEqual(_sum_spx_bp_usage([], basis)["status"], "none")
+        self.assertEqual(_sum_spx_bp_usage(None, basis)["status"], "none")
+
+        # Insufficient-data record alone → insufficient_data, NOT $0 disguise
+        result = _sum_spx_bp_usage(
+            [{"strategy_key": "bull_put_spread", "account": "etrade"}],  # no strikes
+            basis,
+        )
+        self.assertEqual(result["status"], "insufficient_data")
+        self.assertIsNone(result["bp_usage_dollars"])
+
     def test_ac7_etrade_module_does_not_call_market_data_apis(self) -> None:
         source = Path("etrade/client.py").read_text() + "\n" + Path("etrade/auth.py").read_text()
         for forbidden in ("get_quote", "get_option_chain", "quotes", "chains", "marketdata"):

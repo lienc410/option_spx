@@ -256,6 +256,49 @@ def sleeve_candidates_payload() -> dict:
     }
 
 
+def _sum_spx_bp_usage(positions: list[dict] | None, basis_dollars: float) -> dict:
+    """Sum BP usage across multiple positions (one account may hold several
+    concurrent spread trades). Returns aggregate dollars + pct + count.
+
+    Fixes pre-2026-05-27 bug where `next()` picked only the first matching
+    account position, under-reporting maintenance for accounts with multiple
+    open BPS spreads.
+    """
+    positions = positions or []
+    total_dollars = 0.0
+    n_estimated = 0
+    n_insufficient = 0
+    for p in positions:
+        usage = _estimate_spx_bp_usage(p, basis_dollars)
+        status = usage.get("status")
+        if status == "estimated":
+            total_dollars += _num(usage.get("bp_usage_dollars")) or 0.0
+            n_estimated += 1
+        elif status == "insufficient_data":
+            n_insufficient += 1
+    if n_estimated == 0 and n_insufficient == 0:
+        return {"status": "none", "bp_usage_dollars": 0.0, "bp_usage_pct": 0.0}
+    if n_estimated == 0:
+        # only insufficient-data records — surface that, do not pretend 0
+        return {
+            "status": "insufficient_data",
+            "bp_usage_dollars": None,
+            "bp_usage_pct": None,
+            "reason": f"{n_insufficient} position(s) lacked strike/premium data",
+        }
+    dollars = round(total_dollars, 2)
+    pct = round(dollars / basis_dollars * 100.0, 2) if basis_dollars > 0 else None
+    return {
+        "status": "estimated",
+        "bp_usage_dollars": dollars,
+        "bp_usage_pct": pct,
+        "basis_dollars": round(basis_dollars, 2),
+        "n_positions": n_estimated,
+        "n_insufficient": n_insufficient,
+        "source": "pm_max_loss_proxy_summed",
+    }
+
+
 def _estimate_spx_bp_usage(current_position: dict | None, basis_dollars: float) -> dict:
     if not current_position:
         return {"status": "none", "bp_usage_dollars": 0.0, "bp_usage_pct": 0.0}
@@ -430,10 +473,18 @@ def portfolio_summary_payload() -> dict:
     # Compute SPX/option margin per account using state positions when available.
     positions_list = (all_positions_state or {}).get("positions", [])
 
-    schwab_pos = next((p for p in positions_list if p.get("account") == "schwab"), current_position)
-    etrade_pos = next((p for p in positions_list if p.get("account") == "etrade"), None)
+    # SPEC-107 followup 2026-05-27: read ALL positions per account (not just
+    # the first via next()). Previous version under-reported maintenance when
+    # an account held multiple concurrent spreads — e.g. ETrade with both
+    # 2× 7300/7000 ($60k) and 1× 7200/6950 ($25k) only reported $60k.
+    schwab_positions = [p for p in positions_list if p.get("account") == "schwab"]
+    etrade_positions = [p for p in positions_list if p.get("account") == "etrade"]
+    # Back-compat: if state has no schwab entries but we have a legacy
+    # `current_position` payload (older single-position state file), include it.
+    if not schwab_positions and current_position:
+        schwab_positions = [current_position]
 
-    spx_usage = _estimate_spx_bp_usage(schwab_pos, basis)
+    spx_usage = _sum_spx_bp_usage(schwab_positions, basis)
     # Fallback: if state has no Schwab position but Schwab shows live SPX options, compute from live
     if spx_usage.get("status") == "none":
         live_spx = _schwab_spx_bp_from_positions()
@@ -447,8 +498,8 @@ def portfolio_summary_payload() -> dict:
     spx_dollars = _num(spx_usage.get("bp_usage_dollars")) or 0.0
     spx_pct = _num(spx_usage.get("bp_usage_pct")) or 0.0
 
-    # E-Trade option margin: if user holds options in E-Trade, estimate from state position.
-    etrade_options_usage = _estimate_spx_bp_usage(etrade_pos, basis) if etrade_pos else None
+    # E-Trade option margin: sum ALL etrade options state positions.
+    etrade_options_usage = _sum_spx_bp_usage(etrade_positions, basis) if etrade_positions else None
     etrade_options_dollars = _num((etrade_options_usage or {}).get("bp_usage_dollars")) or 0.0
 
     # Equity margin: Schwab total maintenance minus Schwab option spread max-loss.
