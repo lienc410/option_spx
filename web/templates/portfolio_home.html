@@ -585,6 +585,7 @@ body {
 .quote-chip.q-realtime { background: var(--green-bg);  border-color: var(--green-border);  color: var(--green); }
 .quote-chip.q-delayed  { background: var(--gold-bg);   border-color: var(--gold-border);   color: var(--gold); }
 .quote-chip.q-closing  { background: var(--orange-bg); border-color: var(--orange-border); color: var(--orange); }
+.quote-chip.q-eod      { background: var(--red-bg);    border-color: var(--red-border);    color: var(--red); }
 .quote-chip.q-indicative { background: var(--blue-bg); border-color: var(--blue-border);   color: var(--blue); }
 .quote-chip.q-unknown  { background: var(--gray-bg);   border-color: var(--gray-border);   color: var(--text-2); }
 .account-rail-grid {
@@ -1231,49 +1232,90 @@ function fmtPrice(n) {
 }
 
 // ── Quote-freshness chip ──────────────────────────────────────────────────────
-// Surfaces Schwab realtime/quote_time and ETrade quoteStatus/dateTimeUTC so PM
-// can tell if mark is live, 15-min delayed, or a CLOSING settlement print.
+// SPEC: chip color reflects the ACTUAL age of quote_time / date_time_utc,
+// NOT the vendor self-reported realtime / quote_status flag. Verified
+// 2026-05-27 21:22 ET: both Schwab and ETrade keep saying realtime/CLOSING
+// after-hours while serving 4-5h-old quotes — vendor labels lie. Effective
+// age = (now - quote_time) + (15 min penalty when vendor flag is DELAYED).
+// Tiers: <5m green LIVE / 5-30m gold RECENT / 30m-4h orange STALE /
+//        >4h red EOD. Definitive closed states (EH_CLOSED, EH_BEFORE_OPEN,
+//        INVALID) skip the age path and render grey directly.
+// Tooltip preserves the raw vendor flag so PM can audit the override.
 function quoteFreshnessChip(live, acct) {
   if (!live || !live.visible) return '';
-  // Resolve a display label + tier class.
-  let label = '—', cls = 'q-unknown', tsRaw = null;
+
+  // Parse quote_time → epoch ms; record raw vendor flag for tooltip / overrides.
+  let quoteMs = null, tipTs = '—', vendorTag = '', skipAge = null;
   if (acct === 'etrade') {
     const s = String(live.quote_status || '').toUpperCase();
-    tsRaw = live.date_time_utc;
-    if (s === 'REALTIME')            { label = 'REALTIME';   cls = 'q-realtime'; }
-    else if (s === 'INDICATIVE_REALTIME') { label = 'INDIC';  cls = 'q-indicative'; }
-    else if (s === 'EH_REALTIME')    { label = 'EH RT';      cls = 'q-closing'; }   // after-hours live → orange
-    else if (s === 'CLOSING')        { label = 'CLOSING';    cls = 'q-closing'; }
-    else if (s === 'DELAYED')        { label = 'DELAYED';    cls = 'q-delayed'; }
-    else if (s === 'EH_BEFORE_OPEN') { label = 'PRE-OPEN';   cls = 'q-unknown'; }
-    else if (s === 'EH_CLOSED')      { label = 'CLOSED';     cls = 'q-unknown'; }
-    else if (s === 'INVALID')        { label = 'INVALID';    cls = 'q-unknown'; }
-    else                              { label = 'UNKNOWN';   cls = 'q-unknown'; }
-  } else {  // schwab convention
-    const rt = live.realtime;
-    tsRaw = live.quote_time;
-    if (rt === true)        { label = 'REALTIME'; cls = 'q-realtime'; }
-    else if (rt === false)  { label = 'DELAYED';  cls = 'q-delayed'; }
-    else if (tsRaw)         { label = 'QUOTE';    cls = 'q-unknown'; }   // have time but no rt flag
-    else                    return '';   // no info at all — render nothing instead of misleading grey
-  }
-  // Build hover tooltip: "Last update: <ET timestamp>"
-  let tipTs = '';
-  if (tsRaw) {
-    if (typeof tsRaw === 'number') {
-      // ETrade date_time_utc is unix seconds
+    vendorTag = `quote_status=${s || '∅'}${live.ah_flag ? ' ah=true' : ''}`;
+    if (typeof live.date_time_utc === 'number') {
+      quoteMs = live.date_time_utc * 1000;
       try {
-        tipTs = new Date(tsRaw * 1000).toLocaleString('en-US', {
+        tipTs = new Date(quoteMs).toLocaleString('en-US', {
           timeZone: 'America/New_York',
           hour12: false, year: 'numeric', month: '2-digit', day: '2-digit',
           hour: '2-digit', minute: '2-digit', second: '2-digit',
         }) + ' ET';
-      } catch (_) { tipTs = String(tsRaw); }
+      } catch (_) { tipTs = String(live.date_time_utc); }
+    }
+    // Definitive closed / pre-open / invalid states are not "stale" — render directly grey.
+    if (s === 'EH_BEFORE_OPEN')      skipAge = { label: 'PRE-OPEN', cls: 'q-unknown' };
+    else if (s === 'EH_CLOSED')      skipAge = { label: 'CLOSED',   cls: 'q-unknown' };
+    else if (s === 'INVALID')        skipAge = { label: 'INVALID',  cls: 'q-unknown' };
+    else if (s === 'INDICATIVE_REALTIME') skipAge = { label: 'INDIC', cls: 'q-indicative' };
+  } else {  // schwab
+    const rt = live.realtime;
+    vendorTag = `realtime=${rt}`;
+    if (live.quote_time) {
+      const parsed = Date.parse(live.quote_time);
+      if (!isNaN(parsed)) { quoteMs = parsed; tipTs = String(live.quote_time); }
+    }
+    if (quoteMs == null && rt == null) return '';   // no age + no vendor flag → nothing useful
+  }
+  if (skipAge) {
+    const title = `Last update: ${tipTs} (${vendorTag})`;
+    return `<span class="quote-chip ${skipAge.cls}" title="${title}">${skipAge.label}</span>`;
+  }
+
+  // Vendor-reported delay penalty (DELAYED enum on ETrade or realtime=false on Schwab)
+  let vendorDelayMin = 0;
+  if (acct === 'etrade') {
+    if (String(live.quote_status || '').toUpperCase() === 'DELAYED') vendorDelayMin = 15;
+  } else {
+    if (live.realtime === false) vendorDelayMin = 15;
+  }
+
+  // Effective age in minutes — drives tier + label
+  let ageMin = null;
+  if (quoteMs != null) ageMin = Math.max(0, (Date.now() - quoteMs) / 60000);
+  const effAge = ageMin != null ? ageMin + vendorDelayMin : null;
+
+  // Tier classification — age-based, overrides vendor self-report
+  let cls = 'q-unknown', tierLabel = 'UNKNOWN';
+  if (effAge == null)         { cls = 'q-unknown';  tierLabel = 'UNKNOWN'; }
+  else if (effAge < 5)         { cls = 'q-realtime'; tierLabel = 'LIVE'; }
+  else if (effAge < 30)        { cls = 'q-delayed';  tierLabel = 'RECENT'; }
+  else if (effAge < 240)       { cls = 'q-closing';  tierLabel = 'STALE'; }
+  else                         { cls = 'q-eod';      tierLabel = 'EOD'; }
+
+  // Compact age suffix: 30s / 12m / 2h12m / 4h22m
+  let ageStr = '';
+  if (ageMin != null) {
+    const totSec = Math.floor(ageMin * 60);
+    if (totSec < 60)               ageStr = `${totSec}s`;
+    else if (totSec < 3600) {
+      const m = Math.floor(totSec / 60);
+      ageStr = `${m}m`;
     } else {
-      tipTs = String(tsRaw);   // Schwab already ISO ET
+      const h = Math.floor(totSec / 3600);
+      const m = Math.floor((totSec % 3600) / 60);
+      ageStr = m > 0 ? `${h}h${m}m` : `${h}h`;
     }
   }
-  const title = tipTs ? `Last update: ${tipTs}` : 'No timestamp available';
+  const label = ageStr ? `${tierLabel} · ${ageStr}` : tierLabel;
+  const delayNote = vendorDelayMin > 0 ? ` +${vendorDelayMin}m vendor delay` : '';
+  const title = `Last update: ${tipTs}${delayNote} (${vendorTag})`;
   return `<span class="quote-chip ${cls}" title="${title}">${label}</span>`;
 }
 
