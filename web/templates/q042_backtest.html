@@ -455,10 +455,10 @@ function render(bt, spxHist, paper, vixHist) {
       const c=chart.ctx;
       c.save();
       c.beginPath(); c.moveTo(p1.x,p1.y); c.lineTo(p2.x,p2.y);
-      c.strokeStyle='var(--chart-on-dark)'; c.lineWidth=1; c.setLineDash([3,4]); c.stroke();
+      c.strokeStyle=themeResolveColor('var(--chart-on-dark)'); c.lineWidth=1; c.setLineDash([3,4]); c.stroke();
       c.setLineDash([]);
       c.beginPath(); c.arc(p2.x,p2.y,10,0,Math.PI*2);
-      c.strokeStyle='var(--chart-on-dark-strong)'; c.lineWidth=1.5; c.stroke();
+      c.strokeStyle=themeResolveColor('var(--chart-on-dark-strong)'); c.lineWidth=1.5; c.stroke();
       c.restore();
     },
   };

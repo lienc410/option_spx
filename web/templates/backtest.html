@@ -2500,7 +2500,7 @@ function renderResults(data) {
       c.beginPath();
       c.moveTo(ptA.x, ptA.y);
       c.lineTo(ptB.x, ptB.y);
-      c.strokeStyle = 'var(--chart-on-dark-faint)';
+      c.strokeStyle = themeResolveColor('var(--chart-on-dark-faint)');
       c.lineWidth = 1;
       c.setLineDash([3, 4]);
       c.stroke();
@@ -2508,7 +2508,7 @@ function renderResults(data) {
       // Highlight ring around sibling
       c.beginPath();
       c.arc(ptB.x, ptB.y, (ptRadius[sib] || 6) + 5, 0, Math.PI * 2);
-      c.strokeStyle = 'var(--white)';
+      c.strokeStyle = themeResolveColor('var(--white)');
       c.lineWidth = 1.5;
       c.globalAlpha = 0.70;
       c.stroke();
@@ -2523,9 +2523,9 @@ function renderResults(data) {
 
   const ctx = document.getElementById('equity-chart').getContext('2d');
   const gradient = ctx.createLinearGradient(0, 0, 0, 220);
-  gradient.addColorStop(0,   'var(--theme-lit-032)');
-  gradient.addColorStop(0.6, 'var(--theme-lit-027)');
-  gradient.addColorStop(1,   'var(--theme-lit-025)');
+  gradient.addColorStop(0,   themeResolveColor('var(--theme-lit-032)'));
+  gradient.addColorStop(0.6, themeResolveColor('var(--theme-lit-027)'));
+  gradient.addColorStop(1,   themeResolveColor('var(--theme-lit-025)'));
 
   equityChart = new Chart(ctx, {
     plugins: [siblingPlugin],
@@ -2715,7 +2715,7 @@ function renderAnnualPnlChart(trades) {
       ctx.save();
       ctx.font = "10px 'JetBrains Mono'";
       ctx.textAlign = 'center';
-      ctx.fillStyle = 'var(--gold)';
+      ctx.fillStyle = themeResolveColor('var(--gold)');
       years.forEach((year, idx) => {
         if (!stressYears.has(year)) return;
         const bar = meta.data[idx];
@@ -3081,10 +3081,10 @@ function renderSpxChart() {
       const c = chart.ctx;
       c.save();
       c.beginPath(); c.moveTo(ptA.x, ptA.y); c.lineTo(ptB.x, ptB.y);
-      c.strokeStyle = 'var(--chart-on-dark-faint)'; c.lineWidth = 1;
+      c.strokeStyle = themeResolveColor('var(--chart-on-dark-faint)'); c.lineWidth = 1;
       c.setLineDash([3, 4]); c.stroke(); c.setLineDash([]);
       c.beginPath(); c.arc(ptB.x, ptB.y, (visiblePtRadius[sib] || 6) + 5, 0, Math.PI * 2);
-      c.strokeStyle = 'var(--white)'; c.lineWidth = 1.5; c.globalAlpha = 0.70; c.stroke();
+      c.strokeStyle = themeResolveColor('var(--white)'); c.lineWidth = 1.5; c.globalAlpha = 0.70; c.stroke();
       c.restore();
     },
   };
@@ -3123,7 +3123,7 @@ function renderSpxChart() {
         ctx.stroke();
 
         if (width > 86) {
-          ctx.fillStyle = 'var(--theme-lit-021)';
+          ctx.fillStyle = themeResolveColor('var(--theme-lit-021)');
           ctx.font = width > 170 ? "500 10px 'JetBrains Mono'" : "500 9px 'JetBrains Mono'";
           ctx.textBaseline = 'top';
           const label = signalLabel(b.value, b.key);
@@ -3148,9 +3148,9 @@ function renderSpxChart() {
       const { ctx, chartArea } = chart;
       ctx.save();
       hits.forEach(hit => {
-        ctx.fillStyle = 'var(--theme-lit-057)';
+        ctx.fillStyle = themeResolveColor('var(--theme-lit-057)');
         ctx.fillRect(hit.left, chartArea.top, hit.right - hit.left, chartArea.bottom - chartArea.top);
-        ctx.strokeStyle = 'var(--theme-lit-089)';
+        ctx.strokeStyle = themeResolveColor('var(--theme-lit-089)');
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(hit.left, chartArea.top + 0.5);
@@ -3188,9 +3188,9 @@ function renderSpxChart() {
       if (!_showQ019FlipDays || !_q019HoveredHit) return;
       const { ctx, chartArea } = chart;
       ctx.save();
-      ctx.fillStyle = 'var(--theme-lit-088)';
+      ctx.fillStyle = themeResolveColor('var(--theme-lit-088)');
       ctx.fillRect(_q019HoveredHit.left, chartArea.top, _q019HoveredHit.right - _q019HoveredHit.left, chartArea.bottom - chartArea.top);
-      ctx.strokeStyle = 'var(--theme-lit-090)';
+      ctx.strokeStyle = themeResolveColor('var(--theme-lit-090)');
       ctx.lineWidth = 1.2;
       ctx.strokeRect(_q019HoveredHit.left + 0.5, chartArea.top + 0.5, (_q019HoveredHit.right - _q019HoveredHit.left) - 1, (chartArea.bottom - chartArea.top) - 1);
       ctx.restore();

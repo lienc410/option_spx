@@ -61,6 +61,11 @@
 
   function resolveThemeVars(value, seen = new WeakSet()) {
     if (typeof value === 'string') return resolveColorString(value);
+    if (typeof value === 'function') {
+      return function (...args) {
+        return resolveThemeVars(value.apply(this, args));
+      };
+    }
     if (!value || typeof value !== 'object') return value;
     if (seen.has(value)) return value;
     seen.add(value);
@@ -72,6 +77,7 @@
 
   window.themeColor = themeColor;
   window.themeRgba = themeRgba;
+  window.themeResolveColor = resolveColorString;
   window.themeColors = function () {
     return {
       bg: themeColor('bg'), surface: themeColor('surface'), surfaceHi: themeColor('surface-hi'),
