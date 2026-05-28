@@ -362,6 +362,64 @@ def get_option_spread_quote(
         return {"visible": False, "error": str(exc)}
 
 
+def get_option_quotes_by_strike(
+    underlier: str,
+    expiry: str,
+    option_type: str,
+    strikes: list[float],
+) -> dict[float, dict]:
+    """Batch-fetch ETrade bid/ask/mark for a list of strikes at one expiry+type.
+
+    Returns {strike_float: {bid, ask, mid, quote_status, ah_flag, date_time_utc}}.
+    Empty dict if token invalid or call fails — caller must treat absence as
+    'no ETrade data', not error.
+    """
+    if not strikes:
+        return {}
+    cleaned: list[float] = []
+    for s in strikes:
+        try:
+            cleaned.append(float(s))
+        except (TypeError, ValueError):
+            continue
+    if not cleaned:
+        return {}
+    side = "CALL" if str(option_type).upper().startswith("C") else "PUT"
+    cache_key = f"optquotes:{underlier}:{expiry}:{side}:{','.join(f'{s:.0f}' for s in sorted(cleaned))}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    if not is_token_valid():
+        return {}
+    try:
+        y, m, d = expiry.split("-")
+        symbols = [f"{underlier}:{y}:{m}:{d}:{side}:{int(round(s))}" for s in cleaned]
+        client = _market_client()
+        payload = client.get_quote(symbols, detail_flag="options", resp_format="json")
+        out: dict[float, dict] = {}
+        for q in _as_list(_dig(payload, "QuoteResponse", "QuoteData")):
+            strike = _dig(q, "Product", "strikePrice")
+            if strike is None:
+                continue
+            opt = q.get("Option") or {}
+            bid = _num(opt.get("bid"))
+            ask = _num(opt.get("ask"))
+            mid = round((bid + ask) / 2, 2) if bid is not None and ask is not None else None
+            out[float(strike)] = {
+                "bid": bid,
+                "ask": ask,
+                "mid": mid,
+                "quote_status": q.get("quoteStatus"),
+                "ah_flag": q.get("ahFlag"),
+                "date_time_utc": q.get("dateTimeUTC"),
+            }
+        _cache_put(cache_key, out)
+        return out
+    except Exception:
+        log.warning("etrade.client: get_option_quotes_by_strike failed", exc_info=True)
+        return {}
+
+
 def get_account_positions(account_id: str | None = None) -> dict:
     if not is_configured():
         return {"configured": False, "authenticated": False, "positions": [], "stale": False}

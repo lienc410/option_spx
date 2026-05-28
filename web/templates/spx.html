@@ -626,6 +626,23 @@ body {
   color: var(--red);
 }
 .scan-star { color: var(--gold); margin-right: 4px; }
+.scan-table .fresh-tag {
+  font-size: 0.58rem;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--theme-lit-100);
+  color: var(--text-2);
+  margin-left: 4px;
+}
+.scan-table .fresh-rt .fresh-tag {
+  background: rgba(80, 200, 120, 0.18);
+  color: var(--green);
+}
+.scan-table .fresh-delayed .fresh-tag {
+  background: rgba(220, 140, 60, 0.18);
+  color: var(--orange);
+}
+.scan-table .diff-wide { color: var(--orange); font-weight: 600; }
 .modal-hint { font-size: 0.7rem; color: var(--text-2); }
 .modal-cta {
   display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;
@@ -1393,6 +1410,25 @@ function renderStrikeScan(draft) {
         Number(row.delta_gap || 0) > 0.08 ? 'gap-high' : '',
         Number(row.delta_gap || 0) > 0.03 && Number(row.delta_gap || 0) <= 0.08 ? 'gap-mid' : '',
       ].filter(Boolean).join(' ');
+      const etradeBA = (row.etrade_bid == null || row.etrade_ask == null)
+        ? '—'
+        : `${Number(row.etrade_bid).toFixed(2)} / ${Number(row.etrade_ask).toFixed(2)}`;
+      const etradeFresh = row.etrade_quote_status || '';
+      const etradeFreshCls = etradeFresh === 'REALTIME' ? 'fresh-rt'
+        : (etradeFresh && etradeFresh !== '') ? 'fresh-delayed' : '';
+      const etradeFreshShort = etradeFresh === 'REALTIME' ? 'RT'
+        : etradeFresh === 'DELAYED' ? 'DL'
+        : etradeFresh === 'INDICATIVE_REALTIME' ? 'iRT'
+        : etradeFresh === 'EH_REALTIME' ? 'EH'
+        : etradeFresh === 'CLOSING' ? 'CL'
+        : etradeFresh ? etradeFresh.slice(0, 2) : '';
+      const diff = row.etrade_mid_diff;
+      let diffCell = '—';
+      if (diff != null) {
+        const sign = diff > 0 ? '+' : '';
+        const diffCls = Math.abs(Number(diff)) > 0.10 ? 'diff-wide' : '';
+        diffCell = `<span class="${diffCls}">${sign}${Number(diff).toFixed(2)}</span>`;
+      }
       return `
         <tr class="${cls}" onclick="selectScanRow('${slot}', ${idx})">
           <td>${row.recommended ? '<span class="scan-star">★</span>' : ''}${row.strike ?? '—'}</td>
@@ -1405,6 +1441,8 @@ function renderStrikeScan(draft) {
           <td>${row.delta_gap == null ? '—' : Number(row.delta_gap).toFixed(3)}</td>
           <td>${row.open_interest ?? '—'}</td>
           <td>${row.score == null ? '—' : Number(row.score).toFixed(2)}</td>
+          <td class="${etradeFreshCls}">${etradeBA}${etradeFreshShort ? ` <span class="fresh-tag">${etradeFreshShort}</span>` : ''}</td>
+          <td>${diffCell}</td>
         </tr>`;
     }).join('');
     return `
@@ -1413,7 +1451,7 @@ function renderStrikeScan(draft) {
         <div class="scan-table-wrap">
           <table class="scan-table">
             <thead>
-              <tr><th>Strike</th><th>Expiry</th><th>Bid</th><th>Ask</th><th>Spread</th><th>Target Δ</th><th>Live Δ</th><th>Δ Gap</th><th>OI</th><th>Score</th></tr>
+              <tr><th>Strike</th><th>Expiry</th><th>Bid</th><th>Ask</th><th>Spread</th><th>Target Δ</th><th>Live Δ</th><th>Δ Gap</th><th>OI</th><th>Score</th><th>ETrade B/A</th><th>vs Schwab</th></tr>
             </thead>
             <tbody>${rowsHtml}</tbody>
           </table>

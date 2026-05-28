@@ -4415,6 +4415,46 @@ def api_position_open_draft():
                             "live_delta": round(live_delta, 3) if live_delta is not None else None,
                             "delta_gap": round(delta_gap, 3) if delta_gap is not None else None,
                         })
+                    # Cross-broker quote overlay: pull ETrade bid/ask for the same
+                    # strikes/expiry so PM can spot stale Schwab quotes or pick the
+                    # broker with tighter spread. Fail-open — absent ETrade data
+                    # leaves the columns blank, never blocks the scan.
+                    try:
+                        from etrade.auth import is_token_valid as _etrade_token_valid
+                        from etrade.client import get_option_quotes_by_strike as _etrade_quotes
+                        if enriched_rows and _etrade_token_valid():
+                            by_expiry: dict[str, list[float]] = {}
+                            for r in enriched_rows:
+                                exp = str(r.get("expiry") or "")
+                                strike_val = r.get("strike")
+                                if not exp or strike_val in (None, ""):
+                                    continue
+                                by_expiry.setdefault(exp, []).append(float(strike_val))
+                            etrade_lookup: dict[tuple[str, float], dict] = {}
+                            for exp, strikes in by_expiry.items():
+                                quotes = _etrade_quotes(rec.underlying, exp, leg["option"], strikes)
+                                for sk, q in quotes.items():
+                                    etrade_lookup[(exp, float(sk))] = q
+                            for r in enriched_rows:
+                                key = (str(r.get("expiry") or ""), float(r.get("strike") or 0))
+                                q = etrade_lookup.get(key)
+                                if not q:
+                                    continue
+                                schwab_mid = r.get("mid")
+                                try:
+                                    schwab_mid_f = float(schwab_mid) if schwab_mid not in (None, "") else None
+                                except (TypeError, ValueError):
+                                    schwab_mid_f = None
+                                diff = None
+                                if q.get("mid") is not None and schwab_mid_f is not None:
+                                    diff = round(float(q["mid"]) - schwab_mid_f, 2)
+                                r["etrade_bid"] = q.get("bid")
+                                r["etrade_ask"] = q.get("ask")
+                                r["etrade_mid"] = q.get("mid")
+                                r["etrade_quote_status"] = q.get("quote_status")
+                                r["etrade_mid_diff"] = diff
+                    except Exception:
+                        pass
                     strike_scan[slot] = enriched_rows
                     strike_scan["scan_fallback"] = strike_scan["scan_fallback"] or scan["scan_fallback"]
                     recommended = next((row for row in enriched_rows if row.get("recommended")), None)
