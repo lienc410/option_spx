@@ -1429,8 +1429,6 @@ function renderStrikeScan(draft) {
         <tr class="${cls}" onclick="selectScanRow('${slot}', ${idx})">
           <td>${row.recommended ? '<span class="scan-star">★</span>' : ''}${row.strike ?? '—'}</td>
           <td>${row.expiry || '—'}</td>
-          <td>${row.bid == null ? '—' : Number(row.bid).toFixed(2)}</td>
-          <td>${row.ask == null ? '—' : Number(row.ask).toFixed(2)}</td>
           <td>${row.spread_pct == null ? '—' : (Number(row.spread_pct) * 100).toFixed(1) + '%'}</td>
           <td>${row.target_delta == null ? '—' : Number(row.target_delta).toFixed(2)}</td>
           <td>${row.live_delta == null ? '—' : Number(row.live_delta).toFixed(2)}</td>
@@ -1447,7 +1445,7 @@ function renderStrikeScan(draft) {
         <div class="scan-table-wrap">
           <table class="scan-table">
             <thead>
-              <tr><th>Strike</th><th>Expiry</th><th>Bid</th><th>Ask</th><th>Spread</th><th>Target Δ</th><th>Live Δ</th><th>Δ Gap</th><th>OI</th><th>Score</th><th>ETrade B/A</th><th>Schwab B/A</th></tr>
+              <tr><th>Strike</th><th>Expiry</th><th>Spread</th><th>Target Δ</th><th>Live Δ</th><th>Δ Gap</th><th>OI</th><th>Score</th><th>ETrade B/A</th><th>Schwab B/A</th></tr>
             </thead>
             <tbody>${rowsHtml}</tbody>
           </table>
@@ -1474,6 +1472,53 @@ function selectScanRow(slot, idx) {
   }
   renderStrikeScan(CURRENT_OPEN_DRAFT);
   updateOpenBpPreview();
+  updateSpreadQuotes();
+}
+
+// Compute Schwab + ETrade spread bid/ask using the leg rows that match
+// currently selected strikes. Sign convention follows model_premium:
+// SELL legs contribute +bid (worst-fill) / +ask (best-fill);
+// BUY legs contribute -ask (worst-fill) / -bid (best-fill).
+// scan_slots["short_leg"] is always the SELL leg, "long_leg" is BUY,
+// across BPS / BCD / IC-call-side — the only 2-leg shapes the modal
+// supports today.
+function updateSpreadQuotes() {
+  const el = document.getElementById('open-spread-quote');
+  if (!el) return;
+  const shortStrike = Number(document.getElementById('open-short-strike')?.value || 0);
+  const longStrike = Number(document.getElementById('open-long-strike')?.value || 0);
+  if (!shortStrike || !longStrike) {
+    el.textContent = 'Spread quote loads when both strikes selected.';
+    return;
+  }
+  const findRow = (slot, strike) => scanRowsFor(slot).find(r => Number(r.strike) === Number(strike));
+  const shortRow = findRow('short_leg', shortStrike);
+  const longRow = findRow('long_leg', longStrike);
+  if (!shortRow || !longRow) {
+    el.textContent = 'Spread quote: selected strike not in scan window.';
+    return;
+  }
+  const computeSpread = (sBid, sAsk, lBid, lAsk) => {
+    const sb = Number(sBid), sa = Number(sAsk), lb = Number(lBid), la = Number(lAsk);
+    if (![sb, sa, lb, la].every(Number.isFinite)) return null;
+    const bid = +(sb - la).toFixed(2);
+    const ask = +(sa - lb).toFixed(2);
+    return { bid, ask, mid: +((bid + ask) / 2).toFixed(2) };
+  };
+  const fmt = (n) => (n == null || !Number.isFinite(Number(n))) ? '—' : Number(n).toFixed(2);
+  const sch = computeSpread(shortRow.bid, shortRow.ask, longRow.bid, longRow.ask);
+  const etr = computeSpread(shortRow.etrade_bid, shortRow.etrade_ask, longRow.etrade_bid, longRow.etrade_ask);
+  const parts = [];
+  parts.push(sch
+    ? `Schwab ${fmt(sch.bid)} / ${fmt(sch.ask)} (mid ${fmt(sch.mid)})`
+    : 'Schwab —');
+  if (etr) {
+    const fresh = shortRow.etrade_quote_status || longRow.etrade_quote_status || '';
+    parts.push(`ETrade ${fmt(etr.bid)} / ${fmt(etr.ask)} (mid ${fmt(etr.mid)})${fresh ? ' [' + fresh + ']' : ''}`);
+  } else {
+    parts.push('ETrade —');
+  }
+  el.textContent = `Spread B/A: ${parts.join(' · ')}`;
 }
 
 function applyOpenDraft(draft) {
@@ -1498,6 +1543,7 @@ function applyOpenDraft(draft) {
   renderStrikeScan(draft);
   updatePremiumDiff();
   updateOpenBpPreview();
+  updateSpreadQuotes();
 }
 
 async function loadOpenDraft(strategyKey) {
@@ -1577,6 +1623,7 @@ function updateOpenBpPreview() {
     · Target: <strong>$${targetDollars.toLocaleString(undefined, {maximumFractionDigits: 0})}</strong> <strong>(${targetPct.toFixed(2)}%)</strong>
     · Basis: <strong>${basisLabel}</strong>${basisDollars ? ` <strong>($${basisDollars.toLocaleString(undefined, {maximumFractionDigits: 0})})</strong>` : ''}
     · Recommended contracts: <strong>${recommendedContracts}</strong>`;
+  updateSpreadQuotes();
 }
 
 function updateCloseDerivedFields() {
@@ -1673,6 +1720,9 @@ function openTradeModal(kind, presetAccount, addTranche) {
         </div>
         <div class="modal-field full">
           <div class="modal-hint" id="open-legs-hint">Loading algorithm draft…</div>
+        </div>
+        <div class="modal-field full">
+          <div class="modal-hint" id="open-spread-quote">Spread quote loads when both strikes selected.</div>
         </div>
         <div class="modal-field full">
           <div class="modal-hint" id="open-premium-diff">Fill actual + model premium to see the variance.</div>
