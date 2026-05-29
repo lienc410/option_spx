@@ -47,7 +47,7 @@ OUT_PATH = DATA / "strategy_pnl_attribution.jsonl"
 R = 0.05            # 1-yr T-bill ~
 Q = 0.013           # SPX dividend yield ~
 DAYS_PER_YEAR = 365.0
-COMPUTE_METHOD = "bs_reverse_solve_v1"
+COMPUTE_METHOD = "bs_with_broker_pathB_v2"
 
 
 # ── data loaders ─────────────────────────────────────────────────────────────
@@ -146,6 +146,53 @@ def load_spx_history() -> dict[str, float]:
     return out
 
 
+def load_broker_greeks() -> dict[tuple[str, str], dict]:
+    """Path B: load broker chain greeks captured at daily_snapshot time.
+    Returns {(date_iso, trade_id): {"short": {delta,gamma,theta,vega,iv,mark},
+                                     "long":  {...}}}. Empty when v3/v4 snapshot
+    rows haven't been written yet (deployed mid-2026-05-28).
+
+    Broker conventions converted to internal:
+      theta_yr  = broker_theta_per_day × 365
+      vega_dec  = broker_vega_per_1pct × 100
+      iv        = broker_iv (already decimal if < 1 else /100)
+    """
+    out: dict[tuple[str, str], dict] = {}
+    with open(DAILY_SNAPSHOT) as f:
+        for line in f:
+            r = json.loads(line)
+            iso = r.get("date")
+            for p in (r.get("strategies", {}).get("spx_spread", {}).get("positions") or []):
+                tid = p.get("trade_id")
+                gs = p.get("greeks_short")
+                gl = p.get("greeks_long")
+                if not (tid and iso and gs and gl):
+                    continue
+                if any(gs.get(k) is None for k in ("delta", "gamma", "theta", "vega", "iv", "mark")):
+                    continue
+                if any(gl.get(k) is None for k in ("delta", "gamma", "theta", "vega", "iv", "mark")):
+                    continue
+                out[(iso, tid)] = {
+                    "short": {
+                        "delta":    float(gs["delta"]),
+                        "gamma":    float(gs["gamma"]),
+                        "theta_yr": float(gs["theta"]) * 365.0,
+                        "vega_dec": float(gs["vega"]) * 100.0,
+                        "iv":       (float(gs["iv"]) / 100.0) if float(gs["iv"]) > 1 else float(gs["iv"]),
+                        "mark":     float(gs["mark"]),
+                    },
+                    "long": {
+                        "delta":    float(gl["delta"]),
+                        "gamma":    float(gl["gamma"]),
+                        "theta_yr": float(gl["theta"]) * 365.0,
+                        "vega_dec": float(gl["vega"]) * 100.0,
+                        "iv":       (float(gl["iv"]) / 100.0) if float(gl["iv"]) > 1 else float(gl["iv"]),
+                        "mark":     float(gl["mark"]),
+                    },
+                }
+    return out
+
+
 def trading_days(start: date, end: date) -> list[date]:
     out, d = [], start
     while d <= end:
@@ -218,21 +265,38 @@ def bs_greeks_put(S: float, K: float, T: float, r: float, q: float, sigma: float
 # ── per-day per-leg state ────────────────────────────────────────────────────
 
 def day_state(pos: Position, d: date, spx_hist: dict[str, float],
+              broker_greeks: Optional[dict] = None,
               override_ms: Optional[float] = None,
               override_ml: Optional[float] = None) -> Optional[dict]:
-    """Build per-day state. Optional mark overrides force IV solve + greeks
-    to be computed at those marks instead of chain day_close. Used for
-    closed-trade edge days where broker fills are the truth.
+    """Build per-day state. Path priority:
+      1. Edge-day mark overrides (broker fill) → BS-solve IV/greeks from them
+      2. Broker chain greeks captured at snapshot time (Path B)
+      3. Chain day_close mark → BS reverse-solve IV + greeks (Path A)
     """
     iso = d.isoformat()
     S = spx_hist.get(iso)
     if S is None:
         return None
+    T = max((pos.expiry - d).days, 1) / DAYS_PER_YEAR
+    # Path B: prefer broker chain greeks (when not overriding marks for fills)
+    if override_ms is None and override_ml is None and broker_greeks is not None:
+        bg = broker_greeks.get((iso, pos.trade_id))
+        if bg:
+            return {
+                "date": iso, "S": S, "T": T,
+                "ms": bg["short"]["mark"], "ml": bg["long"]["mark"],
+                "iv_s": bg["short"]["iv"], "iv_l": bg["long"]["iv"],
+                "gs": {"delta": bg["short"]["delta"], "gamma": bg["short"]["gamma"],
+                       "theta_yr": bg["short"]["theta_yr"], "vega_dec": bg["short"]["vega_dec"]},
+                "gl": {"delta": bg["long"]["delta"], "gamma": bg["long"]["gamma"],
+                       "theta_yr": bg["long"]["theta_yr"], "vega_dec": bg["long"]["vega_dec"]},
+                "broker": True,
+            }
+    # Path A: chain mark + BS reverse-solve (with optional edge mark overrides)
     ms = override_ms if override_ms is not None else load_chain_mark(d, pos.short_strike, pos.expiry)
     ml = override_ml if override_ml is not None else load_chain_mark(d, pos.long_strike, pos.expiry)
     if ms is None or ml is None:
         return None
-    T = max((pos.expiry - d).days, 1) / DAYS_PER_YEAR
     iv_s = solve_iv(ms, S, pos.short_strike, T, R, Q)
     iv_l = solve_iv(ml, S, pos.long_strike, T, R, Q)
     if iv_s is None or iv_l is None:
@@ -240,7 +304,7 @@ def day_state(pos: Position, d: date, spx_hist: dict[str, float],
     gs = bs_greeks_put(S, pos.short_strike, T, R, Q, iv_s)
     gl = bs_greeks_put(S, pos.long_strike, T, R, Q, iv_l)
     return {"date": iso, "S": S, "T": T, "ms": ms, "ml": ml,
-            "iv_s": iv_s, "iv_l": iv_l, "gs": gs, "gl": gl}
+            "iv_s": iv_s, "iv_l": iv_l, "gs": gs, "gl": gl, "broker": False}
 
 
 def attribute_pair(pos: Position, t0: dict, t1: dict) -> dict:
@@ -309,6 +373,8 @@ def emit_row(out_f, pos: Position, t0: dict, t1: dict, attr: dict) -> None:
         **attr,
         "synthetic_t0": bool(t0.get("synthetic")),
         "synthetic_t1": bool(t1.get("synthetic")),
+        "greek_source_t0": "broker_chain" if t0.get("broker") else "bs_reverse_solve",
+        "greek_source_t1": "broker_chain" if t1.get("broker") else "bs_reverse_solve",
         "compute_method": COMPUTE_METHOD,
     }
     out_f.write(json.dumps(row) + "\n")
@@ -321,8 +387,10 @@ def compute() -> int:
         print("[greek-attr] no positions to compute")
         return 0
     spx_hist = load_spx_history()
+    broker_greeks = load_broker_greeks()
     done = existing_keys()
-    print(f"[greek-attr] open={len(open_pos)} closed={len(closed_pos)} existing_rows={len(done)}")
+    print(f"[greek-attr] open={len(open_pos)} closed={len(closed_pos)} "
+          f"broker_greek_rows={len(broker_greeks)} existing_rows={len(done)}")
 
     today = max(
         date.fromisoformat(d.name)
@@ -348,9 +416,32 @@ def compute() -> int:
 
     def process(pos: Position, out_f) -> int:
         end = pos.closed_at if pos.closed_at else today
+        # Path B continuity rule: for each transition (t0, t1), only use broker
+        # greeks if BOTH endpoints have broker support AND neither is an edge
+        # day (override). Otherwise both endpoints fall back to BS reverse-solve
+        # so mark/IV/greek scales stay internally consistent.
+        td_list = trading_days(pos.opened_at, end)
+        def _is_edge(d: date) -> bool:
+            if d == pos.opened_at and (pos.entry_short_fill is not None or pos.entry_credit_per_share is not None):
+                return True
+            if pos.closed_at and d == pos.closed_at and (pos.exit_short_fill is not None or pos.exit_debit_per_share is not None):
+                return True
+            return False
+        broker_ok = {
+            d: (not _is_edge(d)) and ((d.isoformat(), pos.trade_id) in broker_greeks)
+            for d in td_list
+        }
+        # Per-day decision: use broker only if today AND the neighbor we'll
+        # transition with also has broker. For each day, we look at next day.
+        # First day of a broker stream propagates via "prev was broker" anchor.
+        use_broker_for_day: dict[date, bool] = {}
+        for i, d in enumerate(td_list):
+            prev_was_broker = i > 0 and use_broker_for_day.get(td_list[i-1], False)
+            next_has_broker = i + 1 < len(td_list) and broker_ok[td_list[i+1]]
+            use_broker_for_day[d] = broker_ok[d] and (prev_was_broker or next_has_broker)
         states = []
         last_iv_s, last_iv_l = None, None
-        for d in trading_days(pos.opened_at, end):
+        for d in td_list:
             # Override marks at edge days so IV/greeks are solved at broker
             # truth, eliminating the "instant repricing" jump between chain
             # mark and broker fill on opened_at/closed_at days.
@@ -380,7 +471,9 @@ def compute() -> int:
                         adj = ((cm - cl) - pos.exit_debit_per_share) / 2.0
                         om = max(cm - adj, 0.01)
                         ol = max(cl + adj, 0.01)
-            s = day_state(pos, d, spx_hist, override_ms=om, override_ml=ol)
+            s = day_state(pos, d, spx_hist,
+                          broker_greeks=broker_greeks if use_broker_for_day.get(d) else None,
+                          override_ms=om, override_ml=ol)
             if s is not None:
                 last_iv_s, last_iv_l = s["iv_s"], s["iv_l"]
                 states.append(s)
