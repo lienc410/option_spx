@@ -1218,9 +1218,13 @@ function renderPosition(p) {
     CURRENT_POS = null;
     panel.className = 'pos-panel pos-empty';
     panel.innerHTML = '<span>No open position on record.</span>';
+    // Always allow PM to open manually. When outside the SPEC-107 scheduled
+    // window, surface the "next scheduled" hint next to the button (does not
+    // block — PM has final discretion).
     actions.innerHTML = canOpen
       ? `<button class="action-btn primary" onclick="openTradeModal('open')">+ Open Position</button>`
-      : `<button class="action-btn" disabled title="SPEC-107 non-scheduled observations are not actionable">Next actionable: ${nextText}</button>`;
+      : `<button class="action-btn primary" onclick="openTradeModal('open')" title="Outside SPEC-107 scheduled window — proceed with caution">+ Open Position</button>
+         <span class="modal-hint" style="margin-left:10px;color:var(--text-2);font-size:0.66rem">(off-schedule · next scheduled ${nextText})</span>`;
     return;
   }
   panel.className = 'pos-panel';
