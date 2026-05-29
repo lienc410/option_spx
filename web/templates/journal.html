@@ -493,23 +493,11 @@ function _renderNlvChart() {
     fillSource.push(src);
   }
 
-  const partialDates = labels.filter((_, i) => synthetic[i]);
-
-  // Banner above the chart describing the forward-fill behavior so PM sees the
-  // dashed segments are intentional, not a rendering bug.
+  // Partial-data banner removed per PM (2026-05-28); dashed segments speak
+  // for themselves now. Defensive cleanup if a banner already exists in DOM.
   const ctxWrap = document.getElementById('nlv-chart').parentElement;
-  let partialBanner = ctxWrap.parentElement.querySelector('.partial-banner');
-  if (partialDates.length > 0) {
-    const dateList = partialDates.length <= 5
-      ? partialDates.join(', ')
-      : `${partialDates.slice(0, 3).join(', ')} … +${partialDates.length - 3} more`;
-    const missingAcct = _accountView === 'all' ? 'one account' : _acctLabel();
-    const html = `<div class="partial-banner">⚠ Partial data on ${dateList} — ${missingAcct} unavailable; chart forward-fills the last known value (dashed segments).</div>`;
-    if (partialBanner) partialBanner.outerHTML = html;
-    else ctxWrap.insertAdjacentHTML('beforebegin', html);
-  } else if (partialBanner) {
-    partialBanner.remove();
-  }
+  const oldNlvBanner = ctxWrap.parentElement.querySelector('.partial-banner');
+  if (oldNlvBanner) oldNlvBanner.remove();
 
   // Chart.js 4 segment API: dash determined by the segment's RIGHT endpoint
   // only. PM rule (2026-05-26): "synthetic 数据点的左侧用虚线，真实数据点左
@@ -678,20 +666,11 @@ function _renderBpChart() {
                                   nlv: nlvSynth ? lastNlvDate : null } : null);
   }
 
-  // Banner above BP chart (same orange .partial-banner CSS as NLV chart)
+  // Partial-data banner removed per PM (2026-05-28); dashed segments speak
+  // for themselves now. Defensive cleanup if a banner already exists in DOM.
   const bpCtxWrap = document.getElementById('bp-chart').parentElement;
-  let bpBanner = bpCtxWrap.parentElement.querySelector('.partial-banner.bp');
-  const partialDates = labels.filter((_, i) => synthetic[i]);
-  if (partialDates.length > 0) {
-    const dateList = partialDates.length <= 5
-      ? partialDates.join(', ')
-      : `${partialDates.slice(0, 3).join(', ')} … +${partialDates.length - 3} more`;
-    const html = `<div class="partial-banner bp">⚠ Partial data on ${dateList} — one account unavailable; BP stack forward-fills each bucket from the last full day (dashed segments).</div>`;
-    if (bpBanner) bpBanner.outerHTML = html;
-    else bpCtxWrap.insertAdjacentHTML('beforebegin', html);
-  } else if (bpBanner) {
-    bpBanner.remove();
-  }
+  const oldBpBanner = bpCtxWrap.parentElement.querySelector('.partial-banner.bp');
+  if (oldBpBanner) oldBpBanner.remove();
 
   // Chart.js segment helpers — right-endpoint rule (see NLV chart comment).
   // synth → real edges render solid; real/synth → synth render dashed.
