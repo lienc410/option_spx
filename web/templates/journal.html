@@ -187,6 +187,11 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .attr-daily-table td.pos { color: var(--green); }
 .attr-daily-table td.neg { color: var(--red); }
 .attr-daily-table td.neu { color: var(--text-2); }
+.attr-daily-table tr.factor-break th,
+.attr-daily-table tr.factor-break td {
+  border-bottom-color: var(--border-2);
+  border-bottom-width: 2px;
+}
 .attr-daily-title {
   display: flex;
   justify-content: space-between;
@@ -1123,13 +1128,13 @@ function _renderAttrDailyTable(payload) {
   }
   const visibleRows = _attrWindow === '7d' ? rows.slice(-7) : _attrWindow === '30d' ? rows.slice(-30) : rows;
   const factorRows = [
-    { label: 'Driving · ΔS', key: 'dS', fmt: v => v == null ? '—' : _signedNum(v, 2), total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: v => _signedNum(v, 2) },
-    { label: 'Driving · ΔVIX', key: 'dVIX', fmt: v => v == null ? '—' : _signedNum(v, 2), total: vals => vals.some(v => v == null) ? null : vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: v => v == null ? '—' : _signedNum(v, 2) },
-    { label: 'Greek · Delta', key: 'delta_attr', fmt: _signedMoney, total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: _signedMoney },
-    { label: 'Greek · Gamma', key: 'gamma_attr', fmt: _signedMoney, total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: _signedMoney },
-    { label: 'Greek · Theta', key: 'theta_attr', fmt: _signedMoney, total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: _signedMoney },
-    { label: 'Greek · Vega', key: 'vega_attr', fmt: _signedMoney, total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: _signedMoney },
-    { label: 'Greek · Residual', key: 'residual', fmt: _signedMoney, total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: _signedMoney },
+    { label: 'ΔS', key: 'dS', fmt: v => v == null ? '—' : _signedNum(v, 2), total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: v => _signedNum(v, 2) },
+    { label: 'ΔVIX', key: 'dVIX', breakAfter: true, fmt: v => v == null ? '—' : _signedNum(v, 2), total: vals => vals.some(v => v == null) ? null : vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: v => v == null ? '—' : _signedNum(v, 2) },
+    { label: 'Delta', key: 'delta_attr', fmt: _signedMoney, total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: _signedMoney },
+    { label: 'Gamma', key: 'gamma_attr', fmt: _signedMoney, total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: _signedMoney },
+    { label: 'Theta', key: 'theta_attr', fmt: _signedMoney, total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: _signedMoney },
+    { label: 'Vega', key: 'vega_attr', fmt: _signedMoney, total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: _signedMoney },
+    { label: 'Residual', key: 'residual', fmt: _signedMoney, total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: _signedMoney },
     { label: 'Actual PnL', key: 'actual_pnl', fmt: _signedMoney, total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: _signedMoney },
   ];
   const head = `<thead><tr><th class="row-head">Factor</th>${visibleRows.map(r => `<th>${r.date}${r.synthetic ? ' ⚠' : ''}</th>`).join('')}<th class="total-col">Total · Cum</th></tr></thead>`;
@@ -1137,7 +1142,7 @@ function _renderAttrDailyTable(payload) {
     const vals = visibleRows.map(r => r[fr.key]);
     const total = fr.total(vals);
     const cells = vals.map(v => `<td class="${_signedCls(v)}">${fr.fmt(v)}</td>`).join('');
-    return `<tr><th class="row-head">${fr.label}</th>${cells}<td class="total-col ${_signedCls(total)}">${fr.totalFmt(total)}</td></tr>`;
+    return `<tr class="${fr.breakAfter ? 'factor-break' : ''}"><th class="row-head">${fr.label}</th>${cells}<td class="total-col ${_signedCls(total)}">${fr.totalFmt(total)}</td></tr>`;
   }).join('');
   table.innerHTML = `${head}<tbody>${body}</tbody>`;
 }
