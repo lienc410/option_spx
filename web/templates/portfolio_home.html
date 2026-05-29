@@ -1539,7 +1539,7 @@ async function loadSpx() {
             </div>
             <div style="font-family:var(--f-mono);font-size:0.67rem;color:var(--text-2);display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:3px">
               ${fmtPos(live.delta, totalContracts*100) != null ? `<span>Δ×n <span style="color:var(--text)">${fmtPos(live.delta, totalContracts*100)}</span> $/pt</span>` : ''}
-              ${live.gamma != null ? `<span>Γ×n <span style="color:var(--text)">${(live.gamma * totalContracts * 100).toFixed(3)}</span></span>` : ''}
+              ${live.gamma != null ? `<span>Γ×n <span style="color:var(--text)">${(live.gamma * totalContracts * 100).toFixed(3)}</span> Δ/pt</span>` : ''}
               ${fmtPos(live.theta, totalContracts*100) != null ? `<span>Θ×n <span style="color:var(--text)">${fmtPos(live.theta, totalContracts*100)}</span> $/d</span>` : ''}
               ${fmtPos(live.vega,  totalContracts*100) != null ? `<span>V×n <span style="color:var(--text)">${fmtPos(live.vega,  totalContracts*100)}</span> $/vol</span>` : ''}
             </div>`;
@@ -3299,9 +3299,9 @@ function hidePosGreekHelp() {
         <span style="color:var(--text-2)">例：+63 $/pt = SPX 涨 1 点盈利 $63，跌 1 点亏损 $63。Bull put spread 为正 Delta，看涨方向。</span>
       </div>
       <div>
-        <span style="font-family:var(--f-mono);font-weight:700;color:var(--blue)">Γ×n &nbsp;Position Gamma</span><br>
+        <span style="font-family:var(--f-mono);font-weight:700;color:var(--blue)">Γ×n &nbsp;Position Gamma  <span style="color:var(--text-2);font-weight:400">Δ/pt</span></span><br>
         Delta 对 SPX 的<strong>变化速率</strong>（二阶风险）。<br>
-        <span style="color:var(--text-2)">SPX 每移动 1 点，Position Delta 随之改变 Γ×n。做空 spread 通常 Gamma 为正（凸性不利，大幅波动对持仓不利）。</span>
+        <span style="color:var(--text-2)">SPX 每移动 1 点，Position Delta 随之改变 Γ×n。Bull put credit spread（做空 spread 收 credit）通常 Gamma 为<strong>负</strong>（short gamma 凸性不利，大幅波动对持仓不利）。<br>例：Γ×n = −0.8 → SPX 振幅 10pt 凸性成本约 0.5×0.8×10² = <strong>$40</strong>。</span>
       </div>
       <div>
         <span style="font-family:var(--f-mono);font-weight:700;color:var(--blue)">Θ×n &nbsp;Position Theta</span><br>
