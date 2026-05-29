@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 HISTORY = ROOT / "data" / "daily_snapshot.jsonl"
 ET = pytz.timezone("America/New_York")
 BASE = "http://127.0.0.1:5050"
-SCHEMA_VERSION = 3   # v3: positions[].greeks_short / greeks_long (path B)
+SCHEMA_VERSION = 4   # v4: spx_spread.{options,equity}_bp_{pct,dollars} split
 
 
 def _today_et() -> str:
@@ -150,6 +150,15 @@ def build_record() -> dict | None:
     buckets  = summary.get("bp_usage_by_bucket") or {}
     schwab_nlv = _num(accounts.get("schwab_nlv"))
     etrade_nlv = _num(accounts.get("etrade_nlv"))
+    # Asset-class breakdown of SPX-account maintenance (for journal BP chart):
+    # options = (schwab_maint - schwab_equity) + (etrade_maint - etrade_equity)
+    # equity  = schwab_equity + etrade_equity
+    _schwab_m = _num(accounts.get("schwab_maintenance_margin")) or 0.0
+    _etrade_m = _num(accounts.get("etrade_maintenance_margin")) or 0.0
+    _schwab_eq_d = _num(buckets.get("equity_margin_dollars")) or 0.0
+    _etrade_eq_d = _num(buckets.get("etrade_equity_dollars")) or 0.0
+    _options_bp_dollars = max(0.0, (_schwab_m - _schwab_eq_d) + (_etrade_m - _etrade_eq_d))
+    _equity_bp_dollars  = _schwab_eq_d + _etrade_eq_d
     if not schwab_nlv:
         print("[daily_snapshot] schwab_nlv missing — aborting", file=sys.stderr)
         return None
@@ -276,8 +285,20 @@ def build_record() -> dict | None:
         "strategies": {
             "spx_spread": {
                 "active":     bool(pos.get("open")),
+                # bp_dollars / bp_pct = account-level maintenance (SPEC-103 §R1):
+                # options spread max-loss + equity collateral. Used by governance.
                 "bp_dollars": _r(pools.get("spx_pm_bp_dollars"), 2),
                 "bp_pct":     _r(pools.get("spx_pm_bp_pct"), 2),
+                # v4 split: asset-class breakdown for journal BP chart, matches
+                # what /api/portfolio/summary surfaces on home Portfolio Snapshot.
+                "options_bp_pct":     _r(
+                    (_num(buckets.get("spx_live_bp_pct")) or 0.0)
+                    + (_num(buckets.get("etrade_options_bp_pct")) or 0.0), 2),
+                "equity_bp_pct":      _r(
+                    (_num(buckets.get("equity_margin_bp_pct")) or 0.0)
+                    + (_num(buckets.get("etrade_equity_bp_pct")) or 0.0), 2),
+                "options_bp_dollars": _r(_options_bp_dollars, 2),
+                "equity_bp_dollars":  _r(_equity_bp_dollars, 2),
                 "positions":  spx_positions,
             },
             "stress_put_ladder": {

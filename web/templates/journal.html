@@ -595,23 +595,35 @@ function _renderBpChart() {
   // $134k on 2026-05-22 just because ETrade was unauthenticated). Forward-
   // fill each bucket from the last full row and dash the synthetic
   // segments so PM sees "reconstructed, not measured".
-  let lastSpx = null, lastLadder = null, lastDdPct = null, lastNlv = null;
-  let lastSpxDate = null, lastLadderDate = null, lastDdDate = null, lastNlvDate = null;
-  const spx = [], ladder = [], dd = [], synthetic = [], fillSource = [];
+  // v4 schema split: SPX-account maint is broken into options (options spread
+  // max-loss) + equity (BOXX, stock collateral). Pre-v4 rows lack these
+  // fields — fall back to legacy bp_dollars (account total) attributed to
+  // options, equity = 0. PM will see the split kick in on v4 rows onward.
+  let lastOpt = null, lastEq = null, lastLadder = null, lastDdPct = null, lastNlv = null;
+  let lastOptDate = null, lastEqDate = null, lastLadderDate = null, lastDdDate = null, lastNlvDate = null;
+  const opt = [], eq = [], ladder = [], dd = [], synthetic = [], fillSource = [];
   for (const r of rows) {
     const isPartial = Array.isArray(r.partial_accounts) && r.partial_accounts.length > 0;
-    // SPX Spread BP$ — combined across accounts; partial when any account missing
-    const spxRaw = r.strategies?.spx_spread?.bp_dollars;
+    const spxBlock = r.strategies?.spx_spread || {};
+    const optRaw   = spxBlock.options_bp_dollars != null
+                       ? spxBlock.options_bp_dollars
+                       : spxBlock.bp_dollars;     // legacy fallback
+    const eqRaw    = spxBlock.equity_bp_dollars != null
+                       ? spxBlock.equity_bp_dollars
+                       : (spxBlock.options_bp_dollars != null ? 0 : null);
     const ladderRaw = r.strategies?.stress_put_ladder?.bp_dollars;
-    const ddPctRaw = r.strategies?.dd_overlay?.bp_pct;
-    const nlvRaw = r.combined_nlv;
-    let spxUsed    = spxRaw,    spxSynth    = false;
+    const ddPctRaw  = r.strategies?.dd_overlay?.bp_pct;
+    const nlvRaw    = r.combined_nlv;
+    let optUsed    = optRaw,    optSynth    = false;
+    let eqUsed     = eqRaw,     eqSynth     = false;
     let ladderUsed = ladderRaw, ladderSynth = false;
     let ddPctUsed  = ddPctRaw,  ddSynth     = false;
     let nlvUsed    = nlvRaw,    nlvSynth    = false;
-    // Forward-fill on partial rows OR when a bucket is explicitly missing
-    if (isPartial || spxRaw == null) {
-      if (lastSpx != null) { spxUsed = lastSpx; spxSynth = true; }
+    if (isPartial || optRaw == null) {
+      if (lastOpt != null) { optUsed = lastOpt; optSynth = true; }
+    }
+    if (isPartial || eqRaw == null) {
+      if (lastEq != null) { eqUsed = lastEq; eqSynth = true; }
     }
     if (isPartial || ladderRaw == null) {
       if (lastLadder != null) { ladderUsed = lastLadder; ladderSynth = true; }
@@ -620,30 +632,30 @@ function _renderBpChart() {
       if (lastDdPct != null) { ddPctUsed = lastDdPct; ddSynth = true; }
     }
     if (nlvRaw == null && lastNlv != null) { nlvUsed = lastNlv; nlvSynth = true; }
-    // Update trackers only on real-data days
     if (!isPartial) {
-      if (spxRaw    != null) { lastSpx    = spxRaw;    lastSpxDate    = r.date; }
+      if (optRaw    != null) { lastOpt    = optRaw;    lastOptDate    = r.date; }
+      if (eqRaw     != null) { lastEq     = eqRaw;     lastEqDate     = r.date; }
       if (ladderRaw != null) { lastLadder = ladderRaw; lastLadderDate = r.date; }
       if (ddPctRaw  != null) { lastDdPct  = ddPctRaw;  lastDdDate     = r.date; }
       if (nlvRaw    != null) { lastNlv    = nlvRaw;    lastNlvDate    = r.date; }
     }
-    // Build both unit series so toggle re-render doesn't re-loop the data.
-    // Dollars view: bp_dollars / 1000 ($k). Pct view: bp_dollars / NLV × 100.
-    // dd_overlay is stored as bp_pct natively; convert to $ via NLV.
     const denomNlv = nlvUsed || 0;
     if (_bpUnit === 'pct') {
-      spx.push(denomNlv > 0 ? (spxUsed || 0) / denomNlv * 100 : 0);
+      opt.push(denomNlv > 0 ? (optUsed || 0) / denomNlv * 100 : 0);
+      eq.push(denomNlv > 0 ? (eqUsed || 0) / denomNlv * 100 : 0);
       ladder.push(denomNlv > 0 ? (ladderUsed || 0) / denomNlv * 100 : 0);
       dd.push(ddPctUsed != null ? ddPctUsed : 0);
     } else {
-      spx.push((spxUsed || 0) / 1000);
+      opt.push((optUsed || 0) / 1000);
+      eq.push((eqUsed || 0) / 1000);
       ladder.push((ladderUsed || 0) / 1000);
       const ddDollars = (ddPctUsed != null && nlvUsed) ? (ddPctUsed / 100 * nlvUsed) : 0;
       dd.push(ddDollars / 1000);
     }
-    const rowSynth = spxSynth || ladderSynth || ddSynth || nlvSynth || isPartial;
+    const rowSynth = optSynth || eqSynth || ladderSynth || ddSynth || nlvSynth || isPartial;
     synthetic.push(rowSynth);
-    fillSource.push(rowSynth ? { spx: spxSynth ? lastSpxDate : null,
+    fillSource.push(rowSynth ? { opt: optSynth ? lastOptDate : null,
+                                  eq:  eqSynth ? lastEqDate : null,
                                   ladder: ladderSynth ? lastLadderDate : null,
                                   dd: ddSynth ? lastDdDate : null,
                                   nlv: nlvSynth ? lastNlvDate : null } : null);
@@ -679,12 +691,22 @@ function _renderBpChart() {
       labels,
       datasets: [
         {
-          label: 'SPX Spread', data: spx,
+          label: 'SPX Options', data: opt,
           backgroundColor: 'var(--theme-lit-035)',
           borderColor:     'var(--theme-lit-049)',
           fill: 'origin', tension: 0.1, pointRadius: 0,
           segment: {
             borderColor: dimBorder('var(--theme-lit-049)', 'var(--theme-lit-035)'),
+            borderDash:  dashOnSynth,
+          },
+        },
+        {
+          label: 'Equity', data: eq,
+          backgroundColor: 'var(--green-equity)',
+          borderColor:     'var(--green-equity)',
+          fill: '-1', tension: 0.1, pointRadius: 0,
+          segment: {
+            borderColor: dimBorder('var(--green-equity)', 'var(--theme-lit-122)'),
             borderDash:  dashOnSynth,
           },
         },
@@ -724,7 +746,8 @@ function _renderBpChart() {
               const base = `  ${c.dataset.label}: ${valStr}`;
               if (synthetic[i]) {
                 const src = fillSource[i] || {};
-                const bucketSrc = c.dataset.label === 'SPX Spread' ? src.spx
+                const bucketSrc = c.dataset.label === 'SPX Options' ? src.opt
+                               : c.dataset.label === 'Equity' ? src.eq
                                : c.dataset.label === 'Stress Put Ladder' ? src.ladder
                                : c.dataset.label === 'DD Overlay' ? (src.dd || src.nlv)
                                : null;
