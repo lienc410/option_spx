@@ -1540,7 +1540,7 @@ async function loadSpx() {
             <div style="font-family:var(--f-mono);font-size:0.67rem;color:var(--text-2);display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:3px">
               ${fmtPos(live.delta, totalContracts*100) != null ? `<span>Δ×n <span style="color:var(--text)">${fmtPos(live.delta, totalContracts*100)}</span> $/pt</span>` : ''}
               ${live.gamma != null ? `<span>Γ×n <span style="color:var(--text)">${(live.gamma * totalContracts * 100).toFixed(3)}</span> Δ/pt</span>` : ''}
-              ${live.gamma != null ? `<span>Γ PnL = 0.5 × |Γ×n| × ΔS² = <span style="color:var(--text)">${(0.5 * Math.abs(live.gamma * totalContracts * 100)).toFixed(2)}</span> × ΔS² $</span>` : ''}
+              ${live.gamma != null ? `<span>Γ PnL = 0.5 × Γ×n × ΔS² = <span style="color:var(--text)">${(0.5 * live.gamma * totalContracts * 100).toFixed(2)}</span> × ΔS² $</span>` : ''}
               ${fmtPos(live.theta, totalContracts*100) != null ? `<span>Θ×n <span style="color:var(--text)">${fmtPos(live.theta, totalContracts*100)}</span> $/d</span>` : ''}
               ${fmtPos(live.vega,  totalContracts*100) != null ? `<span>V×n <span style="color:var(--text)">${fmtPos(live.vega,  totalContracts*100)}</span> $/vol</span>` : ''}
             </div>`;
@@ -3302,13 +3302,13 @@ function hidePosGreekHelp() {
       <div>
         <span style="font-family:var(--f-mono);font-weight:700;color:var(--blue)">Γ×n &nbsp;Position Gamma  <span style="color:var(--text-2);font-weight:400">Δ/pt</span></span><br>
         Delta 对 SPX 的<strong>变化速率</strong>（二阶风险）。SPX 每移动 1 点，Position Delta 随之改变 Γ×n。<br>
-        <span style="color:var(--text-2)">Bull put credit spread（做空 spread 收 credit）通常 Gamma 为<strong>负</strong>（short gamma 凸性不利，大幅波动两边都吃亏）。<br><br>
-        <strong>凸性成本公式</strong>：PnL<sub>γ</sub> ≈ ½ × |Γ×n| × ΔS²<br>
-        例（Γ×n = −0.8）：</span>
+        <span style="color:var(--text-2)">Bull put credit spread（做空 spread 收 credit）通常 Gamma 为<strong>负</strong>（short gamma），<strong>SPX 涨跌都亏钱</strong>，因 ΔS² 永远正，Γ 永远负。<br><br>
+        <strong>凸性 PnL 公式</strong>：PnL<sub>γ</sub> ≈ ½ × Γ×n × ΔS²<br>
+        例（Γ×n = −0.8 → 系数 = −0.4）：</span>
         <table style="margin-top:4px;font-family:var(--f-mono);font-size:0.66rem;color:var(--text)">
-          <tr><td style="padding-right:14px">SPX 振 10 pt</td><td>~$40 凸性成本</td></tr>
-          <tr><td style="padding-right:14px">SPX 振 30 pt</td><td>~$360</td></tr>
-          <tr><td style="padding-right:14px">SPX 振 50 pt</td><td>~$1,000</td></tr>
+          <tr><td style="padding-right:14px">SPX 振 10 pt</td><td>−$40</td></tr>
+          <tr><td style="padding-right:14px">SPX 振 30 pt</td><td>−$360</td></tr>
+          <tr><td style="padding-right:14px">SPX 振 50 pt</td><td>−$1,000</td></tr>
         </table>
         <span style="color:var(--text-2)">你 short BPS = 结构性 short gamma payer，所以 attribution 里 Γ cum 长期为负是预期内的。</span>
       </div>
