@@ -199,6 +199,15 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     <div class="chart-wrap medium"><canvas id="bp-chart"></canvas></div>
   </div>
 
+  <!-- Strategy Cum PnL (realized + unrealized) -->
+  <div class="section-label">Strategy Cum P&amp;L <span style="color:var(--text-2);font-weight:400;font-size:11px;font-family:'DM Sans'">· SPX Spread · realized closes + open MTM</span></div>
+  <div class="chart-panel">
+    <div class="chart-controls">
+      <span class="acct-view-note" id="cumpnl-note" style="margin-left:auto">Loading…</span>
+    </div>
+    <div class="chart-wrap medium"><canvas id="cumpnl-chart"></canvas></div>
+  </div>
+
   <!-- Strategy PnL Attribution by Greek -->
   <div class="section-label">Strategy PnL Attribution by Greek <span style="color:var(--text-2);font-weight:400;font-size:11px;font-family:'DM Sans'">· SPX Spread · BS reverse-solve</span></div>
   <div class="chart-panel">
@@ -368,6 +377,7 @@ function _renderAll(payload) {
   _renderLatest();
   _renderNlvChart();
   _renderBpChart();
+  _renderCumPnlChart(); // fetches its own data — closed_trades + attribution jsonl
   _renderAttrChart();   // fetches its own data — independent of daily_snapshot
   _renderRegimeStrip();
   _renderMarketChart();
@@ -739,6 +749,83 @@ function _renderBpChart() {
       },
     },
   });
+}
+
+// Strategy Cum PnL — one line of cumulative strategy PnL. Combines closed
+// trades' broker-reported realized (lump-at-close-date) with currently-open
+// trades' daily MTM. Sources data from /api/strategy/cum-pnl which sums
+// daily actual_pnl from strategy_pnl_attribution.jsonl across all trade_ids
+// (closed-trade attribution rows have broker-fill edge overrides so cum
+// reconciles to realized).
+async function _renderCumPnlChart() {
+  let payload;
+  try {
+    const res = await fetch('/api/strategy/cum-pnl?strategy=spx_spread');
+    payload = await res.json();
+  } catch (e) {
+    payload = { status: 'error', series: [] };
+  }
+  const ctx = document.getElementById('cumpnl-chart').getContext('2d');
+  if (_charts.cumpnl) _charts.cumpnl.destroy();
+  const note = document.getElementById('cumpnl-note');
+
+  if (!payload || payload.status !== 'available' || !payload.series.length) {
+    if (note) note.textContent = 'No PnL rows yet — seed closed_trades.jsonl or run compute_greek_attribution.py.';
+    return;
+  }
+
+  const labels = payload.series.map(r => r.date);
+  const cum    = payload.series.map(r => r.cum_pnl);
+
+  _charts.cumpnl = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Cum PnL',
+        data: cum,
+        borderColor: 'var(--gold)',
+        backgroundColor: 'var(--gold-bg)',
+        fill: { target: 'origin', above: 'var(--gold-bg)', below: 'var(--red-bg)' },
+        tension: 0.15, pointRadius: 0, pointHoverRadius: 4, borderWidth: 2,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: c => {
+              const r = payload.series[c.dataIndex];
+              return [
+                `  Cum: $${Math.round(r.cum_pnl).toLocaleString()}`,
+                `  Day: $${Math.round(r.day_pnl).toLocaleString()}`,
+              ];
+            },
+          },
+        },
+      },
+      scales: {
+        x: { ticks: { color: 'var(--text-2)', maxTicksLimit: 10, font: { family: "'JetBrains Mono', monospace", size: 10 } }, grid: { color: 'var(--theme-lit-095)' } },
+        y: {
+          ticks: {
+            color: 'var(--text-2)',
+            font: { family: "'JetBrains Mono', monospace", size: 10 },
+            callback: v => '$' + (v / 1000).toFixed(1) + 'k',
+          },
+          grid: { color: 'var(--theme-lit-095)' },
+        },
+      },
+    },
+  });
+
+  if (note && payload.totals) {
+    const t = payload.totals;
+    const f = n => '$' + Math.round(n).toLocaleString();
+    note.textContent = `Cum ${f(t.cum_pnl)}  ·  Realized ${f(t.realized)} (${t.closed_trades} closed)  ·  Unrealized ${f(t.unrealized)}`;
+  }
 }
 
 // Strategy PnL Attribution — fetches /api/strategy/greek-attribution and

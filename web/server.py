@@ -2263,6 +2263,100 @@ def api_strategy_greek_attribution():
     })
 
 
+@app.route("/api/strategy/cum-pnl")
+def api_strategy_cum_pnl():
+    """Cumulative strategy PnL — combines realized (from closed_trades) and
+    unrealized (running cum of daily PnL across all positions, open + closed).
+
+    Daily total PnL = sum of actual_pnl across all trade_ids on that date.
+    For closed trades, attribution rows already reconcile to broker realized
+    via edge-mark override (see scripts/compute_greek_attribution.py).
+
+    Query params:
+      strategy: spx_spread (default)
+    Returns dates + cum_pnl series, with realized/unrealized split as of latest.
+    """
+    attr_path = os.path.normpath(
+        os.path.join(os.path.dirname(__file__), "..", "data", "strategy_pnl_attribution.jsonl")
+    )
+    closed_path = os.path.normpath(
+        os.path.join(os.path.dirname(__file__), "..", "data", "closed_trades.jsonl")
+    )
+    if not os.path.exists(attr_path):
+        return jsonify({"status": "no_data", "series": []})
+
+    strategy = flask_req.args.get("strategy", "spx_spread")
+
+    rows: list[dict] = []
+    try:
+        with open(attr_path) as f:
+            for line in f:
+                try:
+                    r = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if r.get("strategy") == strategy:
+                    rows.append(r)
+    except Exception as exc:
+        return jsonify({"status": "error", "error": str(exc)})
+
+    if not rows:
+        return jsonify({"status": "no_data", "series": []})
+
+    # Group by date, sum actual_pnl
+    by_date: dict[str, float] = {}
+    for r in rows:
+        d = r["date"]
+        by_date[d] = by_date.get(d, 0.0) + float(r.get("actual_pnl") or 0.0)
+    dates = sorted(by_date.keys())
+
+    running = 0.0
+    series = []
+    for d in dates:
+        running += by_date[d]
+        series.append({"date": d, "cum_pnl": round(running, 2), "day_pnl": round(by_date[d], 2)})
+
+    # Split realized vs unrealized at latest date.
+    # Realized = sum of closed_trades.realized_pnl with closed_at <= latest
+    # Unrealized = cum_total - realized
+    realized_cum = 0.0
+    closed_count = 0
+    if os.path.exists(closed_path):
+        try:
+            latest_date = series[-1]["date"] if series else "9999-99-99"
+            with open(closed_path) as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    try:
+                        ct = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if ct.get("strategy") != strategy:
+                        continue
+                    if (ct.get("closed_at") or "9999-99-99") <= latest_date:
+                        realized_cum += float(ct.get("realized_pnl") or 0.0)
+                        closed_count += 1
+        except Exception:
+            pass
+
+    cum_total = series[-1]["cum_pnl"] if series else 0.0
+    unrealized_now = round(cum_total - realized_cum, 2)
+    return jsonify({
+        "status": "available",
+        "strategy": strategy,
+        "series": series,
+        "totals": {
+            "cum_pnl":   round(cum_total, 2),
+            "realized":  round(realized_cum, 2),
+            "unrealized": unrealized_now,
+            "closed_trades": closed_count,
+        },
+        "earliest": dates[0] if dates else None,
+        "latest": dates[-1] if dates else None,
+    })
+
+
 @app.route("/api/portfolio/nlv-change")
 def api_portfolio_nlv_change():
     """Today's combined NLV vs prior snapshot. Fed by scripts/daily_snapshot.py."""

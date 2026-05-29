@@ -40,6 +40,7 @@ REPO = Path(__file__).resolve().parents[1]
 DATA = REPO / "data"
 SNAPSHOT_DIR = DATA / "q041_massive_snapshot"
 DAILY_SNAPSHOT = DATA / "daily_snapshot.jsonl"
+CLOSED_TRADES = DATA / "closed_trades.jsonl"
 SPX_HIST = DATA / "q042_spx_history_cache.json"
 OUT_PATH = DATA / "strategy_pnl_attribution.jsonl"
 
@@ -55,12 +56,18 @@ COMPUTE_METHOD = "bs_reverse_solve_v1"
 class Position:
     trade_id: str
     account: str
-    strategy: str        # spx_spread for now
+    strategy: str
     short_strike: float
     long_strike: float
     contracts: int
     expiry: date
     opened_at: date
+    closed_at: Optional[date] = None         # None when still open
+    entry_short_fill: Optional[float] = None # broker fill at open (overrides chain day_close)
+    entry_long_fill: Optional[float] = None
+    exit_short_fill: Optional[float] = None  # broker fill at close
+    exit_long_fill: Optional[float] = None
+    realized_pnl: Optional[float] = None     # broker-reported, for chart reconciliation
 
 
 def load_open_positions() -> list[Position]:
@@ -82,6 +89,37 @@ def load_open_positions() -> list[Position]:
             expiry=date.fromisoformat(p["expiry"]),
             opened_at=date.fromisoformat(p["opened_at"]),
         ))
+    return positions
+
+
+def load_closed_trades() -> list[Position]:
+    """Pull closed-trade ledger. PM seeds historic trades manually; future
+    closes will be appended by strategy/state.py.
+    """
+    if not CLOSED_TRADES.exists():
+        return []
+    positions = []
+    with open(CLOSED_TRADES) as f:
+        for line in f:
+            if not line.strip():
+                continue
+            r = json.loads(line)
+            positions.append(Position(
+                trade_id=r["trade_id"],
+                account=r["account"],
+                strategy=r["strategy"],
+                short_strike=float(r["short_strike"]),
+                long_strike=float(r["long_strike"]),
+                contracts=int(r["contracts"]),
+                expiry=date.fromisoformat(r["expiry"]),
+                opened_at=date.fromisoformat(r["opened_at"]),
+                closed_at=date.fromisoformat(r["closed_at"]),
+                entry_short_fill=float(r.get("entry_short_fill")) if r.get("entry_short_fill") is not None else None,
+                entry_long_fill=float(r.get("entry_long_fill")) if r.get("entry_long_fill") is not None else None,
+                exit_short_fill=float(r.get("exit_short_fill")) if r.get("exit_short_fill") is not None else None,
+                exit_long_fill=float(r.get("exit_long_fill")) if r.get("exit_long_fill") is not None else None,
+                realized_pnl=float(r.get("realized_pnl")) if r.get("realized_pnl") is not None else None,
+            ))
     return positions
 
 
@@ -263,13 +301,14 @@ def emit_row(out_f, pos: Position, t0: dict, t1: dict, attr: dict) -> None:
 
 
 def compute() -> int:
-    positions = load_open_positions()
-    if not positions:
-        print("[greek-attr] no open positions — nothing to compute")
+    open_pos = load_open_positions()
+    closed_pos = load_closed_trades()
+    if not open_pos and not closed_pos:
+        print("[greek-attr] no positions to compute")
         return 0
     spx_hist = load_spx_history()
     done = existing_keys()
-    print(f"[greek-attr] open positions: {len(positions)}, existing rows: {len(done)}")
+    print(f"[greek-attr] open={len(open_pos)} closed={len(closed_pos)} existing_rows={len(done)}")
 
     today = max(
         date.fromisoformat(d.name)
@@ -277,22 +316,47 @@ def compute() -> int:
         if d.name[:1].isdigit()
     )
 
+    def process(pos: Position, out_f) -> int:
+        end = pos.closed_at if pos.closed_at else today
+        states = []
+        for d in trading_days(pos.opened_at, end):
+            s = day_state(pos, d, spx_hist)
+            if s is not None:
+                states.append(s)
+        # For closed trades: override the edge marks (opened_at and closed_at)
+        # with actual broker fills so the cumulative actual_pnl reconciles to
+        # broker realized PnL. Without this, the chain end-of-day mark on the
+        # entry/exit day can differ from broker fill by 20-30% (intraday move
+        # between fill and close). Greeks stay at chain end-of-day BS-solved
+        # values — slight mismatch absorbed in residual.
+        if states:
+            if pos.exit_short_fill is not None and pos.exit_long_fill is not None and pos.closed_at:
+                last = states[-1]
+                if date.fromisoformat(last["date"]) == pos.closed_at:
+                    last["ms"] = pos.exit_short_fill
+                    last["ml"] = pos.exit_long_fill
+            entry_short = getattr(pos, "entry_short_fill", None)
+            entry_long  = getattr(pos, "entry_long_fill", None)
+            if entry_short is not None and entry_long is not None:
+                first = states[0]
+                if date.fromisoformat(first["date"]) == pos.opened_at:
+                    first["ms"] = entry_short
+                    first["ml"] = entry_long
+        n_written = 0
+        for i in range(1, len(states)):
+            t0, t1 = states[i-1], states[i]
+            key = (t1["date"], pos.trade_id)
+            if key in done:
+                continue
+            attr = attribute_pair(pos, t0, t1)
+            emit_row(out_f, pos, t0, t1, attr)
+            n_written += 1
+        return n_written
+
     written = 0
     with open(OUT_PATH, "a") as out_f:
-        for pos in positions:
-            states = []
-            for d in trading_days(pos.opened_at, today):
-                s = day_state(pos, d, spx_hist)
-                if s is not None:
-                    states.append(s)
-            for i in range(1, len(states)):
-                t0, t1 = states[i-1], states[i]
-                key = (t1["date"], pos.trade_id)
-                if key in done:
-                    continue
-                attr = attribute_pair(pos, t0, t1)
-                emit_row(out_f, pos, t0, t1, attr)
-                written += 1
+        for pos in open_pos + closed_pos:
+            written += process(pos, out_f)
     print(f"[greek-attr] appended {written} rows → {OUT_PATH}")
     return 0
 

@@ -13,7 +13,9 @@ data/q041_historical/
 data/q041_massive_snapshot/
 data/market_cache/
 data/*.txt
+# PM-seeded closed-trade ledger — tracked as source of truth (overrides *.jsonl)
 data/*.jsonl
+!data/closed_trades.jsonl
 .gstack/
 
 # SPEC-106 — runtime audit output; regenerate via scripts/matrix_consistency_audit.py
