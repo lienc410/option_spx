@@ -1,6 +1,6 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-28 (**SPEC-108 DONE + Quant Fidelity Review PASS**。Q078 全链路收官。18/18 AC / 12/12 unit / 53/53 adjacent regression / 5 invariants untouched / Stage 1 shadow double protection live。5 non-blocking Stage-2 notes 写入 Review）
+Last Updated: 2026-05-28 (**SPEC-109 DONE + Quant Fidelity Review PASS**。Greek Attribution UX Enhancement（Tier A+B）。15/15 AC / 65/65 regression / algorithm frozen。今日：Q078 全研究链路 + SPEC-108 + SPEC-109 三条线全部收官，commit db6c1af）
 
 ### R-20260528-01 — Q078: BPS Ladder / Selector-Gated SPX Execution Cadence (CLOSED 2026-05-28)
 

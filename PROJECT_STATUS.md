@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-28 (**SPEC-108 DONE + Quant Fidelity Review PASS**。Q078 全链路收官：framing→P4→5 G-review→audit→Developer 实施→Fidelity PASS。18/18 AC ✅ / 12/12 unit tests / 53/53 adjacent regression / 5 invariants untouched / Stage 1 shadow double protection live。5 non-blocking follow-up notes 写入 Review（Stage 2 前处理）— `See: task/SPEC-108.md`)
+Last Updated: 2026-05-28 (**SPEC-109 DONE + Quant Fidelity Review PASS**。Greek Attribution UX Enhancement（Tier A+B）。15/15 AC / 65/65 regression / algorithm frozen / Developer 超额交付 3 项。今日总产出：Q078 全研究链路 + SPEC-108 策略层 + SPEC-109 UX 增强 两个 SPEC 全链路落地 — commit db6c1af — `See: task/SPEC-109.md`)
 Owner: Planner or PM
 
 ## Current Phase
@@ -51,6 +51,8 @@ Expected Net Ann ROE:   7.95% (Layer-1 Arch-3) → 8.20% when booster Stage 2 ac
 ```
 
 ## Recently Closed Specs
+
+- `SPEC-109` — Greek Attribution UX Enhancement (Tier A+B). Closed **DONE + Quant Fidelity Review PASS 2026-05-28**（commit db6c1af）. Tier A：基础 Greek 视图（"gamma 亏损" 直白解释）；Tier B：增强归因展示（compute_greek_attribution.py 算法 frozen，未触）。15/15 AC cross-check / 65/65 regression（SPEC-103~108）/ `--text-muted` ban / `:root` token convention / U+2212 minus sign / Closure% 阈值 1% 全部 ✅。Developer 超额交付：synthetic 段连接线虚线 / `_resetAttrKpis()` 抽函数 / `_signedMoney/_kMoney/_signedCls` 三 helper 解耦。4 non-blocking future notes：小本金 closure 阈值 / `_kMoney` 精度自适应 / zoom 支持 / theta area 负值遮挡 future watch — `See: task/SPEC-109.md`
 
 - `SPEC-108` — Q078 Selector-Gated SPX Execution Ladder. Closed **DONE + Quant Fidelity Review PASS 2026-05-28**. ROE-cadence overlay on SPEC-104+105v2：V3 daily-cluster（≤1/5-TD cluster, ~35 action days/yr）+ S3 sizing（3 contracts ≈ 7.5% BP），strategy-agnostic。Bias-deflated realistic ΔROE +0.8 to +1.3pp（mean +1.80pp），MaxDD +1.32pp，W63d +3.59pp，Sharpe +1.20，5/5 crisis windows improved。**NOT diversification fix**（thesis = ROE-cadence overlay；eff_count Δ noise）。Stage 1 shadow-only：env-default + `production_order_allowed()` double protection。18 ACs / 8 monitoring obligations。Fidelity review：12/12 unit / 53/53 adjacent regression / 18/18 AC cross-check / 5 invariants untouched / R1-R7 7/7 applied。**5 non-blocking Stage-2 pre-conditions**：①节假日表换 pandas_market_calendars；②`_max_loss_per_contract` fallback logging；③`ladder_action_days_ytd` projection vs 持久化计数器差异文档化；④Stage 2 ≥10 entries 从首个 shadow_log_written 开始计；⑤CI smoke ping for old Air。**Standing**：Stage 1 shadow 数据采集中，等首个 selector PASS 日触发首条 shadow_log_written — `See: task/SPEC-108.md`, `research/q078/q078_p4_memo.md`
 

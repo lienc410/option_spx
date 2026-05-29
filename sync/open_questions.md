@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-05-28（**SPEC-108 DONE + Quant Fidelity Review PASS**。Q078 全链路收官。Stage 1 shadow live，等首个 selector PASS 日触发 shadow_log_written）
+最后更新：2026-05-28（**SPEC-109 DONE + Fidelity PASS**。今日：Q078 研究 + SPEC-108 策略层 + SPEC-109 UX 增强三条线全部收官。Stage 1 shadow live）
 
 ---
 
