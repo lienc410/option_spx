@@ -137,6 +137,76 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   color: var(--green);
   background: var(--green-bg);
 }
+.attr-daily-wrap {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-x: auto;
+  background: var(--surface);
+}
+.attr-daily-table {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: collapse;
+  font-family: var(--f-mono);
+  font-size: 0.60rem;
+}
+.attr-daily-table th,
+.attr-daily-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  text-align: right;
+  white-space: nowrap;
+}
+.attr-daily-table th {
+  font-family: var(--f-ui);
+  font-size: 0.54rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  background: var(--surface-hi);
+}
+.attr-daily-table .row-head {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 132px;
+  text-align: left;
+  color: var(--text-2);
+  background: var(--surface-hi);
+}
+.attr-daily-table .total-col {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  color: var(--text);
+  background: var(--surface-hi);
+  border-left: 1px solid var(--border-2);
+}
+.attr-daily-table td.pos { color: var(--green); }
+.attr-daily-table td.neg { color: var(--red); }
+.attr-daily-table td.neu { color: var(--text-2); }
+.attr-daily-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--f-ui);
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  background: var(--surface-hi);
+}
+.attr-daily-note {
+  font-family: var(--f-ui);
+  font-size: 0.58rem;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text-2);
+}
 .attr-note-copy {
   display: grid;
   gap: 2px;
@@ -315,6 +385,15 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
       </div>
     </div>
     <div class="chart-wrap medium"><canvas id="attr-chart"></canvas></div>
+    <div class="attr-daily-wrap" id="attr-daily-wrap">
+      <div class="attr-daily-title">
+        <span>Daily PnL Attribution Matrix</span>
+        <span class="attr-daily-note">Columns are days; right edge is cumulative total for the visible window.</span>
+      </div>
+      <table class="attr-daily-table" id="attr-daily-table">
+        <tbody><tr><td class="row-head">Loading…</td><td>—</td></tr></tbody>
+      </table>
+    </div>
   </div>
 
   <!-- Regime + Market strip -->
@@ -964,6 +1043,11 @@ function _signedCls(n) {
   const v = Number(n || 0);
   return v < 0 ? 'neg' : v > 0 ? 'pos' : '';
 }
+function _signedNum(n, digits = 2) {
+  if (n == null || Number.isNaN(Number(n))) return '—';
+  const v = Number(n);
+  return (v < 0 ? '−' : '+') + Math.abs(v).toFixed(digits);
+}
 function _setAttrText(id, text, cls = '') {
   const el = document.getElementById(id);
   if (!el) return;
@@ -1029,6 +1113,34 @@ function _updateAttrKpi(payload) {
     closure.className = 'attr-kpi-closure' + (closureOk ? ' ok' : '');
   }
 }
+function _renderAttrDailyTable(payload) {
+  const table = document.getElementById('attr-daily-table');
+  if (!table) return;
+  const rows = (payload && payload.daily) ? payload.daily : [];
+  if (!rows.length) {
+    table.innerHTML = '<tbody><tr><td class="row-head">No attribution rows</td><td class="neu">—</td></tr></tbody>';
+    return;
+  }
+  const visibleRows = _attrWindow === '7d' ? rows.slice(-7) : _attrWindow === '30d' ? rows.slice(-30) : rows;
+  const factorRows = [
+    { label: 'Driving · ΔS', key: 'dS', fmt: v => v == null ? '—' : _signedNum(v, 2), total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: v => _signedNum(v, 2) },
+    { label: 'Driving · ΔVIX', key: 'dVIX', fmt: v => v == null ? '—' : _signedNum(v, 2), total: vals => vals.some(v => v == null) ? null : vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: v => v == null ? '—' : _signedNum(v, 2) },
+    { label: 'Greek · Delta', key: 'delta_attr', fmt: _signedMoney, total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: _signedMoney },
+    { label: 'Greek · Gamma', key: 'gamma_attr', fmt: _signedMoney, total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: _signedMoney },
+    { label: 'Greek · Theta', key: 'theta_attr', fmt: _signedMoney, total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: _signedMoney },
+    { label: 'Greek · Vega', key: 'vega_attr', fmt: _signedMoney, total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: _signedMoney },
+    { label: 'Greek · Residual', key: 'residual', fmt: _signedMoney, total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: _signedMoney },
+    { label: 'Actual PnL', key: 'actual_pnl', fmt: _signedMoney, total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: _signedMoney },
+  ];
+  const head = `<thead><tr><th class="row-head">Factor</th>${visibleRows.map(r => `<th>${r.date}${r.synthetic ? ' ⚠' : ''}</th>`).join('')}<th class="total-col">Total · Cum</th></tr></thead>`;
+  const body = factorRows.map(fr => {
+    const vals = visibleRows.map(r => r[fr.key]);
+    const total = fr.total(vals);
+    const cells = vals.map(v => `<td class="${_signedCls(v)}">${fr.fmt(v)}</td>`).join('');
+    return `<tr><th class="row-head">${fr.label}</th>${cells}<td class="total-col ${_signedCls(total)}">${fr.totalFmt(total)}</td></tr>`;
+  }).join('');
+  table.innerHTML = `${head}<tbody>${body}</tbody>`;
+}
 async function _renderAttrChart() {
   let payload;
   try {
@@ -1043,6 +1155,7 @@ async function _renderAttrChart() {
   if (!payload || payload.status === 'no_data' || !payload.series.length) {
     const note = document.getElementById('attr-note');
     _resetAttrKpis();
+    _renderAttrDailyTable(payload);
     if (note) note.innerHTML = '<span class="formula">No attribution rows yet — run scripts/compute_greek_attribution.py.</span><span class="teaching">Short put spread = net short gamma · 健康标准: |Θ+V| &gt; |Γ|</span>';
     return;
   }
@@ -1140,6 +1253,7 @@ async function _renderAttrChart() {
 
   _updateAttrKpi(payload);
   _updateAttrNote(payload);
+  _renderAttrDailyTable(payload);
 }
 
 // Regime strip — colored bars per day showing regime + aftermath/DD overlay flags

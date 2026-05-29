@@ -2200,7 +2200,7 @@ def api_strategy_greek_attribution():
         os.path.join(os.path.dirname(__file__), "..", "data", "strategy_pnl_attribution.jsonl")
     )
     if not os.path.exists(path):
-        return jsonify({"status": "no_data", "series": [], "totals": {}})
+        return jsonify({"status": "no_data", "series": [], "daily": [], "totals": {}})
 
     strategy = flask_req.args.get("strategy", "spx_spread")
     window = flask_req.args.get("window", "cum")
@@ -2219,12 +2219,31 @@ def api_strategy_greek_attribution():
         return jsonify({"status": "error", "error": str(exc)})
 
     if not rows:
-        return jsonify({"status": "no_data", "series": [], "totals": {}})
+        return jsonify({"status": "no_data", "series": [], "daily": [], "totals": {}})
+
+    vix_by_date: dict[str, float] = {}
+    snap_path = os.path.normpath(
+        os.path.join(os.path.dirname(__file__), "..", "data", "daily_snapshot.jsonl")
+    )
+    if os.path.exists(snap_path):
+        try:
+            with open(snap_path) as f:
+                for line in f:
+                    try:
+                        sr = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    vix = (sr.get("market") or {}).get("vix")
+                    if sr.get("date") and vix is not None:
+                        vix_by_date[str(sr.get("date"))] = float(vix)
+        except Exception:
+            vix_by_date = {}
 
     # Sum across trade_ids per date. Also track whether ANY contributing
     # trade-row was synthetic (gap-day fill with frozen IV) for that date so
     # the chart can dash segments crossing synth days.
     by_date: dict[str, dict[str, float]] = {}
+    meta_by_date: dict[str, dict[str, float | str | None]] = {}
     synth_by_date: dict[str, bool] = {}
     keys = ("actual_pnl", "delta_attr", "gamma_attr", "theta_attr", "vega_attr", "residual")
     for r in rows:
@@ -2232,11 +2251,32 @@ def api_strategy_greek_attribution():
         bucket = by_date.setdefault(d, {k: 0.0 for k in keys})
         for k in keys:
             bucket[k] += float(r.get(k) or 0.0)
+        meta = meta_by_date.setdefault(d, {"S_t0": None, "S_t1": None, "prev_date": None})
+        for k in ("S_t0", "S_t1"):
+            if meta.get(k) is None and r.get(k) is not None:
+                meta[k] = float(r.get(k))
+        if meta.get("prev_date") is None and r.get("prev_date"):
+            meta["prev_date"] = str(r.get("prev_date"))
         if r.get("synthetic_t0") or r.get("synthetic_t1"):
             synth_by_date[d] = True
 
     dates = sorted(by_date.keys())
     per_day = [by_date[d] for d in dates]
+    daily = []
+    for d in dates:
+        meta = meta_by_date.get(d, {})
+        s0 = meta.get("S_t0")
+        s1 = meta.get("S_t1")
+        prev_date = meta.get("prev_date")
+        v0 = vix_by_date.get(str(prev_date)) if prev_date else None
+        v1 = vix_by_date.get(d)
+        daily.append({
+            "date": d,
+            "dS": round(float(s1) - float(s0), 2) if s0 is not None and s1 is not None else None,
+            "dVIX": round(float(v1) - float(v0), 2) if v0 is not None and v1 is not None else None,
+            "synthetic": bool(synth_by_date.get(d)),
+            **{k: round(by_date[d][k], 2) for k in keys},
+        })
 
     # Aggregate by window
     if window == "cum":
@@ -2264,6 +2304,7 @@ def api_strategy_greek_attribution():
         "strategy": strategy,
         "window": window,
         "series": series,
+        "daily": daily,
         "totals": totals,
         "earliest": dates[0] if dates else None,
         "latest": dates[-1] if dates else None,
