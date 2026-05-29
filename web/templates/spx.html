@@ -1422,13 +1422,9 @@ function renderStrikeScan(draft) {
         : etradeFresh === 'EH_REALTIME' ? 'EH'
         : etradeFresh === 'CLOSING' ? 'CL'
         : etradeFresh ? etradeFresh.slice(0, 2) : '';
-      const diff = row.etrade_mid_diff;
-      let diffCell = '—';
-      if (diff != null) {
-        const sign = diff > 0 ? '+' : '';
-        const diffCls = Math.abs(Number(diff)) > 0.10 ? 'diff-wide' : '';
-        diffCell = `<span class="${diffCls}">${sign}${Number(diff).toFixed(2)}</span>`;
-      }
+      const schwabBA = (row.bid == null || row.ask == null)
+        ? '—'
+        : `${Number(row.bid).toFixed(2)} / ${Number(row.ask).toFixed(2)}`;
       return `
         <tr class="${cls}" onclick="selectScanRow('${slot}', ${idx})">
           <td>${row.recommended ? '<span class="scan-star">★</span>' : ''}${row.strike ?? '—'}</td>
@@ -1442,7 +1438,7 @@ function renderStrikeScan(draft) {
           <td>${row.open_interest ?? '—'}</td>
           <td>${row.score == null ? '—' : Number(row.score).toFixed(2)}</td>
           <td class="${etradeFreshCls}">${etradeBA}${etradeFreshShort ? ` <span class="fresh-tag">${etradeFreshShort}</span>` : ''}</td>
-          <td>${diffCell}</td>
+          <td>${schwabBA}</td>
         </tr>`;
     }).join('');
     return `
@@ -1451,7 +1447,7 @@ function renderStrikeScan(draft) {
         <div class="scan-table-wrap">
           <table class="scan-table">
             <thead>
-              <tr><th>Strike</th><th>Expiry</th><th>Bid</th><th>Ask</th><th>Spread</th><th>Target Δ</th><th>Live Δ</th><th>Δ Gap</th><th>OI</th><th>Score</th><th>ETrade B/A</th><th>vs Schwab</th></tr>
+              <tr><th>Strike</th><th>Expiry</th><th>Bid</th><th>Ask</th><th>Spread</th><th>Target Δ</th><th>Live Δ</th><th>Δ Gap</th><th>OI</th><th>Score</th><th>ETrade B/A</th><th>Schwab B/A</th></tr>
             </thead>
             <tbody>${rowsHtml}</tbody>
           </table>
