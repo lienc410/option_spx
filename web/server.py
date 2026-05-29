@@ -2221,14 +2221,19 @@ def api_strategy_greek_attribution():
     if not rows:
         return jsonify({"status": "no_data", "series": [], "totals": {}})
 
-    # Sum across trade_ids per date
+    # Sum across trade_ids per date. Also track whether ANY contributing
+    # trade-row was synthetic (gap-day fill with frozen IV) for that date so
+    # the chart can dash segments crossing synth days.
     by_date: dict[str, dict[str, float]] = {}
+    synth_by_date: dict[str, bool] = {}
     keys = ("actual_pnl", "delta_attr", "gamma_attr", "theta_attr", "vega_attr", "residual")
     for r in rows:
         d = r["date"]
         bucket = by_date.setdefault(d, {k: 0.0 for k in keys})
         for k in keys:
             bucket[k] += float(r.get(k) or 0.0)
+        if r.get("synthetic_t0") or r.get("synthetic_t1"):
+            synth_by_date[d] = True
 
     dates = sorted(by_date.keys())
     per_day = [by_date[d] for d in dates]
@@ -2249,7 +2254,10 @@ def api_strategy_greek_attribution():
             window_rows = per_day[lo:i+1]
             agg.append({k: round(sum(r[k] for r in window_rows), 2) for k in keys})
 
-    series = [{"date": d, **agg[i]} for i, d in enumerate(dates)]
+    series = [
+        {"date": d, "synthetic": bool(synth_by_date.get(d)), **agg[i]}
+        for i, d in enumerate(dates)
+    ]
     totals = {k: round(sum(r[k] for r in per_day), 2) for k in keys}
     return jsonify({
         "status": "available",

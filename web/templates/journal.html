@@ -883,6 +883,12 @@ async function _renderAttrChart() {
   ];
   const terminal = greekDefs.map(g => Math.abs(payload.series[payload.series.length - 1][g.key]));
   const order = greekDefs.map((_, i) => i).sort((a, b) => terminal[a] - terminal[b]);
+  // Per-segment dashing for synthetic gap-days (frozen-IV interpolation).
+  // Quant review (2026-05-28): PM shouldn't read interpolated daily attr
+  // as if it were measured. Segments whose right endpoint is on a synth
+  // day render dashed; tooltip annotates.
+  const synthFlags = payload.series.map(r => !!r.synthetic);
+  const dashOnSynth = ctx => synthFlags[ctx.p1DataIndex] ? [5, 3] : undefined;
   const datasets = order.map(i => {
     const g = greekDefs[i];
     return {
@@ -896,6 +902,7 @@ async function _renderAttrChart() {
       pointHoverRadius: 4,
       borderWidth: g.label === 'Residual' ? 1 : 2,
       borderDash: g.label === 'Residual' ? [4, 3] : undefined,
+      segment: g.label === 'Residual' ? undefined : { borderDash: dashOnSynth },
     };
   });
 
@@ -912,8 +919,10 @@ async function _renderAttrChart() {
             label: c => `  ${c.dataset.label}: $${Math.round(c.parsed.y).toLocaleString()}`,
             footer: items => {
               const i = items[0].dataIndex;
-              const actual = payload.series[i].actual_pnl;
-              return `  Actual: $${Math.round(actual).toLocaleString()}`;
+              const r = payload.series[i];
+              const lines = [`  Actual: $${Math.round(r.actual_pnl).toLocaleString()}`];
+              if (r.synthetic) lines.push('  (inferred from frozen IV — chain gap-day)');
+              return lines.join('\n');
             },
           },
         },
@@ -932,14 +941,19 @@ async function _renderAttrChart() {
     },
   });
 
-  // Footer text: cum totals when in cum mode
+  // Footer: cum totals + residual % + Taylor disclaimer (PM trust calibration
+  // per quant review 2026-05-28). Residual % tells PM how tight the
+  // attribution is; BS 1st-order Taylor disclaimer explains why it isn't 0.
   const note = document.getElementById('attr-note');
   if (note && _attrWindow === 'cum' && payload.totals) {
     const t = payload.totals;
     const f = n => '$' + Math.round(n).toLocaleString();
-    note.textContent = `cum  Δ ${f(t.delta_attr)}  Γ ${f(t.gamma_attr)}  Θ ${f(t.theta_attr)}  V ${f(t.vega_attr)}  Resid ${f(t.residual)}  ·  Actual ${f(t.actual_pnl)}`;
+    const residPct = Math.abs(t.actual_pnl) > 1
+      ? (t.residual / t.actual_pnl * 100).toFixed(1) + '%'
+      : '—';
+    note.textContent = `cum  Δ ${f(t.delta_attr)}  Γ ${f(t.gamma_attr)}  Θ ${f(t.theta_attr)}  V ${f(t.vega_attr)}  Resid ${f(t.residual)} (${residPct})  ·  Actual ${f(t.actual_pnl)}  ·  BS 1st-order Taylor, 2nd-order terms → Residual`;
   } else if (note) {
-    note.textContent = `Δ·ΔS + ½Γ·ΔS² + Θ·Δt + V·ΔIV + Residual  ·  ${payload.row_count || 0} attribution rows`;
+    note.textContent = `Δ·ΔS + ½Γ·ΔS² + Θ·Δt + V·ΔIV + Residual  ·  BS 1st-order Taylor  ·  ${payload.row_count || 0} rows`;
   }
 }
 
