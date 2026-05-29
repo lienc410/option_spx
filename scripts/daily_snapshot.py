@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 HISTORY = ROOT / "data" / "daily_snapshot.jsonl"
 ET = pytz.timezone("America/New_York")
 BASE = "http://127.0.0.1:5050"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3   # v3: positions[].greeks_short / greeks_long (path B)
 
 
 def _today_et() -> str:
@@ -69,6 +69,71 @@ def _num(v):
 def _r(v, dec=2):
     n = _num(v)
     return round(n, dec) if n is not None else None
+
+
+def _attach_broker_greeks(positions: list[dict]) -> None:
+    """Mutates positions in place: adds greeks_short / greeks_long via Schwab
+    chain. SPX index options have no greeks in Polygon historical chain, so
+    capturing them at snapshot time is the only way to feed path B
+    attribution.
+    """
+    if not positions:
+        return
+    try:
+        from schwab.client import get_option_chain
+    except Exception as exc:
+        print(f"[daily_snapshot] schwab.client import failed: {exc}", file=sys.stderr)
+        return
+    today_d = datetime.now(ET).date()
+    # Group positions by expiry — one chain call per expiry covers all legs
+    by_expiry: dict[str, list[dict]] = {}
+    for p in positions:
+        ex = p.get("expiry")
+        if ex:
+            by_expiry.setdefault(ex, []).append(p)
+    for expiry, group in by_expiry.items():
+        try:
+            exp_d = datetime.fromisoformat(expiry).date()
+            dte = (exp_d - today_d).days
+            if dte <= 0:
+                continue
+            strikes = []
+            for p in group:
+                ss, ls = p.get("short_strike"), p.get("long_strike")
+                if ss: strikes.append(float(ss))
+                if ls: strikes.append(float(ls))
+            if not strikes:
+                continue
+            center = (min(strikes) + max(strikes)) / 2.0
+            # Widen window so all legs fit. Per-strike step on SPX is $5/$25;
+            # picking a window in "strike count" ~= (span / 25) + buffer.
+            window = max(20, int((max(strikes) - min(strikes)) / 25) + 10)
+            chain = get_option_chain("SPX", "PUT", target_dte=int(dte),
+                                     dte_range=0, center_strike=center,
+                                     strike_window=window)
+            if not chain:
+                print(f"[daily_snapshot] greek chain empty for {expiry}", file=sys.stderr)
+                continue
+            by_strike = {float(r["strike"]): r for r in chain
+                         if r.get("strike") is not None and r.get("expiry") == expiry}
+            for p in group:
+                for leg, key in (("short_strike", "greeks_short"),
+                                 ("long_strike",  "greeks_long")):
+                    k = p.get(leg)
+                    if k is None: continue
+                    row = by_strike.get(float(k))
+                    if row is None: continue
+                    p[key] = {
+                        "delta": _r(row.get("delta"), 4),
+                        "gamma": _r(row.get("gamma"), 6),
+                        "theta": _r(row.get("theta"), 4),
+                        "vega":  _r(row.get("vega"),  4),
+                        "iv":    _r(row.get("iv"),    4),
+                        "mark":  _r(row.get("mid"),   2),
+                    }
+        except Exception as exc:
+            print(f"[daily_snapshot] greek fetch for {expiry} failed: {exc}", file=sys.stderr)
+            continue
 
 
 def build_record() -> dict | None:
@@ -117,7 +182,11 @@ def build_record() -> dict | None:
     second_active = bool(state.get("second_leg_active"))
     regime_name = "second" if second_active else "stress" if stress_active else "normal"
 
-    # SPX positions snapshot
+    # SPX positions snapshot — including per-leg broker chain greeks (path B).
+    # SPX greeks are NOT available from Polygon historical chain, so daily
+    # snapshot captures them from Schwab marketdata/v1/chains for both legs.
+    # ETrade has greeks too but SPX is fungible across brokers — one Schwab
+    # chain call covers all positions sharing the same expiry+strike.
     spx_positions = []
     if pos.get("open"):
         rows = pos.get("positions") if isinstance(pos.get("positions"), list) and pos["positions"] else [pos]
@@ -154,6 +223,11 @@ def build_record() -> dict | None:
                 "mark":           _r(pl.get("mark"), 2),
                 "unrealized_pnl": _r(pl.get("unrealized_pnl"), 2),
             })
+
+    # Path B — broker chain greeks per leg. Best-effort: any failure leaves
+    # position dict unchanged and falls back to BS reverse-solve (path A) in
+    # the attribution compute job.
+    _attach_broker_greeks(spx_positions)
 
     sleeve_a = q042.get("sleeve_a") or {}
     sleeve_b = q042.get("sleeve_b") or {}

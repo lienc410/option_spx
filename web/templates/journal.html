@@ -764,32 +764,44 @@ async function _renderAttrChart() {
   }
 
   const labels = payload.series.map(r => r.date);
-  const ds = (label, key, color) => ({
-    label, data: payload.series.map(r => r[key]),
-    backgroundColor: color, borderColor: color,
-    fill: 'stack', tension: 0.1, pointRadius: 0, borderWidth: 1.5,
+  // Sort datasets by absolute terminal value so the dominant greek's line
+  // appears last (drawn on top, hardest to occlude). PM reads "which greek
+  // contributed most" by comparing final line endpoints — clean lines, no
+  // stacking, no signed-area ambiguity.
+  const greekDefs = [
+    { label: 'Delta',    key: 'delta_attr', color: 'var(--theme-lit-049)' },  // blue
+    { label: 'Gamma',    key: 'gamma_attr', color: 'var(--theme-lit-066)' },  // orange
+    { label: 'Theta',    key: 'theta_attr', color: 'var(--theme-lit-145)' },  // green
+    { label: 'Vega',     key: 'vega_attr',  color: 'var(--theme-lit-083)' },  // purple/red
+    { label: 'Residual', key: 'residual',   color: 'var(--text-2)'         },
+  ];
+  const terminal = greekDefs.map(g => Math.abs(payload.series[payload.series.length - 1][g.key]));
+  const order = greekDefs.map((_, i) => i).sort((a, b) => terminal[a] - terminal[b]);
+  const datasets = order.map(i => {
+    const g = greekDefs[i];
+    return {
+      label: g.label,
+      data: payload.series.map(r => r[g.key]),
+      borderColor: g.color,
+      backgroundColor: g.color,
+      fill: false,
+      tension: 0.15,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      borderWidth: g.label === 'Residual' ? 1 : 2,
+      borderDash: g.label === 'Residual' ? [4, 3] : undefined,
+    };
   });
 
-  // Per-greek color: blue=delta, orange=gamma, green=theta (gain for short),
-  // purple=vega, grey=residual. Use theme-lit tokens so they swap with theme.
   _charts.attr = new Chart(ctx, {
     type: 'line',
-    data: {
-      labels,
-      datasets: [
-        ds('Delta',    'delta_attr', 'var(--theme-lit-083)'),
-        ds('Gamma',    'gamma_attr', 'var(--theme-lit-066)'),
-        ds('Theta',    'theta_attr', 'var(--theme-lit-049)'),
-        ds('Vega',     'vega_attr',  'var(--theme-lit-145)'),
-        ds('Residual', 'residual',   'var(--theme-lit-095)'),
-      ],
-    },
+    data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { position: 'top', labels: { color: 'var(--text)', font: { size: 11, family: "'DM Sans'" }, boxWidth: 12 } },
         tooltip: {
-          mode: 'index', intersect: false,
           callbacks: {
             label: c => `  ${c.dataset.label}: $${Math.round(c.parsed.y).toLocaleString()}`,
             footer: items => {
@@ -801,9 +813,8 @@ async function _renderAttrChart() {
         },
       },
       scales: {
-        x: { ticks: { color: 'var(--text-2)', maxTicksLimit: 10, font: { family: "'JetBrains Mono', monospace", size: 10 } }, grid: { color: 'var(--theme-lit-095)' }, stacked: true },
+        x: { ticks: { color: 'var(--text-2)', maxTicksLimit: 10, font: { family: "'JetBrains Mono', monospace", size: 10 } }, grid: { color: 'var(--theme-lit-095)' } },
         y: {
-          stacked: true,
           ticks: {
             color: 'var(--text-2)',
             font: { family: "'JetBrains Mono', monospace", size: 10 },
