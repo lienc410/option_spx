@@ -62,12 +62,13 @@ class Position:
     contracts: int
     expiry: date
     opened_at: date
-    closed_at: Optional[date] = None         # None when still open
-    entry_short_fill: Optional[float] = None # broker fill at open (overrides chain day_close)
+    closed_at: Optional[date] = None             # None when still open
+    entry_credit_per_share: Optional[float] = None  # broker spread credit (open positions)
+    entry_short_fill: Optional[float] = None     # per-leg broker fill at open (closed trades)
     entry_long_fill: Optional[float] = None
-    exit_short_fill: Optional[float] = None  # broker fill at close
+    exit_short_fill: Optional[float] = None      # per-leg broker fill at close
     exit_long_fill: Optional[float] = None
-    realized_pnl: Optional[float] = None     # broker-reported, for chart reconciliation
+    realized_pnl: Optional[float] = None         # broker-reported, for chart reconciliation
 
 
 def load_open_positions() -> list[Position]:
@@ -79,6 +80,7 @@ def load_open_positions() -> list[Position]:
     latest = rows[-1]
     positions = []
     for p in (latest.get("strategies", {}).get("spx_spread", {}).get("positions") or []):
+        ep = p.get("entry_premium")
         positions.append(Position(
             trade_id=p["trade_id"],
             account=p["account"],
@@ -88,6 +90,7 @@ def load_open_positions() -> list[Position]:
             contracts=int(p["contracts"]),
             expiry=date.fromisoformat(p["expiry"]),
             opened_at=date.fromisoformat(p["opened_at"]),
+            entry_credit_per_share=float(ep) if ep is not None else None,
         ))
     return positions
 
@@ -348,9 +351,22 @@ def compute() -> int:
             # Override marks at edge days so IV/greeks are solved at broker
             # truth, eliminating the "instant repricing" jump between chain
             # mark and broker fill on opened_at/closed_at days.
+            #
+            # Closed trades: PM provides per-leg fills (cleanest).
+            # Open trades: only broker spread credit is logged — split adj
+            #              into both legs so ms-ml equals broker credit while
+            #              keeping each leg close to chain mark (IV preserved).
             om, ol = None, None
-            if d == pos.opened_at and pos.entry_short_fill is not None:
-                om, ol = pos.entry_short_fill, pos.entry_long_fill
+            if d == pos.opened_at:
+                if pos.entry_short_fill is not None:
+                    om, ol = pos.entry_short_fill, pos.entry_long_fill
+                elif pos.entry_credit_per_share is not None:
+                    cm = load_chain_mark(d, pos.short_strike, pos.expiry)
+                    cl = load_chain_mark(d, pos.long_strike, pos.expiry)
+                    if cm is not None and cl is not None:
+                        adj = ((cm - cl) - pos.entry_credit_per_share) / 2.0
+                        om = max(cm - adj, 0.01)
+                        ol = max(cl + adj, 0.01)
             elif pos.closed_at and d == pos.closed_at and pos.exit_short_fill is not None:
                 om, ol = pos.exit_short_fill, pos.exit_long_fill
             s = day_state(pos, d, spx_hist, override_ms=om, override_ml=ol)
