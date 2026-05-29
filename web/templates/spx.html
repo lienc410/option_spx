@@ -1627,15 +1627,37 @@ function updateOpenBpPreview() {
 }
 
 function updateCloseDerivedFields() {
-  const exitPremium = Number(document.getElementById('close-exit-premium')?.value || 0);
-  const pnlEl = document.getElementById('close-pnl');
-  const modelEl = document.getElementById('close-model-pnl');
-  if (!CURRENT_POS || !pnlEl || !modelEl) return;
-  const contracts = Number(CURRENT_POS.contracts || 1);
-  const entry = Number(CURRENT_POS.actual_premium || 0);
-  const model = Number(CURRENT_POS.model_premium || 0);
-  pnlEl.textContent = entry ? (((entry - exitPremium) * contracts * 100).toFixed(2)) : '—';
-  modelEl.textContent = model ? (((model - exitPremium) * contracts * 100).toFixed(2)) : '—';
+  // Sum realized P&L across all checked rows (per-leg exit prices).
+  const rows = document.querySelectorAll('.close-leg-row');
+  const totalEl = document.getElementById('close-pnl');
+  if (!rows.length || !totalEl) return;
+  let total = 0;
+  let anyChecked = false;
+  rows.forEach((row, i) => {
+    const chk = document.getElementById(`close-leg-chk-${i}`);
+    const exitEl = document.getElementById(`close-leg-exit-${i}`);
+    const pnlEl = document.getElementById(`close-leg-pnl-${i}`);
+    if (!chk || !exitEl || !pnlEl) return;
+    const entry = Number(row.dataset.entry || 0);
+    const contracts = Number(row.dataset.contracts || 1);
+    const exitV = Number(exitEl.value || 0);
+    const rowPnl = entry && exitEl.value !== '' ? (entry - exitV) * contracts * 100 : null;
+    if (chk.checked && rowPnl != null) {
+      total += rowPnl;
+      anyChecked = true;
+      pnlEl.textContent = (rowPnl >= 0 ? '+$' : '-$') + Math.abs(rowPnl).toLocaleString(undefined, { maximumFractionDigits: 0 });
+      pnlEl.style.color = rowPnl >= 0 ? 'var(--green)' : 'var(--red)';
+    } else {
+      pnlEl.textContent = '—';
+      pnlEl.style.color = 'var(--text-2)';
+    }
+    // Visually dim rows that are unchecked
+    row.style.opacity = chk.checked ? '1' : '0.4';
+  });
+  totalEl.textContent = anyChecked
+    ? (total >= 0 ? '+$' : '-$') + Math.abs(total).toLocaleString(undefined, { maximumFractionDigits: 0 })
+    : '—';
+  totalEl.style.color = anyChecked ? (total >= 0 ? 'var(--green)' : 'var(--red)') : 'var(--text-2)';
 }
 
 function modalShell(inner) {
@@ -1745,21 +1767,31 @@ function openTradeModal(kind, presetAccount, addTranche) {
     loadOpenDraft(document.getElementById('open-strategy-key')?.value || '');
   } else if (kind === 'close') {
     title.textContent = 'Close Position';
-    const _openAccounts = (CURRENT_POS?.positions || []).map(pos => pos.account || 'schwab');
-    const _acctOptions = [
-      ..._openAccounts.map(a => `<option value="${a}">${a.charAt(0).toUpperCase() + a.slice(1)}</option>`),
-      ...(_openAccounts.length > 1 ? ['<option value="all">Both (all)</option>'] : []),
-    ].join('');
+    // Per-position close UI: each open leg gets its own row + exit-premium
+    // input so PM can record actual broker fills (Schwab and ETrade often
+    // fill at different prices). Toggle a row off to leave that leg open.
+    const _openLegs = (CURRENT_POS?.positions || []);
+    const _legRows = _openLegs.map((p, i) => {
+      const acct = (p.account || 'schwab');
+      const acctLabel = acct.charAt(0).toUpperCase() + acct.slice(1);
+      const strikes = `${p.short_strike ?? '?'}/${p.long_strike ?? '?'}`;
+      return `
+        <div class="close-leg-row" data-trade-id="${p.trade_id}" data-entry="${p.actual_premium ?? 0}" data-contracts="${p.contracts ?? 1}" style="display:grid;grid-template-columns:auto 1fr 1.2fr 1fr 1fr;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+          <input type="checkbox" id="close-leg-chk-${i}" class="close-leg-chk" checked oninput="updateCloseDerivedFields()" style="cursor:pointer">
+          <span style="font-family:var(--f-mono);font-size:0.72rem">${acctLabel}</span>
+          <span style="font-family:var(--f-mono);font-size:0.72rem">${strikes} ×${p.contracts ?? '?'}</span>
+          <input type="number" step="0.01" placeholder="exit prem" class="modal-input close-leg-exit" id="close-leg-exit-${i}" oninput="updateCloseDerivedFields()" style="text-align:right">
+          <span class="modal-hint close-leg-pnl" id="close-leg-pnl-${i}" style="text-align:right;color:var(--text-2);font-family:var(--f-mono);font-size:0.7rem">—</span>
+        </div>`;
+    }).join('');
     body.innerHTML = modalShell(`
+      <div style="margin-bottom:10px">
+        <div style="display:grid;grid-template-columns:auto 1fr 1.2fr 1fr 1fr;gap:8px;padding:0 0 4px 0;font-size:0.62rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-2);font-weight:600">
+          <span></span><span>Account</span><span>Strikes ×n</span><span style="text-align:right">Exit prem</span><span style="text-align:right">Realized</span>
+        </div>
+        ${_legRows || '<div class="modal-hint">No open legs.</div>'}
+      </div>
       <div class="modal-grid">
-        <div class="modal-field">
-          <label class="modal-label">Account</label>
-          <select id="close-account" class="modal-select">${_acctOptions || '<option value="schwab">Schwab</option>'}</select>
-        </div>
-        <div class="modal-field">
-          <label class="modal-label">Exit Premium</label>
-          <input id="close-exit-premium" class="modal-input" type="number" step="0.01" oninput="updateCloseDerivedFields()">
-        </div>
         <div class="modal-field">
           <label class="modal-label">Exit Reason</label>
           <select id="close-reason" class="modal-select">
@@ -1770,22 +1802,18 @@ function openTradeModal(kind, presetAccount, addTranche) {
             <option value="expired">expired</option>
           </select>
         </div>
+        <div class="modal-field">
+          <label class="modal-label">Total PnL</label>
+          <div class="modal-hint" id="close-pnl">—</div>
+        </div>
         <div class="modal-field full">
           <label class="modal-label">Note</label>
           <input id="close-note" class="modal-input">
         </div>
-        <div class="modal-field">
-          <label class="modal-label">Actual PnL</label>
-          <div class="modal-hint" id="close-pnl">—</div>
-        </div>
-        <div class="modal-field">
-          <label class="modal-label">Model PnL</label>
-          <div class="modal-hint" id="close-model-pnl">—</div>
-        </div>
       </div>
       <div class="modal-cta">
         <button class="action-btn" onclick="closeTradeModal()">Cancel</button>
-        <button class="action-btn primary" onclick="submitClosePosition()">Close</button>
+        <button class="action-btn primary" onclick="submitClosePosition()">Close selected</button>
       </div>`);
     updateCloseDerivedFields();
   } else if (kind === 'correct') {
@@ -1934,19 +1962,30 @@ async function submitOpenPosition() {
 }
 
 async function submitClosePosition() {
-  const accountSel = document.getElementById('close-account')?.value || null;
-  const account = (accountSel === 'all' || !accountSel) ? null : accountSel;
+  // Collect per-row exit premiums for checked rows.
+  const rows = Array.from(document.querySelectorAll('.close-leg-row'));
+  const legs = [];
+  rows.forEach((row, i) => {
+    const chk = document.getElementById(`close-leg-chk-${i}`);
+    const exitEl = document.getElementById(`close-leg-exit-${i}`);
+    if (!chk || !exitEl) return;
+    if (!chk.checked) return;
+    if (exitEl.value === '') return;
+    legs.push({
+      trade_id: row.dataset.tradeId || row.dataset['tradeId'] || row.getAttribute('data-trade-id'),
+      exit_premium: Number(exitEl.value),
+    });
+  });
+  if (!legs.length) return showTradeModalMessage('Pick at least one row with an exit premium.', true);
   const payload = {
-    exit_premium: Number(document.getElementById('close-exit-premium').value || 0),
+    legs,
     exit_spx: CURRENT_REC?.trend_snapshot?.spx ?? null,
     exit_reason: document.getElementById('close-reason').value,
     note: document.getElementById('close-note').value || '',
-    account: account,
   };
   const data = await postJson('/api/position/close', payload);
   if (data.error) return showTradeModalMessage(data.error, true);
-  showTradeModalMessage(`Closed position · PnL ${data.actual_pnl ?? '—'}`);
-  // Refresh both panels — re-entry signal may now be live (fresh recommendation scan)
+  showTradeModalMessage(`Closed ${legs.length} leg${legs.length === 1 ? '' : 's'} · PnL ${data.actual_pnl ?? '—'}`);
   await Promise.allSettled([loadPosition(), load()]);
   setTimeout(closeTradeModal, 400);
 }

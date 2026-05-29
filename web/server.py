@@ -4916,14 +4916,71 @@ def api_position_close():
     from strategy.state import close_position, read_state, read_all_positions
 
     body = flask_req.get_json(force=True) or {}
-    # account=None → close all; account="schwab"/"etrade" → close one leg
-    account = body.get("account") or None
-    if account:
-        account = str(account).strip().lower()
-
     state = read_state()
     if not state:
         return jsonify({"error": "No open position"}), 400
+
+    # New shape (per-position fills): legs=[{trade_id, exit_premium}, ...]
+    # Lets /spx close UI submit different broker fills per trade_id —
+    # Schwab and ETrade legs often fill at slightly different prices.
+    # Legacy shape (single-price account close) still supported below.
+    legs_payload = body.get("legs")
+    if legs_payload and isinstance(legs_payload, list):
+        all_pos = (read_all_positions() or {}).get("positions", [])
+        by_tid = {p.get("trade_id"): p for p in all_pos}
+        per_leg_results = []
+        total_pnl = 0.0
+        any_pnl = False
+        for spec in legs_payload:
+            tid = spec.get("trade_id")
+            exit_premium = spec.get("exit_premium")
+            leg = by_tid.get(tid)
+            if not leg or exit_premium in (None, ""):
+                continue
+            try:
+                entry = float(leg.get("actual_premium") or 0)
+                exit_p = float(exit_premium)
+                contracts = float(leg.get("contracts", 1))
+                pnl = round((entry - exit_p) * contracts * 100, 2)
+                total_pnl += pnl
+                any_pnl = True
+            except (TypeError, ValueError):
+                pnl = None
+            close_position(
+                note=body.get("note"),
+                trade_id=tid,
+                exit_premium=exit_p,
+                exit_spx=body.get("exit_spx"),
+                exit_reason=body.get("exit_reason"),
+                actual_pnl=pnl,
+            )
+            append_event({
+                "id": tid,
+                "event": "close",
+                "timestamp": _now_et_iso(),
+                "exit_premium": exit_p,
+                "exit_spx": body.get("exit_spx"),
+                "exit_reason": body.get("exit_reason"),
+                "actual_pnl": pnl,
+                "note": body.get("note", ""),
+            })
+            per_leg_results.append({"trade_id": tid, "actual_pnl": pnl})
+        try:
+            from notify.event_push import notify_close
+            threading.Thread(target=notify_close, args=(state, body.get("note")), daemon=True).start()
+        except Exception:
+            pass
+        return jsonify({
+            "ok": True,
+            "actual_pnl": round(total_pnl, 2) if any_pnl else None,
+            "legs": per_leg_results,
+        })
+
+    # ── Legacy single-price flow ─────────────────────────────────────────────
+    # account=None → close all; account="schwab"/"etrade" → close one broker
+    account = body.get("account") or None
+    if account:
+        account = str(account).strip().lower()
 
     # Use the specific account's position data for PnL calc if account specified
     if account:

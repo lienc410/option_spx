@@ -305,13 +305,18 @@ def write_state(
 def close_position(
     note: Optional[str] = None,
     account: Optional[str] = None,
+    trade_id: Optional[str] = None,
     **extra_fields,
 ) -> None:
     """
-    Close the position for a specific account (or all accounts).
+    Close legs of the open position.
 
-    account=None  → close all accounts; marks strategy status='closed'
-    account='schwab' → remove Schwab leg; strategy stays open if other legs remain
+    Priority of leg-selection filters:
+      trade_id=X   → close ONLY that single leg (lets caller close one at a time
+                     with leg-specific exit_premium, used for the per-position
+                     close UI in /spx)
+      account=Y    → close all legs of broker Y (legacy single-price flow)
+      both None    → close every open leg
     """
     data = _load_raw()
     if data is None:
@@ -320,10 +325,12 @@ def close_position(
     # Capture legs about to close before mutation, then auto-append closed_trades.jsonl
     if "positions" in data:
         all_legs = list(data.get("positions") or [])
-        legs_to_close = (
-            [p for p in all_legs if p.get("account") == account] if account
-            else list(all_legs)
-        )
+        if trade_id:
+            legs_to_close = [p for p in all_legs if p.get("trade_id") == trade_id]
+        elif account:
+            legs_to_close = [p for p in all_legs if p.get("account") == account]
+        else:
+            legs_to_close = list(all_legs)
     else:
         legs_to_close = [data]  # old flat-format treated as single leg
     _append_closed_trade_rows(
@@ -337,7 +344,9 @@ def close_position(
 
     if "positions" in data:
         positions = list(data.get("positions") or [])
-        if account:
+        if trade_id:
+            positions = [p for p in positions if p.get("trade_id") != trade_id]
+        elif account:
             positions = [p for p in positions if p.get("account") != account]
         else:
             positions = []
