@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-05-26（**SPEC-107 DONE + DEPLOYED old Air**（commit 00c551b）。AC7 Quant joint validation PASS：flips 92 / ≤3h 3 / RT 20 / EOD 93.2%（exact P3 match）。3-bug fix 记录。53/53 tests PASS。Quant 下一节点：2026-06-25 30-day retrospective）
+最后更新：2026-05-28（**Q078 CLOSED + SPEC-108 APPROVED**（PM 2026-05-28）。Selector-Gated SPX Execution Ladder，V3 daily-cluster + S3 sizing，bias-deflated ΔROE +0.8 to +1.3pp。Stage 1 shadow-only mandatory。Pending Developer）
 
 ---
 
@@ -33,6 +33,18 @@
 ---
 
 ## 策略设计待解决
+
+### Q078 — BPS Ladder / Selector-Gated SPX Execution Cadence
+
+- **状态**：**resolved** (Q078 CLOSED — PROMOTE → SPEC-108 APPROVED 2026-05-28)
+- **结论**：V3 daily-cluster（≤1/5-TD cluster）+ S3 sizing（3 contracts ≈ 7.5% BP）。Bias-deflated realistic ΔROE +0.8 to +1.3pp（mean +1.80pp）。**NOT diversification fix**（eff_count Δ noise；thesis = ROE-cadence overlay）
+- **Thesis reframe**：Q078 不解决 expiry concentration（原始 PM 观察的症状未被治愈）；实际价值是系统化捕获 selector-PASS 机会
+- **Stage 1 mandatory shadow**：Stage 2 = PM-signoff + ≥10 shadow entries + 7 conditions
+- **SPEC-108**：18 ACs + 8 monitoring obligations。Pending Developer（~5h CC+gstack / ~4 working days）
+- **Quant 下一节点**：Developer 实施后 fidelity review（post-PR）
+- **来源**：`task/SPEC-108.md`, `research/q078/q078_p4_memo.md`, `task/q078_planner_handoff_2026-05-28.md`
+
+---
 
 ### Q076 — Intraday Recommendation Governance
 

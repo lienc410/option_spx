@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-26 (**SPEC-107 DONE** — Intraday Recommendation Governance implemented. Q076 A2a+B now lives as execution governance only: IVP hysteresis [42-53 entry / 35-57 hold], scheduled actionable bars 10:30 / 15:30 ET, 7-layer hard-risk priority stack, decision log, SPX dashboard state-observation UX, and Telegram scheduled governance pushes. AC7 joint Quant validation PASS: flips 92, ≤3h episodes 3, round_trips 20, EOD agreement 93.2%. Deployment to old Air / 30-day live review is the runtime follow-through — `See: task/SPEC-107.md`, `task/SPEC-107_ac7_quant_validation_2026-05-26.md`)
+Last Updated: 2026-05-28 (**Q078 CLOSED + SPEC-108 APPROVED**。BPS Ladder / Selector-Gated SPX Execution Cadence。11 phases / 5 G-reviews / comprehensive audit all PASS。V3 daily-cluster + S3 sizing，bias-deflated realistic ΔROE +0.8 to +1.3pp。Stage 1 shadow-only MANDATORY。Pending Developer implementation — `See: task/SPEC-108.md`, `research/q078/q078_p4_memo.md`)
 Owner: Planner or PM
 
 ## Current Phase
@@ -28,7 +28,7 @@ Owner: Planner or PM
 
 ## Active APPROVED Specs
 
-- None.
+- **SPEC-108** — Q078 Selector-Gated SPX Execution Ladder. **APPROVED 2026-05-28.** Q078 全 P0-P4 + 5 轮 G-review（framing/G2/G2.5/G4/audit）+ 综合 audit，R1-R9 + R1-R7 全部应用。ROE-cadence overlay on SPEC-104+105v2 baseline：V3 daily-cluster（≤1 entry per 5-trading-day cluster, ~35 action days/year）+ S3 sizing（3 contracts ≈ 7.5% BP），strategy-agnostic（selector per VIX regime）。Expected impact（bias-deflated realistic）：ΔROE +0.8 to +1.3pp（mean +1.80pp），MaxDD +1.32pp，W20d +1.16pp，W63d +3.59pp，Sharpe +1.20，5/5 crisis windows improved（incl. COVID）。**NOT a diversification fix**（eff_count Δ noise；thesis = ROE-cadence overlay）。Stage 1 shadow-only MANDATORY；Stage 2 PM-signoff + ≥10 shadow entries + 7 advancement conditions。18 ACs（含 AC-108-17/18 CI shadow-default safety）。8 monitoring obligations。Pending Developer implementation（~5h CC+gstack / ~4 working days human）— `See: task/SPEC-108.md`, `research/q078/q078_p4_memo.md`
 
 **Future seeds**（PM-discretionary）：Q042 Stage 2/3 ramp / SPEC-105 Stage 2 active mode / HV Ladder re-promotion / Q042 Sleeve B（n > 3-5 trades）/ Q077 PARKED
 

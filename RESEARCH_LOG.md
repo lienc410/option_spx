@@ -1,6 +1,26 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-26 (**Q076 CLOSED + SPEC-107 DONE + DEPLOYED old Air** commit 00c551b。Intraday Recommendation Governance live。AC7 Quant joint validation 发现 + fix 3 个 structural bugs (entry-band else leak / `rec.underlying` state-key drift / state-position coupling)，re-run AC7 PASS: flips=92, ≤3h=3, RT=20, EOD 93.2% (exact P3 match)。SPEC-107 + adjacent regression 53/53。Quant 下一节点: 30-day live decision-log retrospective (2026-06-25)。)
+Last Updated: 2026-05-28 (**Q078 CLOSED + SPEC-108 APPROVED**。BPS Ladder / Selector-Gated SPX Execution Cadence。V3 daily-cluster + S3 sizing，bias-deflated ΔROE +0.8 to +1.3pp。Stage 1 shadow-only mandatory。11 phases / 5 G-reviews / audit all PASS。6 methodology lessons 沉淀）
+
+### R-20260528-01 — Q078: BPS Ladder / Selector-Gated SPX Execution Cadence (CLOSED 2026-05-28)
+
+- **Topic**: 是否系统化 SPX 入仓节奏（ladder）能改善 portfolio 表现（ROE-cadence overlay，非 diversification fix）
+- **Method**: P0 anchored memo → P1a cadence attribution → P1b model corrections + sizing sweep → P2 eff_count fix + daily MTM smoothing → P3 crisis + walk-forward + bias → P4 portfolio integration。5 G-reviews（framing/G2/G2.5/G4 REVISE→PASS/comprehensive audit PASS）；R1-R9 + R1-R7 全部应用
+- **Outcome**: `enter Spec` → SPEC-108 APPROVED 2026-05-28
+- **Key findings**:
+  - V3 daily-cluster（≤1 entry per 5-trading-day cluster, ~35 action days/yr）+ S3 sizing（3 contracts ≈ 7.5% BP）vs SPEC-104+105v2 baseline：ΔROE +1.80pp mean（bias-deflated realistic **+0.8 to +1.3pp**），MaxDD +1.32pp，W20d +1.16pp，W63d +3.59pp，Sharpe +1.20，5/5 crisis windows improved（incl. COVID +$15k）
+  - **NOT a diversification fix**：eff_count Δ noise（grouped-by-exit-date 过度估计 200-800x；正确做法 group by monthly expiry bucket）。PM-facing 语言禁用 "diversification"
+  - V1b vs V3 portfolio-level 差异 < 0.5pp noise threshold；PM 选 V3（下游研究基准），V1b 文档化备选（Developer 禁止实施）
+  - 残余 selection bias 未完全消除 → Stage 1 shadow 作为 bias resolution path（Option B）
+- **Methodology lessons（6 条，已沉淀 memory）**:
+  1. **Noise threshold < 0.5pp** — `feedback_noise_threshold.md` 新建，未来策略比较通用
+  2. **Eff_count 度量陷阱** — grouped-by-exit-date 过度估计 diversification benefit
+  3. **Daily MTM aggregation** — single-day exit spike 扭曲 W20d/W63d，需 linear distribute across hold days
+  4. **Bias correction Option B** — Stage-1 shadow 比 engine-without-filters 更务实
+  5. **2-axis stratified bootstrap**（strategy × year × VIX bucket）— 务实可行
+  6. **Sub-noise 决策** — 由操作负担/下游研究基准决定，非强求最优
+- **SPEC-108**：18 ACs（含 AC-108-17/18 CI shadow-default safety）+ 8 monitoring obligations；Stage 2 PM-signoff + ≥10 shadow entries + 7 advancement conditions；Pending Developer（~5h CC）
+- **来源**：`task/SPEC-108.md`, `research/q078/q078_p4_memo.md`, `task/q078_p4_g4_resubmit_2026-05-28_Review.md`, `task/q078_spec108_comprehensive_audit_2026-05-28_Review.md`
 
 ### R-20260526-02 — Q076: Intraday Recommendation Replay → SPEC-107 APPROVED
 
