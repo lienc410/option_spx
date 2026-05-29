@@ -1701,6 +1701,9 @@ function openTradeModal(kind, presetAccount, addTranche) {
           <label class="modal-label">Model Premium</label>
           <input id="open-model-premium" class="modal-input" type="number" step="0.01" oninput="updatePremiumDiff(); updateOpenBpPreview()">
         </div>
+        <div class="modal-field full">
+          <div class="modal-hint" id="open-spread-quote">Spread quote loads when both strikes selected.</div>
+        </div>
         <div class="modal-field">
           <label class="modal-label">Entry Note</label>
           <input id="open-note" class="modal-input">
@@ -1720,9 +1723,6 @@ function openTradeModal(kind, presetAccount, addTranche) {
         </div>
         <div class="modal-field full">
           <div class="modal-hint" id="open-legs-hint">Loading algorithm draft…</div>
-        </div>
-        <div class="modal-field full">
-          <div class="modal-hint" id="open-spread-quote">Spread quote loads when both strikes selected.</div>
         </div>
         <div class="modal-field full">
           <div class="modal-hint" id="open-premium-diff">Fill actual + model premium to see the variance.</div>
