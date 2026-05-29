@@ -1540,6 +1540,7 @@ async function loadSpx() {
             <div style="font-family:var(--f-mono);font-size:0.67rem;color:var(--text-2);display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:3px">
               ${fmtPos(live.delta, totalContracts*100) != null ? `<span>Δ×n <span style="color:var(--text)">${fmtPos(live.delta, totalContracts*100)}</span> $/pt</span>` : ''}
               ${live.gamma != null ? `<span>Γ×n <span style="color:var(--text)">${(live.gamma * totalContracts * 100).toFixed(3)}</span> Δ/pt</span>` : ''}
+              ${live.gamma != null ? `<span>Γ PnL = 0.5 × |Γ×n| × ΔS² = <span style="color:var(--text)">${(0.5 * Math.abs(live.gamma * totalContracts * 100)).toFixed(2)}</span> × ΔS² $</span>` : ''}
               ${fmtPos(live.theta, totalContracts*100) != null ? `<span>Θ×n <span style="color:var(--text)">${fmtPos(live.theta, totalContracts*100)}</span> $/d</span>` : ''}
               ${fmtPos(live.vega,  totalContracts*100) != null ? `<span>V×n <span style="color:var(--text)">${fmtPos(live.vega,  totalContracts*100)}</span> $/vol</span>` : ''}
             </div>`;
