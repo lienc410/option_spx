@@ -211,13 +211,19 @@ def bs_greeks_put(S: float, K: float, T: float, r: float, q: float, sigma: float
 
 # ── per-day per-leg state ────────────────────────────────────────────────────
 
-def day_state(pos: Position, d: date, spx_hist: dict[str, float]) -> Optional[dict]:
+def day_state(pos: Position, d: date, spx_hist: dict[str, float],
+              override_ms: Optional[float] = None,
+              override_ml: Optional[float] = None) -> Optional[dict]:
+    """Build per-day state. Optional mark overrides force IV solve + greeks
+    to be computed at those marks instead of chain day_close. Used for
+    closed-trade edge days where broker fills are the truth.
+    """
     iso = d.isoformat()
     S = spx_hist.get(iso)
     if S is None:
         return None
-    ms = load_chain_mark(d, pos.short_strike, pos.expiry)
-    ml = load_chain_mark(d, pos.long_strike, pos.expiry)
+    ms = override_ms if override_ms is not None else load_chain_mark(d, pos.short_strike, pos.expiry)
+    ml = override_ml if override_ml is not None else load_chain_mark(d, pos.long_strike, pos.expiry)
     if ms is None or ml is None:
         return None
     T = max((pos.expiry - d).days, 1) / DAYS_PER_YEAR
@@ -295,6 +301,8 @@ def emit_row(out_f, pos: Position, t0: dict, t1: dict, attr: dict) -> None:
         "mark_s_t1":    round(t1["ms"], 2),
         "mark_l_t1":    round(t1["ml"], 2),
         **attr,
+        "synthetic_t0": bool(t0.get("synthetic")),
+        "synthetic_t1": bool(t1.get("synthetic")),
         "compute_method": COMPUTE_METHOD,
     }
     out_f.write(json.dumps(row) + "\n")
@@ -316,32 +324,43 @@ def compute() -> int:
         if d.name[:1].isdigit()
     )
 
+    def synth_state(pos: Position, d: date, S: float, iv_s: float, iv_l: float) -> dict:
+        """Fill in a day with no chain data. Holds IV constant from last chain
+        date; marks + greeks computed via BS at frozen IV + actual S/T. This
+        is what smooths multi-day gaps (e.g., 5-04 to 5-11 in q041 history)
+        so per-day delta/gamma attribution stays moderate instead of bunching
+        into a single Taylor step.
+        """
+        T = max((pos.expiry - d).days, 1) / DAYS_PER_YEAR
+        ms = bs_put(S, pos.short_strike, T, R, Q, iv_s)
+        ml = bs_put(S, pos.long_strike,  T, R, Q, iv_l)
+        gs = bs_greeks_put(S, pos.short_strike, T, R, Q, iv_s)
+        gl = bs_greeks_put(S, pos.long_strike,  T, R, Q, iv_l)
+        return {"date": d.isoformat(), "S": S, "T": T,
+                "ms": ms, "ml": ml, "iv_s": iv_s, "iv_l": iv_l,
+                "gs": gs, "gl": gl, "synthetic": True}
+
     def process(pos: Position, out_f) -> int:
         end = pos.closed_at if pos.closed_at else today
         states = []
+        last_iv_s, last_iv_l = None, None
         for d in trading_days(pos.opened_at, end):
-            s = day_state(pos, d, spx_hist)
+            # Override marks at edge days so IV/greeks are solved at broker
+            # truth, eliminating the "instant repricing" jump between chain
+            # mark and broker fill on opened_at/closed_at days.
+            om, ol = None, None
+            if d == pos.opened_at and pos.entry_short_fill is not None:
+                om, ol = pos.entry_short_fill, pos.entry_long_fill
+            elif pos.closed_at and d == pos.closed_at and pos.exit_short_fill is not None:
+                om, ol = pos.exit_short_fill, pos.exit_long_fill
+            s = day_state(pos, d, spx_hist, override_ms=om, override_ml=ol)
             if s is not None:
+                last_iv_s, last_iv_l = s["iv_s"], s["iv_l"]
                 states.append(s)
-        # For closed trades: override the edge marks (opened_at and closed_at)
-        # with actual broker fills so the cumulative actual_pnl reconciles to
-        # broker realized PnL. Without this, the chain end-of-day mark on the
-        # entry/exit day can differ from broker fill by 20-30% (intraday move
-        # between fill and close). Greeks stay at chain end-of-day BS-solved
-        # values — slight mismatch absorbed in residual.
-        if states:
-            if pos.exit_short_fill is not None and pos.exit_long_fill is not None and pos.closed_at:
-                last = states[-1]
-                if date.fromisoformat(last["date"]) == pos.closed_at:
-                    last["ms"] = pos.exit_short_fill
-                    last["ml"] = pos.exit_long_fill
-            entry_short = getattr(pos, "entry_short_fill", None)
-            entry_long  = getattr(pos, "entry_long_fill", None)
-            if entry_short is not None and entry_long is not None:
-                first = states[0]
-                if date.fromisoformat(first["date"]) == pos.opened_at:
-                    first["ms"] = entry_short
-                    first["ml"] = entry_long
+            elif last_iv_s is not None:
+                S = spx_hist.get(d.isoformat())
+                if S is not None:
+                    states.append(synth_state(pos, d, S, last_iv_s, last_iv_l))
         n_written = 0
         for i in range(1, len(states)):
             t0, t1 = states[i-1], states[i]
