@@ -2282,9 +2282,9 @@ def api_strategy_greek_attribution():
     if window == "cum":
         agg = []
         running = {k: 0.0 for k in keys}
-        for daily in per_day:
+        for day_values in per_day:
             for k in keys:
-                running[k] += daily[k]
+                running[k] += day_values[k]
             agg.append({k: round(running[k], 2) for k in keys})
     else:
         n = 7 if window == "7d" else 30 if window == "30d" else 7
