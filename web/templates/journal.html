@@ -597,20 +597,39 @@ function _renderBpChart() {
   // segments so PM sees "reconstructed, not measured".
   // v4 schema split: SPX-account maint is broken into options (options spread
   // max-loss) + equity (BOXX, stock collateral). Pre-v4 rows lack these
-  // fields — fall back to legacy bp_dollars (account total) attributed to
-  // options, equity = 0. PM will see the split kick in on v4 rows onward.
+  // fields — fall back to per-position max-loss compute:
+  //   options_$ = Σ (width − entry_credit) × 100 × contracts
+  //   equity_$  = max(0, legacy bp_dollars − options_$)
+  // This is the Reg-T max-loss approximation. Actual PM maint may be smaller
+  // but max-loss is an honest upper bound and matches PM's mental model.
+  function _maxLossOptionsBP(spxBlock) {
+    const poss = spxBlock.positions || [];
+    let s = 0;
+    for (const p of poss) {
+      const w = (p.short_strike || 0) - (p.long_strike || 0);
+      const credit = p.entry_premium || 0;
+      const ct = p.contracts || 0;
+      s += Math.max(0, (w - credit) * 100 * ct);
+    }
+    return s;
+  }
   let lastOpt = null, lastEq = null, lastLadder = null, lastDdPct = null, lastNlv = null;
   let lastOptDate = null, lastEqDate = null, lastLadderDate = null, lastDdDate = null, lastNlvDate = null;
   const opt = [], eq = [], ladder = [], dd = [], synthetic = [], fillSource = [];
   for (const r of rows) {
     const isPartial = Array.isArray(r.partial_accounts) && r.partial_accounts.length > 0;
     const spxBlock = r.strategies?.spx_spread || {};
-    const optRaw   = spxBlock.options_bp_dollars != null
-                       ? spxBlock.options_bp_dollars
-                       : spxBlock.bp_dollars;     // legacy fallback
-    const eqRaw    = spxBlock.equity_bp_dollars != null
-                       ? spxBlock.equity_bp_dollars
-                       : (spxBlock.options_bp_dollars != null ? 0 : null);
+    let optRaw, eqRaw;
+    if (spxBlock.options_bp_dollars != null) {
+      optRaw = spxBlock.options_bp_dollars;
+      eqRaw  = spxBlock.equity_bp_dollars != null ? spxBlock.equity_bp_dollars : 0;
+    } else {
+      // Pre-v4 backfill via max-loss
+      const optMaxLoss = _maxLossOptionsBP(spxBlock);
+      const acctTotal = spxBlock.bp_dollars;
+      optRaw = optMaxLoss;
+      eqRaw  = acctTotal != null ? Math.max(0, acctTotal - optMaxLoss) : null;
+    }
     const ladderRaw = r.strategies?.stress_put_ladder?.bp_dollars;
     const ddPctRaw  = r.strategies?.dd_overlay?.bp_pct;
     const nlvRaw    = r.combined_nlv;
