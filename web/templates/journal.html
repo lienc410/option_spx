@@ -199,6 +199,21 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     <div class="chart-wrap medium"><canvas id="bp-chart"></canvas></div>
   </div>
 
+  <!-- Strategy PnL Attribution by Greek -->
+  <div class="section-label">Strategy PnL Attribution by Greek <span style="color:var(--text-2);font-weight:400;font-size:11px;font-family:'DM Sans'">· SPX Spread · BS reverse-solve</span></div>
+  <div class="chart-panel">
+    <div class="chart-controls">
+      <span class="ctrl-label">Window</span>
+      <div class="btn-group" id="attr-window-group">
+        <button class="ctrl-btn active" data-attr-win="cum">Cumulative</button>
+        <button class="ctrl-btn"        data-attr-win="7d">7d rolling</button>
+        <button class="ctrl-btn"        data-attr-win="30d">30d rolling</button>
+      </div>
+      <span class="acct-view-note" style="margin-left:auto" id="attr-note">Δ·ΔS + ½Γ·ΔS² + Θ·Δt + V·ΔIV + Residual</span>
+    </div>
+    <div class="chart-wrap medium"><canvas id="attr-chart"></canvas></div>
+  </div>
+
   <!-- Regime + Market strip -->
   <div class="section-label">Regime &amp; Market Context</div>
   <div class="chart-panel">
@@ -353,6 +368,7 @@ function _renderAll(payload) {
   _renderLatest();
   _renderNlvChart();
   _renderBpChart();
+  _renderAttrChart();   // fetches its own data — independent of daily_snapshot
   _renderRegimeStrip();
   _renderMarketChart();
   _renderPositions();
@@ -725,6 +741,91 @@ function _renderBpChart() {
   });
 }
 
+// Strategy PnL Attribution — fetches /api/strategy/greek-attribution and
+// renders stacked area (cum) or grouped stacked bars (7d/30d) of per-greek
+// dollar contributions. Independent of daily_snapshot — has its own backing
+// jsonl populated by scripts/compute_greek_attribution.py.
+let _attrWindow = 'cum';
+async function _renderAttrChart() {
+  let payload;
+  try {
+    const res = await fetch(`/api/strategy/greek-attribution?strategy=spx_spread&window=${_attrWindow}`);
+    payload = await res.json();
+  } catch (e) {
+    payload = { status: 'error', series: [] };
+  }
+  const ctx = document.getElementById('attr-chart').getContext('2d');
+  if (_charts.attr) _charts.attr.destroy();
+
+  if (!payload || payload.status === 'no_data' || !payload.series.length) {
+    const note = document.getElementById('attr-note');
+    if (note) note.textContent = 'No attribution rows yet — run scripts/compute_greek_attribution.py.';
+    return;
+  }
+
+  const labels = payload.series.map(r => r.date);
+  const ds = (label, key, color) => ({
+    label, data: payload.series.map(r => r[key]),
+    backgroundColor: color, borderColor: color,
+    fill: 'stack', tension: 0.1, pointRadius: 0, borderWidth: 1.5,
+  });
+
+  // Per-greek color: blue=delta, orange=gamma, green=theta (gain for short),
+  // purple=vega, grey=residual. Use theme-lit tokens so they swap with theme.
+  _charts.attr = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        ds('Delta',    'delta_attr', 'var(--theme-lit-083)'),
+        ds('Gamma',    'gamma_attr', 'var(--theme-lit-066)'),
+        ds('Theta',    'theta_attr', 'var(--theme-lit-049)'),
+        ds('Vega',     'vega_attr',  'var(--theme-lit-145)'),
+        ds('Residual', 'residual',   'var(--theme-lit-095)'),
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top', labels: { color: 'var(--text)', font: { size: 11, family: "'DM Sans'" }, boxWidth: 12 } },
+        tooltip: {
+          mode: 'index', intersect: false,
+          callbacks: {
+            label: c => `  ${c.dataset.label}: $${Math.round(c.parsed.y).toLocaleString()}`,
+            footer: items => {
+              const i = items[0].dataIndex;
+              const actual = payload.series[i].actual_pnl;
+              return `  Actual: $${Math.round(actual).toLocaleString()}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: { ticks: { color: 'var(--text-2)', maxTicksLimit: 10, font: { family: "'JetBrains Mono', monospace", size: 10 } }, grid: { color: 'var(--theme-lit-095)' }, stacked: true },
+        y: {
+          stacked: true,
+          ticks: {
+            color: 'var(--text-2)',
+            font: { family: "'JetBrains Mono', monospace", size: 10 },
+            callback: v => '$' + (v / 1000).toFixed(1) + 'k',
+          },
+          grid: { color: 'var(--theme-lit-095)' },
+        },
+      },
+    },
+  });
+
+  // Footer text: cum totals when in cum mode
+  const note = document.getElementById('attr-note');
+  if (note && _attrWindow === 'cum' && payload.totals) {
+    const t = payload.totals;
+    const f = n => '$' + Math.round(n).toLocaleString();
+    note.textContent = `cum  Δ ${f(t.delta_attr)}  Γ ${f(t.gamma_attr)}  Θ ${f(t.theta_attr)}  V ${f(t.vega_attr)}  Resid ${f(t.residual)}  ·  Actual ${f(t.actual_pnl)}`;
+  } else if (note) {
+    note.textContent = `Δ·ΔS + ½Γ·ΔS² + Θ·Δt + V·ΔIV + Residual  ·  ${payload.row_count || 0} attribution rows`;
+  }
+}
+
 // Regime strip — colored bars per day showing regime + aftermath/DD overlay flags
 function _renderRegimeStrip() {
   const rows = _tradingRecords();   // trading days only
@@ -875,6 +976,14 @@ document.getElementById('bp-unit-group').addEventListener('click', e => {
   try { localStorage.setItem('journal_bp_unit', _bpUnit); } catch (_) {}
   document.querySelectorAll('#bp-unit-group .ctrl-btn').forEach(b => b.classList.toggle('active', b === btn));
   _renderBpChart();
+});
+
+document.getElementById('attr-window-group').addEventListener('click', e => {
+  const btn = e.target.closest('.ctrl-btn[data-attr-win]');
+  if (!btn) return;
+  _attrWindow = btn.dataset.attrWin;
+  document.querySelectorAll('#attr-window-group .ctrl-btn').forEach(b => b.classList.toggle('active', b === btn));
+  _renderAttrChart();
 });
 
 // Sync initial active state from localStorage

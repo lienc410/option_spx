@@ -2182,6 +2182,87 @@ def api_portfolio_daily_history():
     })
 
 
+@app.route("/api/strategy/greek-attribution")
+def api_strategy_greek_attribution():
+    """Daily PnL decomposed by greek for a given strategy.
+
+    Query params:
+      strategy: spx_spread (default; only one supported today)
+      window:   cum (default) | 7d | 30d
+                cum  → running sum from earliest date
+                7d   → rolling sum over last 7 rows per date
+                30d  → rolling sum over last 30 rows per date
+
+    Returns dates + per-greek series + actual PnL series. Aggregates across
+    all positions (trade_ids) within strategy.
+    """
+    path = os.path.normpath(
+        os.path.join(os.path.dirname(__file__), "..", "data", "strategy_pnl_attribution.jsonl")
+    )
+    if not os.path.exists(path):
+        return jsonify({"status": "no_data", "series": [], "totals": {}})
+
+    strategy = flask_req.args.get("strategy", "spx_spread")
+    window = flask_req.args.get("window", "cum")
+
+    rows: list[dict] = []
+    try:
+        with open(path) as f:
+            for line in f:
+                try:
+                    r = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if r.get("strategy") == strategy:
+                    rows.append(r)
+    except Exception as exc:
+        return jsonify({"status": "error", "error": str(exc)})
+
+    if not rows:
+        return jsonify({"status": "no_data", "series": [], "totals": {}})
+
+    # Sum across trade_ids per date
+    by_date: dict[str, dict[str, float]] = {}
+    keys = ("actual_pnl", "delta_attr", "gamma_attr", "theta_attr", "vega_attr", "residual")
+    for r in rows:
+        d = r["date"]
+        bucket = by_date.setdefault(d, {k: 0.0 for k in keys})
+        for k in keys:
+            bucket[k] += float(r.get(k) or 0.0)
+
+    dates = sorted(by_date.keys())
+    per_day = [by_date[d] for d in dates]
+
+    # Aggregate by window
+    if window == "cum":
+        agg = []
+        running = {k: 0.0 for k in keys}
+        for daily in per_day:
+            for k in keys:
+                running[k] += daily[k]
+            agg.append({k: round(running[k], 2) for k in keys})
+    else:
+        n = 7 if window == "7d" else 30 if window == "30d" else 7
+        agg = []
+        for i in range(len(per_day)):
+            lo = max(0, i - n + 1)
+            window_rows = per_day[lo:i+1]
+            agg.append({k: round(sum(r[k] for r in window_rows), 2) for k in keys})
+
+    series = [{"date": d, **agg[i]} for i, d in enumerate(dates)]
+    totals = {k: round(sum(r[k] for r in per_day), 2) for k in keys}
+    return jsonify({
+        "status": "available",
+        "strategy": strategy,
+        "window": window,
+        "series": series,
+        "totals": totals,
+        "earliest": dates[0] if dates else None,
+        "latest": dates[-1] if dates else None,
+        "row_count": len(rows),
+    })
+
+
 @app.route("/api/portfolio/nlv-change")
 def api_portfolio_nlv_change():
     """Today's combined NLV vs prior snapshot. Fed by scripts/daily_snapshot.py."""
