@@ -105,9 +105,11 @@ def _attach_broker_greeks(positions: list[dict]) -> None:
             if not strikes:
                 continue
             center = (min(strikes) + max(strikes)) / 2.0
-            # Widen window so all legs fit. Per-strike step on SPX is $5/$25;
-            # picking a window in "strike count" ~= (span / 25) + buffer.
-            window = max(20, int((max(strikes) - min(strikes)) / 25) + 10)
+            # Schwab strike_window semantics undocumented — empirically window=20
+            # returns only ~$100 around center (way too narrow for any spread).
+            # Use a fixed wide window so any spread up to ~$1000 wide is covered
+            # in one chain call. SPX puts are $5 increments near ATM.
+            window = 200
             chain = get_option_chain("SPX", "PUT", target_dte=int(dte),
                                      dte_range=0, center_strike=center,
                                      strike_window=window)
