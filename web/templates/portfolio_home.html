@@ -839,6 +839,34 @@ body {
 .booster-gate-result.ok   { background: var(--green-bg); border: 1px solid var(--green-border); color: var(--green); }
 .booster-gate-result.fail { background: var(--red-bg);   border: 1px solid var(--red-border);   color: var(--red); }
 
+/* ── SPEC-108 Ladder panel ── */
+.ladder-panel {
+  margin: 10px 0 14px; padding: 11px 12px; border-radius: 9px;
+  background: var(--surface-hi); border: 1px solid var(--border-2);
+}
+.ladder-panel.l-shadow { background: var(--gold-bg); border-color: var(--gold-border); }
+.ladder-panel.l-active { background: var(--green-bg); border-color: var(--green-border); }
+.ladder-panel.l-off { opacity: .82; }
+.ladder-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.ladder-title { font-family: var(--f-ui); font-size: 0.56rem; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase; color: var(--text); }
+.ladder-mode {
+  font-family: var(--f-mono); font-size: 0.54rem; text-transform: uppercase; letter-spacing: 0.08em;
+  padding: 2px 7px; border-radius: 4px; border: 1px solid var(--border-2); color: var(--text-2); background: var(--surface);
+}
+.ladder-mode.shadow { color: var(--gold); border-color: var(--gold-border); background: var(--gold-bg); }
+.ladder-mode.active { color: var(--green); border-color: var(--green-border); background: var(--green-bg); }
+.ladder-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.ladder-cell { padding: 8px 9px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
+.ladder-k { font-family: var(--f-ui); font-size: 0.52rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2); margin-bottom: 3px; }
+.ladder-v { font-family: var(--f-mono); font-size: 0.66rem; color: var(--text); }
+.ladder-chip {
+  display: inline-flex; align-items: center; gap: 4px; font-family: var(--f-mono); font-size: 0.54rem;
+  padding: 2px 7px; border-radius: 4px; border: 1px solid var(--border-2); color: var(--text-2); background: var(--surface);
+}
+.ladder-chip.ok { color: var(--green); border-color: var(--green-border); background: var(--green-bg); }
+.ladder-chip.skip { color: var(--orange); border-color: var(--orange-border); background: var(--orange-bg); }
+.ladder-note { margin-top: 8px; font-family: var(--f-ui); font-size: 0.56rem; line-height: 1.45; color: var(--text-2); }
+
 /* ── Monitors block (SPEC-104) ── */
 .monitor-block {
   margin-top: 14px;
@@ -2542,6 +2570,33 @@ function _renderGovernance() {
       ${gateBlockHtml}
     </div>`;
 
+  const ladderMode = String(state.ladder_mode || 'shadow');
+  const ladderSkip = state.ladder_skip_reason || '';
+  const ladderWould = !!state.ladder_would_enter;
+  const ladderModeCls = ladderMode === 'active' ? 'l-active' : ladderMode === 'shadow' ? 'l-shadow' : 'l-off';
+  const ladderChip = ladderWould
+    ? `<span class="ladder-chip ok">✓ would enter</span>`
+    : `<span class="ladder-chip skip">${ladderSkip ? 'skip: ' + ladderSkip : 'not eligible'}</span>`;
+  const ladderLast = state.ladder_last_entry_date || '—';
+  const ladderActionDays = state.ladder_action_days_ytd ?? 0;
+  const ladderPositions = state.ladder_active_positions ?? 0;
+  const ladderBP = state.ladder_active_total_bp != null ? fmtPct(state.ladder_active_total_bp) : '—';
+  const ladderHtml = `
+    <div class="ladder-panel ${ladderModeCls}">
+      <div class="ladder-head">
+        <span class="ladder-title">SPEC-108 Selector-Gated Ladder</span>
+        <span class="ladder-mode ${ladderMode}">${ladderMode}</span>
+        ${ladderChip}
+      </div>
+      <div class="ladder-grid">
+        <div class="ladder-cell"><div class="ladder-k">Cadence</div><div class="ladder-v">${state.ladder_cadence_eligible ? 'eligible' : 'gap block'}</div></div>
+        <div class="ladder-cell"><div class="ladder-k">Last Entry</div><div class="ladder-v">${ladderLast}</div></div>
+        <div class="ladder-cell"><div class="ladder-k">Action Days YTD</div><div class="ladder-v">${ladderActionDays}</div></div>
+        <div class="ladder-cell"><div class="ladder-k">Active / BP</div><div class="ladder-v">${ladderPositions} · ${ladderBP}</div></div>
+      </div>
+      <div class="ladder-note">Forward shadow observation only unless PM explicitly flips <code>LADDER_MODE=active</code>. Sizing fixed at 3 contracts; cadence is at most one selector-approved entry per 5 trading days.</div>
+    </div>`;
+
   // Monitors block (SPEC-104) — pulled from /api/sleeve-governance/state.monitors
   const monitors = (_governanceCache && _governanceCache.monitors) || {};
   function _monBadgeCls(s) {
@@ -2590,6 +2645,7 @@ function _renderGovernance() {
     </div>
 
     ${boosterHtml}
+    ${ladderHtml}
 
     <div class="regime-matrix">
 

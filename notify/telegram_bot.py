@@ -1468,6 +1468,41 @@ async def scheduled_intraday_governance_push(bot: Bot, chat_id: str) -> None:
         log.exception("SPEC-107 governance push failed")
 
 
+def _format_ladder_shadow_message(payload: dict) -> str:
+    return (
+        "🪜 <b>SPEC-108 ladder shadow</b>\n"
+        f"{'─' * 32}\n"
+        f"<b>Would enter:</b> <code>{_h(payload.get('selector_strategy') or '—')}</code>\n"
+        f"<b>Sizing:</b> <code>{payload.get('sizing_contracts')} contracts</code>\n"
+        f"<b>Max loss:</b> <code>${payload.get('theoretical_max_loss')}</code> "
+        f"({payload.get('theoretical_max_loss_pct_nlv')}% NLV)\n"
+        f"<b>BP now:</b> <code>{payload.get('current_bp_pct_nlv')}%</code>\n"
+        "Stage 1 shadow only — no production order was placed."
+    )
+
+
+async def scheduled_ladder_shadow_push(bot: Bot, chat_id: str) -> None:
+    if not is_trading_day():
+        log.info("Not a trading day — skipping SPEC-108 ladder shadow push.")
+        return
+    try:
+        from strategy.sleeve_governance import record_state_snapshot
+
+        state = record_state_snapshot(send_alerts=False)
+        payload = state.get("ladder_shadow_payload") or {}
+        if not (payload.get("shadow_log_written") and payload.get("would_enter") and payload.get("ladder_mode") == "shadow"):
+            log.info("SPEC-108 ladder shadow push skipped — no new would-enter event.")
+            return
+        await bot.send_message(
+            chat_id=chat_id,
+            text=_format_ladder_shadow_message(payload),
+            parse_mode=ParseMode.HTML,
+        )
+        log.info("SPEC-108 ladder shadow alert sent.")
+    except Exception:
+        log.exception("SPEC-108 ladder shadow push failed")
+
+
 async def scheduled_eod_push(bot: Bot, chat_id: str) -> None:
     if not is_trading_day():
         log.info("Not a trading day — skipping EOD push.")
@@ -1541,6 +1576,14 @@ def main() -> None:
             args=[application.bot, chat_id],
             id="eod_push",
             name="EOD signal snapshot push",
+        )
+
+        scheduler.add_job(
+            scheduled_ladder_shadow_push,
+            CronTrigger(day_of_week="mon-fri", hour=9, minute=40, timezone=ET),
+            args=[application.bot, chat_id],
+            id="spec108_ladder_shadow",
+            name="SPEC-108 ladder shadow alert",
         )
 
         for hour, minute in ((10, 30), (15, 30)):

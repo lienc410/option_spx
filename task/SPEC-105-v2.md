@@ -379,6 +379,8 @@ Quant ready for Developer handoff. See §12 implementation blocker items.
 
 ## 14. References
 
+Status note: SPEC-108 (2026-05-28): execution-layer overlay added — daily-cluster cadence + S3 sizing. Shadow-only default.
+
 - `research/q074/q074_2_validation_memo.md` — Q074.2 full validation
 - `research/q074/q074_2_gate_validation.py` — script
 - `research/q074/q074_2_portfolio_metrics.csv` + `q074_2_added_day_attribution.csv` + `q074_2_vix_bucket_attribution.csv` + `q074_2_transition_summary.csv` + `q074_2_walkforward.csv` + `q074_2_bootstrap.csv` + `q074_2_crisis_breakdown.csv` + `q074_2_top_booster_losses.csv` + `q074_2_transition_events.csv`

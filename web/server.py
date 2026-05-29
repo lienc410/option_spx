@@ -4462,7 +4462,61 @@ def api_position_open():
         if not paper_trade:
             return jsonify({"error": f"Sleeve governance unavailable: {exc}"}), 503
 
+    ladder_state_for_active = None
+    ladder_decision_for_active = None
+    if not paper_trade:
+        try:
+            from strategy.q078_ladder import LadderState, production_order_allowed, v3_ladder_eligible
+            from strategy.sleeve_governance import ladder_mode
+            from strategy.state import read_all_positions
+
+            mode = ladder_mode()
+            if mode == "active":
+                contracts = max(1, int(float(body.get("contracts", 1) or 1)))
+                requested_bp = _num(body.get("requested_bp_dollars") or body.get("bp_usage_dollars"))
+                bp_per_contract = (requested_bp / contracts) if requested_bp is not None and contracts > 0 else None
+                positions = [
+                    {
+                        "strategy": p.get("strategy"),
+                        "strategy_key": p.get("strategy_key"),
+                        "trade_id": p.get("trade_id"),
+                    }
+                    for p in ((read_all_positions() or {}).get("positions", []))
+                    if str(p.get("underlying") or body.get("underlying", desc.underlying)).upper() == "SPX"
+                ]
+                ladder_state_for_active = LadderState.load(
+                    active_positions=positions,
+                    current_bp_pct_nlv=_num((governance_decision.state.get("pools") or {}).get("spx_pm_bp_pct")) or 0.0,
+                    nlv=_num(governance_decision.state.get("basis_dollars")) or 100_000.0,
+                )
+                market_state = {
+                    "date": datetime.now(_ET).date().isoformat(),
+                    "selector_verdict": {
+                        "strategy_name": desc.name,
+                        "strategy_key": strategy_key,
+                        "max_loss_per_contract": bp_per_contract or 9000.0,
+                    },
+                }
+                eligible, skip_reason = v3_ladder_eligible(market_state, ladder_state_for_active)
+                ladder_decision_for_active = (eligible, skip_reason, desc.name)
+                if not production_order_allowed(eligible, mode):
+                    return jsonify({
+                        "error": "SPEC-108 ladder blocked entry",
+                        "ladder": {
+                            "mode": mode,
+                            "eligible": eligible,
+                            "skip_reason": skip_reason,
+                        },
+                    }), 400
+        except Exception as exc:
+            return jsonify({"error": f"SPEC-108 ladder unavailable: {exc}"}), 503
+
     write_state(desc.name, body.get("underlying", desc.underlying), strategy_key=strategy_key, account=account, add_tranche=add_tranche, **state_payload)
+    if ladder_state_for_active is not None and ladder_decision_for_active and ladder_decision_for_active[0]:
+        try:
+            ladder_state_for_active.mark_entry(datetime.now(_ET).date(), ladder_decision_for_active[2], mode="active")
+        except Exception:
+            pass
     append_event({
         "id": trade_id,
         "event": "open",

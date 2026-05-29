@@ -38,6 +38,10 @@ CAP_SHORT_VOL = 50.0
 CAP_STRESS_EPISODE = 50.0
 CAP_SECOND_LEG_EPISODE = 40.0
 CAP_SPX_BENIGN_BOOSTER = 90.0
+LADDER_SIZING_CONTRACTS = 3
+LADDER_CADENCE_CLUSTER_DAYS = 5
+LADDER_BP_CEILING_PCT = 35.0
+LADDER_MODE_DEFAULT = "shadow"
 _REPLAY_CACHE: dict | None = None
 
 SHORT_VOL_STRATEGIES = {
@@ -91,6 +95,12 @@ def booster_mode() -> str:
     """SPEC-105 rollout mode. Default is mandatory Stage 1 shadow."""
     mode = str(os.getenv("SPX_BENIGN_BOOSTER_MODE", "shadow")).strip().lower()
     return mode if mode in {"shadow", "active", "disabled"} else "shadow"
+
+
+def ladder_mode() -> str:
+    """SPEC-108 rollout mode. Default is mandatory Stage 1 shadow."""
+    mode = str(os.getenv("LADDER_MODE", LADDER_MODE_DEFAULT)).strip().lower()
+    return mode if mode in {"shadow", "active", "off"} else LADDER_MODE_DEFAULT
 
 
 def _append_jsonl(path: Path, payload: dict) -> None:
@@ -445,6 +455,91 @@ def _pools_for_view(*, view: str, schwab_maint: float, etrade_maint: float,
     }
 
 
+def _open_spx_positions_for_ladder() -> list[dict]:
+    try:
+        from strategy.state import read_all_positions
+
+        rows = (read_all_positions() or {}).get("positions", [])
+    except Exception:
+        return []
+    positions: list[dict] = []
+    for row in rows:
+        if str(row.get("underlying") or "SPX").upper() != "SPX":
+            continue
+        if str(row.get("status") or "open").lower() not in {"", "open"}:
+            continue
+        positions.append({
+            "strategy": row.get("strategy"),
+            "strategy_key": row.get("strategy_key"),
+            "trade_id": row.get("trade_id"),
+        })
+    return positions
+
+
+def _selector_verdict_for_ladder() -> tuple[dict, str]:
+    try:
+        from strategy.selector import get_recommendation
+
+        rec = get_recommendation()
+        strategy_value = rec.strategy.value if hasattr(rec.strategy, "value") else str(rec.strategy)
+        return {
+            "strategy_name": strategy_value,
+            "strategy_key": rec.strategy_key,
+            "position_action": rec.position_action,
+            "max_loss_per_contract": 9000.0,
+            "theoretical_entry_credit": None,
+        }, datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    except Exception as exc:
+        return {
+            "strategy_name": "Reduce / Wait",
+            "strategy_key": "reduce_wait",
+            "position_action": "WAIT",
+            "error": str(exc),
+        }, datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def ladder_shadow_decision_payload(state: dict, *, commit: bool = False) -> dict:
+    from strategy.q078_ladder import (
+        LadderState,
+        append_shadow_log,
+        has_shadow_log_for_date,
+        production_order_allowed,
+        shadow_payload,
+        v3_ladder_eligible,
+    )
+
+    mode = ladder_mode()
+    pools = state.get("pools") or {}
+    nlv = _num(state.get("basis_dollars")) or COMBINED_NLV
+    current_bp = _num(pools.get("spx_pm_bp_pct")) or 0.0
+    selector_verdict, selector_ts = _selector_verdict_for_ladder()
+    today = _et_now().date()
+    ladder_state = LadderState.load(
+        active_positions=_open_spx_positions_for_ladder(),
+        current_bp_pct_nlv=current_bp,
+        nlv=nlv,
+    )
+    market_state = {
+        "date": today.isoformat(),
+        "selector_timestamp": selector_ts,
+        "selector_verdict": selector_verdict,
+        "q042_active": False,
+    }
+    eligible, skip_reason = v3_ladder_eligible(market_state, ladder_state)
+    payload = shadow_payload(market_state, ladder_state, eligible=eligible, skip_reason=skip_reason, mode=mode)
+    payload["production_order_allowed"] = production_order_allowed(eligible, mode)
+    payload["selector_error"] = selector_verdict.get("error")
+    payload["shadow_log_written"] = False
+
+    if commit and selector_verdict.get("strategy_key") != "reduce_wait" and mode in {"shadow", "active"}:
+        if not has_shadow_log_for_date(today):
+            append_shadow_log(payload)
+            payload["shadow_log_written"] = True
+            if eligible:
+                ladder_state.mark_entry(today, payload.get("selector_strategy") or "", mode=mode)
+    return payload
+
+
 def current_governance_state() -> dict:
     """Build current read-only governance snapshot from existing portfolio surfaces.
 
@@ -532,7 +627,7 @@ def current_governance_state() -> dict:
     }
     basis = (pools_default.get("nlv_basis") or 0.0) or COMBINED_NLV
 
-    return {
+    state_payload = {
         "timestamp": _iso_now(),
         "status": "available" if not errors else "partial",
         "errors": errors,
@@ -550,6 +645,52 @@ def current_governance_state() -> dict:
         "market": market,
         "active_overrides": active_overrides(),
         "spx_live_bp_pct": round(_spx_live_bp_pct, 2) if _spx_live_bp_pct is not None else None,
+    }
+    try:
+        ladder = ladder_shadow_decision_payload(state_payload, commit=False)
+    except Exception as exc:
+        ladder = {
+            "ladder_mode": ladder_mode(),
+            "ladder_last_entry_date": None,
+            "ladder_cadence_eligible": False,
+            "ladder_strategy_eligible": False,
+            "ladder_concurrency_block": False,
+            "ladder_bp_ceiling_block": False,
+            "ladder_skip_reason": "unavailable",
+            "ladder_active_positions": 0,
+            "ladder_active_total_bp": 0.0,
+            "ladder_active_q042_overlap": False,
+            "ladder_action_days_ytd": 0,
+            "ladder_error": str(exc),
+        }
+    state_payload.update(_ladder_state_fields(ladder))
+    return state_payload
+
+
+def _ladder_state_fields(ladder: dict) -> dict:
+    skip = ladder.get("skip_reason")
+    last_entry_date = None
+    runtime_path = DATA_DIR / "q078_ladder_runtime.json"
+    if runtime_path.exists():
+        try:
+            last_entry_date = json.loads(runtime_path.read_text(encoding="utf-8")).get("last_entry_date")
+        except Exception:
+            last_entry_date = None
+    return {
+        "ladder_mode": ladder.get("ladder_mode") or ladder_mode(),
+        "ladder_last_entry_date": last_entry_date,
+        "ladder_cadence_eligible": skip != "cadence_gap",
+        "ladder_strategy_eligible": skip != "selector_wait" and not bool(ladder.get("selector_error")),
+        "ladder_concurrency_block": skip == "concurrency_block",
+        "ladder_bp_ceiling_block": skip == "bp_ceiling_block",
+        "ladder_skip_reason": skip,
+        "ladder_active_positions": int(ladder.get("existing_spx_positions") or 0),
+        "ladder_active_total_bp": float(ladder.get("current_bp_pct_nlv") or 0.0),
+        "ladder_active_q042_overlap": bool(ladder.get("q042_active")),
+        "ladder_action_days_ytd": int(ladder.get("ladder_action_days_ytd") or 0),
+        "ladder_would_enter": bool(ladder.get("would_enter")),
+        "ladder_production_order_allowed": bool(ladder.get("production_order_allowed")),
+        "ladder_shadow_payload": ladder,
     }
 
 
@@ -768,6 +909,11 @@ def _maybe_alert_booster_transition(previous: dict | None, current: dict) -> boo
 
 def record_state_snapshot(send_alerts: bool = False) -> dict:
     state = current_governance_state()
+    try:
+        ladder = ladder_shadow_decision_payload(state, commit=True)
+        state.update(_ladder_state_fields(ladder))
+    except Exception as exc:
+        state["ladder_error"] = str(exc)
     previous = None
     if RUNTIME_STATE_PATH.exists():
         try:
@@ -795,6 +941,15 @@ def record_state_snapshot(send_alerts: bool = False) -> dict:
             _send_alert("⚠️ <b>Sleeve governance</b> second-leg state ACTIVE — new short-vol entries blocked.")
         elif prev_second and not now_second:
             _send_alert("✅ <b>Sleeve governance</b> second-leg state cleared — R6 block inactive.")
+        ladder_shadow = state.get("ladder_shadow_payload") or {}
+        if ladder_shadow.get("shadow_log_written") and ladder_shadow.get("would_enter") and str(ladder_shadow.get("ladder_mode")) == "shadow":
+            _send_alert(
+                "🪜 <b>SPEC-108 ladder shadow</b>\n"
+                f"Would have entered: <code>{ladder_shadow.get('selector_strategy')}</code>\n"
+                f"Sizing: <code>{ladder_shadow.get('sizing_contracts')} contracts</code>\n"
+                f"Theoretical max loss: <code>${ladder_shadow.get('theoretical_max_loss')}</code>\n"
+                "Stage 1 shadow only — no production order was placed."
+            )
     return state
 
 
