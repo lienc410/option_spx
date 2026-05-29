@@ -48,6 +48,67 @@ from typing import Optional
 from strategy.catalog import strategy_key as catalog_strategy_key
 
 STATE_FILE = os.path.join(os.path.dirname(__file__), "..", "logs", "current_position.json")
+CLOSED_TRADES_FILE = os.path.join(os.path.dirname(__file__), "..", "data", "closed_trades.jsonl")
+
+
+# Strategy-key → bucket label used in closed_trades.jsonl + attribution jsonl
+# (matches daily_snapshot.jsonl's strategies.{bucket}.positions key).
+_STRATEGY_BUCKET = {
+    "bull_put_spread": "spx_spread",
+    "bear_call_spread": "spx_spread",
+}
+
+
+def _append_closed_trade_rows(legs_to_close, *, exit_premium, exit_reason,
+                              close_note, strategy_key, underlying):
+    """Best-effort auto-hook: append one row per closing leg to
+    data/closed_trades.jsonl so Journal Cum P&L picks up realized PnL
+    without manual seeding. Per-leg fills aren't captured (broker only
+    reports spread credit/debit) — compute_greek_attribution.py splits
+    proportionally from chain marks on opened_at/closed_at.
+    """
+    if not legs_to_close or exit_premium in (None, ""):
+        return
+    try:
+        exit_debit = float(exit_premium)
+    except (TypeError, ValueError):
+        return
+    bucket = _STRATEGY_BUCKET.get(strategy_key, strategy_key or "unknown")
+    closed_at_iso = date.today().isoformat()
+    try:
+        os.makedirs(os.path.dirname(CLOSED_TRADES_FILE), exist_ok=True)
+        with open(CLOSED_TRADES_FILE, "a") as f:
+            for leg in legs_to_close:
+                try:
+                    entry_credit = float(leg.get("actual_premium"))
+                except (TypeError, ValueError):
+                    continue
+                try:
+                    contracts = float(leg.get("contracts", 1))
+                except (TypeError, ValueError):
+                    contracts = 1
+                realized = round((entry_credit - exit_debit) * contracts * 100, 2)
+                row = {
+                    "trade_id":     leg.get("trade_id"),
+                    "strategy":     bucket,
+                    "account":      leg.get("account") or "schwab",
+                    "underlying":   underlying or "SPX",
+                    "short_strike": leg.get("short_strike"),
+                    "long_strike":  leg.get("long_strike"),
+                    "contracts":    int(contracts),
+                    "expiry":       leg.get("expiry"),
+                    "opened_at":    leg.get("opened_at"),
+                    "closed_at":    closed_at_iso,
+                    "entry_credit_per_share": entry_credit,
+                    "exit_debit_per_share":   exit_debit,
+                    "realized_pnl":           realized,
+                    "close_reason": exit_reason or close_note,
+                    "seeded_from":  "auto_hook_close_position",
+                }
+                f.write(json.dumps(row) + "\n")
+    except Exception as exc:
+        import sys
+        print(f"[close_position] closed_trades append failed: {exc}", file=sys.stderr)
 
 # Fields that belong to the strategy envelope, not to individual positions.
 _META_KEYS = frozenset({
@@ -255,6 +316,24 @@ def close_position(
     data = _load_raw()
     if data is None:
         return
+
+    # Capture legs about to close before mutation, then auto-append closed_trades.jsonl
+    if "positions" in data:
+        all_legs = list(data.get("positions") or [])
+        legs_to_close = (
+            [p for p in all_legs if p.get("account") == account] if account
+            else list(all_legs)
+        )
+    else:
+        legs_to_close = [data]  # old flat-format treated as single leg
+    _append_closed_trade_rows(
+        legs_to_close,
+        exit_premium=extra_fields.get("exit_premium"),
+        exit_reason=extra_fields.get("exit_reason"),
+        close_note=note,
+        strategy_key=data.get("strategy_key"),
+        underlying=data.get("underlying"),
+    )
 
     if "positions" in data:
         positions = list(data.get("positions") or [])

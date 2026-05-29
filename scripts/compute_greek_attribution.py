@@ -63,8 +63,9 @@ class Position:
     expiry: date
     opened_at: date
     closed_at: Optional[date] = None             # None when still open
-    entry_credit_per_share: Optional[float] = None  # broker spread credit (open positions)
-    entry_short_fill: Optional[float] = None     # per-leg broker fill at open (closed trades)
+    entry_credit_per_share: Optional[float] = None  # broker spread credit
+    exit_debit_per_share: Optional[float] = None    # broker spread debit on close
+    entry_short_fill: Optional[float] = None     # per-leg broker fill at open (manually seeded)
     entry_long_fill: Optional[float] = None
     exit_short_fill: Optional[float] = None      # per-leg broker fill at close
     exit_long_fill: Optional[float] = None
@@ -117,6 +118,8 @@ def load_closed_trades() -> list[Position]:
                 expiry=date.fromisoformat(r["expiry"]),
                 opened_at=date.fromisoformat(r["opened_at"]),
                 closed_at=date.fromisoformat(r["closed_at"]),
+                entry_credit_per_share=float(r.get("entry_credit_per_share")) if r.get("entry_credit_per_share") is not None else None,
+                exit_debit_per_share=float(r.get("exit_debit_per_share")) if r.get("exit_debit_per_share") is not None else None,
                 entry_short_fill=float(r.get("entry_short_fill")) if r.get("entry_short_fill") is not None else None,
                 entry_long_fill=float(r.get("entry_long_fill")) if r.get("entry_long_fill") is not None else None,
                 exit_short_fill=float(r.get("exit_short_fill")) if r.get("exit_short_fill") is not None else None,
@@ -367,8 +370,16 @@ def compute() -> int:
                         adj = ((cm - cl) - pos.entry_credit_per_share) / 2.0
                         om = max(cm - adj, 0.01)
                         ol = max(cl + adj, 0.01)
-            elif pos.closed_at and d == pos.closed_at and pos.exit_short_fill is not None:
-                om, ol = pos.exit_short_fill, pos.exit_long_fill
+            elif pos.closed_at and d == pos.closed_at:
+                if pos.exit_short_fill is not None:
+                    om, ol = pos.exit_short_fill, pos.exit_long_fill
+                elif pos.exit_debit_per_share is not None:
+                    cm = load_chain_mark(d, pos.short_strike, pos.expiry)
+                    cl = load_chain_mark(d, pos.long_strike, pos.expiry)
+                    if cm is not None and cl is not None:
+                        adj = ((cm - cl) - pos.exit_debit_per_share) / 2.0
+                        om = max(cm - adj, 0.01)
+                        ol = max(cl + adj, 0.01)
             s = day_state(pos, d, spx_hist, override_ms=om, override_ml=ol)
             if s is not None:
                 last_iv_s, last_iv_l = s["iv_s"], s["iv_l"]
