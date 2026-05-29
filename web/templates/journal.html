@@ -188,6 +188,14 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   <!-- BP stack -->
   <div class="section-label">Buying Power Composition</div>
   <div class="chart-panel">
+    <div class="chart-controls">
+      <span class="ctrl-label">Unit</span>
+      <div class="btn-group" id="bp-unit-group">
+        <button class="ctrl-btn active" data-bp-unit="dollars">$</button>
+        <button class="ctrl-btn"        data-bp-unit="pct">% of NLV</button>
+      </div>
+      <span class="acct-view-note" style="margin-left:auto">$ scales with NLV via PM model; % isolates allocation discipline.</span>
+    </div>
     <div class="chart-wrap medium"><canvas id="bp-chart"></canvas></div>
   </div>
 
@@ -242,6 +250,7 @@ let _records = [];
 let _nlvWindow = 90;
 let _charts = {};
 let _accountView = (typeof localStorage !== 'undefined' && localStorage.getItem('journal_account_view')) || 'all';
+let _bpUnit = (typeof localStorage !== 'undefined' && localStorage.getItem('journal_bp_unit')) || 'dollars';
 
 // US market holidays — mirror of research/q041/collect_massive_snapshot.py
 // _US_HOLIDAYS_{2025,2026}. Keep in sync when the python source updates.
@@ -592,10 +601,20 @@ function _renderBpChart() {
       if (ddPctRaw  != null) { lastDdPct  = ddPctRaw;  lastDdDate     = r.date; }
       if (nlvRaw    != null) { lastNlv    = nlvRaw;    lastNlvDate    = r.date; }
     }
-    spx.push((spxUsed || 0) / 1000);
-    ladder.push((ladderUsed || 0) / 1000);
-    const ddDollars = (ddPctUsed != null && nlvUsed) ? (ddPctUsed / 100 * nlvUsed) : 0;
-    dd.push(ddDollars / 1000);
+    // Build both unit series so toggle re-render doesn't re-loop the data.
+    // Dollars view: bp_dollars / 1000 ($k). Pct view: bp_dollars / NLV × 100.
+    // dd_overlay is stored as bp_pct natively; convert to $ via NLV.
+    const denomNlv = nlvUsed || 0;
+    if (_bpUnit === 'pct') {
+      spx.push(denomNlv > 0 ? (spxUsed || 0) / denomNlv * 100 : 0);
+      ladder.push(denomNlv > 0 ? (ladderUsed || 0) / denomNlv * 100 : 0);
+      dd.push(ddPctUsed != null ? ddPctUsed : 0);
+    } else {
+      spx.push((spxUsed || 0) / 1000);
+      ladder.push((ladderUsed || 0) / 1000);
+      const ddDollars = (ddPctUsed != null && nlvUsed) ? (ddPctUsed / 100 * nlvUsed) : 0;
+      dd.push(ddDollars / 1000);
+    }
     const rowSynth = spxSynth || ladderSynth || ddSynth || nlvSynth || isPartial;
     synthetic.push(rowSynth);
     fillSource.push(rowSynth ? { spx: spxSynth ? lastSpxDate : null,
@@ -673,7 +692,10 @@ function _renderBpChart() {
           callbacks: {
             label: c => {
               const i = c.dataIndex;
-              const base = `  ${c.dataset.label}: $${(c.parsed.y * 1000).toLocaleString(undefined, {maximumFractionDigits: 0})}`;
+              const valStr = _bpUnit === 'pct'
+                ? `${c.parsed.y.toFixed(2)}%`
+                : `$${(c.parsed.y * 1000).toLocaleString(undefined, {maximumFractionDigits: 0})}`;
+              const base = `  ${c.dataset.label}: ${valStr}`;
               if (synthetic[i]) {
                 const src = fillSource[i] || {};
                 const bucketSrc = c.dataset.label === 'SPX Spread' ? src.spx
@@ -689,7 +711,15 @@ function _renderBpChart() {
       },
       scales: {
         x: { ticks: { color: 'var(--text-2)', maxTicksLimit: 10, font: { family: "'JetBrains Mono', monospace", size: 10 } }, grid: { color: 'var(--theme-lit-095)' }, stacked: true },
-        y: { stacked: true, ticks: { color: 'var(--text-2)', font: { family: "'JetBrains Mono', monospace", size: 10 }, callback: v => '$' + v.toFixed(0) + 'k' }, grid: { color: 'var(--theme-lit-095)' } },
+        y: {
+          stacked: true,
+          ticks: {
+            color: 'var(--text-2)',
+            font: { family: "'JetBrains Mono', monospace", size: 10 },
+            callback: v => _bpUnit === 'pct' ? v.toFixed(0) + '%' : '$' + v.toFixed(0) + 'k',
+          },
+          grid: { color: 'var(--theme-lit-095)' },
+        },
       },
     },
   });
@@ -837,6 +867,20 @@ document.getElementById('nlv-window-group').addEventListener('click', e => {
   document.querySelectorAll('#nlv-window-group .ctrl-btn').forEach(b => b.classList.toggle('active', b === btn));
   _renderNlvChart();
 });
+
+document.getElementById('bp-unit-group').addEventListener('click', e => {
+  const btn = e.target.closest('.ctrl-btn[data-bp-unit]');
+  if (!btn) return;
+  _bpUnit = btn.dataset.bpUnit;
+  try { localStorage.setItem('journal_bp_unit', _bpUnit); } catch (_) {}
+  document.querySelectorAll('#bp-unit-group .ctrl-btn').forEach(b => b.classList.toggle('active', b === btn));
+  _renderBpChart();
+});
+
+// Sync initial active state from localStorage
+(function () {
+  document.querySelectorAll('#bp-unit-group .ctrl-btn').forEach(b => b.classList.toggle('active', b.dataset.bpUnit === _bpUnit));
+})();
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
 const now = new Date();
