@@ -619,17 +619,15 @@ function _renderBpChart() {
   for (const r of rows) {
     const isPartial = Array.isArray(r.partial_accounts) && r.partial_accounts.length > 0;
     const spxBlock = r.strategies?.spx_spread || {};
-    let optRaw, eqRaw;
-    if (spxBlock.options_bp_dollars != null) {
-      optRaw = spxBlock.options_bp_dollars;
-      eqRaw  = spxBlock.equity_bp_dollars != null ? spxBlock.equity_bp_dollars : 0;
-    } else {
-      // Pre-v4 backfill via max-loss
-      const optMaxLoss = _maxLossOptionsBP(spxBlock);
-      const acctTotal = spxBlock.bp_dollars;
-      optRaw = optMaxLoss;
-      eqRaw  = acctTotal != null ? Math.max(0, acctTotal - optMaxLoss) : null;
-    }
+    // PM directive: always use max-loss for options bucket (cross-day
+    // consistent, matches PM's sizing-decision mental model). The v4 stored
+    // options_bp_dollars uses broker PM-model breakdown which differs from
+    // max-loss by ~15% on some days. Equity bucket = account total − options
+    // (absorbs PM-model excess + real equity collateral).
+    const optMaxLoss = _maxLossOptionsBP(spxBlock);
+    const acctTotal  = spxBlock.bp_dollars;
+    const optRaw     = optMaxLoss;
+    const eqRaw      = acctTotal != null ? Math.max(0, acctTotal - optMaxLoss) : null;
     const ladderRaw = r.strategies?.stress_put_ladder?.bp_dollars;
     const ddPctRaw  = r.strategies?.dd_overlay?.bp_pct;
     const nlvRaw    = r.combined_nlv;
