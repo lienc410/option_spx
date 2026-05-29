@@ -1,6 +1,6 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-28 (**Q078 CLOSED + SPEC-108 APPROVED**。BPS Ladder / Selector-Gated SPX Execution Cadence。V3 daily-cluster + S3 sizing，bias-deflated ΔROE +0.8 to +1.3pp。Stage 1 shadow-only mandatory。11 phases / 5 G-reviews / audit all PASS。6 methodology lessons 沉淀）
+Last Updated: 2026-05-28 (**SPEC-108 DONE + Quant Fidelity Review PASS**。Q078 全链路收官。18/18 AC / 12/12 unit / 53/53 adjacent regression / 5 invariants untouched / Stage 1 shadow double protection live。5 non-blocking Stage-2 notes 写入 Review）
 
 ### R-20260528-01 — Q078: BPS Ladder / Selector-Gated SPX Execution Cadence (CLOSED 2026-05-28)
 

@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-05-28（**Q078 CLOSED + SPEC-108 APPROVED**（PM 2026-05-28）。Selector-Gated SPX Execution Ladder，V3 daily-cluster + S3 sizing，bias-deflated ΔROE +0.8 to +1.3pp。Stage 1 shadow-only mandatory。Pending Developer）
+最后更新：2026-05-28（**SPEC-108 DONE + Quant Fidelity Review PASS**。Q078 全链路收官。Stage 1 shadow live，等首个 selector PASS 日触发 shadow_log_written）
 
 ---
 
@@ -36,13 +36,14 @@
 
 ### Q078 — BPS Ladder / Selector-Gated SPX Execution Cadence
 
-- **状态**：**resolved** (Q078 CLOSED — PROMOTE → SPEC-108 APPROVED 2026-05-28)
+- **状态**：**resolved** (Q078 CLOSED — SPEC-108 **DONE + Fidelity Review PASS** 2026-05-28)
 - **结论**：V3 daily-cluster（≤1/5-TD cluster）+ S3 sizing（3 contracts ≈ 7.5% BP）。Bias-deflated realistic ΔROE +0.8 to +1.3pp（mean +1.80pp）。**NOT diversification fix**（eff_count Δ noise；thesis = ROE-cadence overlay）
-- **Thesis reframe**：Q078 不解决 expiry concentration（原始 PM 观察的症状未被治愈）；实际价值是系统化捕获 selector-PASS 机会
-- **Stage 1 mandatory shadow**：Stage 2 = PM-signoff + ≥10 shadow entries + 7 conditions
-- **SPEC-108**：18 ACs + 8 monitoring obligations。Pending Developer（~5h CC+gstack / ~4 working days）
-- **Quant 下一节点**：Developer 实施后 fidelity review（post-PR）
-- **来源**：`task/SPEC-108.md`, `research/q078/q078_p4_memo.md`, `task/q078_planner_handoff_2026-05-28.md`
+- **Thesis reframe**：Q078 不解决 expiry concentration；实际价值是系统化捕获 selector-PASS 机会
+- **Fidelity Review PASS**：18/18 AC / 12/12 unit tests / 53/53 adjacent regression / 5 invariants untouched / R1-R7 7/7 applied
+- **Stage 1 shadow live**：env-default + `production_order_allowed()` double protection；等首个 selector PASS 日触发 shadow_log_written
+- **5 non-blocking Stage-2 pre-conditions**：①节假日表换 pandas_market_calendars；②`_max_loss_per_contract` fallback logging；③`ladder_action_days_ytd` projection 文档化；④shadow count 从首个 shadow_log_written 起；⑤CI smoke ping for old Air
+- **Stage 2 gate**：PM-signoff + ≥10 shadow entries + 7 advancement conditions
+- **来源**：`task/SPEC-108.md`, `research/q078/q078_p4_memo.md`
 
 ---
 

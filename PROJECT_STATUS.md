@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-28 (**Q078 CLOSED + SPEC-108 APPROVED**。BPS Ladder / Selector-Gated SPX Execution Cadence。11 phases / 5 G-reviews / comprehensive audit all PASS。V3 daily-cluster + S3 sizing，bias-deflated realistic ΔROE +0.8 to +1.3pp。Stage 1 shadow-only MANDATORY。Pending Developer implementation — `See: task/SPEC-108.md`, `research/q078/q078_p4_memo.md`)
+Last Updated: 2026-05-28 (**SPEC-108 DONE + Quant Fidelity Review PASS**。Q078 全链路收官：framing→P4→5 G-review→audit→Developer 实施→Fidelity PASS。18/18 AC ✅ / 12/12 unit tests / 53/53 adjacent regression / 5 invariants untouched / Stage 1 shadow double protection live。5 non-blocking follow-up notes 写入 Review（Stage 2 前处理）— `See: task/SPEC-108.md`)
 Owner: Planner or PM
 
 ## Current Phase
@@ -28,7 +28,7 @@ Owner: Planner or PM
 
 ## Active APPROVED Specs
 
-- **SPEC-108** — Q078 Selector-Gated SPX Execution Ladder. **APPROVED 2026-05-28.** Q078 全 P0-P4 + 5 轮 G-review（framing/G2/G2.5/G4/audit）+ 综合 audit，R1-R9 + R1-R7 全部应用。ROE-cadence overlay on SPEC-104+105v2 baseline：V3 daily-cluster（≤1 entry per 5-trading-day cluster, ~35 action days/year）+ S3 sizing（3 contracts ≈ 7.5% BP），strategy-agnostic（selector per VIX regime）。Expected impact（bias-deflated realistic）：ΔROE +0.8 to +1.3pp（mean +1.80pp），MaxDD +1.32pp，W20d +1.16pp，W63d +3.59pp，Sharpe +1.20，5/5 crisis windows improved（incl. COVID）。**NOT a diversification fix**（eff_count Δ noise；thesis = ROE-cadence overlay）。Stage 1 shadow-only MANDATORY；Stage 2 PM-signoff + ≥10 shadow entries + 7 advancement conditions。18 ACs（含 AC-108-17/18 CI shadow-default safety）。8 monitoring obligations。Pending Developer implementation（~5h CC+gstack / ~4 working days human）— `See: task/SPEC-108.md`, `research/q078/q078_p4_memo.md`
+_(currently empty)_
 
 **Future seeds**（PM-discretionary）：Q042 Stage 2/3 ramp / SPEC-105 Stage 2 active mode / HV Ladder re-promotion / Q042 Sleeve B（n > 3-5 trades）/ Q077 PARKED
 
@@ -51,6 +51,8 @@ Expected Net Ann ROE:   7.95% (Layer-1 Arch-3) → 8.20% when booster Stage 2 ac
 ```
 
 ## Recently Closed Specs
+
+- `SPEC-108` — Q078 Selector-Gated SPX Execution Ladder. Closed **DONE + Quant Fidelity Review PASS 2026-05-28**. ROE-cadence overlay on SPEC-104+105v2：V3 daily-cluster（≤1/5-TD cluster, ~35 action days/yr）+ S3 sizing（3 contracts ≈ 7.5% BP），strategy-agnostic。Bias-deflated realistic ΔROE +0.8 to +1.3pp（mean +1.80pp），MaxDD +1.32pp，W63d +3.59pp，Sharpe +1.20，5/5 crisis windows improved。**NOT diversification fix**（thesis = ROE-cadence overlay；eff_count Δ noise）。Stage 1 shadow-only：env-default + `production_order_allowed()` double protection。18 ACs / 8 monitoring obligations。Fidelity review：12/12 unit / 53/53 adjacent regression / 18/18 AC cross-check / 5 invariants untouched / R1-R7 7/7 applied。**5 non-blocking Stage-2 pre-conditions**：①节假日表换 pandas_market_calendars；②`_max_loss_per_contract` fallback logging；③`ladder_action_days_ytd` projection vs 持久化计数器差异文档化；④Stage 2 ≥10 entries 从首个 shadow_log_written 开始计；⑤CI smoke ping for old Air。**Standing**：Stage 1 shadow 数据采集中，等首个 selector PASS 日触发首条 shadow_log_written — `See: task/SPEC-108.md`, `research/q078/q078_p4_memo.md`
 
 - `SPEC-107` — Intraday Recommendation Governance. Closed **DONE 2026-05-26**. Implements Q076 A2a+B as execution governance only: `strategy/intraday_governance.py` with IVP hysteresis [42-53 entry / 35-57 hold], stable SPX governance state key, NYSE-calendar scheduled actionable bars at 10:30 / 15:30 ET, 7-class bypass / 7-layer priority stack, `data/intraday_governance_state.json`, `data/intraday_governance_log.jsonl`, `/api/recommendation` governance payload, SPX dashboard State Observation / Actionable / Hard Exit UX, and Telegram scheduled governance pushes. AC7 joint Quant validation PASS: `intraday_flips=92`, `episodes_le_3h=3`, `round_trips=20`, `eod_agreement_pct=93.2%`. Adjacent regression PASS: SPEC-103/104/105/106 + SPEC-107 = 53/53. Does not change selector semantics; Q077 low-IVP semantics remains separate/parked. Deferred: old Air runtime observation + 30-day decision-log retrospective — `See: task/SPEC-107.md`, `task/SPEC-107_handoff.md`, `task/SPEC-107_ac7_quant_validation_2026-05-26.md`
 
