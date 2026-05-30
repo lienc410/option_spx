@@ -14,8 +14,8 @@ import urllib.request
 
 BASE_URL = "http://127.0.0.1:5050"
 ENDPOINTS = (
-    "/api/q042/spx-history?full=1",
-    "/api/q042/vix-history?full=1",
+    "/api/q042/spx-history?full=1&force=1",
+    "/api/q042/vix-history?full=1&force=1",
 )
 
 

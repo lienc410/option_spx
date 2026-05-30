@@ -1771,16 +1771,18 @@ def _q042_history_save_disk_cache(path: str, cache_key: str, payload: dict) -> N
 def api_q042_spx_history():
     import time as _time
     full = flask_req.args.get("full", "0") == "1"
+    force = flask_req.args.get("force", "0") == "1"
     cache_key = "full" if full else "recent"
     cached = _Q042_SPX_CACHE.get(cache_key)
-    if cached and (_time.time() - _Q042_SPX_CACHE.get(f"{cache_key}_ts", 0)) < 3600:
+    if not force and cached and (_time.time() - _Q042_SPX_CACHE.get(f"{cache_key}_ts", 0)) < 3600:
         return jsonify(cached)
     # Disk cache fallback — survives server restarts
-    disk = _q042_spx_load_disk_cache(cache_key)
-    if disk is not None:
-        _Q042_SPX_CACHE[cache_key] = disk
-        _Q042_SPX_CACHE[f"{cache_key}_ts"] = _time.time()
-        return jsonify(disk)
+    if not force:
+        disk = _q042_spx_load_disk_cache(cache_key)
+        if disk is not None:
+            _Q042_SPX_CACHE[cache_key] = disk
+            _Q042_SPX_CACHE[f"{cache_key}_ts"] = _time.time()
+            return jsonify(disk)
     try:
         import yfinance as yf, pandas as pd
         df = yf.Ticker("^GSPC").history(start="2007-01-01", interval="1d")
@@ -1820,15 +1822,17 @@ def api_q042_spx_history():
 def api_q042_vix_history():
     import time as _time
     full = flask_req.args.get("full", "0") == "1"
+    force = flask_req.args.get("force", "0") == "1"
     cache_key = "full" if full else "recent"
     cached = _Q042_SPX_CACHE.get(f"vix_{cache_key}")
-    if cached and (_time.time() - _Q042_SPX_CACHE.get(f"vix_{cache_key}_ts", 0)) < 3600:
+    if not force and cached and (_time.time() - _Q042_SPX_CACHE.get(f"vix_{cache_key}_ts", 0)) < 3600:
         return jsonify(cached)
-    disk = _q042_vix_load_disk_cache(cache_key)
-    if disk is not None:
-        _Q042_SPX_CACHE[f"vix_{cache_key}"] = disk
-        _Q042_SPX_CACHE[f"vix_{cache_key}_ts"] = _time.time()
-        return jsonify(disk)
+    if not force:
+        disk = _q042_vix_load_disk_cache(cache_key)
+        if disk is not None:
+            _Q042_SPX_CACHE[f"vix_{cache_key}"] = disk
+            _Q042_SPX_CACHE[f"vix_{cache_key}_ts"] = _time.time()
+            return jsonify(disk)
     try:
         import yfinance as yf, pandas as pd
         df = yf.Ticker("^VIX").history(period="1y", interval="1d")
