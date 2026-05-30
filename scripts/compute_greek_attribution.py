@@ -6,8 +6,7 @@ Path A (BS reverse-solve) — used for historical backfill until path B
 Reads:
   data/daily_snapshot.jsonl       (latest row → open SPX positions)
   data/q041_massive_snapshot/{d}/SPX.parquet  (per-leg day_close per day)
-  data/q042_spx_history_cache.json (SPX close per day; primary)
-  + daily_snapshot.market.spx (recent fallback)
+  data/q042_spx_history_cache.json (SPX close per day; source of truth)
 
 Writes:
   data/strategy_pnl_attribution.jsonl  (append-only, idempotent on
@@ -130,19 +129,12 @@ def load_closed_trades() -> list[Position]:
 
 
 def load_spx_history() -> dict[str, float]:
-    """Date ISO → SPX close. Primary q042 cache; recent fallback from daily_snapshot."""
+    """Date ISO → SPX close. q042 cache is the source of truth."""
     out: dict[str, float] = {}
     with open(SPX_HIST) as f:
         d = json.load(f)
     for row in d["full"]["payload"]["history"]:
         out[row["date"]] = float(row["close"])
-    with open(DAILY_SNAPSHOT) as f:
-        for line in f:
-            r = json.loads(line)
-            iso = r.get("date")
-            spx = (r.get("market") or {}).get("spx")
-            if iso and spx and iso not in out:
-                out[iso] = float(spx)
     return out
 
 

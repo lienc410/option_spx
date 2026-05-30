@@ -1691,11 +1691,52 @@ _Q042_BT_CACHE_MEM: dict = {}
 _Q042_SPX_DISK_CACHE = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "data", "q042_spx_history_cache.json")
 )
+_Q042_VIX_DISK_CACHE = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "data", "q042_vix_history_cache.json")
+)
 
 
 def _q042_spx_load_disk_cache(cache_key: str) -> dict | None:
+    return _q042_history_load_disk_cache(_Q042_SPX_DISK_CACHE, cache_key)
+
+
+def _q042_spx_save_disk_cache(cache_key: str, payload: dict) -> None:
+    _q042_history_save_disk_cache(_Q042_SPX_DISK_CACHE, cache_key, payload)
+
+
+def _q042_vix_load_disk_cache(cache_key: str) -> dict | None:
+    return _q042_history_load_disk_cache(_Q042_VIX_DISK_CACHE, cache_key)
+
+
+def _q042_vix_save_disk_cache(cache_key: str, payload: dict) -> None:
+    _q042_history_save_disk_cache(_Q042_VIX_DISK_CACHE, cache_key, payload)
+
+
+def _q042_vix_history_by_date() -> dict[str, float]:
+    """Date ISO -> VIX close from the Q042 history cache.
+
+    This is the attribution source of truth for VIX. daily_snapshot is only a
+    runtime account/position snapshot and can be stale for SPX/VIX closes.
+    """
+    out: dict[str, float] = {}
     try:
-        with open(_Q042_SPX_DISK_CACHE, "r") as f:
+        with open(_Q042_VIX_DISK_CACHE, "r") as f:
+            data = json.load(f)
+        entry = data.get("full") or data.get("recent") or {}
+        payload = entry.get("payload") if isinstance(entry, dict) else {}
+        for row in (payload or {}).get("history", []):
+            dt = row.get("date")
+            close = row.get("close")
+            if dt and close is not None:
+                out[str(dt)] = float(close)
+    except Exception:
+        return {}
+    return out
+
+
+def _q042_history_load_disk_cache(path: str, cache_key: str) -> dict | None:
+    try:
+        with open(path, "r") as f:
             blob = json.load(f)
         entry = blob.get(cache_key)
         if not entry:
@@ -1709,19 +1750,19 @@ def _q042_spx_load_disk_cache(cache_key: str) -> dict | None:
         return None
 
 
-def _q042_spx_save_disk_cache(cache_key: str, payload: dict) -> None:
+def _q042_history_save_disk_cache(path: str, cache_key: str, payload: dict) -> None:
     try:
         blob: dict = {}
         try:
-            with open(_Q042_SPX_DISK_CACHE, "r") as f:
+            with open(path, "r") as f:
                 blob = json.load(f)
         except Exception:
             blob = {}
         blob[cache_key] = {"ts": time.time(), "payload": payload}
-        tmp = _Q042_SPX_DISK_CACHE + ".tmp"
+        tmp = path + ".tmp"
         with open(tmp, "w") as f:
             json.dump(blob, f)
-        os.replace(tmp, _Q042_SPX_DISK_CACHE)
+        os.replace(tmp, path)
     except Exception:
         pass
 
@@ -1770,6 +1811,41 @@ def api_q042_spx_history():
         _Q042_SPX_CACHE[cache_key] = payload
         _Q042_SPX_CACHE[f"{cache_key}_ts"] = _time.time()
         _q042_spx_save_disk_cache(cache_key, payload)
+        return jsonify(payload)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/q042/vix-history")
+def api_q042_vix_history():
+    import time as _time
+    full = flask_req.args.get("full", "0") == "1"
+    cache_key = "full" if full else "recent"
+    cached = _Q042_SPX_CACHE.get(f"vix_{cache_key}")
+    if cached and (_time.time() - _Q042_SPX_CACHE.get(f"vix_{cache_key}_ts", 0)) < 3600:
+        return jsonify(cached)
+    disk = _q042_vix_load_disk_cache(cache_key)
+    if disk is not None:
+        _Q042_SPX_CACHE[f"vix_{cache_key}"] = disk
+        _Q042_SPX_CACHE[f"vix_{cache_key}_ts"] = _time.time()
+        return jsonify(disk)
+    try:
+        import yfinance as yf, pandas as pd
+        df = yf.Ticker("^VIX").history(period="1y", interval="1d")
+        df.index = pd.to_datetime([d.date() for d in df.index])
+        closes = df["Close"].sort_index()
+        cutoff = closes.index[0] if full else (closes.index[-252] if len(closes) >= 252 else closes.index[0])
+        history = [
+            {"date": d.strftime("%Y-%m-%d"), "close": round(float(closes[d]), 2)}
+            for d in closes.index[closes.index >= cutoff]
+        ]
+        payload = {
+            "history": history,
+            "current": {"close": round(float(closes.iloc[-1]), 2)},
+        }
+        _Q042_SPX_CACHE[f"vix_{cache_key}"] = payload
+        _Q042_SPX_CACHE[f"vix_{cache_key}_ts"] = _time.time()
+        _q042_vix_save_disk_cache(cache_key, payload)
         return jsonify(payload)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -2221,23 +2297,7 @@ def api_strategy_greek_attribution():
     if not rows:
         return jsonify({"status": "no_data", "series": [], "daily": [], "totals": {}})
 
-    vix_by_date: dict[str, float] = {}
-    snap_path = os.path.normpath(
-        os.path.join(os.path.dirname(__file__), "..", "data", "daily_snapshot.jsonl")
-    )
-    if os.path.exists(snap_path):
-        try:
-            with open(snap_path) as f:
-                for line in f:
-                    try:
-                        sr = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-                    vix = (sr.get("market") or {}).get("vix")
-                    if sr.get("date") and vix is not None:
-                        vix_by_date[str(sr.get("date"))] = float(vix)
-        except Exception:
-            vix_by_date = {}
+    vix_by_date = _q042_vix_history_by_date()
 
     # Sum across trade_ids per date. Also track whether ANY contributing
     # trade-row was synthetic (gap-day fill with frozen IV) for that date so

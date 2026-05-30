@@ -1,6 +1,6 @@
 """Daily portfolio snapshot — captures comprehensive daily state for future analysis.
 
-Runs at 16:30 ET each trading day. Persists one JSONL record per day to
+Runs at 17:00 ET each trading day. Persists one JSONL record per day to
 data/daily_snapshot.jsonl. Idempotent: skips if today already recorded.
 
 Captures:
@@ -27,10 +27,21 @@ HISTORY = ROOT / "data" / "daily_snapshot.jsonl"
 ET = pytz.timezone("America/New_York")
 BASE = "http://127.0.0.1:5050"
 SCHEMA_VERSION = 4   # v4: spx_spread.{options,equity}_bp_{pct,dollars} split
+_HOLIDAYS = {
+    "2025-01-01", "2025-01-20", "2025-02-17", "2025-04-18",
+    "2025-05-26", "2025-07-04", "2025-09-01", "2025-11-27", "2025-12-25",
+    "2026-01-01", "2026-01-19", "2026-02-16", "2026-04-03",
+    "2026-05-25", "2026-07-03", "2026-09-07", "2026-11-26", "2026-12-25",
+}
 
 
 def _today_et() -> str:
     return datetime.now(ET).date().isoformat()
+
+
+def _is_trading_day(date_str: str) -> bool:
+    d = datetime.fromisoformat(date_str).date()
+    return d.weekday() < 5 and date_str not in _HOLIDAYS
 
 
 def _fetch(path: str, timeout: int = 30):
@@ -69,6 +80,21 @@ def _num(v):
 def _r(v, dec=2):
     n = _num(v)
     return round(n, dec) if n is not None else None
+
+
+def _authoritative_index_close(symbol: str, fallback, label: str):
+    try:
+        from schwab.client import get_index_quote
+
+        q = get_index_quote(symbol)
+        value = q.get("last") if q.get("last") not in (None, 0) else q.get("close")
+        if value not in (None, 0):
+            return value
+        print(f"[daily_snapshot] WARNING {label} Schwab quote missing/zero: {q}", file=sys.stderr)
+    except Exception as exc:
+        print(f"[daily_snapshot] WARNING {label} Schwab quote failed: {exc}", file=sys.stderr)
+    print(f"[daily_snapshot] WARNING {label} falling back to stale local source", file=sys.stderr)
+    return fallback
 
 
 def _attach_broker_greeks(positions: list[dict]) -> None:
@@ -188,6 +214,12 @@ def build_record() -> dict | None:
     vix_snap   = rec.get("vix_snapshot")   or {}
     iv_snap    = rec.get("iv_snapshot")    or {}
     trend_snap = rec.get("trend_snapshot") or {}
+    spx_close = _authoritative_index_close(
+        "$SPX",
+        trend_snap.get("spx") if trend_snap.get("spx") is not None else q042.get("spx_close"),
+        "SPX",
+    )
+    vix_close = _authoritative_index_close("$VIX", vix_snap.get("vix"), "VIX")
 
     stress_active = bool(state.get("stress_episode_active"))
     second_active = bool(state.get("second_leg_active"))
@@ -265,10 +297,10 @@ def build_record() -> dict | None:
         },
 
         "market": {
-            "vix":           _r(vix_snap.get("vix"), 2),
+            "vix":           _r(vix_close, 2),
             "vix_peak_10d":  _r(aftermath.get("vix_peak_10d"), 2),
             "vix3m":         _r(vix_snap.get("vix3m"), 2),
-            "spx":           _r(trend_snap.get("spx") if trend_snap.get("spx") is not None else q042.get("spx_close"), 2),
+            "spx":           _r(spx_close, 2),
             "iv_rank":       _r(iv_snap.get("iv_rank"), 1),
             "iv_percentile": _r(iv_snap.get("iv_percentile"), 1),
             "trend":         trend_snap.get("signal"),
@@ -327,6 +359,9 @@ def build_record() -> dict | None:
 
 def main() -> int:
     today = _today_et()
+    if not _is_trading_day(today):
+        print(f"[daily_snapshot] non-trading day {today} — skipping")
+        return 0
     if _already_recorded(today):
         print(f"[daily_snapshot] already recorded for {today}")
         return 0
