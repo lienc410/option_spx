@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-05-28（**SPEC-109 DONE + Fidelity PASS**。今日：Q078 研究 + SPEC-108 策略层 + SPEC-109 UX 增强三条线全部收官。Stage 1 shadow live）
+最后更新：2026-05-29（**SPEC-108.1 DONE + Fidelity PASS w/ 2 notes**。BCD 56% strategy distribution finding。SPEC-108.2 mutex gap → low-priority backlog）
 
 ---
 

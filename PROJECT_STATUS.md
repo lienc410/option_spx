@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-28 (**SPEC-109 DONE + Quant Fidelity Review PASS**。Greek Attribution UX Enhancement（Tier A+B）。15/15 AC / 65/65 regression / algorithm frozen / Developer 超额交付 3 项。今日总产出：Q078 全研究链路 + SPEC-108 策略层 + SPEC-109 UX 增强 两个 SPEC 全链路落地 — commit db6c1af — `See: task/SPEC-109.md`)
+Last Updated: 2026-05-29 (**SPEC-108.1 DONE + Quant Fidelity Review PASS w/ 2 notes**。Ladder drift bands + V1b shadow + Stage 2 gate 修订。13/13 AC / 65/65 regression / 40/40 unit。Key finding: 26y PASS days BCD 56% dominant（BPS 仅 3.1%）— Stage 1 shadow 将以 BCD trade quality 为主。V1b→V3 mutex 单向 gap → SPEC-108.2 minor backlog。commits 221ef5c + 26f6bf5 — `See: task/SPEC-108.1.md`)
 Owner: Planner or PM
 
 ## Current Phase
@@ -33,9 +33,11 @@ _(currently empty)_
 **Future seeds**（PM-discretionary）：Q042 Stage 2/3 ramp / SPEC-105 Stage 2 active mode / HV Ladder re-promotion / Q042 Sleeve B（n > 3-5 trades）/ Q077 PARKED
 
 **Low-priority backlog**（PM-discretionary，no time-lock）：
+- **SPEC-108.2**：V1b→V3 mutex 反向检查（5 行代码；Stage 2 前处理）
 - `/api/strategy-matrix?force_refresh=1`（等有 external audit / monitoring 需求再加）
-- `doc/DEPLOY_FIXTURES.md`（列 data/*.json 哪些是 deploy fixture vs ephemeral cache vs gitignored artifact；mini-spec 给 dev）
-- Helper text 加 "~50% of cells gated under current rules" base rate（future P3 enhancement，不动 SPEC-106）
+- `doc/DEPLOY_FIXTURES.md`（列 data/*.json 哪些是 deploy fixture vs ephemeral cache vs gitignored artifact）
+- Helper text 加 "~50% of cells gated" base rate（future P3）
+- BCD + Q042 long-gamma 联合暴露监控（可选小研究，Stage 1 shadow 数据累积后评估）
 
 ## Current Production State Snapshot (2026-05-26)
 
@@ -51,6 +53,8 @@ Expected Net Ann ROE:   7.95% (Layer-1 Arch-3) → 8.20% when booster Stage 2 ac
 ```
 
 ## Recently Closed Specs
+
+- `SPEC-108.1` — Ladder Drift Bands + V1b Shadow + Stage 2 Gate Revision. Closed **DONE + Quant Fidelity Review PASS 2026-05-29**（commits 221ef5c + 26f6bf5）. Inline 修订 SPEC-108 §0 R5/R6/R7：drift bands（SPX×0.93 + IV×1.5 + BS reprice + safe fallback）+ V1b shadow-default + Stage 2 gate 9 conditions 正式写入。13/13 AC / 65/65 regression / 40/40 unit / R1-R4 math PASS。**2 non-blocking notes**：①V1b→V3 mutex 单向（V3 active 不 block V1b；Stage 2 前需 SPEC-108.2 加 5 行反向检查）；②**Strategy 分布反 PM mental model**：26y / 3119 PASS days 实测 BCD 56% / IC_HV 19.5% / IC 9.5% / BPS_HV 9.3% / BPS 仅 3.1%——ladder 以 BCD 为主，非"weekly BPS ladder"。Stage 1 shadow 质量比较以 BCD trade quality 为主。BCD + Q042 long-gamma 暴露联合监控为可选小研究。**Low-priority backlog**：SPEC-108.2（mutex 双向，5 行）— `See: task/SPEC-108.1.md`
 
 - `SPEC-109` — Greek Attribution UX Enhancement (Tier A+B). Closed **DONE + Quant Fidelity Review PASS 2026-05-28**（commit db6c1af）. Tier A：基础 Greek 视图（"gamma 亏损" 直白解释）；Tier B：增强归因展示（compute_greek_attribution.py 算法 frozen，未触）。15/15 AC cross-check / 65/65 regression（SPEC-103~108）/ `--text-muted` ban / `:root` token convention / U+2212 minus sign / Closure% 阈值 1% 全部 ✅。Developer 超额交付：synthetic 段连接线虚线 / `_resetAttrKpis()` 抽函数 / `_signedMoney/_kMoney/_signedCls` 三 helper 解耦。4 non-blocking future notes：小本金 closure 阈值 / `_kMoney` 精度自适应 / zoom 支持 / theta area 负值遮挡 future watch — `See: task/SPEC-109.md`
 

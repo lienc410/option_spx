@@ -1,6 +1,6 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-28 (**SPEC-109 DONE + Quant Fidelity Review PASS**。Greek Attribution UX Enhancement（Tier A+B）。15/15 AC / 65/65 regression / algorithm frozen。今日：Q078 全研究链路 + SPEC-108 + SPEC-109 三条线全部收官，commit db6c1af）
+Last Updated: 2026-05-29 (**SPEC-108.1 DONE + Quant Fidelity Review PASS**。Ladder drift bands + V1b shadow + Stage 2 gate 写入。Strategy 分布 finding：BCD 56% / BPS 3.1%（反 PM mental model）。V1b→V3 mutex 单向 gap → SPEC-108.2 backlog。commits 221ef5c + 26f6bf5）
 
 ### R-20260528-01 — Q078: BPS Ladder / Selector-Gated SPX Execution Cadence (CLOSED 2026-05-28)
 
