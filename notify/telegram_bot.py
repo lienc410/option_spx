@@ -1481,6 +1481,20 @@ def _format_ladder_shadow_message(payload: dict) -> str:
     )
 
 
+def _format_ladder_v1b_shadow_message(payload: dict) -> str:
+    """SPEC-108.1 R2: V1b weekly-anchor shadow alert (mirror of V3)."""
+    return (
+        "🪜 <b>SPEC-108.1 V1b ladder shadow (Wed)</b>\n"
+        f"{'─' * 32}\n"
+        f"<b>Would enter:</b> <code>{_h(payload.get('selector_strategy') or '—')}</code>\n"
+        f"<b>Sizing:</b> <code>{payload.get('sizing_contracts')} contracts</code>\n"
+        f"<b>Max loss:</b> <code>${payload.get('theoretical_max_loss')}</code> "
+        f"({payload.get('theoretical_max_loss_pct_nlv')}% NLV)\n"
+        f"<b>BP now:</b> <code>{payload.get('current_bp_pct_nlv')}%</code>\n"
+        "V1b parallel shadow (weekly Wed anchor) — no production order was placed."
+    )
+
+
 async def scheduled_ladder_shadow_push(bot: Bot, chat_id: str) -> None:
     if not is_trading_day():
         log.info("Not a trading day — skipping SPEC-108 ladder shadow push.")
@@ -1489,16 +1503,29 @@ async def scheduled_ladder_shadow_push(bot: Bot, chat_id: str) -> None:
         from strategy.sleeve_governance import record_state_snapshot
 
         state = record_state_snapshot(send_alerts=False)
+
+        # V3 shadow alert
         payload = state.get("ladder_shadow_payload") or {}
-        if not (payload.get("shadow_log_written") and payload.get("would_enter") and payload.get("ladder_mode") == "shadow"):
-            log.info("SPEC-108 ladder shadow push skipped — no new would-enter event.")
-            return
-        await bot.send_message(
-            chat_id=chat_id,
-            text=_format_ladder_shadow_message(payload),
-            parse_mode=ParseMode.HTML,
-        )
-        log.info("SPEC-108 ladder shadow alert sent.")
+        if payload.get("shadow_log_written") and payload.get("would_enter") and payload.get("ladder_mode") == "shadow":
+            await bot.send_message(
+                chat_id=chat_id,
+                text=_format_ladder_shadow_message(payload),
+                parse_mode=ParseMode.HTML,
+            )
+            log.info("SPEC-108 ladder shadow alert sent.")
+
+        # SPEC-108.1 R2: V1b shadow alert
+        v1b_payload = state.get("ladder_v1b_shadow_payload") or {}
+        if v1b_payload.get("shadow_log_written") and v1b_payload.get("would_enter") and v1b_payload.get("ladder_v1b_mode") == "shadow":
+            await bot.send_message(
+                chat_id=chat_id,
+                text=_format_ladder_v1b_shadow_message(v1b_payload),
+                parse_mode=ParseMode.HTML,
+            )
+            log.info("SPEC-108.1 V1b ladder shadow alert sent.")
+
+        if not payload.get("shadow_log_written") and not v1b_payload.get("shadow_log_written"):
+            log.info("SPEC-108/V1b ladder shadow push skipped — no new would-enter events.")
     except Exception:
         log.exception("SPEC-108 ladder shadow push failed")
 
@@ -1511,9 +1538,26 @@ async def scheduled_eod_push(bot: Bot, chat_id: str) -> None:
         rec = get_recommendation(use_intraday=False)
         _safe_append_recommendation_event(rec=rec, source="scheduled_eod_push", mode="eod")
         state = read_state()
+        eod_text = _format_eod_snapshot(rec, _morning_snapshot, state)
+
+        # SPEC-108.1 R4: append ladder drift status to EOD summary
+        try:
+            from strategy.q078_ladder_monitors import strategy_distribution_check
+            drift = strategy_distribution_check()
+            if drift.get("drift_alert"):
+                worst = next(
+                    (f"{k} {v['deviation_pp']:+.0f}pp" for k, v in (drift.get("drift_detail") or {}).items() if v.get("alert")),
+                    "drift detected",
+                )
+                eod_text += f"\n📊 <b>Ladder drift alert</b>: {_h(worst)} — review strategy distribution"
+            else:
+                eod_text += f"\n📊 <b>Ladder drift</b>: none (90d distribution normal)"
+        except Exception:
+            pass
+
         await bot.send_message(
             chat_id=chat_id,
-            text=_format_eod_snapshot(rec, _morning_snapshot, state),
+            text=eod_text,
             parse_mode=ParseMode.HTML,
         )
         log.info("EOD snapshot sent.")

@@ -867,6 +867,24 @@ body {
 .ladder-chip.skip { color: var(--orange); border-color: var(--orange-border); background: var(--orange-bg); }
 .ladder-note { margin-top: 8px; font-family: var(--f-ui); font-size: 0.56rem; line-height: 1.45; color: var(--text-2); }
 
+/* ── SPEC-108.1 V1b panel ── */
+.ladder-v1b-panel {
+  margin: 8px 0 14px; padding: 11px 12px; border-radius: 9px;
+  background: var(--orange-bg); border: 1px solid var(--orange-border);
+}
+.ladder-v1b-panel.l-off { opacity: .82; }
+.ladder-v1b-title { font-family: var(--f-ui); font-size: 0.56rem; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase; color: var(--text); }
+.ladder-v1b-mode {
+  font-family: var(--f-mono); font-size: 0.54rem; text-transform: uppercase; letter-spacing: 0.08em;
+  padding: 2px 7px; border-radius: 4px; border: 1px solid var(--orange-border); color: var(--orange); background: var(--orange-bg);
+}
+.ladder-drift-chip {
+  display: inline-flex; align-items: center; gap: 4px; font-family: var(--f-mono); font-size: 0.54rem;
+  padding: 2px 7px; border-radius: 4px; border: 1px solid var(--border-2); color: var(--text-2); background: var(--surface);
+}
+.ladder-drift-chip.ok   { color: var(--green);  border-color: var(--green-border);  background: var(--green-bg); }
+.ladder-drift-chip.warn { color: var(--orange); border-color: var(--orange-border); background: var(--orange-bg); }
+
 /* ── Monitors block (SPEC-104) ── */
 .monitor-block {
   margin-top: 14px;
@@ -2578,6 +2596,13 @@ function _renderGovernance() {
   const ladderChip = ladderWould
     ? `<span class="ladder-chip ok">✓ would enter</span>`
     : `<span class="ladder-chip skip">${ladderSkip ? 'skip: ' + ladderSkip : 'not eligible'}</span>`;
+  // SPEC-108.1 R4: strategy drift chip on V3 panel head
+  const driftAlert = !!state.ladder_strategy_drift_alert;
+  const driftDetail = state.ladder_strategy_drift_detail || {};
+  const driftWorst = Object.entries(driftDetail).filter(([,v]) => v.alert).map(([k,v]) => `${k} ${v.deviation_pp > 0 ? '+' : ''}${v.deviation_pp}pp`)[0] || '';
+  const driftChip = driftAlert
+    ? `<span class="ladder-drift-chip warn" title="Strategy distribution drift detected">drift: ${driftWorst || 'alert'}</span>`
+    : `<span class="ladder-drift-chip ok" title="Strategy distribution normal">drift: none</span>`;
   const ladderLast = state.ladder_last_entry_date || '—';
   const ladderActionDays = state.ladder_action_days_ytd ?? 0;
   const ladderPositions = state.ladder_active_positions ?? 0;
@@ -2588,6 +2613,7 @@ function _renderGovernance() {
         <span class="ladder-title">SPEC-108 Selector-Gated Ladder</span>
         <span class="ladder-mode ${ladderMode}">${ladderMode}</span>
         ${ladderChip}
+        ${driftChip}
       </div>
       <div class="ladder-grid">
         <div class="ladder-cell"><div class="ladder-k">Cadence</div><div class="ladder-v">${state.ladder_cadence_eligible ? 'eligible' : 'gap block'}</div></div>
@@ -2596,6 +2622,34 @@ function _renderGovernance() {
         <div class="ladder-cell"><div class="ladder-k">Active / BP</div><div class="ladder-v">${ladderPositions} · ${ladderBP}</div></div>
       </div>
       <div class="ladder-note">Forward shadow observation only unless PM explicitly flips <code>LADDER_MODE=active</code>. Sizing fixed at 3 contracts; cadence is at most one selector-approved entry per 5 trading days.</div>
+    </div>`;
+
+  // SPEC-108.1 R2: V1b parallel shadow panel (below V3 panel; orange tint)
+  const v1bMode = String(state.ladder_v1b_mode || 'shadow');
+  const v1bSkip = state.ladder_v1b_skip_reason || '';
+  const v1bWould = !!state.ladder_v1b_would_enter;
+  const v1bModeCls = v1bMode === 'off' ? 'l-off' : '';
+  const v1bChip = v1bWould
+    ? `<span class="ladder-chip ok">✓ would enter</span>`
+    : `<span class="ladder-chip skip">${v1bSkip ? 'skip: ' + v1bSkip : 'not eligible'}</span>`;
+  const v1bLast = state.ladder_v1b_last_entry_date || '—';
+  const v1bActionDays = state.ladder_v1b_action_days_ytd ?? 0;
+  const v1bPositions = state.ladder_v1b_active_positions ?? 0;
+  const v1bBP = state.ladder_v1b_active_total_bp != null ? fmtPct(state.ladder_v1b_active_total_bp) : '—';
+  const ladderV1bHtml = `
+    <div class="ladder-v1b-panel ${v1bModeCls}">
+      <div class="ladder-head">
+        <span class="ladder-v1b-title">SPEC-108.1 V1b Ladder (weekly Wed)</span>
+        <span class="ladder-v1b-mode">${v1bMode}</span>
+        ${v1bChip}
+      </div>
+      <div class="ladder-grid">
+        <div class="ladder-cell"><div class="ladder-k">Anchor</div><div class="ladder-v">${state.ladder_v1b_cadence_eligible ? 'Wed eligible' : v1bSkip || 'not Wed'}</div></div>
+        <div class="ladder-cell"><div class="ladder-k">Last Entry</div><div class="ladder-v">${v1bLast}</div></div>
+        <div class="ladder-cell"><div class="ladder-k">Action Days YTD</div><div class="ladder-v">${v1bActionDays}</div></div>
+        <div class="ladder-cell"><div class="ladder-k">Active / BP</div><div class="ladder-v">${v1bPositions} · ${v1bBP}</div></div>
+      </div>
+      <div class="ladder-note">V1b parallel shadow — weekly anchor Wed. Shadow only; mutually exclusive with V3 active. Flip <code>LADDER_V1B_MODE=active</code> only after PM Stage 2 V1b signoff.</div>
     </div>`;
 
   // Monitors block (SPEC-104) — pulled from /api/sleeve-governance/state.monitors
@@ -2647,6 +2701,7 @@ function _renderGovernance() {
 
     ${boosterHtml}
     ${ladderHtml}
+    ${ladderV1bHtml}
 
     <div class="regime-matrix">
 

@@ -42,6 +42,7 @@ LADDER_SIZING_CONTRACTS = 3
 LADDER_CADENCE_CLUSTER_DAYS = 5
 LADDER_BP_CEILING_PCT = 35.0
 LADDER_MODE_DEFAULT = "shadow"
+LADDER_V1B_MODE_DEFAULT = "shadow"
 _REPLAY_CACHE: dict | None = None
 
 SHORT_VOL_STRATEGIES = {
@@ -101,6 +102,12 @@ def ladder_mode() -> str:
     """SPEC-108 rollout mode. Default is mandatory Stage 1 shadow."""
     mode = str(os.getenv("LADDER_MODE", LADDER_MODE_DEFAULT)).strip().lower()
     return mode if mode in {"shadow", "active", "off"} else LADDER_MODE_DEFAULT
+
+
+def ladder_v1b_mode() -> str:
+    """SPEC-108.1 V1b rollout mode. Default shadow; mutually exclusive with V3 active at production."""
+    mode = str(os.getenv("LADDER_V1B_MODE", LADDER_V1B_MODE_DEFAULT)).strip().lower()
+    return mode if mode in {"shadow", "active", "off"} else LADDER_V1B_MODE_DEFAULT
 
 
 def _append_jsonl(path: Path, payload: dict) -> None:
@@ -498,6 +505,117 @@ def _selector_verdict_for_ladder() -> tuple[dict, str]:
         }, datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def _bs_put(S: float, K: float, T: float, r: float, sigma: float) -> float:
+    """Black-Scholes European put price. Used by portfolio stress gate."""
+    if T <= 0 or sigma <= 0:
+        return max(0.0, K - S)
+    d1 = (math.log(max(S, 1e-10) / max(K, 1e-10)) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
+    d2 = d1 - sigma * math.sqrt(T)
+    try:
+        from scipy.stats import norm as _norm
+        return float(K * math.exp(-r * T) * _norm.cdf(-d2) - S * _norm.cdf(-d1))
+    except ImportError:
+        # Abramowitz & Stegun approximation for normal CDF
+        def _ncdf(x: float) -> float:
+            t = 1.0 / (1.0 + 0.2316419 * abs(x))
+            p = t * (0.319381530 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))))
+            pdf = math.exp(-0.5 * x * x) / math.sqrt(2.0 * math.pi)
+            return (1.0 - pdf * p) if x >= 0 else pdf * p
+        return float(K * math.exp(-r * T) * _ncdf(-d2) - S * _ncdf(-d1))
+
+
+def portfolio_stress_overnight_gap(state: dict | None = None) -> dict:
+    """R1 (SPEC-108.1): SPX -7% overnight gap + IV +50% portfolio mark-loss estimate.
+
+    Gate: aggregate mark_loss_pct_nlv < 12.0 → gate_pass=True.
+    Safe fallback on any failure: returns mark_loss=0, gate_pass=True, logs error.
+    """
+    _SAFE: dict = {"mark_loss_pct_nlv": 0.0, "components": {}, "gate_pass": True, "source": "safe_fallback"}
+    try:
+        import logging as _log
+        nlv = _num((state or {}).get("basis_dollars")) or COMBINED_NLV
+        market = (state or {}).get("market") or {}
+        spx = _num(market.get("spx_close"))
+        vix = _num(market.get("vix"))
+        if spx is None or vix is None:
+            return {**_SAFE, "reason": "missing_market_data"}
+
+        try:
+            from strategy.state import read_state, read_all_positions
+            pos_state = read_state()
+            all_pos = (read_all_positions() or {}).get("positions", [])
+        except Exception:
+            return {**_SAFE, "reason": "positions_unavailable"}
+
+        if pos_state is None and not all_pos:
+            return {**_SAFE, "source": "no_open_positions"}
+
+        positions_to_stress: list[dict] = []
+        if pos_state and str(pos_state.get("underlying") or "SPX").upper() == "SPX":
+            positions_to_stress = list(all_pos) if all_pos else [pos_state]
+
+        if not positions_to_stress:
+            return {**_SAFE, "source": "no_spx_positions"}
+
+        spx_shocked = spx * 0.93
+        iv_shocked = (vix / 100.0) * 1.5
+        r = 0.05
+
+        total_mark_loss = 0.0
+        components: dict = {}
+        today = _et_now().date()
+
+        for pos in positions_to_stress:
+            try:
+                sk = _num(pos.get("short_strike"))
+                lk = _num(pos.get("long_strike"))
+                expiry_str = pos.get("expiry") or (pos_state or {}).get("expiry")
+                premium = _num(pos.get("actual_premium") or pos.get("model_premium"))
+                n = _num(pos.get("contracts")) or 1.0
+                if sk is None or lk is None or expiry_str is None or premium is None:
+                    continue
+                from datetime import date as _d
+                try:
+                    exp_d = _d.fromisoformat(str(expiry_str)[:10])
+                except ValueError:
+                    continue
+                dte = max((exp_d - today).days, 1)
+                T = dte / 365.0
+                # Reprice short and long put legs under shocked scenario
+                shocked_short = _bs_put(spx_shocked, sk, T, r, iv_shocked)
+                shocked_long = _bs_put(spx_shocked, lk, T, r, iv_shocked)
+                shocked_spread_value = shocked_short - shocked_long
+                # Mark-loss = how much more it costs to close after shock vs entry
+                mark_loss_per_spread = max(0.0, shocked_spread_value - premium)
+                total_loss = mark_loss_per_spread * n * 100.0
+                tid = pos.get("trade_id") or str(int(sk))
+                components[tid] = {
+                    "strategy_key": pos.get("strategy_key") or (pos_state or {}).get("strategy_key"),
+                    "short_strike": sk, "long_strike": lk, "entry_premium": premium,
+                    "shocked_spread_value": round(shocked_spread_value, 2),
+                    "mark_loss_per_spread": round(mark_loss_per_spread, 2),
+                    "n_contracts": n, "total_loss": round(total_loss, 2), "dte": dte,
+                }
+                total_mark_loss += total_loss
+            except Exception:
+                continue
+
+        mark_loss_pct = total_mark_loss / max(nlv, 1.0) * 100.0
+        return {
+            "mark_loss_pct_nlv": round(mark_loss_pct, 2),
+            "components": components,
+            "gate_pass": mark_loss_pct < 12.0,
+            "source": "computed",
+            "spx_shocked": round(spx_shocked, 2),
+            "iv_shocked_pct": round(iv_shocked * 100.0, 1),
+            "nlv": round(nlv, 2),
+        }
+    except Exception as exc:
+        import logging as _log2
+        _log2.getLogger(__name__).error("portfolio_stress_overnight_gap failed: %s", exc, exc_info=True)
+        return {"mark_loss_pct_nlv": 0.0, "components": {}, "gate_pass": True, "source": "safe_fallback", "reason": str(exc)}
+
+
 def ladder_shadow_decision_payload(state: dict, *, commit: bool = False) -> dict:
     from strategy.q078_ladder import (
         LadderState,
@@ -526,10 +644,17 @@ def ladder_shadow_decision_payload(state: dict, *, commit: bool = False) -> dict
         "q042_active": False,
     }
     eligible, skip_reason = v3_ladder_eligible(market_state, ladder_state)
+
+    # R1 (SPEC-108.1): portfolio stress gate — hard block in active mode, compute-only in shadow
+    stress = portfolio_stress_overnight_gap(state)
+    if not stress.get("gate_pass") and mode == "active":
+        eligible = False
+        skip_reason = "portfolio_stress_block"
     payload = shadow_payload(market_state, ladder_state, eligible=eligible, skip_reason=skip_reason, mode=mode)
     payload["production_order_allowed"] = production_order_allowed(eligible, mode)
     payload["selector_error"] = selector_verdict.get("error")
     payload["shadow_log_written"] = False
+    payload["portfolio_stress_gate"] = stress
 
     if commit and selector_verdict.get("strategy_key") != "reduce_wait" and mode in {"shadow", "active"}:
         if not has_shadow_log_for_date(today):
@@ -664,6 +789,34 @@ def current_governance_state() -> dict:
             "ladder_error": str(exc),
         }
     state_payload.update(_ladder_state_fields(ladder))
+
+    # SPEC-108.1 R2: V1b parallel shadow
+    try:
+        v1b_ladder = ladder_v1b_shadow_decision_payload(state_payload, commit=False)
+    except Exception as exc:
+        v1b_ladder = {
+            "ladder_v1b_mode": ladder_v1b_mode(),
+            "ladder_v1b_skip_reason": "unavailable",
+            "ladder_v1b_error": str(exc),
+        }
+    state_payload.update(_ladder_v1b_state_fields(v1b_ladder))
+
+    # SPEC-108.1 R4: per-strategy drift monitor
+    try:
+        from strategy.q078_ladder_monitors import strategy_distribution_check
+        drift = strategy_distribution_check()
+        state_payload["ladder_strategy_drift_alert"] = bool(drift.get("drift_alert"))
+        state_payload["ladder_strategy_distribution_90d"] = drift.get("distribution_90d") or {}
+        state_payload["ladder_strategy_drift_detail"] = drift.get("drift_detail") or {}
+    except Exception as exc:
+        state_payload["ladder_strategy_drift_alert"] = False
+        state_payload["ladder_strategy_distribution_90d"] = {}
+        state_payload["ladder_strategy_drift_detail"] = {}
+
+    # SPEC-108.1 R1: expose portfolio stress gate result
+    state_payload["portfolio_stress_gate"] = (ladder.get("portfolio_stress_gate") or
+                                               {"mark_loss_pct_nlv": 0.0, "gate_pass": True, "source": "not_computed"})
+
     return state_payload
 
 
@@ -691,6 +844,84 @@ def _ladder_state_fields(ladder: dict) -> dict:
         "ladder_would_enter": bool(ladder.get("would_enter")),
         "ladder_production_order_allowed": bool(ladder.get("production_order_allowed")),
         "ladder_shadow_payload": ladder,
+    }
+
+
+def ladder_v1b_shadow_decision_payload(state: dict, *, commit: bool = False) -> dict:
+    """SPEC-108.1 R2: V1b weekly-anchor ladder shadow decision payload."""
+    from strategy.q078_ladder_v1b import (
+        LadderV1bState,
+        V1B_RUNTIME_STATE_PATH,
+        append_shadow_log_v1b,
+        has_shadow_log_v1b_for_date,
+        production_order_allowed_v1b,
+        shadow_payload_v1b,
+        v1b_ladder_eligible,
+    )
+
+    mode = ladder_v1b_mode()
+    pools = state.get("pools") or {}
+    nlv = _num(state.get("basis_dollars")) or COMBINED_NLV
+    current_bp = _num(pools.get("spx_pm_bp_pct")) or 0.0
+    selector_verdict, selector_ts = _selector_verdict_for_ladder()
+    today = _et_now().date()
+    v1b_state = LadderV1bState.load(
+        path=V1B_RUNTIME_STATE_PATH,
+        active_positions=_open_spx_positions_for_ladder(),
+        current_bp_pct_nlv=current_bp,
+        nlv=nlv,
+    )
+    market_state = {
+        "date": today.isoformat(),
+        "selector_timestamp": selector_ts,
+        "selector_verdict": selector_verdict,
+        "q042_active": False,
+    }
+    eligible, skip_reason = v1b_ladder_eligible(market_state, v1b_state)
+
+    # R1 stress gate applies to V1b active mode too
+    stress = portfolio_stress_overnight_gap(state)
+    if not stress.get("gate_pass") and mode == "active":
+        eligible = False
+        skip_reason = "portfolio_stress_block"
+
+    payload = shadow_payload_v1b(market_state, v1b_state, eligible=eligible, skip_reason=skip_reason, mode=mode)
+    payload["production_order_allowed"] = production_order_allowed_v1b(eligible, mode)
+    payload["selector_error"] = selector_verdict.get("error")
+    payload["shadow_log_written"] = False
+    payload["portfolio_stress_gate"] = stress
+
+    if commit and selector_verdict.get("strategy_key") != "reduce_wait" and mode in {"shadow", "active"}:
+        if not has_shadow_log_v1b_for_date(today):
+            append_shadow_log_v1b(payload)
+            payload["shadow_log_written"] = True
+            if eligible:
+                v1b_state.mark_entry(today, payload.get("selector_strategy") or "", mode=mode)
+    return payload
+
+
+def _ladder_v1b_state_fields(v1b: dict) -> dict:
+    skip = v1b.get("skip_reason")
+    last_entry_date = None
+    runtime_path = DATA_DIR / "q078_ladder_v1b_runtime.json"
+    if runtime_path.exists():
+        try:
+            last_entry_date = json.loads(runtime_path.read_text(encoding="utf-8")).get("last_entry_date")
+        except Exception:
+            last_entry_date = None
+    return {
+        "ladder_v1b_mode": v1b.get("ladder_v1b_mode") or ladder_v1b_mode(),
+        "ladder_v1b_last_entry_date": last_entry_date,
+        "ladder_v1b_cadence_eligible": skip != "not_weekly_anchor",
+        "ladder_v1b_strategy_eligible": skip != "selector_wait" and not bool(v1b.get("selector_error")),
+        "ladder_v1b_concurrency_block": skip == "concurrency_block",
+        "ladder_v1b_bp_ceiling_block": skip == "bp_ceiling_block",
+        "ladder_v1b_skip_reason": skip,
+        "ladder_v1b_active_positions": int(v1b.get("existing_spx_positions") or 0),
+        "ladder_v1b_active_total_bp": float(v1b.get("current_bp_pct_nlv") or 0.0),
+        "ladder_v1b_action_days_ytd": int(v1b.get("ladder_v1b_action_days_ytd") or 0),
+        "ladder_v1b_would_enter": bool(v1b.get("would_enter")),
+        "ladder_v1b_shadow_payload": v1b,
     }
 
 
@@ -914,6 +1145,12 @@ def record_state_snapshot(send_alerts: bool = False) -> dict:
         state.update(_ladder_state_fields(ladder))
     except Exception as exc:
         state["ladder_error"] = str(exc)
+    # SPEC-108.1 R2: commit V1b shadow log too
+    try:
+        v1b = ladder_v1b_shadow_decision_payload(state, commit=True)
+        state.update(_ladder_v1b_state_fields(v1b))
+    except Exception as exc:
+        state["ladder_v1b_error"] = str(exc)
     previous = None
     if RUNTIME_STATE_PATH.exists():
         try:

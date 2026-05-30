@@ -24,17 +24,22 @@ Exit:          SPEC-077 (21 DTE roll, 60% profit, min 10d held)
 Production gates: concurrency (1/strategy, 2 for IC_HV) + BP ceiling (35% NORMAL)
 ```
 
-**Expected impact (P4 portfolio integration, 26y validated)**:
-- Net Ann ROE: 8.214% → **10.016% (+1.80pp)** mean (CI [+1.61, +1.97])
-- MaxDD: -8.71% → **-7.40% (+1.32pp IMPROVED)**
-- W20d: -7.04% → **-5.88% (+1.16pp IMPROVED)**
-- W63d: -8.66% → **-5.06% (+3.59pp IMPROVED)**
-- Sharpe: 2.02 → **3.21 (+1.20)**
+**Expected impact (P4 portfolio integration, 26y validated; Q080 block-bootstrap CI overlay)**:
+
+| Metric | Mean | Block-bootstrap p05 / p95 | Note |
+|---|---|---|---|
+| Net Ann ROE | +1.80pp (8.21% → 10.02%) | p05 +1.68pp / p95 +2.08pp | **robust positive** |
+| MaxDD | +1.32pp (-8.71% → -7.40%) | p05 −0.28pp / p95 +3.65pp | 5% prob ladder makes MaxDD slightly worse |
+| W20d | +1.16pp (-7.04% → -5.88%) | p05 −0.52pp / p95 +2.18pp | 5% prob ladder makes 20-day tail slightly worse |
+| W63d | +3.59pp (-8.66% → -5.06%) | p05 +0.39pp / p95 +4.24pp | marginally positive at lower CI |
+| Sharpe | **+0.48 (2.02 → 2.50)** | p05 +0.81 / p95 +1.14 | **corrected from earlier-reported +1.20** |
+
+> ⚠ **Sharpe correction (Q080 P1, 2026-05-29)**: Earlier reported Sharpe Δ +1.20 was inflated by daily-MTM linear smoothing reducing the daily-std denominator. Unsmoothed (exit-day) control gives true Δ **+0.48**. ΔROE / MaxDD / W20d / W63d are invariant under MTM-mode (smoothing artifact isolated to Sharpe).
 
 **5/5 crisis windows improved** (including COVID 2020-02 — combined REDUCES baseline COVID loss by +$15k).
 
-**Bias caveat** (per audit R5):
-> P4 mean ΔROE is **+1.80pp**. After residual selection-bias deflation (Option B path — bias resolution via Stage-1 shadow rather than full engine-without-filters), realistic expected ΔROE is approximately **+0.8pp to +1.3pp**. Stage 1 shadow is mandatory to validate live trade quality before production activation.
+**Bias caveat** (per audit R5; bias-resolution path defers to Stage 1 shadow):
+> P4 mean ΔROE is **+1.80pp**. After residual selection-bias deflation (Option B path — bias resolution *deferred* to Stage-1 shadow rather than full engine-without-filters), realistic expected ΔROE is approximately **+0.8pp to +1.3pp**. Stage 1 shadow is mandatory to validate live trade quality before production activation. The shadow data is the only out-of-sample test for the selection-bias question; until it accumulates, bias is *unresolved*, not *resolved*.
 
 **Q078 thesis** (per G4 PASS):
 > **Q078 is a ROE-cadence overlay. It does NOT materially improve expiry diversification (eff_count Δ noise). Its value is systematic capture of selector-approved SPX opportunities at controlled sizing.**
@@ -249,6 +254,7 @@ These must be live during Stage 1:
 | 6 | Q042 / SPX overlap | Combined BP > 80% NLV | Capital competition — review and possibly throttle |
 | 7 | Shadow trade quality (when Stage 2 active) | Live W20d/W63d degradation > +0.5pp from baseline | Layer-1 protection check |
 | 8 | **Ladder-only incremental tail monitor (per audit R1)** | Rolling 20d ladder-only PnL OR rolling 63d ladder-only PnL degradation > +0.5pp NLV equivalent vs P4 expected range | PM review — does NOT replace portfolio V1/V2/V3, explains whether ladder itself drives deterioration |
+| 9 | **Per-strategy ladder trigger distribution drift (per SPEC-108.1 R4)** | Rolling 90-day share of any strategy deviates from historical band by > 15pp | PM-discretionary review; if unexplained by regime shift, investigate selector before continuing shadow / production |
 
 All Stage 1 monitor triggers are PM-discretionary review (per `feedback_spec_review_obligation`).
 
@@ -276,6 +282,8 @@ This monitor MUST be live from Stage 2 onward. During Stage 1 shadow, the theore
 
 ## 6. Staged Rollout (per R3 + R4 + R5 — MANDATORY)
 
+> ✅ **STAGE 2 ADVANCEMENT UNFROZEN (path conditions)** (2026-05-29 update) — Q080 P1 confirmed ΔROE invariant; P2 block-bootstrap p05 = +1.68pp robust positive; P3 calibrated 0.5pp at strategy-comparison level. Sharpe number corrected (see §0). SPEC-108.1 (DRAFT 2026-05-29) adds R1-R4 gates required before actual Stage 2 production activation. **Stage 2 will lift after SPEC-108.1 deployed AND Stage 1 R3 regime-coverage criterion met (per SPEC-108.1 §2 R3) AND portfolio-stress overnight-gap < 12% NLV (per SPEC-108.1 §2 R1)**. Stage 1 shadow continues unchanged. See [`task/SPEC-108.1.md`](task/SPEC-108.1.md), [`task/chatgpt_review_response_2026-05-29.md`](task/chatgpt_review_response_2026-05-29.md), [`research/q080/q080_memo.md`](research/q080/q080_memo.md). — Quant Researcher
+
 **Stage 1 — Shadow only (MANDATORY initial state)**
 - `LADDER_MODE = "shadow"` (default per AC-108-15)
 - V3 ladder evaluator runs daily; outputs "would-enter" decision + skip reasons
@@ -295,7 +303,16 @@ This monitor MUST be live from Stage 2 onward. During Stage 1 shadow, the theore
   4. Realized action burden acceptable to PM
   5. Shadow candidate quality not materially worse than P4 expectation
   6. PM explicitly signs off
-  7. ≥ 10 shadow entries observed (or PM waiver)
+  7. ≥ 10 shadow entries observed (floor — preserved from R5)
+  8. [SPEC-108.1 R1] portfolio_stress_overnight_gap() returns mark_loss < 12% NLV
+  9. [SPEC-108.1 R3] At least ONE coverage profile met, OR PM waiver citing reason:
+       (i)  ≥3 entries each in ≥2 distinct VIX regimes (LOW_VOL, NORMAL, HIGH_VOL)
+       OR
+       (ii) ≥3 entries each in ≥2 distinct strategy branches
+            (bull_call_diagonal, iron_condor, iron_condor_hv, bull_put_spread,
+             bull_put_spread_hv, bear_call_spread_hv)
+       OR
+       (iii) PM explicitly waives, citing operational reason
   ```
 - On approval: production order entry triggered by ladder eligibility
 - All monitoring obligations active
@@ -505,6 +522,74 @@ Smoke tests:
   diversification fix (eff_count Δ noise). AC1-AC16. — `See: task/SPEC-108.md`,
   `research/q078/q078_p4_memo.md`
 ```
+
+---
+
+## Review
+
+**Reviewer**: Quant Researcher
+**Date**: 2026-05-28
+**Verdict**: **PASS** — implementation matches SPEC fidelity; safe to remain DONE
+**Implementation commit**: `50a72df` (feat: SPEC-108 selector-gated SPX execution ladder)
+**Handoff doc**: [`task/SPEC-108_handoff.md`](task/SPEC-108_handoff.md)
+
+### Test evidence
+- `tests.test_spec_108`: **12/12 PASS** (local re-run 2026-05-28)
+- Adjacent regression `tests.test_spec_103..107`: **53/53 PASS** (no breakage)
+- Old Air deploy smoke test (per Developer report): API returns 200; `ladder_mode=shadow`, `ladder_production_order_allowed=false`, `ladder_would_enter=false`
+
+### Fidelity audit — 18 AC × implementation cross-check
+
+| AC# | SPEC ask | Implementation | PASS |
+|---|---|---|---|
+| 1 | constants defined | `sleeve_governance.py:41-44` LADDER_SIZING_CONTRACTS=3, CLUSTER_DAYS=5, BP_CEILING=35.0, MODE_DEFAULT="shadow" | ✅ |
+| 2 | cadence_gap < 5 trading days | `q078_ladder.py:202` trading_days_between < cluster_days | ✅ |
+| 3 | selector_wait on "Reduce / Wait" string | `q078_ladder.py:118-119` handles both "Reduce / Wait" string + "reduce_wait" key (more robust than SPEC) | ✅ |
+| 4 | concurrency block; IC_HV cap 2 / others 1 | `q078_ladder.py:211-213` exact match | ✅ |
+| 5 | bp_ceiling > 35% NORMAL | `q078_ladder.py:217-219` exact match | ✅ |
+| 6 | valid entry returns (True, "") | `q078_ladder.py:221` | ✅ |
+| 7 | 11 R6 fields on `/api/sleeve-governance/state` | `sleeve_governance.py:680-693` all 11 present (+2 derived: ladder_would_enter, ladder_production_order_allowed for shadow-payload exposure) | ✅ |
+| 8 | LADDER_MODE_DEFAULT="shadow" + cap unchanged | `sleeve_governance.py:100-103` ladder_mode() validates {shadow/active/off}, falls back to default | ✅ |
+| 9 | shadow log written per selector PASS day | `sleeve_governance.py:534-537` commit-gated write via `has_shadow_log_for_date` idempotency | ✅ |
+| 10 | dashboard ladder panel | `portfolio_home.html:842-868` panel with mode badge + chips; uses `var(--text-2)` for labels (no `--text-muted` abuse) | ✅ |
+| 11 | Telegram shadow alert | `telegram_bot.py:1485-1503` `scheduled_ladder_shadow_push` filters on shadow_log_written + would_enter + mode==shadow | ✅ |
+| 12 | tests/test_spec_108.py PASS | 12/12 | ✅ |
+| 13 | no regression SPEC-103..107 | 53/53 | ✅ |
+| 14 | backtest cache refresh | Developer reports 5/5 endpoints OK on old Air | ✅ |
+| 15 | shadow ENFORCED at deploy | Developer confirms no `LADDER_MODE` env on old Air; resolved mode = shadow | ✅ |
+| 16 | action_days counter (eligible only) | `q078_ladder.py:280` only `+1 if eligible`; `tests/test_spec_108.py:test_ac108_16` covers | ✅ |
+| 17 | CI test — shadow default + production disabled + shadow log still writes | `tests/test_spec_108.py:test_ac108_17` | ✅ |
+| 18 | CI test — eligible=True does NOT allow order under shadow | `tests/test_spec_108.py:test_ac108_18` | ✅ |
+
+### Invariant audit (5 mandatory unchanged)
+- ✅ SPEC-104 Arch-3 caps — `git diff` confirms no numeric changes
+- ✅ SPEC-105 v2 Gate F booster — only status-note 1-line append, no logic change
+- ✅ SPEC-077 exit logic — untouched
+- ✅ SPEC-103 V1-V7 vetoes — untouched
+- ✅ Selector logic (`strategy/selector.py`) — untouched; ladder only consumes verdict
+- ✅ Production entry path under LADDER_MODE≠active — `web/server.py:4467,4474` early-return ensures pre-SPEC-108 behavior is unchanged when mode != "active"
+- ✅ No booster off-ladder bonus — ladder only reads selector verdict, never inspects Gate F state
+- ✅ V1b NOT implemented — only V3 cadence (`q078_ladder.py:196-221`); §8.7 prohibition honored
+- ✅ S3=3 contracts and 5-day cluster locked as constants — not parameterized
+
+### Audit micro-revision verification (R1-R7 per audit packet)
+- ✅ **R1** ladder-only W20d/W63d monitor — SPEC §5 row 8 + §5.1 metric definition (will activate Stage 2+); not yet a code metric since no live ladder PnL exists in Stage 1
+- ✅ **R2** no booster off-ladder bonus — SPEC §7 + code never reads Gate F
+- ✅ **R3** AC-108-17/18 CI tests — both PASS, automated
+- ✅ **R4** V1b non-implementable — only V3 implemented; SPEC §8.7 prohibition explicit
+- ✅ **R5** bias caveat — SPEC §0 displays +1.80pp mean + +0.8 to +1.3pp deflated
+- ✅ **R6** 11 API fields — verified above (AC-108-7)
+- ✅ **R7** shadow log `ladder_mode` + `selector_timestamp` — `q078_ladder.py:267-268` + `theoretical_entry_credit` + `theoretical_exit_rule` exposed (lines 275-276)
+
+### Notes for future work (NON-blocking)
+1. **Holiday list (`q078_ladder.py:16-21`)** covers only 2025-2026 hard-coded. For 2027+ this drifts. Recommend swap to a maintained source (e.g., `pandas_market_calendars` or annual append) before Stage 2 activation.
+2. **`_max_loss_per_contract` falls back to $9k** when verdict lacks the field. This is reasonable but masks data-quality issues — recommend logging when fallback fires.
+3. **`ladder_action_days_ytd` payload semantic**: `shadow_payload` adds +1 if eligible vs the persisted counter only increments in `mark_entry()` (active mode). In Stage 1 shadow this means dashboard counter is would-be projection, not realized. Document this in §5 monitor #1 expectation calibration before Stage 2 review.
+4. **Stage 1 shadow validation gate**: first real shadow event needs a selector PASS day (current state: "Reduce / Wait"). Stage 2 advancement minimum-evidence gate (≥10 entries) starts counting from first shadow_log_written event.
+5. **Old Air smoke test** independently re-verified by Quant: blocked by local DNS / cert — relied on Developer's report. Recommend automated CI smoke ping for Stage 2.
+
+### Verdict statement
+> SPEC-108 implementation fidelity PASS. All 18 ACs covered; 12/12 SPEC-108 + 53/53 adjacent SPEC tests PASS; 5 invariants honored; R1-R7 audit micro-revisions all reflected in code or SPEC; Stage 1 shadow safety enforced via env-default + `production_order_allowed` guard. SPEC-108 remains **Status: DONE**. Stage 1 shadow data collection now standing-open.
 
 ---
 
