@@ -1,0 +1,6 @@
+variant,active_periods,mean_max_concentration_pct,median_max_concentration_pct,p95_max_concentration_pct,mean_effective_expiry_count,median_effective_expiry_count,max_eff_expiry_count
+V1a_weekly_strict,673,82.34744188240231,100.0,100.0,1.3574035606730228,1.0,2.9751647559523824
+V1b_weekly_catchup,733,75.66375565719818,100.0,100.0,1.5470694493461168,1.0,3.0
+V2_biweekly_strict,465,99.90166377331231,100.0,100.0,1.0021193433806364,1.0,1.9854946719959403
+V3_daily_cluster,745,73.54845224583565,74.9400479616307,100.0,1.6137511868510925,1.601534402011485,3.0
+BaselineB_cluster_30d,291,100.0,100.0,100.0,1.0,1.0,1.0

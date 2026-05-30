@@ -1,0 +1,5 @@
+type,n_all_days,pct_of_primary,n_first_in_cluster,p_stress_10d_pct,avg_fwd_spx_20d_pct,best_hypothetical_label,best_hypothetical_cum_usd
+A_false_block,0,0.0,0,,,n/a,0.0
+B_transition_warning,2,0.9950248756218906,1,0.0,3.465732015972689,H3 sBPS,1056.5737051792828
+C_high_vol_controlled,170,84.5771144278607,58,50.0,-0.404232049606382,H3 sBPS,48352.71921718795
+D_trend_deteriorated,29,14.427860696517413,8,12.5,1.2657532923925143,H3 sBPS,8482.470119521913

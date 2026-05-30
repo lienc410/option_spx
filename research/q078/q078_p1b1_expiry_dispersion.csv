@@ -1,0 +1,4 @@
+variant,active_periods,mean_max_concentration_pct,p95_max_concentration_pct,mean_effective_expiry_count,median_effective_expiry_count,max_eff_expiry_count
+V1b_weekly_catchup,1191,50.94813659856902,100.0,3.1698712265715354,3.0707396865665793,6.890158650583072
+V3_daily_cluster,1231,47.76192502814296,100.0,3.420604313716693,3.4617484994274057,6.833582442748536
+BaselineB_cluster,1144,93.27508923530289,100.0,1.1525223910342357,1.0,2.0

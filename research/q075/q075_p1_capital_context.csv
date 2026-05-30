@@ -1,0 +1,4 @@
+type,n_days,q42_active_pct_of_days,avg_daily_cash_pnl_usd,avg_daily_spx_pnl_abs_usd,spx_exposure_proxy_note
+B_transition_warning,2,0.0,38.13690476190476,6398.279840523736,spx_pnl variance proxy for active SPX position size
+C_high_vol_controlled,170,2.3529411764705883,38.13690476190476,2245.3887150489327,spx_pnl variance proxy for active SPX position size
+D_trend_deteriorated,29,3.4482758620689653,38.136904761904766,1279.43627300072,spx_pnl variance proxy for active SPX position size

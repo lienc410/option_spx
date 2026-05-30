@@ -1,0 +1,3 @@
+candidate,total_entries,stress_adjacent_entries,stress_adjacent_entries_pct,forced_exits_in_sa,sa_cum_pnl,sa_worst_trade,sa_worst_20d_contribution
+IC_w25,58,28,48.275862068965516,28,7905.1082403962555,-270.86467215109155,5162.249716432977
+IC_w35,58,28,48.275862068965516,28,11741.380086303168,-283.5693757574045,7741.378152754577

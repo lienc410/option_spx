@@ -1,0 +1,6 @@
+variant,total_eval_days,pass_count,wait_count,pass_rate_pct,strategy_breakdown
+V1a_weekly_strict,1245,575,670,46.1847389558233,"{'Reduce / Wait': 670, 'Iron Condor (High Vol)': 114, 'Bull Put Spread (High Vol)': 60, 'Bear Call Spread (High Vol)': 15, 'Bull Call Diagonal': 321, 'Iron Condor': 52, 'Bull Put Spread': 13}"
+V1b_weekly_catchup,1378,816,562,59.21625544267054,"{'Reduce / Wait': 562, 'Bull Put Spread (High Vol)': 78, 'Iron Condor (High Vol)': 167, 'Bear Call Spread (High Vol)': 31, 'Iron Condor': 100, 'Bull Call Diagonal': 408, 'Bull Put Spread': 32}"
+V2_biweekly_strict,623,290,333,46.54895666131621,"{'Reduce / Wait': 333, 'Iron Condor (High Vol)': 55, 'Bull Put Spread (High Vol)': 33, 'Bear Call Spread (High Vol)': 5, 'Iron Condor': 34, 'Bull Call Diagonal': 154, 'Bull Put Spread': 9}"
+V3_daily_cluster,917,917,0,100.0,"{'Bull Put Spread (High Vol)': 83, 'Iron Condor (High Vol)': 190, 'Bear Call Spread (High Vol)': 34, 'Iron Condor': 126, 'Bull Call Diagonal': 436, 'Bull Put Spread': 48}"
+BaselineB_cluster_30d,254,254,0,100.0,"{'Bull Put Spread (High Vol)': 22, 'Iron Condor (High Vol)': 52, 'Iron Condor': 44, 'Bear Call Spread (High Vol)': 10, 'Bull Call Diagonal': 109, 'Bull Put Spread': 17}"

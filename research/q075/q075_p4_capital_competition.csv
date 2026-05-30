@@ -1,0 +1,3 @@
+candidate,avg_ic_bp_pct_when_active,ic_active_days,max_combined_bp_pct,baseline_overdraft_days,combined_overdraft_days,new_overdraft_days_from_ic
+IC_w25,0.06724310487518526,460,107.66247463538835,1470,1470,0
+IC_w35,0.09414034682525936,460,107.72746448954369,1470,1470,0
