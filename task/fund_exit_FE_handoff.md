@@ -115,7 +115,8 @@ def fund_exit_chart(code):
       "clip": 0.0,                // 建议卖出比例(占该仓)
       "clip_amt": 0.0,            // = mv*clip ¥
       "vs_twap": -0.10,           // clip - 10%; 负=比均匀清仓少卖(让赢家跑)
-      "veto": false,             // 超卖否决是否触发
+      "veto": false,             // 超卖否决是否触发(RSI<30 或 20日新低)
+      "was_runner": true,        // 近期赢家(近15日≥5日上升)；④ 仅对其豁免超卖否决
       "locked": "",              // 非空=锁定提示(目前仅 009010)
       "chart": "charts/024930_华夏卓越成长混合.png"
     }
@@ -136,7 +137,7 @@ def fund_exit_chart(code):
 | 6 | 持有观察(保底量) | `--text-2` |
 | 0 | 数据不足 | `--text-2` |
 
-`veto:true` → 在动作旁加灰标"超卖否决·暂不执行"。`locked` 非空 → 加 ⚠️ 锁定 badge。
+**动作文本含"超卖否决"后缀**（即 clip 被否决归零）→ 加灰标"超卖否决·暂不执行"。⚠️ 别只看 `veto` 原值：近期赢家(`was_runner:true`)的 ④ 即使 `veto:true` 也豁免、仍卖 —— **以 action 文本 / clip 为准**。`locked` 非空 → 加 ⚠️ 锁定 badge。
 
 ---
 
