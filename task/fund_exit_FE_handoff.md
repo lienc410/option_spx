@@ -87,38 +87,41 @@ def fund_exit_chart(code):
   "data_date": "2026-05-31",
   "market_regime": "沪深300 强(>MA60) 距MA60 +3.8%",  // 仅上下文提示, 不是决策
   "disclaimer": "纪律工具，非投资建议；阈值先验非优化；费率/锁定/赎回以中信App为准。",
-  "params": { "DEEP": 0.15, "trail_formula": "clip(1.0σ·√30d, 0.05, 0.14)", "trend_band": 0.01,
-              "monthly_floor": 0.10, "deep_limit": "6-8周",
+  "params": { "DEEP": 0.15, "rsi_oversold": 30,
+              "trail_formula": "clip(1.0σ·√30d, 0.05, 0.14)", "trend_band": 0.01,
+              "monthly_floor": 0.10,
+              "model": "clip = base(保底,强制) + extra(信号,可被RSI<30否决)",
               "strong_rule": "全部上升趋势(最新>MA20>MA60)纯持有" },
   "account": {
     "total_mv": 908291.28,
     "held_strong_mv": 543687.78, "held_strong_pct": 0.5986,  // 上升趋势纯持有占比
     "non_strong_mv": 364603.5,
-    "floor_target": 36460.35,      // 保底月清仓目标(仅非强势仓 ×10%)
-    "suggested_total": 107243.99,  // 本期所有建议卖出额合计
+    "floor_target": 36460.35,      // = monthly_floor × non_strong_mv（base 之和，结构性达标）
+    "suggested_total": 89909.0,    // 本期所有建议卖出额合计(base+extra)
     "floor_met": true
   },
   "funds": [
     {
-      "name": "华夏卓越成长混合", "code": "024930",
-      "mv": 152086.1, "pnl_pct": 0.52, "bucket": "high",   // bucket: 仅参考标签(不再驱动 trail)
+      "name": "华夏红利价值混合", "code": "024915",
+      "mv": 136386.96, "pnl_pct": -0.19,
       "ok": true, "err": "",
-      "latest": 1.7234, "latest_date": "2026-05-29", "n": 191, "short_hist": false,
-      "ma20": 1.71, "ma60": 1.65, "high60": 1.788, "roll_high": 1.788,
-      "trail": 0.104,             // σ-scaled 追踪带(随该基波动, clip 5-14%)
-      "trail_trigger": 1.6092,    // 滚动高×(1-trail) 追踪止盈触发位
-      "rsi": 56.0, "ann_vol": 0.28,
-      "dist_ma20": 0.007, "dist_ma60": 0.044, "dist_high60": -0.036,
-      "trend": "上升",            // 上升/下降/震荡/数据不足
-      "rule": 1,                  // 1..6 (见下表)
-      "action": "①上升趋势：让利润奔跑，纯持有",
-      "clip": 0.0,                // 建议卖出比例(占该仓)
-      "clip_amt": 0.0,            // = mv*clip ¥
-      "vs_twap": -0.10,           // clip - 10%; 负=比均匀清仓少卖(让赢家跑)
-      "veto": false,             // 超卖否决是否触发(RSI<30 或 20日新低)
-      "was_runner": true,        // 近期赢家(近15日≥5日上升)；④ 仅对其豁免超卖否决
-      "locked": "",              // 非空=锁定提示(目前仅 009010)
-      "chart": "charts/024930_华夏卓越成长混合.png"
+      "latest": 1.3751, "latest_date": "2026-05-29", "n": 191, "short_hist": false,
+      "ma20": 1.4041, "ma60": 1.4307, "roll_high": 1.5131,
+      "trail": 0.05,              // σ-scaled 追踪带(随该基波动, clip 5-14%)
+      "trail_trigger": 1.4374,    // 滚动高×(1-trail) 追踪止盈触发位
+      "rsi": 38.0, "ann_vol": 0.12,
+      "dist_ma20": -0.021, "dist_ma60": -0.039, "dist_roll": -0.091,  // 距滚动高(深套/追踪统一参照)
+      "trend": "下降",            // 上升/下降/震荡/数据不足
+      "rule": 3,                  // 1..6 / 0 (见下表)
+      "action": "③确认下降趋势：保底 + 额外减仓（最重）",
+      "base": 0.10,              // 强制保底量(非强势仓恒 10%；强势①为 0)
+      "extra": 0.25,             // 信号额外量(超卖时归零，base 不变)
+      "clip": 0.35,              // = base + extra
+      "clip_amt": 47735.4,       // = mv*clip ¥
+      "vs_twap": 0.25,           // clip - monthly_floor; 负=比均匀少卖(让赢家跑)
+      "oversold": false,         // RSI < rsi_oversold(30)（仅此，不含创新低）
+      "locked": "",              // 非空=锁定提示
+      "chart": "charts/024915_华夏红利价值混合.png"
     }
     // ... 共 10 只；ok=false 时除 name/code/mv/err 外其余为 null
   ]
@@ -137,7 +140,7 @@ def fund_exit_chart(code):
 | 6 | 持有观察(保底量) | `--text-2` |
 | 0 | 数据不足 | `--text-2` |
 
-**动作文本含"超卖否决"后缀**（即 clip 被否决归零）→ 加灰标"超卖否决·暂不执行"。⚠️ 别只看 `veto` 原值：近期赢家(`was_runner:true`)的 ④ 即使 `veto:true` 也豁免、仍卖 —— **以 action 文本 / clip 为准**。`locked` 非空 → 加 ⚠️ 锁定 badge。
+**动作文本含"超卖否决"后缀**（= extra 被超卖归零，仅走 base）→ 加灰标"超卖·仅走保底"。注意 **base 永远卖、只有 extra 受否决**，所以被否决的基金 `clip` 仍 = base(10%)>0、仍在卖；展示 `clip = base + extra` 分解最清楚。`locked` 非空 → 加 ⚠️ 锁定 badge。
 
 ---
 
@@ -154,7 +157,7 @@ def fund_exit_chart(code):
 ### 3.2 主体：三个分组（按 rule）
 PM 的心智是"今天做什么"，按动作分组优于按市值：
 
-1. **🟡 可减仓队列**（rule 3/4/5）—— 按 `clip` 降序（=卖出优先级队列）。每行：基金名/代码、动作、`clip` %、`clip_amt` ¥、`dist_high60`、RSI、`vs_twap`、锁定 badge。
+1. **🟡 信号减仓**（rule 3/4/5）—— 按 `clip` 降序。每行：基金名/代码、动作、`clip`(=base+extra) %、`clip_amt` ¥、`dist_roll`、RSI、`vs_twap`、锁定 badge。其余非强势(rule 2/6/0)单列"仅走保底"组。
 2. **🟢 上升趋势·持有**（rule 1）—— 纯持有，标"vs 均匀清仓少卖 10%"。
 3. **🔴 深套/等待/其他**（rule 2/6/0）—— 深套两只(003095/009010)单独高亮，显示反弹锚(MA20)与硬时限提示。
 

@@ -1,21 +1,24 @@
 # -*- coding: utf-8 -*-
-"""基金技术面分批清仓信号工具 (Strategy Spec v2)
+"""基金技术面分批清仓信号工具 (Strategy Spec v3 — 2026-06 审计后重构)
 
 定位：纪律 / 行为约束工具，非 alpha 择时、非投资建议。
 详见 task/fund_exit_strategy_spec.md。
 
-规则 v2（按优先级取首个命中）：
-  ① 强势区   : 上升 且 距近60高 >= -STRONG          -> 纯持有(让利润奔跑, clip 0)
-  ② 深套防砍底: 下降 且 距近60高 <= -DEEP            -> 等反弹/硬时限(clip 0)
-  ③ 趋势转弱 : 下降 且 距近60高 > -DEEP             -> 主动减(受超卖否决)
-  ④ 追踪止盈 : 现价 <= 滚动最高*(1-TRAIL)           -> 重仓出(仅近期赢家豁免超卖否决, runner地板)
-  ⑤ 跌破MA20 : 震荡 且 MA20>MA60 且 现价<MA20        -> 止盈减(受超卖否决)
-  ⑥ 其余     : -> 持有观察(保底量)
+核心模型：clip = base(保底·强制清仓节奏) + extra(信号驱动·可被超卖否决)
+  · base  ：非强势仓每月强制出 MONTHLY_FLOOR → floor 结构性达标；深套也靠它逐步出。
+  · extra ：按信号强度叠加；RSI<RSI_OVERSOLD(超卖)时归零，但 base 不受影响。
+  · 强势①(上升趋势)纯持有，base=extra=0。
 
-强势区纯持有(PM 风险偏好)：保底时钟只覆盖"非强势"仓。
-超卖否决(RSI<30 或 20日新低)只挡 ③⑤，不挡 ④。
-TRAIL 连续随波动缩放(σ-scaled, ~1σ 6周移动, clip 5-14%)。STRONG=3% / DEEP=15%。
-趋势 band-hysteresis(±1%) 压日度 whipsaw。
+规则（优先级取首个命中；深套/追踪统一用"滚动高"参照）：
+  ① 上升趋势 : 最新>MA20>MA60                       -> 纯持有(base=extra=0)
+  ② 深套     : 下降 且 距滚动高 <= -DEEP             -> base only（不加码砸底）
+  ③ 确认下降 : 下降 且 距滚动高 > -DEEP              -> base + extra 0.25（最重）
+  ④ 震荡破带 : 现价 <= 滚动高*(1-TRAIL_σ)            -> base + extra 0.15
+  ⑤ 破MA20   : 震荡 且 MA20>MA60 且 现价<MA20        -> base + extra 0.10
+  ⑥ 其余     : -> base only
+
+超卖否决 = 仅 RSI<RSI_OVERSOLD（审计 A1：去掉"创新低"——那是下行动能、非超卖）。
+TRAIL σ-scaled(~1σ 6周, clip 5-14%)；趋势 band-hysteresis(±1%) 压日度 whipsaw。
 """
 from __future__ import annotations
 
@@ -50,48 +53,52 @@ import akshare as ak
 OUTDIR = Path(__file__).resolve().parent
 DATA_DATE = "2026-05-31"
 
-# ── 参数（PM 2026-05-31 敲定）─────────────────────────────────────
-STRONG = 0.03          # (PM 2026-05-31: 强势区放宽为"全部上升趋势"持有, STRONG 不再用于持有判定, 保留供参考)
-DEEP = 0.15            # 深套界
-# 5.4 追踪止盈带：连续随基金自身波动缩放（取代旧两档先验 {high:0.10,low:0.06}）。
-# trail = clip(TRAIL_Z · σ_日 · √TRAIL_HORIZON_D, FLOOR, CAP)
-#       = clip( 1σ 的 ~6 周移动 , 5%, 14% )
-TRAIL_Z = 1.0              # 标准差倍数
-TRAIL_HORIZON_D = 30       # 约 6 周（30 交易日）的移动
-TRAIL_FLOOR, TRAIL_CAP = 0.05, 0.14   # 经济护栏：任何基金不在 <5% 噪音里出、不给回 >14%
-TRAIL_DEFAULT = 0.08      # 波动样本不足时的兜底带
-# 5.6 趋势 band-hysteresis：现价在 MA20 ±TREND_BAND 内视为"贴线"（不判方向），压日度 whipsaw
-TREND_BAND = 0.01
-# 5.3 ④豁免超卖否决仅限"近期赢家(runner)"：近 RUNNER_LOOKBACK 交易日内 ≥ RUNNER_MIN_DAYS
-# 天为上升(=真的被趋势性纯持有过)。经济意义：④豁免否决的理由是"赢家无其它出场地板"；
-# 非赢家(慢性下跌)从震荡触发④、又在超卖中卖=砸底，应同受否决。崩盘会在数日内 上升→下降，
-# 短窗仍有多天上升→保住真赢家地板；而单日 MA razor-thin 穿越(噪音)凑不够天数→不豁免。
-RUNNER_LOOKBACK = 15
-RUNNER_MIN_DAYS = 5
-MA_SHORT, MA_LONG = 20, 60
-ROLL_HIGH_WIN = 250    # 滚动最高窗口（次新基用全可用历史）
-HIGH60_WIN = 60
-RSI_PERIOD = 14
-LOW_WIN = 20           # 超卖否决：N 日新低
-MONTHLY_FLOOR = 0.10   # 保底月清仓速度（仅非强势仓）
-DEEP_LIMIT = "6-8周"
+# ── 参数（PM 2026-05-31；2026-06 审计后重构）───────────────────────
+# 核心模型：clip = base(保底·强制清仓节奏) + extra(信号驱动·可被超卖否决)
+#   · base  ：所有"非强势"仓每月强制出 MONTHLY_FLOOR → floor 结构性达标(审计 A3)；
+#             深套也靠 base 逐步出，取代旧"硬时限钟"(A2)
+#   · extra ：按"继续下跌把握"叠加；超卖(RSI<RSI_OVERSOLD)时归零，但 base 不受影响(A1)
+#   · 强势①(上升趋势)纯持有，base=extra=0（PM 接受 ~60% 惰性）
+DEEP = 0.15               # 深套界：距滚动高 ≤ -DEEP（A6：深套/追踪统一用滚动高，顺带修 A10）
+MONTHLY_FLOOR = 0.10      # base：非强势仓每月强制清仓比例（清仓脊柱）
+RSI_OVERSOLD = 30         # 超卖否决阈（A7：原硬编码 → 命名参数）
 
-# clip 档位（占该只仓位的建议月卖出比例）
-CLIP = {1: 0.00, 2: 0.00, 3: 0.25, 4: 0.40, 5: 0.15, 6: MONTHLY_FLOOR, 0: MONTHLY_FLOOR}
+# extra：信号驱动的额外减仓（叠在 base 之上），按"继续下跌的把握"单调排序（A4 修正旧倒挂）
+EXTRA = {
+    1: 0.00,   # ① 上升趋势：纯持有
+    2: 0.00,   # ② 深套：不加码（仅 base 逐步出）
+    3: 0.25,   # ③ 确认下降趋势：把握最高 → 最重
+    4: 0.15,   # ④ 震荡·破追踪带
+    5: 0.10,   # ⑤ 震荡·破MA20：初弱 → 最轻
+    6: 0.00,   # ⑥ 持有观察：仅 base
+    0: 0.00,   # ⓪ 数据不足：仅 base
+}
+
+# 5.4 追踪止盈带：连续随基金自身波动缩放 trail = clip(1σ·√30d, 5%, 14%)
+TRAIL_Z = 1.0
+TRAIL_HORIZON_D = 30
+TRAIL_FLOOR, TRAIL_CAP = 0.05, 0.14
+TRAIL_DEFAULT = 0.08      # 波动样本不足时兜底带
+# 5.6 趋势 band-hysteresis：现价在 MA20 ±TREND_BAND 内"贴线"不判方向，压日度 whipsaw
+TREND_BAND = 0.01
+
+MA_SHORT, MA_LONG = 20, 60
+ROLL_HIGH_WIN = 250       # 滚动高水位窗口（深套 + 追踪止盈统一参照；次新基用全可用历史）
+RSI_PERIOD = 14
 
 # ── 持仓清单（去重 10 只，2026-05-31，中信证券 App）──────────────
 HOLDINGS = [
-    # name, code, market_value, pnl_pct, vol_bucket
-    ("华夏卓越成长混合",     "024930", 152086.10,  0.52, "high"),
-    ("睿远成长价值混合A",    "007119", 141325.43,  0.69, "low"),
-    ("华夏红利价值混合",     "024915", 136386.96, -0.19, "low"),
-    ("工银圆兴混合",         "009076", 133813.91,  0.12, "low"),
-    ("中信保诚前瞻优势混合", "013610", 103306.75,  0.01, "low"),
-    ("华安研究智选混合A",    "011692",  93525.56, -0.08, "low"),
-    ("中欧医疗健康混合",     "003095",  50730.79, -0.56, "high"),
-    ("朱雀产业智选混合",     "007880",  42118.97, -0.17, "high"),
-    ("华夏兴阳一年持有混合", "009010",  32060.03, -0.54, "high"),
-    ("泓德卓远混合A",        "010864",  22936.78, -0.11, "low"),
+    # name, code, market_value, pnl_pct   (A8: vol_bucket 已删—σ-trail 后无用)
+    ("华夏卓越成长混合",     "024930", 152086.10,  0.52),
+    ("睿远成长价值混合A",    "007119", 141325.43,  0.69),
+    ("华夏红利价值混合",     "024915", 136386.96, -0.19),
+    ("工银圆兴混合",         "009076", 133813.91,  0.12),
+    ("中信保诚前瞻优势混合", "013610", 103306.75,  0.01),
+    ("华安研究智选混合A",    "011692",  93525.56, -0.08),
+    ("中欧医疗健康混合",     "003095",  50730.79, -0.56),
+    ("朱雀产业智选混合",     "007880",  42118.97, -0.17),
+    ("华夏兴阳一年持有混合", "009010",  32060.03, -0.54),
+    ("泓德卓远混合A",        "010864",  22936.78, -0.11),
 ]
 # 009010 华夏兴阳一年持有: 2021-01-04 申购 → ~2022-01 满1年持有期 → 已解锁, 现可自由赎回。
 # 原"锁定"警告已移除(假约束)。若未来近12个月内有新增申购批次, 该批会重新锁1年, 届时再加回。
@@ -99,12 +106,12 @@ LOCKED = {}
 
 ACTION_TEXT = {
     1: "①上升趋势：让利润奔跑，纯持有",
-    2: f"②深套防砍底：勿砍底，待反弹至阻力/MA20，硬时限{DEEP_LIMIT}",
-    3: "③趋势转弱：主动分批减仓",
-    4: "④追踪止盈/止损触发：减仓（runner出场）",
-    5: "⑤跌破MA20：动能转弱，止盈减仓",
-    6: "⑥持有观察，不为卖而卖（保底量）",
-    0: "数据不足：仅保底量，指标待补",
+    2: "②深套：不加码砸底，仅走保底量逐步出",
+    3: "③确认下降趋势：保底 + 额外减仓（最重）",
+    4: "④震荡·破追踪带：保底 + 额外减仓",
+    5: "⑤震荡·破MA20：保底 + 轻额外减仓",
+    6: "⑥持有观察：仅走保底量",
+    0: "数据不足：仅走保底量，指标待补",
 }
 
 
@@ -188,7 +195,6 @@ class FundResult:
     code: str
     mv: float
     pnl_pct: float
-    bucket: str
     ok: bool = True
     err: str = ""
     latest: float = float("nan")
@@ -196,28 +202,27 @@ class FundResult:
     n: int = 0
     ma20: float = float("nan")
     ma60: float = float("nan")
-    high60: float = float("nan")
     roll_high: float = float("nan")
     trail: float = float("nan")
     trail_trigger: float = float("nan")
     rsi: float = float("nan")
-    low20: float = float("nan")
     ann_vol: float = float("nan")
     dist_ma20: float = float("nan")
     dist_ma60: float = float("nan")
-    dist_high60: float = float("nan")
+    dist_roll: float = float("nan")      # 距滚动高（A6 统一参照）
     trend: str = ""
     rule: int = 6
     action: str = ""
-    clip: float = 0.0
-    veto: bool = False
-    was_runner: bool = False
+    base: float = 0.0                    # 强制保底量
+    extra: float = 0.0                   # 信号额外量（可被超卖否决）
+    clip: float = 0.0                    # = base + extra
+    oversold: bool = False               # RSI<RSI_OVERSOLD（A1：仅此，不含创新低）
     short_hist: bool = False
     df: pd.DataFrame = field(default=None, repr=False)
 
 
-def analyze(name, code, mv, pnl_pct, bucket) -> FundResult:
-    r = FundResult(name=name, code=code, mv=mv, pnl_pct=pnl_pct, bucket=bucket)
+def analyze(name, code, mv, pnl_pct) -> FundResult:
+    r = FundResult(name=name, code=code, mv=mv, pnl_pct=pnl_pct)
     try:
         df = fetch_nav(code)
     except Exception as e:  # noqa: BLE001
@@ -235,17 +240,13 @@ def analyze(name, code, mv, pnl_pct, bucket) -> FundResult:
 
     r.ma20 = float(nav.tail(MA_SHORT).mean()) if n >= MA_SHORT else float("nan")
     r.ma60 = float(nav.tail(MA_LONG).mean()) if n >= MA_LONG else float("nan")
-    r.high60 = float(nav.tail(min(HIGH60_WIN, n)).max())
     r.roll_high = float(nav.tail(min(ROLL_HIGH_WIN, n)).max())
-    r.low20 = float(nav.tail(min(LOW_WIN, n)).min())
     r.rsi = rsi(nav, RSI_PERIOD)
     rets = nav.pct_change().dropna()
     sigma_d = float(rets.tail(60).std()) if len(rets) >= 20 else float("nan")
     r.ann_vol = sigma_d * np.sqrt(252) if sigma_d == sigma_d else float("nan")
 
-    # 5.4 追踪止盈带：连续随基金自身波动缩放（σ-scaled）。
-    # 带宽 = TRAIL_Z·σ_日·√TRAIL_HORIZON_D = 1σ 的 ~6 周移动 →
-    # 经济意义：回撤超过"正常 6 周波动"才算真反转、才出场。取代旧两档先验。
+    # 5.4 追踪止盈带：连续随基金自身波动缩放（σ-scaled），带宽=1σ 的 ~6 周移动。
     if sigma_d == sigma_d:
         r.trail = float(np.clip(TRAIL_Z * sigma_d * np.sqrt(TRAIL_HORIZON_D),
                                 TRAIL_FLOOR, TRAIL_CAP))
@@ -254,27 +255,18 @@ def analyze(name, code, mv, pnl_pct, bucket) -> FundResult:
     r.trail_trigger = r.roll_high * (1 - r.trail)
     r.dist_ma20 = r.latest / r.ma20 - 1 if r.ma20 == r.ma20 else float("nan")
     r.dist_ma60 = r.latest / r.ma60 - 1 if r.ma60 == r.ma60 else float("nan")
-    r.dist_high60 = r.latest / r.high60 - 1 if r.high60 == r.high60 else float("nan")
+    r.dist_roll = r.latest / r.roll_high - 1 if r.roll_high == r.roll_high else float("nan")
 
     # 趋势三态 + 5.6 band-hysteresis（压日度 whipsaw，见 _trend_label）
     r.trend = _trend_label(r.latest, r.ma20, r.ma60)
-    # 5.3 近期赢家(runner)判定：近 RUNNER_LOOKBACK 交易日内是否曾为"上升"(被纯持有)
-    ma20s = nav.rolling(MA_SHORT).mean()
-    ma60s = nav.rolling(MA_LONG).mean()
-    up_days = sum(
-        1 for i in range(max(0, n - RUNNER_LOOKBACK), n)
-        if _trend_label(nav.iloc[i], ma20s.iloc[i], ma60s.iloc[i]) == "上升"
-    )
-    r.was_runner = up_days >= RUNNER_MIN_DAYS
 
-    # 超卖否决：RSI<30 或 20日新低
-    r.veto = (r.rsi == r.rsi and r.rsi < 30) or (r.latest <= r.low20)
+    # 超卖否决：仅 RSI<RSI_OVERSOLD（A1：去掉"创新低"那条腿——它是下行动能、非超卖）
+    r.oversold = (r.rsi == r.rsi and r.rsi < RSI_OVERSOLD)
 
-    # ── 规则引擎（优先级）──
-    rule = 6
+    # ── 规则引擎（优先级）；深套用 dist_roll（统一滚动高，A6）──
     if r.trend == "上升":   # PM 2026-05-31: 全部上升趋势纯持有(让赢家跑), 不论距高
         rule = 1
-    elif r.trend == "下降" and r.dist_high60 <= -DEEP:
+    elif r.trend == "下降" and r.dist_roll <= -DEEP:
         rule = 2
     elif r.trend == "下降":
         rule = 3
@@ -289,37 +281,37 @@ def analyze(name, code, mv, pnl_pct, bucket) -> FundResult:
 
     r.rule = rule
     r.action = ACTION_TEXT[rule]
-    r.clip = CLIP[rule]
-
-    # 超卖否决：③⑤ 主动卖被挡；④ 仅"近期赢家(runner)"豁免（其无其它出场地板），
-    # 非赢家(慢性下跌)从震荡触发④、又在超卖中卖=砸底 → 同样受否决（5.3 修订）。
-    if r.veto and (rule in (3, 5) or (rule == 4 and not r.was_runner)):
-        r.clip = 0.0
-        r.action += "｜超卖否决(暂不执行,等非超卖日)"
+    # base + extra 分层：base 强制（非强势仓），extra 信号驱动且可被超卖否决
+    r.base = 0.0 if rule == 1 else MONTHLY_FLOOR
+    r.extra = EXTRA[rule]
+    if r.oversold and r.extra > 0:   # A1：超卖只挡 extra，不挡 base
+        r.extra = 0.0
+        r.action += "｜超卖否决额外(RSI<{}，仅走保底)".format(RSI_OVERSOLD)
+    r.clip = min(r.base + r.extra, 1.0)
     return r
 
 
 # ── 主流程 ───────────────────────────────────────────────────────
 def main():
     print("=" * 90)
-    print(f"基金技术面分批清仓信号  |  数据日 {DATA_DATE}  |  规则 v2")
+    print(f"基金技术面分批清仓信号  |  数据日 {DATA_DATE}  |  规则 v3(审计后)")
     print("=" * 90)
 
     regime = fetch_market_regime()
     print(f"市场 regime（仅提示, 不进决策）: {regime}\n")
 
     results = []
-    for name, code, mv, pnl, bucket in HOLDINGS:
+    for name, code, mv, pnl in HOLDINGS:
         print(f"  拉取 {code} {name} ...", end=" ")
         try:
-            r = analyze(name, code, mv, pnl, bucket)
+            r = analyze(name, code, mv, pnl)
             if r.ok:
-                print(f"OK n={r.n} {r.trend} -> 规则{r.rule}")
+                print(f"OK n={r.n} {r.trend} -> 规则{r.rule} clip={r.clip:.0%}")
             else:
                 print(f"失败跳过: {r.err}")
         except Exception as e:  # noqa: BLE001  最后兜底, 绝不中断
             traceback.print_exc()
-            r = FundResult(name=name, code=code, mv=mv, pnl_pct=pnl, bucket=bucket,
+            r = FundResult(name=name, code=code, mv=mv, pnl_pct=pnl,
                            ok=False, err=f"{type(e).__name__}: {e}")
             print(f"异常跳过: {r.err}")
         results.append(r)
@@ -341,10 +333,10 @@ def main():
             rows.append({
                 "基金名称": r.name, "代码": r.code, "市值": r.mv,
                 "建议动作": f"❌取数失败: {r.err}", "数据日": "", "最新净值": np.nan,
-                "MA20": np.nan, "MA60": np.nan, "近60高": np.nan, "滚动最高": np.nan,
-                "追踪带%": np.nan,
-                "距MA20%": np.nan, "距近高%": np.nan, "趋势": "", "RSI": np.nan,
-                "波动(年化)": np.nan, "建议卖出%": np.nan, "建议卖出¥": np.nan,
+                "MA20": np.nan, "MA60": np.nan, "滚动最高": np.nan, "追踪带%": np.nan,
+                "距MA20%": np.nan, "距滚动高%": np.nan, "趋势": "", "RSI": np.nan,
+                "波动(年化)": np.nan, "保底%": np.nan, "额外%": np.nan,
+                "建议卖出%": np.nan, "建议卖出¥": np.nan,
                 "vsTWAP%": np.nan, "费率": "见App核对", "锁定/备注": LOCKED.get(r.code, ""),
             })
             continue
@@ -354,11 +346,11 @@ def main():
             "建议动作": r.action, "数据日": r.latest_date, "最新净值": round(r.latest, 4),
             "MA20": round(r.ma20, 4) if r.ma20 == r.ma20 else np.nan,
             "MA60": round(r.ma60, 4) if r.ma60 == r.ma60 else np.nan,
-            "近60高": round(r.high60, 4), "滚动最高": round(r.roll_high, 4),
-            "追踪带%": r.trail,
-            "距MA20%": r.dist_ma20, "距近高%": r.dist_high60, "趋势": r.trend,
+            "滚动最高": round(r.roll_high, 4), "追踪带%": r.trail,
+            "距MA20%": r.dist_ma20, "距滚动高%": r.dist_roll, "趋势": r.trend,
             "RSI": round(r.rsi, 1) if r.rsi == r.rsi else np.nan,
-            "波动(年化)": r.ann_vol, "建议卖出%": r.clip,
+            "波动(年化)": r.ann_vol, "保底%": r.base, "额外%": r.extra,
+            "建议卖出%": r.clip,
             "建议卖出¥": round(r.mv * r.clip, 0), "vsTWAP%": dev,
             "费率": fetch_fee(r.code) if r.rule in (3, 4, 5) else "见App核对",
             "锁定/备注": (LOCKED.get(r.code, "") + (" 次新基样本不足" if r.short_hist else "")).strip(),
@@ -409,7 +401,7 @@ def write_excel(df, path, regime, floor_target, suggested_total, non_strong_mv):
         ws["A1"].font = Font(bold=True, size=12)
 
         # 百分比格式列
-        pct_cols = {"追踪带%", "距MA20%", "距近高%", "波动(年化)", "建议卖出%", "vsTWAP%"}
+        pct_cols = {"追踪带%", "距MA20%", "距滚动高%", "波动(年化)", "保底%", "额外%", "建议卖出%", "vsTWAP%"}
         money_cols = {"市值", "建议卖出¥"}
         headers = {c.value: c.column_letter for c in ws[5]}
         for col, letter in headers.items():
@@ -419,7 +411,7 @@ def write_excel(df, path, regime, floor_target, suggested_total, non_strong_mv):
             elif col in money_cols:
                 for cell in ws[letter][5:]:
                     cell.number_format = "#,##0"
-            elif col in {"最新净值", "MA20", "MA60", "近60高", "滚动最高"}:
+            elif col in {"最新净值", "MA20", "MA60", "滚动最高"}:
                 for cell in ws[letter][5:]:
                     cell.number_format = "0.0000"
         for cell in ws[5]:
@@ -455,19 +447,20 @@ def write_json(results, path, regime, floor_target, suggested_total, non_strong_
     for r in results:
         funds.append({
             "name": r.name, "code": r.code, "mv": _num(r.mv), "pnl_pct": _num(r.pnl_pct),
-            "bucket": r.bucket, "ok": r.ok, "err": r.err,
+            "ok": r.ok, "err": r.err,
             "latest": _num(r.latest), "latest_date": r.latest_date, "n": r.n,
             "short_hist": r.short_hist,
-            "ma20": _num(r.ma20), "ma60": _num(r.ma60), "high60": _num(r.high60),
+            "ma20": _num(r.ma20), "ma60": _num(r.ma60),
             "roll_high": _num(r.roll_high), "trail": _num(r.trail),
             "trail_trigger": _num(r.trail_trigger),
             "rsi": _num(r.rsi), "ann_vol": _num(r.ann_vol),
             "dist_ma20": _num(r.dist_ma20), "dist_ma60": _num(r.dist_ma60),
-            "dist_high60": _num(r.dist_high60),
+            "dist_roll": _num(r.dist_roll),
             "trend": r.trend, "rule": r.rule, "action": r.action,
+            "base": _num(r.base), "extra": _num(r.extra),
             "clip": _num(r.clip), "clip_amt": _num(r.mv * r.clip) if r.ok else None,
             "vs_twap": _num(r.clip - MONTHLY_FLOOR) if r.ok else None,
-            "veto": r.veto, "was_runner": r.was_runner,
+            "oversold": r.oversold,
             "locked": LOCKED.get(r.code, ""),
             "chart": f"charts/{r.code}_{r.name}.png" if r.ok else None,
         })
@@ -477,10 +470,10 @@ def write_json(results, path, regime, floor_target, suggested_total, non_strong_
         "data_date": DATA_DATE,
         "market_regime": regime,
         "disclaimer": "纪律工具，非投资建议；阈值先验非优化；费率/锁定/赎回以中信App为准。",
-        "params": {"DEEP": DEEP,
+        "params": {"DEEP": DEEP, "rsi_oversold": RSI_OVERSOLD,
                    "trail_formula": f"clip({TRAIL_Z}σ·√{TRAIL_HORIZON_D}d, {TRAIL_FLOOR}, {TRAIL_CAP})",
-                   "trend_band": TREND_BAND,
-                   "monthly_floor": MONTHLY_FLOOR, "deep_limit": DEEP_LIMIT,
+                   "trend_band": TREND_BAND, "monthly_floor": MONTHLY_FLOOR,
+                   "model": "clip = base(保底,强制) + extra(信号,可被RSI<{}否决)".format(RSI_OVERSOLD),
                    "strong_rule": "全部上升趋势(最新>MA20>MA60)纯持有"},
         "account": {
             "total_mv": _num(total_mv), "held_strong_mv": _num(strong_mv),
@@ -505,10 +498,9 @@ def plot_fund(r: FundResult, chart_dir: Path):
         ax.plot(dates, nav.rolling(MA_SHORT).mean(), label=f"MA{MA_SHORT}", color="#e08a00", lw=1.0)
     if r.n >= MA_LONG:
         ax.plot(dates, nav.rolling(MA_LONG).mean(), label=f"MA{MA_LONG}", color="#2e7d32", lw=1.0)
-    # 近60高点
-    tail60 = df.tail(min(HIGH60_WIN, len(df)))
-    hi_idx = tail60["nav"].idxmax()
-    ax.scatter(df.loc[hi_idx, "date"], df.loc[hi_idx, "nav"], color="red", zorder=5, s=30, label="近60高")
+    # 滚动高水位点（深套/追踪的统一参照，A6）
+    hi_idx = df["nav"].idxmax()
+    ax.scatter(df.loc[hi_idx, "date"], df.loc[hi_idx, "nav"], color="red", zorder=5, s=30, label="滚动高")
     # 追踪止盈触发位
     ax.axhline(r.trail_trigger, color="purple", ls="--", lw=1.0,
                label=f"追踪止盈触发 {r.trail_trigger:.4f} (滚动高-{r.trail*100:.1f}% σ缩放)")
@@ -530,26 +522,20 @@ def print_summary(ok, failed, regime, floor_target, suggested_total, non_strong_
 
     sell = [r for r in ok if r.clip > 0]
     hold_strong = by_rule.get(1, [])
-    deep = by_rule.get(2, [])
-    wait = [r for r in ok if r.clip == 0 and r.rule != 1]
 
     print(f"\n市场: {regime}")
-    print(f"保底时钟(仅非强势仓 ¥{non_strong_mv:,.0f}): 目标 ¥{floor_target:,.0f}/月, "
-          f"本期建议合计 ¥{suggested_total:,.0f} "
-          f"{'✅达标' if suggested_total >= floor_target else '⚠️低于保底'}")
+    print(f"保底 floor(仅非强势仓 ¥{non_strong_mv:,.0f}): ¥{floor_target:,.0f}/月(每只走 base 结构性达标), "
+          f"本期建议合计 ¥{suggested_total:,.0f}(base+extra)")
 
-    print(f"\n【可减仓 {len(sell)} 只】(卖出队列, 按建议比例降序)")
+    print(f"\n【建议卖出 {len(sell)} 只】(队列按 clip 降序; clip = 保底base + 信号extra)")
     for r in sorted(sell, key=lambda x: -x.clip):
-        print(f"  {r.code} {r.name:<18} {r.action.split('｜')[0]:<28} "
-              f"卖{r.clip:.0%} ≈¥{r.mv*r.clip:,.0f}  距近高{r.dist_high60:+.1%} RSI{r.rsi:.0f}")
+        print(f"  {r.code} {r.name:<18} {r.action.split('｜')[0]:<26} "
+              f"卖{r.clip:.0%}(保{r.base:.0%}+额{r.extra:.0%}) ≈¥{r.mv*r.clip:,.0f}  "
+              f"距滚高{r.dist_roll:+.1%} RSI{r.rsi:.0f}{' 超卖' if r.oversold else ''}")
 
-    print(f"\n【上升趋势·让利润奔跑 {len(hold_strong)} 只】(纯持有, 豁免保底时钟)")
+    print(f"\n【上升趋势·让利润奔跑 {len(hold_strong)} 只】(纯持有, 豁免 floor)")
     for r in hold_strong:
-        print(f"  {r.code} {r.name:<18} 距近高{r.dist_high60:+.1%} RSI{r.rsi:.0f}  (vs均匀清仓: 少卖10%)")
-
-    print(f"\n【等待 {len(wait)} 只】")
-    for r in wait:
-        print(f"  {r.code} {r.name:<18} {r.action.split('｜')[0]}")
+        print(f"  {r.code} {r.name:<18} 距滚高{r.dist_roll:+.1%} RSI{r.rsi:.0f}  (vs均匀: 少卖10%)")
 
     # 深套两只专项
     print("\n【深套专项】中欧医疗 003095 / 华夏兴阳 009010")
@@ -559,10 +545,10 @@ def print_summary(ok, failed, regime, floor_target, suggested_total, non_strong_
             print(f"  {code}: 取数失败, 见上方报告")
             continue
         note = LOCKED.get(code, "")
-        print(f"  {code} {r.name}: {r.trend} 距近高{r.dist_high60:+.1%} 距MA20{r.dist_ma20:+.1%} "
-              f"-> {r.action.split('｜')[0]}")
+        print(f"  {code} {r.name}: {r.trend} 距滚高{r.dist_roll:+.1%} 距MA20{r.dist_ma20:+.1%} "
+              f"-> {r.action.split('｜')[0]} (卖{r.clip:.0%})")
         if r.rule == 2:
-            print(f"      勿砍底; 反弹锚 MA20={r.ma20:.4f}/近20高; 硬时限{DEEP_LIMIT}到期走保底量")
+            print(f"      深套: 不加 extra, 仅 base {r.base:.0%}/月逐步出(取代旧硬时限钟)")
         if note:
             print(f"      {note}")
 
