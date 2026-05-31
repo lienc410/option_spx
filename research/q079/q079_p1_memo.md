@@ -79,6 +79,46 @@ If those 38 edge-cell days had been routed to a long-debit LOW_VOL strategy (BCD
 
 **~10 boundary crossings per year inside the 14-16 buffer band.** Any boundary-softening rule (e.g., hysteresis, buffer band, regime sticky) would have to handle ~10 flips/year — non-trivial state machine. Compared to 1.4 edge-cell triggers/year, the **chatter ratio is 7:1 (10 crossings : 1.4 actionable triggers)** — would-be softening rule would be triggered by chatter far more often than by actual decisions.
 
+## D. VIX sub-bucket gradient within primary cell (PM follow-up 2026-05-29 → P1c)
+
+**PM question** (2026-05-29): Within VIX [15, 16), does VIX position matter? E.g., VIX 15.3 vs 15.5 vs 15.8 vs 16 — do forward returns differ?
+
+**Script**: `research/q079/q079_p1c_vix_subbucket.py`
+
+**Per-sub-bucket (38 primary trigger days split)**:
+
+| VIX sub-bucket | n | VIX mean | SPX +30d | SPX +60d | SPX +90d |
+|---|---|---|---|---|---|
+| **[15.0, 15.3)** | 10 | 15.14 | **+2.96%** | **+7.00%** | **+9.64%** |
+| [15.3, 15.5)     |  5 | 15.41 | +3.69%    | +5.77%    | +6.98%    |
+| [15.5, 15.8)     | 14 | 15.68 | +2.88%    | +5.02%    | +7.00%    |
+| **[15.8, 16.0)** |  9 | 15.90 | **+1.50%** | +4.00%    | +8.52%    |
+
+**Gradient correlation**:
+
+```
+corr(VIX, SPX +30d) = −0.172
+corr(VIX, SPX +60d) = −0.309   ← strongest
+corr(VIX, SPX +90d) = −0.146
+```
+
+**Interpretation**:
+- **Direction agrees with PM intuition**: VIX closer to 15 (LOW_VOL boundary) → forward SPX return higher. SPX +30d roughly halves (2.96% → 1.50%) from VIX 15.1 to VIX 15.9. PM's mental model "boundary 附近应该按 LOW_VOL 路由更好" is **directionally supported**.
+- **But statistically not significant**: best r² is 0.09 (60d), sample sizes 5-14 per sub-bucket, pooled SE ~1.4pp vs observed extreme-bucket gap 1.46pp → t ≈ 1.0 → not significant.
+- Within-bucket forward-return std (5-7%) dwarfs cross-bucket mean differences.
+
+**Impact on Q079 verdict** — strengthens DROP:
+
+| Scope | Trigger freq/yr | Counterfactual annualized ROE contribution |
+|---|---|---|
+| All [15, 16) cell (P1 primary) | 1.4 | sub-noise |
+| **Boundary-only [15.0, 15.3) cell** | **0.4** | even more sub-noise |
+| [15.0, 15.5) cell | 0.57 | sub-noise |
+
+Even if the SPEC were narrowed to only route the most boundary-proximate sub-bucket [15.0, 15.3) to LOW_VOL, frequency drops to 0.4/yr — **further below** the 5/yr threshold. Per-trigger ROI doesn't make up for it.
+
+**Conclusion (P1c)**: PM intuition direction-correct but magnitude not material. The negative VIX-vs-forward-return correlation within cell does NOT change the DROP verdict. If sample doubles in the future and gradient strengthens (e.g., r² > 0.25), Q079 could be reopened narrowly on the [15.0, 15.3) sub-bucket alone.
+
 ## Cross-checks
 
 1. **2025-2026 concentration**: 11 + 4 = 15 days = 39% of all 38 historical triggers. Reflects the recent low-vol VIX regime sitting around 14-16. Not new (2004 also had 8 days), but worth noting as a regime feature.
@@ -149,11 +189,16 @@ Per QUANT_RESEARCHER.md research output format:
 ## Files
 
 ```
-research/q079/q079_framing_memo_2026-05-29.md   ← framing
-research/q079/q079_p1_boundary_frequency.py      ← script
-research/q079/q079_p1_cells.csv                  ← per-day cell tags (38 primary triggers)
-research/q079/q079_p1_annual.csv                 ← per-year aggregation
-research/q079/q079_p1_memo.md                    ← this file
+research/q079/q079_framing_memo_2026-05-29.md     ← framing
+research/q079/q079_p1_boundary_frequency.py        ← P1 main script
+research/q079/q079_p1_cells.csv                    ← per-day cell tags (38 primary triggers)
+research/q079/q079_p1_annual.csv                   ← per-year aggregation
+research/q079/q079_p1_annual_breakdown.py          ← annual + 2026 deep-dive
+research/q079/q079_p1_annual_full.csv              ← per-year extended stats
+research/q079/q079_p1_2026_dates.csv               ← 2026 specific trigger dates
+research/q079/q079_p1c_vix_subbucket.py            ← P1c sub-bucket gradient (PM follow-up 2026-05-29)
+research/q079/q079_p1c_subbucket.csv               ← per-sub-bucket forward returns
+research/q079/q079_p1_memo.md                      ← this file (incl. §D sub-bucket addendum)
 ```
 
 ---

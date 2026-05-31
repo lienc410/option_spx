@@ -21,7 +21,7 @@ from pathlib import Path
 
 from zoneinfo import ZoneInfo
 
-from flask import Flask, Response, jsonify, redirect, render_template
+from flask import Flask, Response, abort, jsonify, redirect, render_template, send_from_directory
 from flask import request as flask_req
 
 _ET = ZoneInfo("America/New_York")
@@ -285,6 +285,38 @@ def matrix_page():
 @app.route("/margin")
 def margin_page():
     return render_template("margin.html")
+
+
+# ── Fund Exit (temporary, remove with fund_exit/ when fully exited) ──────────
+_FUND_DIR = Path(__file__).resolve().parent.parent / "fund_exit"
+
+
+@app.route("/funds")
+def funds_page():
+    return render_template("funds.html")
+
+
+@app.route("/api/fund-exit/signals")
+def fund_exit_signals():
+    f = _FUND_DIR / "fund_signals.json"
+    if not f.exists():
+        return jsonify({"available": False,
+                        "message": "信号未生成，请先运行 fund_exit/fund_exit_signals.py"}), 200
+    with open(f, encoding="utf-8") as fh:
+        data = json.load(fh)
+    data["available"] = True
+    return jsonify(data)
+
+
+@app.route("/api/fund-exit/chart/<code>")
+def fund_exit_chart(code):
+    charts = _FUND_DIR / "charts"
+    if not charts.exists():
+        abort(404)
+    match = next((p for p in charts.glob(f"{code}_*.png")), None)
+    if not match:
+        abort(404)
+    return send_from_directory(str(charts), match.name)
 
 
 @app.route("/performance")
