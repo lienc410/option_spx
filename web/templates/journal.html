@@ -323,6 +323,8 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
       <div class="btn-group" id="nlv-window-group">
         <button class="ctrl-btn"        data-win="30">30d</button>
         <button class="ctrl-btn active" data-win="90">90d</button>
+        <button class="ctrl-btn"        data-win="365">1Y</button>
+        <button class="ctrl-btn"        data-win="730">2Y</button>
         <button class="ctrl-btn"        data-win="all">All</button>
       </div>
     </div>
@@ -451,6 +453,8 @@ function fmtNum(n, dec) { return typeof n === 'number' ? n.toFixed(dec ?? 1) : '
 let _records = [];
 let _nlvWindow = 90;
 let _charts = {};
+// SPEC-110: monthly NLV records for 1Y/2Y extended window blending
+let _monthlyRecords = null;
 let _accountView = (typeof localStorage !== 'undefined' && localStorage.getItem('journal_account_view')) || 'all';
 let _bpUnit = (typeof localStorage !== 'undefined' && localStorage.getItem('journal_bp_unit')) || 'dollars';
 
@@ -511,9 +515,16 @@ function setAccountView(v) {
 // ── Load ─────────────────────────────────────────────────────────────────────
 async function loadJournal() {
   try {
-    const res = await fetch('/api/portfolio/daily-history?days=all');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const d = await res.json();
+    // SPEC-110: fetch both daily and monthly NLV data in parallel
+    const [res, mRes] = await Promise.allSettled([
+      fetch('/api/portfolio/daily-history?days=all'),
+      fetch('/api/etrade/monthly-nlv?months=all'),
+    ]);
+    if (mRes.status === 'fulfilled' && mRes.value.ok) {
+      try { const md = await mRes.value.json(); _monthlyRecords = md.records || []; } catch(_) {}
+    }
+    if (res.status !== 'fulfilled' || !res.value.ok) throw new Error('HTTP ' + (res.value?.status || 'err'));
+    const d = await res.value.json();
     if (d.status === 'no_history' || !d.records || d.records.length === 0) {
       _showEmpty();
       return;
@@ -616,13 +627,37 @@ function _renderLatest() {
 }
 
 function _windowSlice() {
-  // Charts: trading days only (skips Sat/Sun + US market holidays so the
-  // NLV/BP lines compare apples-to-apples across closures).
   const tradingOnly = _tradingRecords();
-  if (_nlvWindow === 'all') return tradingOnly;
-  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - _nlvWindow);
-  const cutStr = cutoff.toISOString().slice(0, 10);
-  return tradingOnly.filter(r => (r.date || '') >= cutStr);
+  let cutStr = null;
+  if (_nlvWindow !== 'all') {
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - _nlvWindow);
+    cutStr = cutoff.toISOString().slice(0, 10);
+  }
+  const daily = cutStr ? tradingOnly.filter(r => (r.date || '') >= cutStr) : tradingOnly;
+
+  // SPEC-110: for 1Y/2Y/all windows, prepend monthly records for the pre-daily period
+  // Monthly records are synthetic placeholders tagged with _fromMonthly=true
+  const firstDailyDate = daily.length > 0 ? daily[0].date : null;
+  if (_monthlyRecords && _monthlyRecords.length > 0 && _nlvWindow !== 90 && _nlvWindow !== 30) {
+    const monthly = _monthlyRecords.filter(m => {
+      const d = m.month_end_date;
+      if (!d) return false;
+      if (cutStr && d < cutStr) return false;
+      if (firstDailyDate && d >= firstDailyDate) return false; // daily data covers this
+      return true;
+    });
+    if (monthly.length > 0 && _accountView === 'etrade') {
+      const syntheticMonthly = monthly.map(m => ({
+        date: m.month_end_date,
+        _fromMonthly: true,
+        _monthlySource: m.source,
+        combined_nlv: m.nlv,
+        accounts: { etrade: { nlv: m.nlv, maint: m.maintenance_margin }, schwab: { nlv: null } },
+      }));
+      return [...syntheticMonthly, ...daily];
+    }
+  }
+  return daily;
 }
 
 function _renderNlvChart() {
@@ -640,6 +675,8 @@ function _renderNlvChart() {
   const values = [];
   const synthetic = [];
   const fillSource = [];  // {schwab_from?, etrade_from?} per partial row, for tooltip
+  // SPEC-110: track which points are from monthly import (for shaded background)
+  const fromMonthly = [];
 
   for (const r of rows) {
     const s = r.accounts?.schwab?.nlv ?? null;
@@ -669,6 +706,7 @@ function _renderNlvChart() {
     values.push(v);
     synthetic.push(isSynth);
     fillSource.push(src);
+    fromMonthly.push(!!r._fromMonthly);
   }
 
   // Partial-data banner removed per PM (2026-05-28); dashed segments speak
@@ -691,9 +729,30 @@ function _renderNlvChart() {
       ? 'var(--theme-lit-035)'   // dimmer gold for synthetic segments
       : 'var(--theme-lit-049)';
 
-  const ctx = document.getElementById('nlv-chart').getContext('2d');
+  // SPEC-110: plugin to shade the monthly-import portion of the chart
+  const monthlyImportBandPlugin = {
+    id: 'monthlyImportBandPlugin',
+    beforeDatasetsDraw(chart) {
+      if (!fromMonthly.some(Boolean)) return;
+      const { ctx: c2, chartArea, scales } = chart;
+      if (!chartArea || !scales.x) return;
+      c2.save();
+      c2.fillStyle = 'rgba(139,92,246,0.07)'; // --theme-purple tint
+      fromMonthly.forEach((flag, i) => {
+        if (!flag) return;
+        const cx = scales.x.getPixelForValue(i);
+        const prev = i > 0 ? scales.x.getPixelForValue(i - 1) : cx;
+        const next = i < fromMonthly.length - 1 ? scales.x.getPixelForValue(i + 1) : cx;
+        const half = Math.max(3, Math.min(22, Math.abs(next - prev) / 2));
+        c2.fillRect(cx - half, chartArea.top, half * 2, chartArea.bottom - chartArea.top);
+      });
+      c2.restore();
+    },
+  };
+
+  const nlvCtx = document.getElementById('nlv-chart').getContext('2d');
   if (_charts.nlv) _charts.nlv.destroy();
-  _charts.nlv = new Chart(ctx, {
+  _charts.nlv = new Chart(nlvCtx, {
     type: 'line',
     data: {
       labels,
@@ -711,13 +770,14 @@ function _renderNlvChart() {
         pointHoverRadius:      4,
         tension: 0.1,
         fill: true,
-        spanGaps: true,        // forward-fill produces continuous values; segment API does dash styling
+        spanGaps: true,
         segment: {
           borderColor: colorIfTouchesSynthetic,
           borderDash:  dashIfTouchesSynthetic,
         },
       }],
     },
+    plugins: [monthlyImportBandPlugin],
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
@@ -729,6 +789,9 @@ function _renderNlvChart() {
               const i = c.dataIndex;
               if (c.parsed.y == null || Number.isNaN(c.parsed.y)) {
                 return `  ${_acctLabel()} NLV: unavailable`;
+              }
+              if (fromMonthly[i]) {
+                return `  ${_acctLabel()} NLV: ${fmt$(c.parsed.y)}  (monthly statement)`;
               }
               if (synthetic[i]) {
                 const src = fillSource[i] || {};

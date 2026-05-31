@@ -1599,6 +1599,74 @@ def api_etrade_exchange_verifier():
         return jsonify({"ok": False, "error": str(exc)}), 500
 
 
+@app.route("/api/etrade/monthly-nlv")
+def api_etrade_monthly_nlv():
+    """SPEC-110: Return E*Trade monthly NLV records from data/etrade_monthly_nlv.jsonl.
+
+    Query params:
+      months: N (int, default 24) or 'all' — how many months to return
+    Response: {records: [...], count: N, audit_warnings: [...], sources: {manual_import: N, ...}}
+    """
+    from datetime import date as _date, timedelta as _td
+    monthly_path = Path(__file__).parent.parent / "data" / "etrade_monthly_nlv.jsonl"
+
+    records: list[dict] = []
+    if monthly_path.exists():
+        try:
+            for line in monthly_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    records.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+        except Exception as exc:
+            return jsonify({"status": "error", "error": str(exc), "records": [], "count": 0})
+
+    records.sort(key=lambda r: r.get("month_end_date") or "")
+
+    months_arg = flask_req.args.get("months", "24")
+    if months_arg != "all":
+        try:
+            n_months = int(months_arg)
+            cutoff = (_date.today() - _td(days=n_months * 31)).isoformat()
+            records = [r for r in records if (r.get("month_end_date") or "") >= cutoff]
+        except ValueError:
+            pass
+
+    # Source breakdown
+    sources: dict[str, int] = {}
+    for r in records:
+        src = str(r.get("source") or "unknown")
+        sources[src] = sources.get(src, 0) + 1
+
+    # Audit warnings: flag records with large discrepancies (placeholder; T3 populates month_pnl)
+    audit_warnings: list[dict] = []
+    for i in range(1, len(records)):
+        prev_nlv = records[i - 1].get("nlv")
+        curr_nlv = records[i].get("nlv")
+        curr_pnl = records[i].get("month_pnl")
+        if prev_nlv is not None and curr_nlv is not None and curr_pnl is not None:
+            delta = float(curr_nlv) - float(prev_nlv)
+            if abs(delta - float(curr_pnl)) > 1000.0:
+                audit_warnings.append({
+                    "month_end_date": records[i].get("month_end_date"),
+                    "nlv_delta": round(delta, 2),
+                    "month_pnl": curr_pnl,
+                    "discrepancy": round(abs(delta - float(curr_pnl)), 2),
+                })
+
+    return jsonify({
+        "status": "ok",
+        "records": records,
+        "count": len(records),
+        "sources": sources,
+        "audit_warnings": audit_warnings,
+        "audit_warning_count": len(audit_warnings),
+    })
+
+
 @app.route("/etrade/auth")
 def api_etrade_auth():
     from etrade.auth import get_access_token, request_token

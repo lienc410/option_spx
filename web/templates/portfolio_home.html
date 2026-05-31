@@ -913,6 +913,49 @@ body {
 .monitor-badge.s-ins { background: var(--gray-bg);   border-color: var(--gray-border);   color: var(--text-2); }
 .monitor-badge.s-warn { background: var(--orange-bg); border-color: var(--orange-border); color: var(--orange); }
 
+/* ── SPEC-110: E*Trade 12M NLV widget ── */
+.et-nlv-widget {
+  margin-top: 10px; padding: 9px 10px; border-radius: 7px;
+  background: rgba(139,92,246,0.06); border: 1px solid rgba(139,92,246,0.18);
+  cursor: pointer;
+}
+.et-nlv-widget:hover { background: rgba(139,92,246,0.10); }
+.et-nlv-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+.et-nlv-title { font-family: var(--f-ui); font-size: 0.52rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-2); }
+.et-nlv-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+.et-nlv-chip {
+  font-family: var(--f-mono); font-size: 0.53rem;
+  padding: 1px 6px; border-radius: 4px;
+  border: 1px solid rgba(139,92,246,0.3); color: var(--theme-purple); background: rgba(139,92,246,0.08);
+}
+.et-nlv-chip.positive { color: var(--green); border-color: var(--green-border); background: var(--green-bg); }
+.et-nlv-chip.negative { color: var(--red);   border-color: var(--red-border);   background: var(--red-bg); }
+.et-nlv-chip.warn     { color: var(--orange); border-color: var(--orange-border); background: var(--orange-bg); }
+.et-nlv-source-note { font-family: var(--f-ui); font-size: 0.50rem; color: var(--text-2); margin-top: 4px; }
+/* ── E*Trade monthly NLV modal ── */
+#et-monthly-modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(10,12,20,0.75); z-index: 10000;
+  align-items: center; justify-content: center;
+}
+#et-monthly-modal-overlay.open { display: flex; }
+.et-monthly-modal {
+  background: var(--surface); border: 1px solid var(--border-2); border-radius: 10px;
+  padding: 22px 24px; max-width: 640px; width: 92%;
+  max-height: 80vh; overflow-y: auto;
+  font-family: var(--f-ui);
+}
+.et-monthly-modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.et-monthly-modal-title { font-size: 0.70rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text); }
+.et-monthly-modal-close { background: none; border: none; color: var(--text-2); font-size: 1.1rem; cursor: pointer; line-height: 1; }
+.et-monthly-table { width: 100%; border-collapse: collapse; font-size: 0.66rem; }
+.et-monthly-table th { font-family: var(--f-ui); font-size: 0.52rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-2); padding: 4px 8px; text-align: left; border-bottom: 1px solid var(--border); }
+.et-monthly-table td { font-family: var(--f-mono); font-size: 0.65rem; color: var(--text); padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.et-monthly-table tr:last-child td { border-bottom: none; }
+.et-src-badge { font-family: var(--f-ui); font-size: 0.48rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 1px 5px; border-radius: 3px; }
+.et-src-badge.manual  { color: var(--theme-purple); background: rgba(139,92,246,0.10); border: 1px solid rgba(139,92,246,0.25); }
+.et-src-badge.eom     { color: var(--text-2);       background: var(--surface-hi);      border: 1px solid var(--border); }
+
 /* ── Re-auth banners (Schwab red, E-Trade orange) ── */
 .reauth-banner {
   display: none; align-items: center; justify-content: space-between;
@@ -1245,6 +1288,113 @@ function toggleSettling() {
 }
 function fmtDollars(n) { return typeof n === 'number' ? '$' + Math.round(n).toLocaleString() : '—'; }
 function fmtNum(n, dec) { return typeof n === 'number' ? n.toFixed(dec ?? 0) : '—'; }
+
+// ── SPEC-110: E*Trade monthly NLV widget ────────────────────────────────────
+let _etMonthlyData = null;
+let _etMonthlyFetched = false;
+
+async function _fetchEtMonthlyNlv() {
+  if (_etMonthlyFetched) return;
+  _etMonthlyFetched = true;
+  try {
+    const res = await fetch('/api/etrade/monthly-nlv?months=24');
+    if (res.ok) _etMonthlyData = await res.json();
+  } catch (e) { /* fail soft */ }
+}
+
+function _sparklineSvg(values, w=120, h=28) {
+  if (!values || values.length < 2) return '';
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = max - min || 1;
+  const pts = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * w;
+    const y = h - ((v - min) / range) * h * 0.9 - h * 0.05;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  return `<svg width="${w}" height="${h}" style="overflow:visible;display:block"><polyline points="${pts}" fill="none" stroke="var(--theme-purple)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+}
+
+function _buildEtNlvWidget() {
+  const d = _etMonthlyData;
+  if (!d || !d.records || d.records.length === 0) {
+    return `<div class="et-nlv-widget" onclick="openEtMonthlyModal()" title="Click for E*Trade monthly NLV history">
+      <div class="et-nlv-head">
+        <span class="et-nlv-title">12M NLV Trend</span>
+        <span class="et-nlv-chips"><span class="et-nlv-chip">no data yet</span></span>
+      </div>
+      <div class="et-nlv-source-note">Import statements: <code>scripts/etrade_import_monthly_statements.py</code></div>
+    </div>`;
+  }
+  const recs = d.records;
+  const nlvs = recs.map(r => r.nlv).filter(v => v != null);
+  const now = new Date();
+  const ytdStart = recs.find(r => r.month_end_date >= `${now.getFullYear()}-01`);
+  const yr1Start = recs.find(r => r.month_end_date >= new Date(now - 365*86400000).toISOString().slice(0,7));
+  const last = recs[recs.length - 1];
+  function pctChip(label, fromRec) {
+    if (!fromRec || !last) return '';
+    const chg = (last.nlv - fromRec.nlv) / fromRec.nlv * 100;
+    const cls = chg >= 0 ? 'positive' : 'negative';
+    const sign = chg >= 0 ? '+' : '';
+    return `<span class="et-nlv-chip ${cls}">${label} ${sign}${chg.toFixed(1)}%</span>`;
+  }
+  const manualCount = d.sources && d.sources.manual_import ? d.sources.manual_import : 0;
+  const totalCount = d.count || 0;
+  const srcNote = totalCount > 0
+    ? `${manualCount} manual · ${totalCount - manualCount} auto`
+    : '';
+  const warnChip = d.audit_warning_count > 0
+    ? `<span class="et-nlv-chip warn">audit: ${d.audit_warning_count} ⚠</span>`
+    : '';
+  return `<div class="et-nlv-widget" onclick="openEtMonthlyModal()" title="Click to see full monthly NLV history">
+    <div class="et-nlv-head">
+      <span class="et-nlv-title">12M NLV Trend</span>
+      <span class="et-nlv-chips">
+        ${pctChip('YTD', ytdStart)}
+        ${pctChip('12M', yr1Start)}
+        ${warnChip}
+      </span>
+    </div>
+    ${_sparklineSvg(nlvs.slice(-12))}
+    ${srcNote ? `<div class="et-nlv-source-note">Source: ${srcNote}</div>` : ''}
+  </div>`;
+}
+
+function openEtMonthlyModal() {
+  const overlay = document.getElementById('et-monthly-modal-overlay');
+  const body = document.getElementById('et-monthly-modal-body');
+  if (!overlay || !body) return;
+  const d = _etMonthlyData;
+  if (!d || !d.records || d.records.length === 0) {
+    body.innerHTML = '<div style="color:var(--text-2);font-size:0.68rem">No monthly NLV data yet. Run the T1 importer to load historical statements.</div>';
+  } else {
+    const rows = [...d.records].reverse();
+    const trs = rows.map(r => {
+      const srcCls = r.source === 'manual_import' ? 'manual' : 'eom';
+      const srcLabel = r.source === 'manual_import' ? 'statement' : r.source === 'daily_snapshot_eom' ? 'auto-eom' : r.source || '—';
+      const nlv = r.nlv != null ? `$${Math.round(r.nlv).toLocaleString()}` : '—';
+      const maint = r.maintenance_margin != null ? `$${Math.round(r.maintenance_margin).toLocaleString()}` : '—';
+      const pnl = r.month_pnl != null ? (r.month_pnl >= 0 ? '+' : '') + `$${Math.round(r.month_pnl).toLocaleString()}` : '—';
+      return `<tr>
+        <td>${r.month_end_date || '—'}</td>
+        <td style="text-align:right">${nlv}</td>
+        <td style="text-align:right">${maint}</td>
+        <td style="text-align:right">${pnl}</td>
+        <td><span class="et-src-badge ${srcCls}">${srcLabel}</span></td>
+      </tr>`;
+    }).join('');
+    body.innerHTML = `<table class="et-monthly-table">
+      <thead><tr><th>Month End</th><th>NLV</th><th>Maint</th><th>Mth P&L</th><th>Source</th></tr></thead>
+      <tbody>${trs}</tbody>
+    </table>`;
+  }
+  overlay.classList.add('open');
+}
+
+function closeEtMonthlyModal() {
+  const overlay = document.getElementById('et-monthly-modal-overlay');
+  if (overlay) overlay.classList.remove('open');
+}
 function fmtPrice(n) {
   return typeof n === 'number'
     ? n.toLocaleString('en-US', { maximumFractionDigits: 0 })
@@ -2134,13 +2284,15 @@ function _renderMarginAllocation(data) {
       : '';
     bucketRows = spxBpRow + eqBpRow;
     // Rail card: account anchor only (NLV + Maint total). Breakdowns are in bucket rows.
+    const nlvWidget = _buildEtNlvWidget();
     railCards = etradeNlv > 0
       ? `<div class="account-rail-card">
           <div class="account-rail-title">E-Trade</div>
           <div class="account-rail-line"><span>NLV</span><span>${fmtDollars(accounts.etrade_nlv)}</span></div>
           <div class="account-rail-line"><span>Maint</span><span>${fmtDollars(accounts.etrade_maintenance_margin)}</span></div>
+          ${nlvWidget}
         </div>`
-      : `<div class="account-rail-card"><div class="account-rail-unavail">E-Trade temporarily unavailable</div></div>`;
+      : `<div class="account-rail-card"><div class="account-rail-unavail">E-Trade temporarily unavailable</div>${nlvWidget}</div>`;
 
   } else {
     // All — merge by asset type: Options (SPX + E-Trade options) + Equity (Schwab + E-Trade equity)
@@ -3324,6 +3476,8 @@ async function loadIntradayGov() {
 
 (async () => {
   _initDefaultView();
+  // SPEC-110: pre-fetch E*Trade monthly NLV so widget renders immediately on snapshot load
+  _fetchEtMonthlyNlv();
   await Promise.allSettled([loadSpx(), loadSettling(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadSchwabAuthBanner(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition(), loadIntradayGov()]);
   const ts = document.getElementById('sync-ts');
   if (ts) ts.textContent = 'loaded ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
@@ -3379,6 +3533,17 @@ function hidePosGreekHelp() {
       </div>
     </div>
     <div style="margin-top:16px;font-size:0.63rem;color:var(--text-2)">所有数值 = 单张合约 Greek × 全部张数 × 乘数（100）。基于 Schwab 实时期权链报价。</div>
+  </div>
+</div>
+
+<!-- SPEC-110: E*Trade monthly NLV modal -->
+<div id="et-monthly-modal-overlay" onclick="if(event.target===this)closeEtMonthlyModal()">
+  <div class="et-monthly-modal">
+    <div class="et-monthly-modal-head">
+      <span class="et-monthly-modal-title">E*Trade Monthly NLV History</span>
+      <button class="et-monthly-modal-close" onclick="closeEtMonthlyModal()">×</button>
+    </div>
+    <div id="et-monthly-modal-body"></div>
   </div>
 </div>
 </body>

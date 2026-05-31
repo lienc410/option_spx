@@ -477,3 +477,171 @@ def get_account_positions(account_id: str | None = None) -> dict:
         else:
             record_token_issue("positions_failed")
         return _fail_soft_positions()
+
+
+# ── SPEC-110 T3 transaction helpers ────────────────────────────────────────────
+
+# E*Trade transaction type → 5-bucket classification
+_TX_BUCKET: dict[str, str] = {
+    # Cash inflows
+    "ATNM": "cash_flow_in",
+    "BAL": "cash_flow_in",
+    "CONT": "cash_flow_in",
+    "DPO": "cash_flow_in",
+    "FRMBNK": "cash_flow_in",
+    "FRCES": "cash_flow_in",
+    "FRTBK": "cash_flow_in",
+    "PTC": "cash_flow_in",
+    "MR": "cash_flow_in",
+    # Cash outflows
+    "PTD": "cash_flow_out",
+    "TOBNK": "cash_flow_out",
+    "TOCES": "cash_flow_out",
+    "TOTBK": "cash_flow_out",
+    "WITHDRW": "cash_flow_out",
+    # Realized trade P&L (net of buy cost + sell proceeds)
+    "BUY": "realized_trade_pnl",
+    "SELL": "realized_trade_pnl",
+    "COMP": "realized_trade_pnl",
+    "CONV": "realized_trade_pnl",
+    "ESPP": "realized_trade_pnl",
+    "SWAP": "realized_trade_pnl",
+    # Fees / interest / margin charges (typically negative)
+    "INR": "fees",
+    "INT": "fees",
+    "JRNLM": "fees",
+    "JRNL": "fees",
+    # Dividends / reinvestment
+    "CSD": "dividends",
+    "DIV": "dividends",
+    "MMF": "dividends",
+    "REINV": "dividends",
+    "SDRSP": "dividends",
+}
+
+_EMPTY_MONTH: dict[str, float] = {
+    "cash_flow_in": 0.0,
+    "cash_flow_out": 0.0,
+    "realized_trade_pnl": 0.0,
+    "fees": 0.0,
+    "dividends": 0.0,
+}
+
+
+def _normalize_transaction(raw: Any) -> dict | None:
+    """Normalize one PyEtrade transaction dict."""
+    if not isinstance(raw, dict):
+        return None
+    tx_type = str(raw.get("transactionType") or raw.get("type") or "").upper()
+    amount = _num(raw.get("amount") or raw.get("netAmount"))
+    date_str = str(raw.get("transactionDate") or raw.get("date") or "")[:10]
+    if not date_str:
+        return None
+    return {
+        "date": date_str,
+        "type": tx_type,
+        "amount": amount or 0.0,
+        "description": str(raw.get("description") or raw.get("desc") or ""),
+        "bucket": _TX_BUCKET.get(tx_type, "other"),
+    }
+
+
+def list_transactions_for_period(
+    start_date: str,
+    end_date: str,
+    account_id: str | None = None,
+) -> list[dict]:
+    """SPEC-110 T3: page through PyEtrade list_transactions; return normalized list.
+
+    Uses 50-per-page paging. PyEtrade supports up to 2 years of history.
+    On token invalid / API failure: returns empty list (fail-soft).
+    """
+    if not is_token_valid():
+        log.warning("etrade.client: list_transactions_for_period — token invalid, returning empty")
+        return []
+    try:
+        client = _accounts_client()
+        acct = _resolve_account_id(client, account_id)
+        if not acct:
+            log.warning("etrade.client: list_transactions_for_period — account_id unavailable")
+            return []
+
+        all_txs: list[dict] = []
+        marker = None
+        max_pages = 40  # safety cap against paging loops
+
+        for _ in range(max_pages):
+            kwargs: dict = {
+                "account_id_key": acct,
+                "start_date": start_date,
+                "end_date": end_date,
+                "sort_order": "ASC",
+                "count": 50,
+            }
+            if marker:
+                kwargs["marker"] = marker
+
+            payload = client.list_transactions(**kwargs)
+            response = _dig(payload, "TransactionListResponse") or payload
+
+            tx_list = response.get("Transaction") or response.get("transaction") or []
+            if not isinstance(tx_list, list):
+                tx_list = [tx_list] if tx_list else []
+
+            for raw in tx_list:
+                normed = _normalize_transaction(raw)
+                if normed:
+                    all_txs.append(normed)
+
+            # Paging marker
+            marker = response.get("marker") or response.get("Marker")
+            if not marker or not tx_list:
+                break
+
+        return all_txs
+    except Exception as exc:
+        log.warning("etrade.client: list_transactions_for_period failed", exc_info=True)
+        return []
+
+
+def derive_monthly_pnl_from_transactions(
+    start_date: str,
+    end_date: str,
+    account_id: str | None = None,
+) -> dict[str, dict]:
+    """SPEC-110 T3: group transactions by month; classify into 5 buckets.
+
+    Returns: {YYYY-MM: {cash_flow_in, cash_flow_out, realized_trade_pnl,
+                        fees, dividends, net_change}}
+
+    NOT a source-of-truth for NLV — used as audit cross-check only.
+    """
+    txs = list_transactions_for_period(start_date, end_date, account_id)
+
+    by_month: dict[str, dict[str, float]] = {}
+    for tx in txs:
+        ym = str(tx.get("date") or "")[:7]  # YYYY-MM
+        if not ym:
+            continue
+        if ym not in by_month:
+            by_month[ym] = dict(_EMPTY_MONTH)
+        bucket = tx.get("bucket", "other")
+        amount = float(tx.get("amount") or 0.0)
+        if bucket in by_month[ym]:
+            by_month[ym][bucket] += amount
+
+    # Compute net_change per month
+    for ym, m in by_month.items():
+        m["net_change"] = round(
+            m["cash_flow_in"]
+            + m["cash_flow_out"]  # typically negative
+            + m["realized_trade_pnl"]
+            + m["fees"]
+            + m["dividends"],
+            2,
+        )
+        for k in list(m.keys()):
+            if k != "net_change":
+                m[k] = round(m[k], 2)
+
+    return by_month
