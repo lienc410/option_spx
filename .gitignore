@@ -20,3 +20,6 @@ data/*.jsonl
 
 # SPEC-106 — runtime audit output; regenerate via scripts/matrix_consistency_audit.py
 data/matrix_consistency_audit_*.csv
+
+# fund_exit 隔离 venv
+.venv_fund/
