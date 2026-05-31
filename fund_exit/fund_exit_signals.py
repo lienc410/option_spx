@@ -14,7 +14,8 @@
 
 强势区纯持有(PM 风险偏好)：保底时钟只覆盖"非强势"仓。
 超卖否决(RSI<30 或 20日新低)只挡 ③⑤，不挡 ④。
-TRAIL 两档：高波 10% / 低波 6%。STRONG=3% / DEEP=15%。
+TRAIL 连续随波动缩放(σ-scaled, ~1σ 6周移动, clip 5-14%)。STRONG=3% / DEEP=15%。
+趋势 band-hysteresis(±1%) 压日度 whipsaw。
 """
 from __future__ import annotations
 
@@ -52,7 +53,15 @@ DATA_DATE = "2026-05-31"
 # ── 参数（PM 2026-05-31 敲定）─────────────────────────────────────
 STRONG = 0.03          # (PM 2026-05-31: 强势区放宽为"全部上升趋势"持有, STRONG 不再用于持有判定, 保留供参考)
 DEEP = 0.15            # 深套界
-TRAIL = {"high": 0.10, "low": 0.06}   # 追踪止盈两档
+# 5.4 追踪止盈带：连续随基金自身波动缩放（取代旧两档先验 {high:0.10,low:0.06}）。
+# trail = clip(TRAIL_Z · σ_日 · √TRAIL_HORIZON_D, FLOOR, CAP)
+#       = clip( 1σ 的 ~6 周移动 , 5%, 14% )
+TRAIL_Z = 1.0              # 标准差倍数
+TRAIL_HORIZON_D = 30       # 约 6 周（30 交易日）的移动
+TRAIL_FLOOR, TRAIL_CAP = 0.05, 0.14   # 经济护栏：任何基金不在 <5% 噪音里出、不给回 >14%
+TRAIL_DEFAULT = 0.08      # 波动样本不足时的兜底带
+# 5.6 趋势 band-hysteresis：现价在 MA20 ±TREND_BAND 内视为"贴线"（不判方向），压日度 whipsaw
+TREND_BAND = 0.01
 MA_SHORT, MA_LONG = 20, 60
 ROLL_HIGH_WIN = 250    # 滚动最高窗口（次新基用全可用历史）
 HIGH60_WIN = 60
@@ -170,6 +179,7 @@ class FundResult:
     ma60: float = float("nan")
     high60: float = float("nan")
     roll_high: float = float("nan")
+    trail: float = float("nan")
     trail_trigger: float = float("nan")
     rsi: float = float("nan")
     low20: float = float("nan")
@@ -210,23 +220,36 @@ def analyze(name, code, mv, pnl_pct, bucket) -> FundResult:
     r.low20 = float(nav.tail(min(LOW_WIN, n)).min())
     r.rsi = rsi(nav, RSI_PERIOD)
     rets = nav.pct_change().dropna()
-    r.ann_vol = float(rets.tail(60).std() * np.sqrt(252)) if len(rets) >= 20 else float("nan")
+    sigma_d = float(rets.tail(60).std()) if len(rets) >= 20 else float("nan")
+    r.ann_vol = sigma_d * np.sqrt(252) if sigma_d == sigma_d else float("nan")
 
-    trail = TRAIL[bucket]
-    r.trail_trigger = r.roll_high * (1 - trail)
+    # 5.4 追踪止盈带：连续随基金自身波动缩放（σ-scaled）。
+    # 带宽 = TRAIL_Z·σ_日·√TRAIL_HORIZON_D = 1σ 的 ~6 周移动 →
+    # 经济意义：回撤超过"正常 6 周波动"才算真反转、才出场。取代旧两档先验。
+    if sigma_d == sigma_d:
+        r.trail = float(np.clip(TRAIL_Z * sigma_d * np.sqrt(TRAIL_HORIZON_D),
+                                TRAIL_FLOOR, TRAIL_CAP))
+    else:
+        r.trail = TRAIL_DEFAULT
+    r.trail_trigger = r.roll_high * (1 - r.trail)
     r.dist_ma20 = r.latest / r.ma20 - 1 if r.ma20 == r.ma20 else float("nan")
     r.dist_ma60 = r.latest / r.ma60 - 1 if r.ma60 == r.ma60 else float("nan")
     r.dist_high60 = r.latest / r.high60 - 1 if r.high60 == r.high60 else float("nan")
 
-    # 趋势三态（SMA，per 用户定义）
+    # 趋势三态（SMA 距离，per 用户定义）+ 5.6 band-hysteresis 压日度 whipsaw：
+    # 现价在 MA20 ±TREND_BAND 内视为"贴线"（不判方向），避免价格在均线上下
+    # 反复穿越导致 持有↔减仓 天天翻（日度跑的 churn = 噪音上反复减仓 = 经济损失）。
     if np.isnan(r.ma20) or np.isnan(r.ma60):
         r.trend = "数据不足"
-    elif r.latest > r.ma20 > r.ma60:
-        r.trend = "上升"
-    elif r.latest < r.ma20 < r.ma60:
-        r.trend = "下降"
     else:
-        r.trend = "震荡"
+        above20 = r.latest > r.ma20 * (1 + TREND_BAND)
+        below20 = r.latest < r.ma20 * (1 - TREND_BAND)
+        if above20 and r.ma20 > r.ma60:
+            r.trend = "上升"
+        elif below20 and r.ma20 < r.ma60:
+            r.trend = "下降"
+        else:
+            r.trend = "震荡"
 
     # 超卖否决：RSI<30 或 20日新低
     r.veto = (r.rsi == r.rsi and r.rsi < 30) or (r.latest <= r.low20)
@@ -302,6 +325,7 @@ def main():
                 "基金名称": r.name, "代码": r.code, "市值": r.mv,
                 "建议动作": f"❌取数失败: {r.err}", "数据日": "", "最新净值": np.nan,
                 "MA20": np.nan, "MA60": np.nan, "近60高": np.nan, "滚动最高": np.nan,
+                "追踪带%": np.nan,
                 "距MA20%": np.nan, "距近高%": np.nan, "趋势": "", "RSI": np.nan,
                 "波动(年化)": np.nan, "建议卖出%": np.nan, "建议卖出¥": np.nan,
                 "vsTWAP%": np.nan, "费率": "见App核对", "锁定/备注": LOCKED.get(r.code, ""),
@@ -314,6 +338,7 @@ def main():
             "MA20": round(r.ma20, 4) if r.ma20 == r.ma20 else np.nan,
             "MA60": round(r.ma60, 4) if r.ma60 == r.ma60 else np.nan,
             "近60高": round(r.high60, 4), "滚动最高": round(r.roll_high, 4),
+            "追踪带%": r.trail,
             "距MA20%": r.dist_ma20, "距近高%": r.dist_high60, "趋势": r.trend,
             "RSI": round(r.rsi, 1) if r.rsi == r.rsi else np.nan,
             "波动(年化)": r.ann_vol, "建议卖出%": r.clip,
@@ -367,7 +392,7 @@ def write_excel(df, path, regime, floor_target, suggested_total, non_strong_mv):
         ws["A1"].font = Font(bold=True, size=12)
 
         # 百分比格式列
-        pct_cols = {"距MA20%", "距近高%", "波动(年化)", "建议卖出%", "vsTWAP%"}
+        pct_cols = {"追踪带%", "距MA20%", "距近高%", "波动(年化)", "建议卖出%", "vsTWAP%"}
         money_cols = {"市值", "建议卖出¥"}
         headers = {c.value: c.column_letter for c in ws[5]}
         for col, letter in headers.items():
@@ -417,7 +442,8 @@ def write_json(results, path, regime, floor_target, suggested_total, non_strong_
             "latest": _num(r.latest), "latest_date": r.latest_date, "n": r.n,
             "short_hist": r.short_hist,
             "ma20": _num(r.ma20), "ma60": _num(r.ma60), "high60": _num(r.high60),
-            "roll_high": _num(r.roll_high), "trail_trigger": _num(r.trail_trigger),
+            "roll_high": _num(r.roll_high), "trail": _num(r.trail),
+            "trail_trigger": _num(r.trail_trigger),
             "rsi": _num(r.rsi), "ann_vol": _num(r.ann_vol),
             "dist_ma20": _num(r.dist_ma20), "dist_ma60": _num(r.dist_ma60),
             "dist_high60": _num(r.dist_high60),
@@ -434,7 +460,9 @@ def write_json(results, path, regime, floor_target, suggested_total, non_strong_
         "data_date": DATA_DATE,
         "market_regime": regime,
         "disclaimer": "纪律工具，非投资建议；阈值先验非优化；费率/锁定/赎回以中信App为准。",
-        "params": {"DEEP": DEEP, "TRAIL_high": TRAIL["high"], "TRAIL_low": TRAIL["low"],
+        "params": {"DEEP": DEEP,
+                   "trail_formula": f"clip({TRAIL_Z}σ·√{TRAIL_HORIZON_D}d, {TRAIL_FLOOR}, {TRAIL_CAP})",
+                   "trend_band": TREND_BAND,
                    "monthly_floor": MONTHLY_FLOOR, "deep_limit": DEEP_LIMIT,
                    "strong_rule": "全部上升趋势(最新>MA20>MA60)纯持有"},
         "account": {
@@ -466,7 +494,7 @@ def plot_fund(r: FundResult, chart_dir: Path):
     ax.scatter(df.loc[hi_idx, "date"], df.loc[hi_idx, "nav"], color="red", zorder=5, s=30, label="近60高")
     # 追踪止盈触发位
     ax.axhline(r.trail_trigger, color="purple", ls="--", lw=1.0,
-               label=f"追踪止盈触发 {r.trail_trigger:.4f} (滚动高-{int(TRAIL[r.bucket]*100)}%)")
+               label=f"追踪止盈触发 {r.trail_trigger:.4f} (滚动高-{r.trail*100:.1f}% σ缩放)")
     ax.set_title(f"{r.name} ({r.code})  {r.trend}  -> {r.action.split('｜')[0]}", fontsize=11)
     ax.legend(fontsize=8, loc="best")
     ax.grid(alpha=0.3)
