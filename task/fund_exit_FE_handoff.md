@@ -87,7 +87,7 @@ def fund_exit_chart(code):
   "data_date": "2026-05-31",
   "market_regime": "沪深300 强(>MA60) 距MA60 +3.8%",  // 仅上下文提示, 不是决策
   "disclaimer": "纪律工具，非投资建议；阈值先验非优化；费率/锁定/赎回以中信App为准。",
-  "params": { "DEEP": 0.15, "TRAIL_high": 0.10, "TRAIL_low": 0.06,
+  "params": { "DEEP": 0.15, "trail_formula": "clip(1.0σ·√30d, 0.05, 0.14)", "trend_band": 0.01,
               "monthly_floor": 0.10, "deep_limit": "6-8周",
               "strong_rule": "全部上升趋势(最新>MA20>MA60)纯持有" },
   "account": {
@@ -101,11 +101,12 @@ def fund_exit_chart(code):
   "funds": [
     {
       "name": "华夏卓越成长混合", "code": "024930",
-      "mv": 152086.1, "pnl_pct": 0.52, "bucket": "high",   // bucket: high/low 波动档
+      "mv": 152086.1, "pnl_pct": 0.52, "bucket": "high",   // bucket: 仅参考标签(不再驱动 trail)
       "ok": true, "err": "",
       "latest": 1.7234, "latest_date": "2026-05-29", "n": 191, "short_hist": false,
       "ma20": 1.71, "ma60": 1.65, "high60": 1.788, "roll_high": 1.788,
-      "trail_trigger": 1.6092,    // 滚动高×(1-TRAIL_档) 追踪止盈触发位
+      "trail": 0.104,             // σ-scaled 追踪带(随该基波动, clip 5-14%)
+      "trail_trigger": 1.6092,    // 滚动高×(1-trail) 追踪止盈触发位
       "rsi": 56.0, "ann_vol": 0.28,
       "dist_ma20": 0.007, "dist_ma60": 0.044, "dist_high60": -0.036,
       "trend": "上升",            // 上升/下降/震荡/数据不足
