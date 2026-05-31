@@ -25,7 +25,7 @@ Flask  /funds                   →  render_template("funds.html")
 前端 tab 渲染（纯展示, 无计算）
 ```
 
-**铁律**：后端 endpoint **只读 JSON 文件**，绝不在请求里调用 akshare / 跑脚本（慢 + 限频 + 会 block worker）。数据刷新靠 PM 手动重跑脚本或 cron，与 web 解耦。
+**铁律**：后端 endpoint **只读 JSON 文件**，绝不在请求里调用 akshare / 跑脚本（慢 + 限频 + 会 block worker）。数据刷新靠脚本 **日度(交易日)定时重跑**（launchd/cron，NAV T+1 每交易日变），与 web 解耦。月度的是"卖出动作节奏(保底时钟)"，不是数据刷新——两者不同 cadence。
 
 ---
 
@@ -147,7 +147,7 @@ def fund_exit_chart(code):
 - **上升持有** `held_strong_mv`（`held_strong_pct` 60%）—— 标注"让赢家跑·豁免保底"
 - **保底进度**：`suggested_total` / `floor_target` + `floor_met` ✓/⚠️
 - 市场 regime（小字, `--text-2`, 标"仅提示"）
-- 数据新鲜度：`generated_at` + `data_date`（若 generated_at 距今 >7 天 → 黄色"数据偏旧, 建议重跑"）
+- 数据新鲜度：`generated_at` + `data_date`（日度刷新；若 `generated_at` 距今 >2 交易日 → 黄色"数据偏旧, 定时任务可能挂了"）
 
 ### 3.2 主体：三个分组（按 rule）
 PM 的心智是"今天做什么"，按动作分组优于按市值：
