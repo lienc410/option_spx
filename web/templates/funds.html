@@ -83,6 +83,19 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 
 /* disclaimer */
 .disclaimer { font-size:0.60rem;color:var(--text-2);margin-top:32px;padding-top:14px;border-top:1px solid var(--border); }
+
+/* signal status panel (expanded) */
+.sig-panel { font-family:var(--f-ui);font-size:0.70rem;margin-bottom:14px; }
+.sig-grid { display:grid;grid-template-columns:auto 1fr;gap:5px 16px;align-items:baseline; }
+.sig-k { color:var(--text-2);font-size:0.58rem;text-transform:uppercase;letter-spacing:0.07em;white-space:nowrap;text-align:left; }
+.sig-v { color:var(--text);font-family:var(--f-mono);font-size:0.70rem;text-align:left; }
+.sig-hit { background:var(--surface-hi);border-radius:6px;padding:7px 11px;margin:10px 0 4px;font-size:0.72rem;color:var(--text); }
+.sig-watch { border-top:1px solid var(--border);padding-top:9px;margin-top:9px; }
+.sig-watch-line { font-family:var(--f-mono);font-size:0.66rem;color:var(--text-2);margin:3px 0;text-align:left; }
+.sig-watch-line b { color:var(--text);font-weight:500; }
+.gate-on  { color:var(--gold); }
+.gate-off { color:var(--text-2); }
+.tr-up { color:var(--green); } .tr-dn { color:var(--red); } .tr-ch { color:var(--text-2); }
 </style>
 </head>
 <body>
@@ -112,7 +125,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
   </div>
 
   <div id="stale-banner" class="stale-banner" style="display:none">
-    ⚠️ 数据偏旧（>7天），建议重跑 <code>fund_exit/fund_exit_signals.py</code>
+    ⚠️ 数据偏旧（>3天，日度刷新可能挂了），重跑 <code>fund_exit/fund_exit_signals.py</code> 或查 launchd
   </div>
 
   <div id="main-content">
@@ -139,7 +152,54 @@ function fmt_signed(v, digits=1) {
 }
 function color_cls(v) { return v > 0 ? 'style="color:var(--green)"' : v < 0 ? 'style="color:var(--red)"' : ''; }
 
-function render_fund_row(f) {
+function trend_cls(t){ return t==='上升'?'tr-up':t==='下降'?'tr-dn':'tr-ch'; }
+function gate(on,label){ return `<span class="${on?'gate-on':'gate-off'}">${on?'☑':'▢'} ${label}</span>`; }
+
+function render_signal_panel(f, P) {
+  P = P || {};
+  const band = P.trend_band != null ? P.trend_band : 0.01;
+  const DEEP = P.DEEP != null ? P.DEEP : 0.15;
+  const nf = (v)=> v==null ? '—' : v.toFixed(4);
+  const deepHit  = f.dist_high60 != null && f.dist_high60 <= -DEEP;
+  const trailHit = f.latest != null && f.trail_trigger != null && f.latest <= f.trail_trigger;
+  const vetoApplied = (f.action||'').includes('超卖否决');
+
+  const trendChip = `<span class="${trend_cls(f.trend)}">${f.trend}</span>`;
+  const maStack = (f.ma20!=null && f.ma60!=null)
+    ? `现价 ${nf(f.latest)} · MA20 ${nf(f.ma20)} · MA60 ${nf(f.ma60)}` : '样本不足';
+
+  // distance-to-flip watch levels (state-dependent)
+  const W=[];
+  const lv=(label, level)=>{ if(level!=null && f.latest!=null)
+    W.push(`<div class="sig-watch-line">📍 ${label} <b>${level.toFixed(4)}</b> (${fmt_signed(level/f.latest-1)})</div>`); };
+  if (f.ma20!=null) {
+    if (f.rule===1) lv('跌破 → 退出上升·开始减仓', f.ma20*(1-band));
+    else if (f.trend==='下降') {
+      lv('站上 → 退出下降·停卖', f.ma20*(1-band));
+      if (!deepHit && f.high60!=null) lv('失守 → 转②深套·等待', f.high60*(1-DEEP));
+    } else {
+      lv('站上 → 转上升·持有', f.ma20*(1+band));
+      if (!trailHit && f.trail_trigger!=null) lv('跌破 → ④追踪止盈', f.trail_trigger);
+    }
+  }
+
+  const vetoNote = vetoApplied ? '<span style="color:var(--gold)">→ 已挡此次卖出</span>'
+                 : (f.veto && f.rule===4 && f.was_runner) ? '<span style="color:var(--text-2)">→ 赢家豁免·仍卖</span>' : '';
+
+  return `<div class="sig-panel">
+    <div class="sig-grid">
+      <div class="sig-k">趋势</div><div class="sig-v">${trendChip} <span style="color:var(--text-2)">${maStack}</span></div>
+      <div class="sig-k">距近60高</div><div class="sig-v">${fmt_signed(f.dist_high60)} &nbsp; ${gate(deepHit,'深套线−'+((DEEP*100)|0)+'%')}</div>
+      <div class="sig-k">追踪止盈</div><div class="sig-v">σ带 ${fmt_pct(f.trail)} · 触发位 ${nf(f.trail_trigger)} &nbsp; ${gate(trailHit,'已破')}</div>
+      <div class="sig-k">超卖否决</div><div class="sig-v">RSI ${f.rsi!=null?f.rsi.toFixed(0):'—'} &nbsp; ${gate(f.veto,'超卖(RSI<30/20日低)')} ${vetoNote}</div>
+      <div class="sig-k">runner</div><div class="sig-v">${f.was_runner?'是 · 近期赢家(④豁免否决)':'否 · 非赢家(④不豁免)'}</div>
+    </div>
+    <div class="sig-hit">▶ 命中 ${f.action||''}</div>
+    ${W.length?`<div class="sig-watch">${W.join('')}</div>`:''}
+  </div>`;
+}
+
+function render_fund_row(f, P) {
   if (!f.ok) {
     return `<tr class="err-row">
       <td><div class="fund-name">${f.name}</div><div class="fund-code">${f.code}</div></td>
@@ -148,10 +208,13 @@ function render_fund_row(f) {
   }
   const cls = RULE_COLOR[f.rule] || 'ab-dim';
   const lock = f.locked ? `<span class="lock-badge" title="${f.locked}">⚠️ 锁定</span>` : '';
-  const veto = f.veto ? `<span class="veto-badge">超卖否决·暂不执行</span>` : '';
+  // veto badge keys off whether the veto was ACTUALLY applied (action suffix),
+  // NOT raw f.veto — a runner can be veto:true yet still sell (④ exempt).
+  const vetoApplied = (f.action || '').includes('超卖否决');
+  const veto = vetoApplied ? `<span class="veto-badge">超卖否决·暂不执行</span>` : '';
   const clip_disp = f.clip > 0 ? fmt_pct(f.clip) : '持有';
   const clip_amt_disp = f.clip_amt > 0 ? fmt_cny(f.clip_amt) : '—';
-  const action_short = (f.action || '').replace(/^①②③④⑤⑥/, '').substring(0, 16);
+  const action_short = (f.action || '').split('｜')[0].replace(/^[①②③④⑤⑥]/, '').substring(0, 16);
 
   return `<tr class="fund-row" data-code="${f.code}" onclick="toggle_chart('${f.code}')">
     <td>
@@ -168,6 +231,7 @@ function render_fund_row(f) {
   </tr>
   <tr class="fund-chart-row" id="chart-${f.code}">
     <td class="fund-chart-cell" colspan="8">
+      ${render_signal_panel(f, P)}
       <img src="/api/fund-exit/chart/${f.code}" alt="${f.name} 净值图"
            onerror="this.replaceWith(Object.assign(document.createElement('p'),{className:'chart-err',textContent:'图表未生成'}))">
     </td>
@@ -182,9 +246,9 @@ function toggle_chart(code) {
   if (tr) tr.classList.toggle('expanded');
 }
 
-function render_table(title, funds) {
+function render_table(title, funds, P) {
   if (!funds.length) return '';
-  const rows = funds.map(render_fund_row).join('');
+  const rows = funds.map(f => render_fund_row(f, P)).join('');
   return `
     <div class="section-label">${title}</div>
     <table class="fund-table">
@@ -216,7 +280,7 @@ async function load() {
   if (d.generated_at) {
     const genMs = new Date(d.generated_at).getTime();
     const ageDay = (Date.now() - genMs) / 86400000;
-    if (ageDay > 7) document.getElementById('stale-banner').style.display = '';
+    if (ageDay > 3) document.getElementById('stale-banner').style.display = '';
   }
 
   const acc = d.account || {};
@@ -256,10 +320,11 @@ async function load() {
   const strong    = funds.filter(f => f.ok && f.rule === 1);
   const other     = funds.filter(f => !f.ok || [2,6,0].includes(f.rule));
 
+  const P = d.params || {};
   const tablesHtml =
-    render_table('🟡 可减仓队列（rule 3/4/5 · 按减仓量降序）', reducible) +
-    render_table('🟢 上升趋势 · 持有（rule 1 · 让利润奔跑）', strong) +
-    render_table('🔴 深套 / 等待 / 其他（rule 2/6/0）', other);
+    render_table('🟡 可减仓队列（rule 3/4/5 · 按减仓量降序）', reducible, P) +
+    render_table('🟢 上升趋势 · 持有（rule 1 · 让利润奔跑）', strong, P) +
+    render_table('🔴 深套 / 等待 / 其他（rule 2/6/0）', other, P);
 
   const disclaimer = d.disclaimer
     ? `<p class="disclaimer">⚠️ ${d.disclaimer}</p>` : '';
