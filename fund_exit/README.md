@@ -1,0 +1,57 @@
+# fund_exit — 基金技术面分批清仓信号工具
+
+逐步清仓 A股公募基金的**纪律工具**（非 alpha 择时、非投资建议）。**临时性**：全仓清空后整个目录 + `/funds` tab 一并移除（见末节）。
+
+- 策略设计：`task/fund_exit_strategy_spec.md`（spec v2，经 GPT quant review 收敛）
+- 前端 handoff：`task/fund_exit_FE_handoff.md`
+- 信号刷新 = **日度（交易日）**；月度的是卖出节奏（保底时钟），两者不同 cadence。
+
+## 产物（均 gitignore，由脚本生成）
+- `fund_signals.json` — 前端数据契约（`/api/fund-exit/signals` 读它）
+- `charts/*.png` — 每只净值图（`/api/fund-exit/chart/<code>` 服务）
+- `基金技术出场信号.xlsx` — 带格式汇总表
+- `refresh.log` — launchd 运行日志
+
+## 手动重跑
+```bash
+# 本地（开发机）
+python3 -m venv .venv_fund && .venv_fund/bin/pip install akshare openpyxl matplotlib
+.venv_fund/bin/python fund_exit/fund_exit_signals.py
+```
+
+## 老 Air 部署（web 服务机，2026-05-31 搭）
+
+web 跑在老 Air，Flask endpoint 读**老 Air 上**的 `fund_signals.json`，所以日度刷新必须在老 Air 跑。
+
+**铁律**：endpoint 只读 JSON，绝不在请求里跑 akshare（慢+限频+block worker）。
+
+### 恢复步骤（换机/重装照做）
+```bash
+ssh oldair
+cd /Users/macbook/SPX_strat && git pull
+# 系统 python3 是 3.9.6 → 必须用 3.11（pandas 3.0 需 3.10+）
+/usr/local/opt/python@3.11/bin/python3.11 -m venv .venv_fund
+.venv_fund/bin/pip install akshare openpyxl matplotlib
+.venv_fund/bin/python fund_exit/fund_exit_signals.py   # 验证生成 JSON+图
+
+# launchd 日度任务（周一~五 08:00 本地时间）
+cp fund_exit/com.spxstrat.fundexit.refresh.plist ~/Library/LaunchAgents/
+launchctl load -w ~/Library/LaunchAgents/com.spxstrat.fundexit.refresh.plist
+launchctl list | grep fundexit                          # 确认加载
+launchctl kickstart -k gui/$(id -u)/com.spxstrat.fundexit.refresh  # 强制跑一次验证
+```
+- 时区：launchd 用机器**本地时间**；老 Air 假定为太平洋（A股 NAV 中国当晚公布≈太平洋清晨，08:00 PT 能拿到最新）。换时区改 plist 的 Hour。
+- 改了 `HOLDINGS`/规则等脚本本体后需 `git pull`（定时任务只刷数据、不拉代码）。
+
+## 清仓结束 → 干净移除
+```bash
+# 老 Air
+launchctl unload ~/Library/LaunchAgents/com.spxstrat.fundexit.refresh.plist
+rm ~/Library/LaunchAgents/com.spxstrat.fundexit.refresh.plist
+rm -rf /Users/macbook/SPX_strat/.venv_fund
+# repo
+git rm -r fund_exit/
+# 移除 web/templates/funds.html、server.py 的 /funds 与 /api/fund-exit/* 路由、各页 nav-link
+# 移除 task/fund_exit_*.md（可选保留作记录）
+```
+低耦合设计：独立 route/template/api/folder，一刀切即可。
