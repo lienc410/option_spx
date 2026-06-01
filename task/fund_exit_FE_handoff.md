@@ -87,16 +87,22 @@ def fund_exit_chart(code):
   "data_date": "2026-05-31",
   "market_regime": "沪深300 强(>MA60) 距MA60 +3.8%",  // 仅上下文提示, 不是决策
   "disclaimer": "纪律工具，非投资建议；阈值先验非优化；费率/锁定/赎回以中信App为准。",
+  "cadence": {                     // 周频截止日 TWAP（前端账户条展示）
+    "deadline": "2026-08-31",      // 可减持仓软目标清空日
+    "weeks_remaining": 14,         // 真实今日到 deadline 的剩余周
+    "weekly_twap": 0.071,          // = 1/weeks_remaining，本周均匀 TWAP/只
+    "op_freq": "每周一次(美东晚间下单, 成交落次日中国净值)"
+  },
   "params": { "DEEP": 0.15, "rsi_oversold": 30,
               "trail_formula": "clip(1.0σ·√30d, 0.05, 0.14)", "trend_band": 0.01,
-              "monthly_floor": 0.10,
-              "model": "clip = base(保底10%,强制) + extra(min(回撤,cap[rule])连续,可被RSI<30否决)",
+              "model": "clip = base(周频TWAP=1/剩余周) + extra(弱倾斜前置, 可被RSI<30否决)",
+              "lean": "min(4×回撤, 0.5)×base",
               "strong_rule": "全部上升趋势(最新>MA20>MA60)纯持有" },
   "account": {
     "total_mv": 908291.28,
     "held_strong_mv": 543687.78, "held_strong_pct": 0.5986,  // 上升趋势纯持有占比
     "non_strong_mv": 364603.5,
-    "floor_target": 36460.35,      // = monthly_floor × non_strong_mv（base 之和，结构性达标）
+    "floor_target": 26043.0,       // = weekly_twap × non_strong_mv（本周均匀目标）
     "suggested_total": 89909.0,    // 本期所有建议卖出额合计(base+extra)
     "floor_met": true
   },
@@ -113,12 +119,12 @@ def fund_exit_chart(code):
       "dist_ma20": -0.021, "dist_ma60": -0.039, "dist_roll": -0.091,  // 距滚动高(深套/追踪统一参照)
       "trend": "下降",            // 上升/下降/震荡/数据不足
       "rule": 3,                  // 1..6 / 0 (见下表)
-      "action": "③确认下降趋势：保底 + 额外(随回撤缩放，封顶15%)",
-      "base": 0.10,              // 强制保底量(非强势仓恒 10%；强势①为 0)
-      "extra": 0.091,            // 连续=min(回撤9.1%, cap③15%)；超卖时归零，base 不变
-      "clip": 0.191,             // = base + extra
-      "clip_amt": 26050.0,       // = mv*clip ¥
-      "vs_twap": 0.091,          // clip - monthly_floor; 负=比均匀少卖(让赢家跑)
+      "action": "③确认下降趋势：周 TWAP + 弱倾斜前置",
+      "base": 0.071,             // 本周 TWAP = 1/剩余周(非强势仓)；强势①为 0
+      "extra": 0.026,            // 弱倾斜前置 = base×min(4×回撤,0.5)；超卖时归零，base 不变
+      "clip": 0.097,             // 本周 = base + extra
+      "clip_amt": 13296.0,       // = mv*clip ¥（本周建议卖额）
+      "vs_twap": 0.026,          // clip - weekly_twap; 负=比均匀少卖(让赢家跑)
       "oversold": false,         // RSI < rsi_oversold(30)（仅此，不含创新低）
       "locked": "",              // 非空=锁定提示
       "chart": "charts/024915_华夏红利价值混合.png"

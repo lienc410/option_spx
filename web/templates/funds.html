@@ -186,7 +186,7 @@ function render_signal_panel(f, P) {
 
   // clip = base + extra 分解
   const clipBreak = (f.base!=null && f.extra!=null)
-    ? `保底 <b>${fmt_pct(f.base)}</b>${f.extra>0 ? ' + 额外 <b>'+fmt_pct(f.extra)+'</b>' : (vetoApplied ? ' + 额外 0%(超卖否决)' : '')} = <b>${fmt_pct(f.clip)}</b>`
+    ? `周TWAP <b>${fmt_pct(f.base)}</b>${f.extra>0 ? ' + 前置 <b>'+fmt_pct(f.extra)+'</b>' : (vetoApplied ? ' + 前置 0%(超卖否决)' : '')} = <b>${fmt_pct(f.clip)}</b>`
     : fmt_pct(f.clip);
 
   return `<div class="sig-panel">
@@ -194,7 +194,7 @@ function render_signal_panel(f, P) {
       <div class="sig-k">趋势</div><div class="sig-v">${trendChip} <span style="color:var(--text-2)">${maStack}</span></div>
       <div class="sig-k">距滚动高</div><div class="sig-v">${fmt_signed(f.dist_roll)} &nbsp; ${gate(deepHit,'深套线−'+((DEEP*100)|0)+'%')}</div>
       <div class="sig-k">追踪止盈</div><div class="sig-v">σ带 ${fmt_pct(f.trail)} · 触发位 ${nf(f.trail_trigger)} &nbsp; ${gate(trailHit,'已破')}</div>
-      <div class="sig-k">超卖否决</div><div class="sig-v">RSI ${f.rsi!=null?f.rsi.toFixed(0):'—'} &nbsp; ${gate(f.oversold,'超卖 RSI<'+RSIov)} ${vetoApplied?'<span style="color:var(--gold)">→ 已挡额外，仅走保底</span>':''}</div>
+      <div class="sig-k">超卖否决</div><div class="sig-v">RSI ${f.rsi!=null?f.rsi.toFixed(0):'—'} &nbsp; ${gate(f.oversold,'超卖 RSI<'+RSIov)} ${vetoApplied?'<span style="color:var(--gold)">→ 已挡额外，仅走周TWAP</span>':''}</div>
       <div class="sig-k">建议卖出</div><div class="sig-v">${clipBreak}</div>
     </div>
     <div class="sig-hit">▶ 命中 ${f.action||''}</div>
@@ -214,7 +214,7 @@ function render_fund_row(f, P) {
   // veto badge keys off whether the veto ACTUALLY zeroed the extra (action suffix);
   // base always sells, so a vetoed fund still moves (only the extra is held).
   const vetoApplied = (f.action || '').includes('超卖否决');
-  const veto = vetoApplied ? `<span class="veto-badge">超卖·仅走保底</span>` : '';
+  const veto = vetoApplied ? `<span class="veto-badge">超卖·仅走周TWAP</span>` : '';
   const clip_disp = f.clip > 0 ? fmt_pct(f.clip) : '持有';
   const clip_amt_disp = f.clip_amt > 0 ? fmt_cny(f.clip_amt) : '—';
   const action_short = (f.action || '').split('｜')[0].replace(/^[①②③④⑤⑥]/, '').substring(0, 16);
@@ -260,8 +260,8 @@ function render_table(title, funds, P) {
         <th>基金</th>
         <th>持仓额</th>
         <th>动作</th>
-        <th>减仓%</th>
-        <th>减仓额</th>
+        <th>本周%</th>
+        <th>本周额</th>
         <th>距滚高</th>
         <th>RSI</th>
         <th>vs均匀</th>
@@ -289,8 +289,8 @@ async function load() {
   }
 
   const acc = d.account || {};
+  const cad = d.cadence || {};
   const strongPct = ((acc.held_strong_pct || 0)*100).toFixed(1);
-  const floorIcon = acc.floor_met ? '✅' : '⚠️';
   const freshAge = d.generated_at ? (() => {
     const diff = Math.round((Date.now()-new Date(d.generated_at).getTime())/60000);
     return diff < 60 ? diff+'m 前' : Math.round(diff/60)+'h 前';
@@ -303,21 +303,21 @@ async function load() {
         <div class="acct-value">${fmt_cny(acc.total_mv)}</div>
       </div>
       <div class="acct-cell">
-        <div class="acct-label">上升持有 <small style="font-weight:400;opacity:0.7">让赢家跑·豁免保底</small></div>
+        <div class="acct-label">上升持有 <small style="font-weight:400;opacity:0.7">让赢家跑·不进清仓钟</small></div>
         <div class="acct-value" style="color:var(--green)">${fmt_cny(acc.held_strong_mv)}</div>
         <div class="acct-sub">${strongPct}% of total</div>
       </div>
       <div class="acct-cell">
-        <div class="acct-label">保底进度 ${floorIcon}</div>
+        <div class="acct-label">本周建议卖出</div>
         <div class="acct-value">${fmt_cny(acc.suggested_total)}</div>
-        <div class="acct-sub">目标 ${fmt_cny(acc.floor_target)}</div>
+        <div class="acct-sub">可减持 ${fmt_cny(acc.non_strong_mv)} · 剩 ${cad.weeks_remaining ?? '—'} 周清空</div>
       </div>
       <div class="acct-cell">
-        <div class="acct-label">数据时间</div>
-        <div class="acct-value" style="font-size:0.80rem">${d.data_date || '—'}</div>
-        <div class="acct-sub">${freshAge} 生成</div>
+        <div class="acct-label">本周 TWAP/只</div>
+        <div class="acct-value">${cad.weekly_twap!=null ? (cad.weekly_twap*100).toFixed(1)+'%' : '—'}</div>
+        <div class="acct-sub">截止 ${cad.deadline || '—'}</div>
       </div>
-      <div class="acct-regime">市场 <em style="font-style:normal;color:var(--text)">${d.market_regime || '—'}</em> <span style="opacity:0.6">· 仅提示，非决策依据</span></div>
+      <div class="acct-regime">数据日 <em style="font-style:normal;color:var(--text)">${d.data_date || '—'}</em>（${freshAge}生成）· 操作 ${cad.op_freq || '每周一次'} · 市场 ${d.market_regime || '—'}（仅提示）</div>
     </div>`;
 
   const funds = d.funds || [];
@@ -327,9 +327,9 @@ async function load() {
 
   const P = d.params || {};
   const tablesHtml =
-    render_table('🟡 信号减仓（rule 3/4/5 · 保底 + 额外 · 按 clip 降序）', reducible, P) +
-    render_table('🟢 上升趋势 · 纯持有（rule 1 · 让利润奔跑 · 豁免保底）', strong, P) +
-    render_table('🔵 仅走保底（rule 2深套 / 6观察 / 0数据不足 · 仅 base 10%，无额外）', other, P);
+    render_table('🟡 信号减仓（rule 3/4/5 · 周TWAP + 前置 · 按本周% 降序）', reducible, P) +
+    render_table('🟢 上升趋势 · 纯持有（rule 1 · 让利润奔跑 · 不进清仓钟）', strong, P) +
+    render_table('🔵 仅走周TWAP（rule 2深套 / 6观察 / 0数据不足 · 无前置）', other, P);
 
   const disclaimer = d.disclaimer
     ? `<p class="disclaimer">⚠️ ${d.disclaimer}</p>` : '';

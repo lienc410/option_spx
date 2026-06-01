@@ -4,28 +4,30 @@
 定位：纪律 / 行为约束工具，非 alpha 择时、非投资建议。
 详见 task/fund_exit_strategy_spec.md。
 
-核心模型：clip = base(保底·强制清仓节奏) + extra(信号驱动·可被超卖否决)
-  · base  ：非强势仓每月强制出 MONTHLY_FLOOR → floor 结构性达标；深套也靠它逐步出。
-  · extra ：连续随回撤深度缩放 min(SLOPE×回撤, CAP[rule])；RSI<30 时归零，base 不受影响。
-  · 强势①(上升趋势)纯持有，base=extra=0。
+核心模型：clip = base(周频截止日 TWAP·强制) + extra(弱倾斜前置·可被超卖否决)
+  · base  ：非强势仓每周卖 1/剩余周数(of 现值) → 线性清空至 deadline。操作周频。
+  · extra ：弱势(③④⑤)前置 = base × min(LEAN_SLOPE×回撤, LEAN_MAX)；RSI<30 时归零，base 不变。
+  · 强势①(上升趋势)纯持有，base=extra=0；破势后才入清仓钟。
 
-规则（优先级取首个命中；深套/追踪统一用"滚动高"参照；extra 温和封顶）：
+规则（优先级取首个命中；深套/追踪统一用"滚动高"参照）：
   ① 上升趋势 : 最新>MA20>MA60                       -> 纯持有(base=extra=0)
-  ② 深套     : 下降 且 距滚动高 <= -DEEP             -> base only（不加码砸底）
-  ③ 确认下降 : 下降 且 距滚动高 > -DEEP              -> base + extra(≤0.15, 随回撤)
-  ④ 震荡破带 : 现价 <= 滚动高*(1-TRAIL_σ)            -> base + extra(≤0.10, 随回撤)
-  ⑤ 破MA20   : 震荡 且 MA20>MA60 且 现价<MA20        -> base + extra(≤0.05, 随回撤)
-  ⑥ 其余     : -> base only
+  ② 深套     : 下降 且 距滚动高 <= -DEEP             -> 仅 base TWAP（不前置砸底）
+  ③ 确认下降 : 下降 且 距滚动高 > -DEEP              -> base TWAP + 弱倾斜前置
+  ④ 震荡破带 : 现价 <= 滚动高*(1-TRAIL_σ)            -> base TWAP + 弱倾斜前置
+  ⑤ 破MA20   : 震荡 且 MA20>MA60 且 现价<MA20        -> base TWAP + 轻前置
+  ⑥ 其余     : -> 仅 base TWAP
 
 超卖否决 = 仅 RSI<RSI_OVERSOLD（审计 A1：去掉"创新低"——那是下行动能、非超卖）。
 TRAIL σ-scaled(~1σ 6周, clip 5-14%)；趋势 band-hysteresis(±1%) 压日度 whipsaw。
 """
 from __future__ import annotations
 
+import math
 import sys
 import time
 import traceback
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from pathlib import Path
 
 import numpy as np
@@ -51,32 +53,19 @@ plt.rcParams["axes.unicode_minus"] = False
 import akshare as ak
 
 OUTDIR = Path(__file__).resolve().parent
-DATA_DATE = "2026-05-31"
 
-# ── 参数（PM 2026-05-31；2026-06 审计后重构）───────────────────────
-# 核心模型：clip = base(保底·强制清仓节奏) + extra(信号驱动·可被超卖否决)
-#   · base  ：所有"非强势"仓每月强制出 MONTHLY_FLOOR → floor 结构性达标(审计 A3)；
-#             深套也靠 base 逐步出，取代旧"硬时限钟"(A2)
-#   · extra ：按"继续下跌把握"叠加；超卖(RSI<RSI_OVERSOLD)时归零，但 base 不受影响(A1)
-#   · 强势①(上升趋势)纯持有，base=extra=0（PM 接受 ~60% 惰性）
-DEEP = 0.15               # 深套界：距滚动高 ≤ -DEEP（A6：深套/追踪统一用滚动高，顺带修 A10）
-MONTHLY_FLOOR = 0.10      # base：非强势仓每月强制清仓比例（清仓脊柱）
-RSI_OVERSOLD = 30         # 超卖否决阈（A7：原硬编码 → 命名参数）
-
-# extra：连续随"距滚动高的回撤深度"缩放（deeper→more），再按信号类型**温和封顶**。
-#   extra = min(EXTRA_SLOPE × max(0,-dist_roll), EXTRA_CAP[rule])
-#   SLOPE=1.0 → "回撤多少就额外卖多少"(1:1)，再被 cap 压住 → 对 TWAP 偏离 ≤ cap。
-#   温和档（2026-06 PM 定）：信号信息量低(无 backtest)，注码配 edge，只做弱倾斜不重注。
-EXTRA_SLOPE = 1.0
-EXTRA_CAP = {
-    1: 0.00,   # ① 上升趋势：纯持有
-    2: 0.00,   # ② 深套：不加码（capitulation 不砸底）
-    3: 0.15,   # ③ 确认下降趋势：封顶最高
-    4: 0.10,   # ④ 震荡·破追踪带
-    5: 0.05,   # ⑤ 震荡·破MA20：封顶最低
-    6: 0.00,   # ⑥ 持有观察：仅 base
-    0: 0.00,   # ⓪ 数据不足：仅 base
-}
+# ── 参数（2026-06 周频截止日 TWAP 重构）────────────────────────────
+# 清仓节奏 clip = base(周频截止日 TWAP·强制) + extra(弱倾斜前置·可被超卖否决)
+#   · base ：每只非强势仓每周卖 1/剩余周数(of 现值) → 线性清空至 deadline（无状态也按期清完）。
+#            操作周频；超卖只挡 extra、不挡 base（base 仍走，避免砸在底但保持按期）。
+#   · extra：弱势(③④⑤)按回撤前置 = base × min(LEAN_SLOPE×回撤, LEAN_MAX)；②深套/⑥/⓪不前置。
+#   · 强势①(上升趋势)纯持有，base=extra=0（PM 接受 ~60% 惰性，破势后才入清仓钟）。
+DEEP = 0.15               # 深套界：距滚动高 ≤ -DEEP（A6：深套/追踪统一用滚动高）
+RSI_OVERSOLD = 30         # 超卖否决阈
+LIQUIDATION_DEADLINE = date(2026, 8, 31)   # 可减持仓位软目标清空日（~3 个月）
+LEAN_SLOPE = 4.0          # 弱倾斜斜率：回撤 12.5% → lean 触顶
+LEAN_MAX = 0.50           # 弱势最多比 TWAP 快 50%
+NO_LEAN_RULES = {1, 2, 6, 0}   # ①持有/②深套不砸底/⑥观察/⓪数据不足：不前置，只走 base TWAP
 
 # 5.4 追踪止盈带：连续随基金自身波动缩放 trail = clip(1σ·√30d, 5%, 14%)
 TRAIL_Z = 1.0
@@ -110,12 +99,12 @@ LOCKED = {}
 
 ACTION_TEXT = {
     1: "①上升趋势：让利润奔跑，纯持有",
-    2: "②深套：不加码砸底，仅走保底量逐步出",
-    3: "③确认下降趋势：保底 + 额外(随回撤缩放，封顶15%)",
-    4: "④震荡·破追踪带：保底 + 额外(随回撤缩放，封顶10%)",
-    5: "⑤震荡·破MA20：保底 + 额外(随回撤缩放，封顶5%)",
-    6: "⑥持有观察：仅走保底量",
-    0: "数据不足：仅走保底量，指标待补",
+    2: "②深套：不加码砸底，仅走周 TWAP 逐步出",
+    3: "③确认下降趋势：周 TWAP + 弱倾斜前置",
+    4: "④震荡·破追踪带：周 TWAP + 弱倾斜前置",
+    5: "⑤震荡·破MA20：周 TWAP + 轻前置",
+    6: "⑥持有观察：仅走周 TWAP",
+    0: "数据不足：仅走周 TWAP，指标待补",
 }
 
 
@@ -225,7 +214,7 @@ class FundResult:
     df: pd.DataFrame = field(default=None, repr=False)
 
 
-def analyze(name, code, mv, pnl_pct) -> FundResult:
+def analyze(name, code, mv, pnl_pct, weeks_remaining) -> FundResult:
     r = FundResult(name=name, code=code, mv=mv, pnl_pct=pnl_pct)
     try:
         df = fetch_nav(code)
@@ -285,21 +274,30 @@ def analyze(name, code, mv, pnl_pct) -> FundResult:
 
     r.rule = rule
     r.action = ACTION_TEXT[rule]
-    # base + extra 分层：base 强制（非强势仓）；extra 连续随回撤深度缩放、温和封顶、可被超卖否决
-    r.base = 0.0 if rule == 1 else MONTHLY_FLOOR
+    # 周频截止日 TWAP：base = 1/剩余周数(of 现值) → 线性清空至 deadline；extra = 弱倾斜前置
+    base_frac = min(1.0, 1.0 / weeks_remaining)
+    r.base = 0.0 if rule == 1 else base_frac
     depth = max(0.0, -r.dist_roll) if r.dist_roll == r.dist_roll else 0.0
-    r.extra = min(EXTRA_SLOPE * depth, EXTRA_CAP[rule])
-    if r.oversold and r.extra > 0:   # A1：超卖只挡 extra，不挡 base
-        r.extra = 0.0
-        r.action += "｜超卖否决额外(RSI<{}，仅走保底)".format(RSI_OVERSOLD)
+    lean = 0.0 if rule in NO_LEAN_RULES else min(LEAN_SLOPE * depth, LEAN_MAX)
+    if r.oversold and lean > 0:   # 超卖只挡前置 lean，不挡 base TWAP（仍按期出，避免砸底加码）
+        lean = 0.0
+        r.action += "｜超卖否决前置(RSI<{}，仅走 TWAP)".format(RSI_OVERSOLD)
+    r.extra = r.base * lean
     r.clip = min(r.base + r.extra, 1.0)
     return r
 
 
 # ── 主流程 ───────────────────────────────────────────────────────
 def main():
+    # 周频截止日 TWAP：按真实今日到 deadline 的剩余周数定步
+    today = datetime.now().date()
+    days_left = (LIQUIDATION_DEADLINE - today).days
+    weeks_remaining = max(1, math.ceil(days_left / 7)) if days_left > 0 else 1
+    twap_frac = min(1.0, 1.0 / weeks_remaining)   # 本周均匀 TWAP 比例(基准)
+
     print("=" * 90)
-    print(f"基金技术面分批清仓信号  |  数据日 {DATA_DATE}  |  规则 v3(审计后)")
+    print(f"基金清仓信号 v4(周频TWAP) | deadline {LIQUIDATION_DEADLINE} | "
+          f"剩 {weeks_remaining} 周 | 本周 TWAP {twap_frac:.1%}/只")
     print("=" * 90)
 
     regime = fetch_market_regime()
@@ -309,9 +307,9 @@ def main():
     for name, code, mv, pnl in HOLDINGS:
         print(f"  拉取 {code} {name} ...", end=" ")
         try:
-            r = analyze(name, code, mv, pnl)
+            r = analyze(name, code, mv, pnl, weeks_remaining)
             if r.ok:
-                print(f"OK n={r.n} {r.trend} -> 规则{r.rule} clip={r.clip:.0%}")
+                print(f"OK n={r.n} {r.trend} -> 规则{r.rule} 本周clip={r.clip:.1%}")
             else:
                 print(f"失败跳过: {r.err}")
         except Exception as e:  # noqa: BLE001  最后兜底, 绝不中断
@@ -324,11 +322,12 @@ def main():
 
     ok = [r for r in results if r.ok]
     failed = [r for r in results if not r.ok]
+    data_date = max((r.latest_date for r in ok), default=today.isoformat())
 
-    # ── 保底时钟（仅非强势仓）+ TWAP 对照 ──
+    # ── 本周 TWAP 目标（仅非强势仓）+ 偏离对照 ──
     non_strong = [r for r in ok if r.rule != 1]
     non_strong_mv = sum(r.mv for r in non_strong)
-    floor_target = MONTHLY_FLOOR * non_strong_mv
+    floor_target = twap_frac * non_strong_mv       # 本周均匀清仓目标
     suggested_total = sum(r.mv * r.clip for r in ok)
 
     # ── 汇总表 ──
@@ -345,7 +344,7 @@ def main():
                 "vsTWAP%": np.nan, "费率": "见App核对", "锁定/备注": LOCKED.get(r.code, ""),
             })
             continue
-        dev = r.clip - MONTHLY_FLOOR
+        dev = r.clip - twap_frac
         rows.append({
             "基金名称": r.name, "代码": r.code, "市值": round(r.mv, 2),
             "建议动作": r.action, "数据日": r.latest_date, "最新净值": round(r.latest, 4),
@@ -370,12 +369,14 @@ def main():
 
     # ── 输出 Excel ──
     xlsx = OUTDIR / "基金技术出场信号.xlsx"
-    write_excel(df, xlsx, regime, floor_target, suggested_total, non_strong_mv)
+    write_excel(df, xlsx, regime, floor_target, suggested_total, non_strong_mv,
+                data_date, weeks_remaining, twap_frac)
     print(f"\n写出 {xlsx}")
 
     # ── 输出 JSON（前端数据契约, schema 见 task/fund_exit_FE_handoff.md）──
     write_json(results, OUTDIR / "fund_signals.json", regime,
-               floor_target, suggested_total, non_strong_mv)
+               floor_target, suggested_total, non_strong_mv,
+               data_date, weeks_remaining, twap_frac)
     print(f"写出 {OUTDIR / 'fund_signals.json'}")
 
     # ── 图 ──
@@ -389,20 +390,21 @@ def main():
     print(f"写出 {len(ok)} 张图 -> {chart_dir}")
 
     # ── 文字小结 ──
-    print_summary(ok, failed, regime, floor_target, suggested_total, non_strong_mv)
+    print_summary(ok, failed, regime, floor_target, suggested_total, non_strong_mv,
+                  twap_frac, weeks_remaining)
 
 
-def write_excel(df, path, regime, floor_target, suggested_total, non_strong_mv):
+def write_excel(df, path, regime, floor_target, suggested_total, non_strong_mv,
+                data_date, weeks_remaining, twap_frac):
     from openpyxl.styles import Font, PatternFill, Alignment
 
     with pd.ExcelWriter(path, engine="openpyxl") as xw:
         df.to_excel(xw, index=False, sheet_name="信号", startrow=4)
         ws = xw.sheets["信号"]
-        ws["A1"] = f"基金技术面分批清仓信号  |  数据日 {DATA_DATE}  |  纪律工具, 非投资建议"
+        ws["A1"] = f"基金清仓信号(周频TWAP)  |  数据日 {data_date}  |  纪律工具, 非投资建议"
         ws["A2"] = f"市场regime(仅提示): {regime}"
-        ws["A3"] = (f"保底月清仓(仅非强势仓 ¥{non_strong_mv:,.0f}): 目标 ¥{floor_target:,.0f}/月  |  "
-                    f"本期建议合计 ¥{suggested_total:,.0f}  |  "
-                    f"{'✅达标' if suggested_total >= floor_target else '⚠️低于保底,需补齐'}")
+        ws["A3"] = (f"可减持仓 ¥{non_strong_mv:,.0f} · 剩 {weeks_remaining} 周清空 · 本周 TWAP {twap_frac:.1%}/只  |  "
+                    f"本周均匀目标 ¥{floor_target:,.0f}  |  本周建议合计 ¥{suggested_total:,.0f}(含弱倾斜)")
         ws["A1"].font = Font(bold=True, size=12)
 
         # 百分比格式列
@@ -438,7 +440,8 @@ def _num(x):
         return None
 
 
-def write_json(results, path, regime, floor_target, suggested_total, non_strong_mv):
+def write_json(results, path, regime, floor_target, suggested_total, non_strong_mv,
+               data_date, weeks_remaining, twap_frac):
     """前端数据契约。schema 见 task/fund_exit_FE_handoff.md。"""
     import json
     from datetime import datetime
@@ -464,7 +467,7 @@ def write_json(results, path, regime, floor_target, suggested_total, non_strong_
             "trend": r.trend, "rule": r.rule, "action": r.action,
             "base": _num(r.base), "extra": _num(r.extra),
             "clip": _num(r.clip), "clip_amt": _num(r.mv * r.clip) if r.ok else None,
-            "vs_twap": _num(r.clip - MONTHLY_FLOOR) if r.ok else None,
+            "vs_twap": _num(r.clip - twap_frac) if r.ok else None,
             "oversold": r.oversold,
             "locked": LOCKED.get(r.code, ""),
             "chart": f"charts/{r.code}_{r.name}.png" if r.ok else None,
@@ -472,20 +475,27 @@ def write_json(results, path, regime, floor_target, suggested_total, non_strong_
 
     payload = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
-        "data_date": DATA_DATE,
+        "data_date": data_date,
         "market_regime": regime,
         "disclaimer": "纪律工具，非投资建议；阈值先验非优化；费率/锁定/赎回以中信App为准。",
+        "cadence": {                       # 周频截止日 TWAP
+            "deadline": LIQUIDATION_DEADLINE.isoformat(),
+            "weeks_remaining": weeks_remaining,
+            "weekly_twap": _num(twap_frac),
+            "op_freq": "每周一次(美东晚间下单, 成交落次日中国净值)",
+        },
         "params": {"DEEP": DEEP, "rsi_oversold": RSI_OVERSOLD,
                    "trail_formula": f"clip({TRAIL_Z}σ·√{TRAIL_HORIZON_D}d, {TRAIL_FLOOR}, {TRAIL_CAP})",
-                   "trend_band": TREND_BAND, "monthly_floor": MONTHLY_FLOOR,
-                   "model": "clip = base(保底,强制) + extra(信号,可被RSI<{}否决)".format(RSI_OVERSOLD),
+                   "trend_band": TREND_BAND,
+                   "model": "clip = base(周频TWAP=1/剩余周) + extra(弱倾斜前置, 可被RSI<{}否决)".format(RSI_OVERSOLD),
+                   "lean": f"min({LEAN_SLOPE}×回撤, {LEAN_MAX})×base",
                    "strong_rule": "全部上升趋势(最新>MA20>MA60)纯持有"},
         "account": {
             "total_mv": _num(total_mv), "held_strong_mv": _num(strong_mv),
             "held_strong_pct": _num(strong_mv / total_mv) if total_mv else 0,
             "non_strong_mv": _num(non_strong_mv),
             "floor_target": _num(floor_target), "suggested_total": _num(suggested_total),
-            "floor_met": bool(suggested_total >= floor_target),
+            "floor_met": bool(suggested_total >= floor_target - 1e-6),
         },
         "funds": funds,
     }
@@ -517,7 +527,8 @@ def plot_fund(r: FundResult, chart_dir: Path):
     plt.close(fig)
 
 
-def print_summary(ok, failed, regime, floor_target, suggested_total, non_strong_mv):
+def print_summary(ok, failed, regime, floor_target, suggested_total, non_strong_mv,
+                  twap_frac, weeks_remaining):
     print("\n" + "=" * 90)
     print("文字小结")
     print("=" * 90)
@@ -529,18 +540,18 @@ def print_summary(ok, failed, regime, floor_target, suggested_total, non_strong_
     hold_strong = by_rule.get(1, [])
 
     print(f"\n市场: {regime}")
-    print(f"保底 floor(仅非强势仓 ¥{non_strong_mv:,.0f}): ¥{floor_target:,.0f}/月(每只走 base 结构性达标), "
-          f"本期建议合计 ¥{suggested_total:,.0f}(base+extra)")
+    print(f"可减持仓 ¥{non_strong_mv:,.0f} · 剩 {weeks_remaining} 周清空 · 本周 TWAP {twap_frac:.1%}/只 "
+          f"(均匀目标 ¥{floor_target:,.0f}) · 本周建议合计 ¥{suggested_total:,.0f}(含弱倾斜)")
 
-    print(f"\n【建议卖出 {len(sell)} 只】(队列按 clip 降序; clip = 保底base + 信号extra)")
+    print(f"\n【本周建议卖出 {len(sell)} 只】(clip = 周TWAP base + 弱倾斜 extra)")
     for r in sorted(sell, key=lambda x: -x.clip):
-        print(f"  {r.code} {r.name:<18} {r.action.split('｜')[0]:<26} "
-              f"卖{r.clip:.0%}(保{r.base:.0%}+额{r.extra:.0%}) ≈¥{r.mv*r.clip:,.0f}  "
+        print(f"  {r.code} {r.name:<18} {r.action.split('｜')[0]:<24} "
+              f"卖{r.clip:.1%}(TWAP{r.base:.1%}+前置{r.extra:.1%}) ≈¥{r.mv*r.clip:,.0f}  "
               f"距滚高{r.dist_roll:+.1%} RSI{r.rsi:.0f}{' 超卖' if r.oversold else ''}")
 
-    print(f"\n【上升趋势·让利润奔跑 {len(hold_strong)} 只】(纯持有, 豁免 floor)")
+    print(f"\n【上升趋势·让利润奔跑 {len(hold_strong)} 只】(纯持有, 不进清仓钟)")
     for r in hold_strong:
-        print(f"  {r.code} {r.name:<18} 距滚高{r.dist_roll:+.1%} RSI{r.rsi:.0f}  (vs均匀: 少卖10%)")
+        print(f"  {r.code} {r.name:<18} 距滚高{r.dist_roll:+.1%} RSI{r.rsi:.0f}  (不卖, 破势后才入钟)")
 
     # 深套两只专项
     print("\n【深套专项】中欧医疗 003095 / 华夏兴阳 009010")
@@ -553,7 +564,7 @@ def print_summary(ok, failed, regime, floor_target, suggested_total, non_strong_
         print(f"  {code} {r.name}: {r.trend} 距滚高{r.dist_roll:+.1%} 距MA20{r.dist_ma20:+.1%} "
               f"-> {r.action.split('｜')[0]} (卖{r.clip:.0%})")
         if r.rule == 2:
-            print(f"      深套: 不加 extra, 仅 base {r.base:.0%}/月逐步出(取代旧硬时限钟)")
+            print(f"      深套: 不前置, 仅走周 TWAP {r.base:.1%}/周逐步出(避开 capitulation 加码)")
         if note:
             print(f"      {note}")
 
