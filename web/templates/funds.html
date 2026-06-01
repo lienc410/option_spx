@@ -96,6 +96,44 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .gate-on  { color:var(--gold); }
 .gate-off { color:var(--text-2); }
 .tr-up { color:var(--green); } .tr-dn { color:var(--red); } .tr-ch { color:var(--text-2); }
+
+/* record button + modal */
+.rec-btn { font-family:var(--f-ui);font-size:0.72rem;font-weight:500;color:var(--gold);
+  background:var(--gold-bg);border:1px solid var(--gold-border,var(--gold));border-radius:7px;
+  padding:6px 14px;cursor:pointer;transition:0.15s; }
+.rec-btn:hover { background:var(--gold);color:var(--bg); }
+.modal-mask { position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:200;display:none;
+  align-items:flex-start;justify-content:center;padding-top:8vh; }
+.modal-mask.open { display:flex; }
+.modal { background:var(--surface);border:1px solid var(--border-2);border-radius:12px;
+  width:min(440px,92vw);padding:22px 24px;font-family:var(--f-ui); }
+.modal h3 { font-family:var(--f-display);font-size:1.15rem;font-weight:400;margin-bottom:4px; }
+.modal-sub { font-size:0.64rem;color:var(--text-2);margin-bottom:16px; }
+.fld { margin-bottom:13px; }
+.fld label { display:block;font-size:0.62rem;color:var(--text-2);text-transform:uppercase;
+  letter-spacing:0.06em;margin-bottom:4px; }
+.fld input, .fld select { width:100%;font-family:var(--f-mono);font-size:0.82rem;color:var(--text);
+  background:var(--bg);border:1px solid var(--border-2);border-radius:6px;padding:8px 10px;outline:none; }
+.fld input:focus, .fld select:focus { border-color:var(--gold-border,var(--gold)); }
+.fld-hint { font-size:0.62rem;color:var(--text-2);margin-top:4px; }
+.fld-hint a { color:var(--gold);cursor:pointer;text-decoration:underline; }
+.modal-actions { display:flex;gap:10px;justify-content:flex-end;margin-top:18px; }
+.btn-ghost { background:transparent;border:1px solid var(--border-2);color:var(--text-2);
+  border-radius:7px;padding:7px 16px;font-size:0.74rem;cursor:pointer; }
+.btn-primary { background:var(--gold);border:none;color:var(--bg);border-radius:7px;
+  padding:7px 18px;font-size:0.74rem;font-weight:600;cursor:pointer; }
+.btn-primary:disabled { opacity:0.5;cursor:default; }
+.modal-msg { font-size:0.7rem;margin-top:10px; }
+
+/* trades log */
+.trades-wrap { margin-top:30px;padding-top:16px;border-top:1px solid var(--border); }
+.trades-head { display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px; }
+.trades-table { width:100%;border-collapse:collapse;font-family:var(--f-mono);font-size:0.68rem; }
+.trades-table th { font-size:0.56rem;color:var(--text-2);text-transform:uppercase;text-align:right;
+  padding:4px 8px;border-bottom:1px solid var(--border); }
+.trades-table th:first-child, .trades-table td:first-child { text-align:left; }
+.trades-table td { padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;color:var(--text-soft); }
+.trades-empty { font-size:0.68rem;color:var(--text-2);padding:8px 0; }
 </style>
 </head>
 <body>
@@ -119,9 +157,12 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 </nav>
 
 <div class="page">
-  <div class="page-hero">
-    <h1>基金 <em>清仓信号</em></h1>
-    <p class="page-meta">纪律工具 · 逐步清仓过渡期 · 全仓清空后移除</p>
+  <div class="page-hero" style="display:flex;justify-content:space-between;align-items:flex-end;">
+    <div>
+      <h1>基金 <em>清仓信号</em></h1>
+      <p class="page-meta">纪律工具 · 逐步清仓过渡期 · 全仓清空后移除</p>
+    </div>
+    <button class="rec-btn" onclick="openRec()">＋ 记录减仓</button>
   </div>
 
   <div id="stale-banner" class="stale-banner" style="display:none">
@@ -130,6 +171,44 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 
   <div id="main-content">
     <div class="unavail">加载中…</div>
+  </div>
+
+  <div id="trades-wrap" class="trades-wrap" style="display:none">
+    <div class="trades-head">
+      <div class="section-label" style="margin:0">减仓记录</div>
+      <div id="trades-total" class="page-meta"></div>
+    </div>
+    <div id="trades-body"></div>
+  </div>
+</div>
+
+<!-- 记录减仓 弹窗 -->
+<div id="rec-mask" class="modal-mask" onclick="if(event.target===this)closeRec()">
+  <div class="modal">
+    <h3>记录减仓</h3>
+    <div class="modal-sub">减仓后录入，工具即时更新持仓与"剩 N 周"进度，并留痕用于 vs TWAP 回溯。</div>
+    <div class="fld">
+      <label>基金</label>
+      <select id="rec-fund" onchange="recFundChanged()"></select>
+    </div>
+    <div class="fld">
+      <label>减仓金额 ¥（按赎回到手/市值减少）</label>
+      <input id="rec-amount" type="number" min="0" step="100" placeholder="如 13296">
+      <div class="fld-hint" id="rec-hint"></div>
+    </div>
+    <div class="fld">
+      <label>交易日期</label>
+      <input id="rec-date" type="date">
+    </div>
+    <div class="fld">
+      <label>备注（可选）</label>
+      <input id="rec-note" type="text" placeholder="如 按建议执行 / 部分">
+    </div>
+    <div id="rec-msg" class="modal-msg"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeRec()">取消</button>
+      <button id="rec-submit" class="btn-primary" onclick="submitRec()">记录</button>
+    </div>
   </div>
 </div>
 
@@ -335,9 +414,81 @@ async function load() {
     ? `<p class="disclaimer">⚠️ ${d.disclaimer}</p>` : '';
 
   document.getElementById('main-content').innerHTML = acctHtml + tablesHtml + disclaimer;
+  LAST = d;
+}
+
+// ── 记录减仓 ──
+let LAST = null;
+const RULE_LABEL = {1:'①上升',2:'②深套',3:'③确认下降',4:'④破带',5:'⑤破MA20',6:'⑥观察',0:'数据不足'};
+
+function openRec() {
+  if (!LAST || !LAST.funds) { return; }
+  const sel = document.getElementById('rec-fund');
+  sel.innerHTML = LAST.funds.filter(f=>f.ok && (f.mv||0)>0)
+    .map(f=>`<option value="${f.code}" data-mv="${f.mv}" data-clip="${f.clip||0}" data-amt="${f.clip_amt||0}">${f.name}（${f.code}）· 持仓 ${fmt_cny(f.mv)}</option>`).join('');
+  document.getElementById('rec-date').value = (LAST.data_date) || new Date().toISOString().slice(0,10);
+  document.getElementById('rec-amount').value = '';
+  document.getElementById('rec-note').value = '';
+  document.getElementById('rec-msg').textContent = '';
+  recFundChanged();
+  document.getElementById('rec-mask').classList.add('open');
+}
+function closeRec() { document.getElementById('rec-mask').classList.remove('open'); }
+
+function recFundChanged() {
+  const o = document.getElementById('rec-fund').selectedOptions[0];
+  if (!o) return;
+  const mv = +o.dataset.mv, clip = +o.dataset.clip, amt = +o.dataset.amt;
+  document.getElementById('rec-hint').innerHTML =
+    `本周建议 <b>${(clip*100).toFixed(1)}%</b> ≈ ${fmt_cny(amt)} &nbsp;`
+    + `<a onclick="document.getElementById('rec-amount').value=${Math.round(amt)}">填建议额</a> · `
+    + `<a onclick="document.getElementById('rec-amount').value=${Math.round(mv)}">全部赎回</a>`;
+}
+
+async function submitRec() {
+  const o = document.getElementById('rec-fund').selectedOptions[0];
+  const amount = +document.getElementById('rec-amount').value;
+  const msg = document.getElementById('rec-msg');
+  if (!o || !(amount>0)) { msg.style.color='var(--red)'; msg.textContent='请选基金并填正数金额'; return; }
+  const btn = document.getElementById('rec-submit'); btn.disabled = true;
+  try {
+    const r = await fetch('/api/fund-exit/record-trade', {method:'POST',headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({code:o.value, amount_cny:amount, date:document.getElementById('rec-date').value, note:document.getElementById('rec-note').value})});
+    const j = await r.json();
+    if (!j.ok) { msg.style.color='var(--red)'; msg.textContent='失败：'+(j.error||'未知'); btn.disabled=false; return; }
+    msg.style.color='var(--green)';
+    msg.textContent = `已记录：${j.name} 减 ${fmt_cny(j.amount)}（${(j.pct_sold*100).toFixed(1)}%），余 ${fmt_cny(j.new_mv)}`;
+    await load(); await loadTrades();
+    setTimeout(closeRec, 1100);
+  } catch(e) { msg.style.color='var(--red)'; msg.textContent='网络错误'; }
+  btn.disabled = false;
+}
+
+async function loadTrades() {
+  let j; try { j = await (await fetch('/api/fund-exit/trades')).json(); } catch(e) { return; }
+  const tr = j.trades || [];
+  const wrap = document.getElementById('trades-wrap');
+  wrap.style.display = '';
+  if (!tr.length) { document.getElementById('trades-body').innerHTML = '<div class="trades-empty">暂无记录 —— 减仓后点右上"记录减仓"。</div>'; document.getElementById('trades-total').textContent=''; return; }
+  const tot = tr.reduce((s,t)=>s+(+t.amount_cny||0),0);
+  document.getElementById('trades-total').textContent = `已减仓累计 ${fmt_cny(tot)} · ${tr.length} 笔`;
+  document.getElementById('trades-body').innerHTML = `
+    <table class="trades-table">
+      <thead><tr><th>日期</th><th>基金</th><th>减仓¥</th><th>占比</th><th>当时信号</th><th>建议%</th><th>备注</th></tr></thead>
+      <tbody>${tr.map(t=>`<tr>
+        <td>${t.trade_date||''}</td>
+        <td style="color:var(--text)">${t.name||t.code}</td>
+        <td>${fmt_cny(+t.amount_cny)}</td>
+        <td>${t.pct_sold?(+t.pct_sold*100).toFixed(1)+'%':'—'}</td>
+        <td>${RULE_LABEL[+t.rule]??'—'}</td>
+        <td>${t.recommended_clip?(+t.recommended_clip*100).toFixed(1)+'%':'—'}</td>
+        <td style="text-align:left;color:var(--text-2)">${t.note||''}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
 }
 
 load();
+loadTrades();
 
 // nav date
 const nd = document.getElementById('nav-date');

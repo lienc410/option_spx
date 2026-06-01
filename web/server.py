@@ -296,6 +296,25 @@ def funds_page():
     return render_template("funds.html")
 
 
+def _fund_positions():
+    """读 positions.csv → {code: {name, mv, pnl}}（持仓真值，由记录减仓改写）。"""
+    import csv as _csv
+    pf = _FUND_DIR / "positions.csv"
+    out = {}
+    if pf.exists():
+        with open(pf, encoding="utf-8") as f:
+            for row in _csv.DictReader(f):
+                try:
+                    out[row["code"]] = {
+                        "name": row.get("name", ""),
+                        "mv": float(row["market_value"]),
+                        "pnl": float(row["pnl_pct"]) if row.get("pnl_pct") not in (None, "") else None,
+                    }
+                except (TypeError, ValueError, KeyError):
+                    continue
+    return out
+
+
 @app.route("/api/fund-exit/signals")
 def fund_exit_signals():
     f = _FUND_DIR / "fund_signals.json"
@@ -304,8 +323,114 @@ def fund_exit_signals():
                         "message": "信号未生成，请先运行 fund_exit/fund_exit_signals.py"}), 200
     with open(f, encoding="utf-8") as fh:
         data = json.load(fh)
+    # 合并 positions.csv 实时市值：记录减仓后即时反映 ¥/总额（信号字段仍来自扫描）
+    pos = _fund_positions()
+    if pos:
+        wk = (data.get("cadence") or {}).get("weekly_twap") or 0.0
+        funds, held, non_strong, suggested = [], 0.0, 0.0, 0.0
+        for fd in data.get("funds", []):
+            code = fd.get("code")
+            if code in pos:
+                mv = pos[code]["mv"]
+                if mv <= 0:
+                    continue   # 已清空，不再显示
+                fd = dict(fd)
+                fd["mv"] = mv
+                if fd.get("clip") is not None:
+                    fd["clip_amt"] = round(mv * fd["clip"], 0)
+            mv = fd.get("mv") or 0.0
+            if fd.get("rule") == 1:
+                held += mv
+            else:
+                non_strong += mv
+                suggested += mv * (fd.get("clip") or 0.0)
+            funds.append(fd)
+        total = held + non_strong
+        data["funds"] = funds
+        data["account"] = {**data.get("account", {}),
+                           "total_mv": round(total, 2),
+                           "held_strong_mv": round(held, 2),
+                           "held_strong_pct": round(held / total, 6) if total else 0,
+                           "non_strong_mv": round(non_strong, 2),
+                           "floor_target": round(wk * non_strong, 2),
+                           "suggested_total": round(suggested, 2),
+                           "floor_met": True}
     data["available"] = True
     return jsonify(data)
+
+
+@app.route("/api/fund-exit/record-trade", methods=["POST"])
+def fund_exit_record_trade():
+    """记录一笔减仓：减 positions.csv 市值 + 追加 trade_log.csv（留痕 NAV/规则/建议）。"""
+    import csv as _csv
+    from datetime import datetime as _dt
+    body = flask_req.get_json(force=True, silent=True) or {}
+    code = str(body.get("code", "")).strip()
+    try:
+        amount = float(body.get("amount_cny"))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "amount_cny 无效"}), 400
+    trade_date = str(body.get("date", "")).strip() or _dt.now().strftime("%Y-%m-%d")
+    note = str(body.get("note", "")).strip()
+    if not code or amount <= 0:
+        return jsonify({"ok": False, "error": "缺 code 或 amount<=0"}), 400
+
+    pos = _fund_positions()
+    if code not in pos:
+        return jsonify({"ok": False, "error": f"持仓无此基金 {code}"}), 404
+    old_mv, name = pos[code]["mv"], pos[code]["name"]
+    amount = min(amount, old_mv)
+    pct = amount / old_mv if old_mv > 0 else 0.0
+    new_mv = max(0.0, old_mv - amount)
+
+    nav = rule = rec_clip = None
+    sf = _FUND_DIR / "fund_signals.json"
+    if sf.exists():
+        with open(sf, encoding="utf-8") as fh:
+            for fd in json.load(fh).get("funds", []):
+                if fd.get("code") == code:
+                    nav, rule, rec_clip = fd.get("latest"), fd.get("rule"), fd.get("clip")
+                    break
+
+    tl = _FUND_DIR / "trade_log.csv"
+    new_file = not tl.exists()
+    with open(tl, "a", newline="", encoding="utf-8") as fh:
+        w = _csv.writer(fh)
+        if new_file:
+            w.writerow(["trade_date", "code", "name", "amount_cny", "pct_sold", "nav",
+                        "rule", "recommended_clip", "note", "recorded_at"])
+        w.writerow([trade_date, code, name, f"{amount:.2f}", f"{pct:.4f}",
+                    nav if nav is not None else "", rule if rule is not None else "",
+                    rec_clip if rec_clip is not None else "", note,
+                    _dt.now().isoformat(timespec="seconds")])
+
+    pf = _FUND_DIR / "positions.csv"
+    with open(pf, encoding="utf-8") as fh:
+        rows = list(_csv.DictReader(fh))
+    for r in rows:
+        if r["code"] == code:
+            r["market_value"] = f"{new_mv:.2f}"
+    with open(pf, "w", newline="", encoding="utf-8") as fh:
+        w = _csv.DictWriter(fh, fieldnames=["code", "name", "market_value", "pnl_pct"])
+        w.writeheader()
+        for r in rows:
+            w.writerow({k: r.get(k, "") for k in ["code", "name", "market_value", "pnl_pct"]})
+
+    return jsonify({"ok": True, "code": code, "name": name, "amount": round(amount, 2),
+                    "pct_sold": round(pct, 4), "new_mv": round(new_mv, 2)})
+
+
+@app.route("/api/fund-exit/trades")
+def fund_exit_trades():
+    """最近减仓记录（倒序）。"""
+    import csv as _csv
+    tl = _FUND_DIR / "trade_log.csv"
+    if not tl.exists():
+        return jsonify({"trades": []})
+    with open(tl, encoding="utf-8") as fh:
+        rows = list(_csv.DictReader(fh))
+    rows.reverse()
+    return jsonify({"trades": rows[:50]})
 
 
 @app.route("/api/fund-exit/chart/<code>")

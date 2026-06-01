@@ -3,4 +3,6 @@
 charts/
 *.xlsx
 fund_signals.json
+positions.csv
+trade_log.csv
 __pycache__/
