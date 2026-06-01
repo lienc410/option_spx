@@ -12,6 +12,13 @@
 - `基金技术出场信号.xlsx` — 带格式汇总表
 - `refresh.log` — launchd 运行日志
 
+## 持仓状态 + 记录减仓（写回闭环，均 gitignore）
+- `positions.csv` — **持仓真值**（code,name,market_value,pnl_pct）。首次由代码内 `HOLDINGS_SEED` 自动生成；此后由前端"记录减仓"按钮改写。脚本每次读它。
+- `trade_log.csv` — 每笔减仓留痕（日期/代码/¥/占比/当时 NAV/规则/建议%/备注），供 vs-TWAP 回溯。
+- **工作流**：每周扫描 → 你按建议%在中信 App 赎 → `/funds` 页右上 **"记录减仓"** 录入（基金/¥/日期/备注，可一键填建议额/全部赎回）→ 工具即时减市值、"剩 N 周"倒数推进、trade_log 留痕。
+- 端点：`POST /api/fund-exit/record-trade`、`GET /api/fund-exit/trades`；`/signals` 合并 positions 实时市值（记录后即时反映，不必等扫描）。
+- 对账：结算(T+1/2)后 App 显示终值，可偶尔把 positions.csv 对齐 App（消除净值漂移）。
+
 ## 手动重跑
 ```bash
 # 本地（开发机）
