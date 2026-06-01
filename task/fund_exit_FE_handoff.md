@@ -90,7 +90,7 @@ def fund_exit_chart(code):
   "params": { "DEEP": 0.15, "rsi_oversold": 30,
               "trail_formula": "clip(1.0σ·√30d, 0.05, 0.14)", "trend_band": 0.01,
               "monthly_floor": 0.10,
-              "model": "clip = base(保底,强制) + extra(信号,可被RSI<30否决)",
+              "model": "clip = base(保底10%,强制) + extra(min(回撤,cap[rule])连续,可被RSI<30否决)",
               "strong_rule": "全部上升趋势(最新>MA20>MA60)纯持有" },
   "account": {
     "total_mv": 908291.28,
@@ -113,12 +113,12 @@ def fund_exit_chart(code):
       "dist_ma20": -0.021, "dist_ma60": -0.039, "dist_roll": -0.091,  // 距滚动高(深套/追踪统一参照)
       "trend": "下降",            // 上升/下降/震荡/数据不足
       "rule": 3,                  // 1..6 / 0 (见下表)
-      "action": "③确认下降趋势：保底 + 额外减仓（最重）",
+      "action": "③确认下降趋势：保底 + 额外(随回撤缩放，封顶15%)",
       "base": 0.10,              // 强制保底量(非强势仓恒 10%；强势①为 0)
-      "extra": 0.25,             // 信号额外量(超卖时归零，base 不变)
-      "clip": 0.35,              // = base + extra
-      "clip_amt": 47735.4,       // = mv*clip ¥
-      "vs_twap": 0.25,           // clip - monthly_floor; 负=比均匀少卖(让赢家跑)
+      "extra": 0.091,            // 连续=min(回撤9.1%, cap③15%)；超卖时归零，base 不变
+      "clip": 0.191,             // = base + extra
+      "clip_amt": 26050.0,       // = mv*clip ¥
+      "vs_twap": 0.091,          // clip - monthly_floor; 负=比均匀少卖(让赢家跑)
       "oversold": false,         // RSI < rsi_oversold(30)（仅此，不含创新低）
       "locked": "",              // 非空=锁定提示
       "chart": "charts/024915_华夏红利价值混合.png"

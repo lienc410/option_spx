@@ -6,15 +6,15 @@
 
 核心模型：clip = base(保底·强制清仓节奏) + extra(信号驱动·可被超卖否决)
   · base  ：非强势仓每月强制出 MONTHLY_FLOOR → floor 结构性达标；深套也靠它逐步出。
-  · extra ：按信号强度叠加；RSI<RSI_OVERSOLD(超卖)时归零，但 base 不受影响。
+  · extra ：连续随回撤深度缩放 min(SLOPE×回撤, CAP[rule])；RSI<30 时归零，base 不受影响。
   · 强势①(上升趋势)纯持有，base=extra=0。
 
-规则（优先级取首个命中；深套/追踪统一用"滚动高"参照）：
+规则（优先级取首个命中；深套/追踪统一用"滚动高"参照；extra 温和封顶）：
   ① 上升趋势 : 最新>MA20>MA60                       -> 纯持有(base=extra=0)
   ② 深套     : 下降 且 距滚动高 <= -DEEP             -> base only（不加码砸底）
-  ③ 确认下降 : 下降 且 距滚动高 > -DEEP              -> base + extra 0.25（最重）
-  ④ 震荡破带 : 现价 <= 滚动高*(1-TRAIL_σ)            -> base + extra 0.15
-  ⑤ 破MA20   : 震荡 且 MA20>MA60 且 现价<MA20        -> base + extra 0.10
+  ③ 确认下降 : 下降 且 距滚动高 > -DEEP              -> base + extra(≤0.15, 随回撤)
+  ④ 震荡破带 : 现价 <= 滚动高*(1-TRAIL_σ)            -> base + extra(≤0.10, 随回撤)
+  ⑤ 破MA20   : 震荡 且 MA20>MA60 且 现价<MA20        -> base + extra(≤0.05, 随回撤)
   ⑥ 其余     : -> base only
 
 超卖否决 = 仅 RSI<RSI_OVERSOLD（审计 A1：去掉"创新低"——那是下行动能、非超卖）。
@@ -63,13 +63,17 @@ DEEP = 0.15               # 深套界：距滚动高 ≤ -DEEP（A6：深套/追
 MONTHLY_FLOOR = 0.10      # base：非强势仓每月强制清仓比例（清仓脊柱）
 RSI_OVERSOLD = 30         # 超卖否决阈（A7：原硬编码 → 命名参数）
 
-# extra：信号驱动的额外减仓（叠在 base 之上），按"继续下跌的把握"单调排序（A4 修正旧倒挂）
-EXTRA = {
+# extra：连续随"距滚动高的回撤深度"缩放（deeper→more），再按信号类型**温和封顶**。
+#   extra = min(EXTRA_SLOPE × max(0,-dist_roll), EXTRA_CAP[rule])
+#   SLOPE=1.0 → "回撤多少就额外卖多少"(1:1)，再被 cap 压住 → 对 TWAP 偏离 ≤ cap。
+#   温和档（2026-06 PM 定）：信号信息量低(无 backtest)，注码配 edge，只做弱倾斜不重注。
+EXTRA_SLOPE = 1.0
+EXTRA_CAP = {
     1: 0.00,   # ① 上升趋势：纯持有
-    2: 0.00,   # ② 深套：不加码（仅 base 逐步出）
-    3: 0.25,   # ③ 确认下降趋势：把握最高 → 最重
-    4: 0.15,   # ④ 震荡·破追踪带
-    5: 0.10,   # ⑤ 震荡·破MA20：初弱 → 最轻
+    2: 0.00,   # ② 深套：不加码（capitulation 不砸底）
+    3: 0.15,   # ③ 确认下降趋势：封顶最高
+    4: 0.10,   # ④ 震荡·破追踪带
+    5: 0.05,   # ⑤ 震荡·破MA20：封顶最低
     6: 0.00,   # ⑥ 持有观察：仅 base
     0: 0.00,   # ⓪ 数据不足：仅 base
 }
@@ -107,9 +111,9 @@ LOCKED = {}
 ACTION_TEXT = {
     1: "①上升趋势：让利润奔跑，纯持有",
     2: "②深套：不加码砸底，仅走保底量逐步出",
-    3: "③确认下降趋势：保底 + 额外减仓（最重）",
-    4: "④震荡·破追踪带：保底 + 额外减仓",
-    5: "⑤震荡·破MA20：保底 + 轻额外减仓",
+    3: "③确认下降趋势：保底 + 额外(随回撤缩放，封顶15%)",
+    4: "④震荡·破追踪带：保底 + 额外(随回撤缩放，封顶10%)",
+    5: "⑤震荡·破MA20：保底 + 额外(随回撤缩放，封顶5%)",
     6: "⑥持有观察：仅走保底量",
     0: "数据不足：仅走保底量，指标待补",
 }
@@ -281,9 +285,10 @@ def analyze(name, code, mv, pnl_pct) -> FundResult:
 
     r.rule = rule
     r.action = ACTION_TEXT[rule]
-    # base + extra 分层：base 强制（非强势仓），extra 信号驱动且可被超卖否决
+    # base + extra 分层：base 强制（非强势仓）；extra 连续随回撤深度缩放、温和封顶、可被超卖否决
     r.base = 0.0 if rule == 1 else MONTHLY_FLOOR
-    r.extra = EXTRA[rule]
+    depth = max(0.0, -r.dist_roll) if r.dist_roll == r.dist_roll else 0.0
+    r.extra = min(EXTRA_SLOPE * depth, EXTRA_CAP[rule])
     if r.oversold and r.extra > 0:   # A1：超卖只挡 extra，不挡 base
         r.extra = 0.0
         r.action += "｜超卖否决额外(RSI<{}，仅走保底)".format(RSI_OVERSOLD)
