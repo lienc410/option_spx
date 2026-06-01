@@ -206,7 +206,7 @@ function render_fund_row(f, P) {
   if (!f.ok) {
     return `<tr class="err-row">
       <td><div class="fund-name">${f.name}</div><div class="fund-code">${f.code}</div></td>
-      <td colspan="8">❌ 取数失败：${f.err || '未知错误'}</td>
+      <td colspan="9">❌ 取数失败：${f.err || '未知错误'}</td>
     </tr>`;
   }
   const cls = RULE_COLOR[f.rule] || 'ab-dim';
@@ -224,6 +224,7 @@ function render_fund_row(f, P) {
       <div class="fund-name">${f.name}${lock}</div>
       <div class="fund-code">${f.code}</div>
     </td>
+    <td>${fmt_cny(f.mv)}</td>
     <td><span class="action-badge ${cls}">${action_short}</span>${veto}</td>
     <td ${color_cls(f.clip)}>${clip_disp}</td>
     <td ${color_cls(f.clip_amt)}>${clip_amt_disp}</td>
@@ -233,7 +234,7 @@ function render_fund_row(f, P) {
     <td ${color_cls(f.pnl_pct)}>${fmt_pct(f.pnl_pct)}</td>
   </tr>
   <tr class="fund-chart-row" id="chart-${f.code}">
-    <td class="fund-chart-cell" colspan="8">
+    <td class="fund-chart-cell" colspan="9">
       ${render_signal_panel(f, P)}
       <img src="/api/fund-exit/chart/${f.code}" alt="${f.name} 净值图"
            onerror="this.replaceWith(Object.assign(document.createElement('p'),{className:'chart-err',textContent:'图表未生成'}))">
@@ -257,6 +258,7 @@ function render_table(title, funds, P) {
     <table class="fund-table">
       <thead><tr>
         <th>基金</th>
+        <th>持仓额</th>
         <th>动作</th>
         <th>减仓%</th>
         <th>减仓额</th>
