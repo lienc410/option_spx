@@ -524,8 +524,12 @@ def write_json(results, path, regime, floor_target, suggested_total, non_strong_
         },
         "funds": funds,
     }
-    with open(path, "w", encoding="utf-8") as f:
+    # 原子写：先写临时文件再 rename，避免日度扫描重写时被前端读到半截
+    import os
+    tmp = str(path) + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, path)
 
 
 def plot_fund(r: FundResult, chart_dir: Path):

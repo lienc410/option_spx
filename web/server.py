@@ -321,8 +321,11 @@ def fund_exit_signals():
     if not f.exists():
         return jsonify({"available": False,
                         "message": "信号未生成，请先运行 fund_exit/fund_exit_signals.py"}), 200
-    with open(f, encoding="utf-8") as fh:
-        data = json.load(fh)
+    try:
+        with open(f, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (ValueError, OSError):   # 读到半截/损坏（前端会自动重试）
+        return jsonify({"available": False, "message": "信号刷新中，请稍候"}), 200
     # 合并 positions.csv 实时市值：记录减仓后即时反映 ¥/总额（信号字段仍来自扫描）
     pos = _fund_positions()
     if pos:

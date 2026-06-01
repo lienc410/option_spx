@@ -352,9 +352,18 @@ function render_table(title, funds, P) {
     </table>`;
 }
 
-async function load() {
-  const resp = await fetch('/api/fund-exit/signals');
-  const d = await resp.json();
+async function load(retry=0) {
+  let d;
+  try {
+    const resp = await fetch('/api/fund-exit/signals', {cache:'no-store'});
+    if (!resp.ok) throw new Error('HTTP '+resp.status);
+    d = await resp.json();
+  } catch(e) {
+    if (retry < 3) { setTimeout(()=>load(retry+1), 1500); return; }
+    document.getElementById('main-content').innerHTML =
+      `<div class="unavail"><p>加载失败：${e.message||e}</p><p style="margin-top:8px"><a style="color:var(--gold);cursor:pointer" onclick="load(0)">点击重试</a></p></div>`;
+    return;
+  }
 
   if (!d.available) {
     document.getElementById('main-content').innerHTML =
