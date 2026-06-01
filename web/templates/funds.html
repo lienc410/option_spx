@@ -55,6 +55,8 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .fund-row.expanded { background:var(--surface); }
 .fund-name { font-size:0.80rem;color:var(--text); }
 .fund-code { font-family:var(--f-mono);font-size:0.62rem;color:var(--text-2);margin-top:1px; }
+.chev { display:inline-block;color:var(--text-2);font-size:0.7em;margin-right:5px;transition:transform 0.15s; }
+.fund-row.expanded .chev { transform:rotate(90deg);color:var(--gold); }
 
 /* action badge */
 .action-badge { display:inline-block;font-size:0.62rem;font-family:var(--f-ui);padding:2px 8px;border-radius:9999px;white-space:nowrap; }
@@ -160,7 +162,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
   <div class="page-hero" style="display:flex;justify-content:space-between;align-items:flex-end;">
     <div>
       <h1>基金 <em>清仓信号</em></h1>
-      <p class="page-meta">纪律工具 · 逐步清仓过渡期 · 全仓清空后移除</p>
+      <p class="page-meta">纪律工具 · 逐步清仓过渡期 · <span style="color:var(--gold)">▸ 点击任意基金行展开：净值图 + 信号轨迹</span></p>
     </div>
     <button class="rec-btn" onclick="openRec()">＋ 记录减仓</button>
   </div>
@@ -300,8 +302,8 @@ function render_fund_row(f, P) {
 
   return `<tr class="fund-row" data-code="${f.code}" onclick="toggle_chart('${f.code}')">
     <td>
-      <div class="fund-name">${f.name}${lock}</div>
-      <div class="fund-code">${f.code}</div>
+      <div class="fund-name"><span class="chev">▸</span>${f.name}${lock}</div>
+      <div class="fund-code" style="margin-left:13px">${f.code}</div>
     </td>
     <td>${fmt_cny(f.mv)}</td>
     <td><span class="action-badge ${cls}">${action_short}</span>${veto}</td>
