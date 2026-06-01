@@ -317,8 +317,8 @@ function render_fund_row(f, P) {
   <tr class="fund-chart-row" id="chart-${f.code}">
     <td class="fund-chart-cell" colspan="9">
       ${render_signal_panel(f, P)}
-      <img src="/api/fund-exit/chart/${f.code}" alt="${f.name} 净值图"
-           onerror="this.replaceWith(Object.assign(document.createElement('p'),{className:'chart-err',textContent:'图表未生成'}))">
+      <img alt="${f.name} 净值图" data-src="/api/fund-exit/chart/${f.code}" data-try="0"
+           onerror="if((+this.dataset.try)<3){this.dataset.try=+this.dataset.try+1;const s=(this.dataset.src||this.src).split('?')[0];const me=this;setTimeout(()=>{me.src=s+'?r='+Date.now();},700);}else{this.replaceWith(Object.assign(document.createElement('p'),{className:'chart-err',textContent:'图表加载失败 — 收起再展开可重试'}));}">
     </td>
   </tr>`;
 }
@@ -326,9 +326,14 @@ function render_fund_row(f, P) {
 function toggle_chart(code) {
   const row = document.getElementById('chart-' + code);
   if (!row) return;
+  const opening = !row.classList.contains('open');
   row.classList.toggle('open');
   const tr = row.previousElementSibling;
   if (tr) tr.classList.toggle('expanded');
+  if (opening) {   // 展开时才加载图（避免折叠行 10 张图并发抓取打爆单线程 web）
+    const img = row.querySelector('img[data-src]');
+    if (img && !img.getAttribute('src')) img.src = img.dataset.src;
+  }
 }
 
 function render_table(title, funds, P) {
