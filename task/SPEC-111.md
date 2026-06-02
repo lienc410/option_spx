@@ -2,7 +2,8 @@
 
 **Type**: governance / risk management
 **Date**: 2026-06-01
-**Status**: **APPROVED** — PM signed 2026-06-01 (cap=60%, alert=75%, floor=$30k, BCD sizing reduce ~7% accepted), pending Developer implementation
+**Status**: **APPROVED — REVISED 2026-06-02** — PM signed 2026-06-01 at cap=60%; Q082 G2 final re-ratify 2026-06-02 refined cap to **50%** based on full 26y BCD synth reconstruction (n=137); BCD sizing reduce ~23%; alert=75%, floor=$30k unchanged. Pending PM re-sign on revised cap + Developer implementation.
+**Cross-reference**: `research/q082/q082_p10_verdict_revised_2026-06-02.md` Verdict Z — cap parameter no longer independent of Q082
 **Owner**: Quant Researcher (draft) → PM ratify → Developer implementation
 **Source**: Q081 P5 Verdict A (research/q081/q081_p5_verdict_2026-06-01.md), G-review 2 ratified 2026-06-01 (Q2 RATIFY-65→60, Q3 RATIFY-60, Q4 CHALLENGE-add alert)
 **Parent**: SPEC-104 (Sleeve Governance, BP-based caps) — additive, no breaking change
@@ -17,9 +18,11 @@ Add a **cash-side governance layer** to sleeve_governance, parallel to (not repl
 
 | Rule | Trigger | Action |
 |---|---|---|
-| **Hard cap** | `Σ debit_open ≥ 60% × current_liquid_cash` | **BLOCK** new debit-strategy open; degrade to reduce_wait |
+| **Hard cap** | `Σ debit_open ≥ 50% × current_liquid_cash` | **BLOCK** new debit-strategy open; degrade to reduce_wait |
 | **Concurrent alert** | `Σ debit_open ≥ 75% × current_liquid_cash` | **NOTIFY** (Telegram); allow trade |
 | **Cash floor** | `current_liquid_cash < $30,000` | **BLOCK** all new debit-strategy opens |
+
+**Cap parameter history**: PM initial approval 60% (2026-06-01). Refined to **50%** by Q082 G2 final re-ratify (2026-06-02) after 26y BCD synth reconstruction confirmed DOWN-stratum drag is reliably -19 to -22pp (block-bootstrap CI tight) and Y MA-cross gate is refuted (filters only 6.2% of DOWN). Cap is the only operational lever — tightened from 60% → 50%.
 
 **Denominator**: real-time combined liquid cash across brokers, NOT static dollar amount, NOT % NLV.
 
