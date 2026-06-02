@@ -41,13 +41,13 @@ cd /Users/macbook/SPX_strat && git pull
 .venv_fund/bin/pip install akshare openpyxl matplotlib
 .venv_fund/bin/python fund_exit/fund_exit_signals.py   # 验证生成 JSON+图
 
-# launchd 日度任务（周一~五 14:00 本地时间=EDT；=北京凌晨2点，当日中国净值已全公布）
+# launchd 日度任务（周一~五 09:00 / 11:00 / 13:00 本地时间=EDT ×3 次）
 cp fund_exit/com.spxstrat.fundexit.refresh.plist ~/Library/LaunchAgents/
 launchctl load -w ~/Library/LaunchAgents/com.spxstrat.fundexit.refresh.plist
 launchctl list | grep fundexit                          # 确认加载
 launchctl kickstart -k gui/$(id -u)/com.spxstrat.fundexit.refresh  # 强制跑一次验证
 ```
-- 时区：launchd 用机器**本地时间**。老 Air 确认为 **EDT(美东)**。A股基金一天一个净值、收盘后**北京晚上**公布 = 美东上午 8–11 点；故 **14:00 ET(=北京凌晨2点)** 当日净值已全出且安定 → 正确。**不能**按北京开盘扫(那时新净值还没出)。换时区/换机改 plist 的 Hour。
+- 时区：launchd 用机器**本地时间**。老 Air 确认为 **EDT(美东)**。A股基金一天一个净值、收盘后**北京晚上**陆续公布 = 美东上午 8–11 点(北京20:00→ET08:00, 22:00→ET10:00, 24:00→ET12:00)。故跑 **9/11/13 ET 三次**：早出的尽快上、晚出的兜底。**不能**按北京开盘扫(那时新净值还没出)。前端每行状态灯=该只今日净值是否已出。换时区/换机改 plist 的 Hour。
 - 操作：每周一次，美东晚间在 App 下赎回单（=北京次日上午，赶下一个 15:00 北京截单）→ 成交落**次日中国净值**（固有 1 日延迟，基金无法按已见净值赎）。
 - 改了 `HOLDINGS`/规则等脚本本体后需 `git pull`（定时任务只刷数据、不拉代码）。
 
