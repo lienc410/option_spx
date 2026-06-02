@@ -2,7 +2,7 @@
 
 **Type**: governance / risk management
 **Date**: 2026-06-01
-**Status**: **DRAFT** — PM approved Q081 Verdict A 2026-06-01, pending Developer implementation
+**Status**: **APPROVED** — PM signed 2026-06-01 (cap=60%, alert=75%, floor=$30k, BCD sizing reduce ~7% accepted), pending Developer implementation
 **Owner**: Quant Researcher (draft) → PM ratify → Developer implementation
 **Source**: Q081 P5 Verdict A (research/q081/q081_p5_verdict_2026-06-01.md), G-review 2 ratified 2026-06-01 (Q2 RATIFY-65→60, Q3 RATIFY-60, Q4 CHALLENGE-add alert)
 **Parent**: SPEC-104 (Sleeve Governance, BP-based caps) — additive, no breaking change
