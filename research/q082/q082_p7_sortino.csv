@@ -1,0 +1,4 @@
+metric,n,mean,std,sortino,p05
+BCD period-ROE,137,0.1047,0.2356,0.85,-0.3326
+QQQ same-window,137,0.0077,0.0315,0.388,-0.0548
+BCD minus QQQ,137,0.097,0.2105,0.896,-0.2997
