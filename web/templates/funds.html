@@ -287,7 +287,7 @@ function render_fund_row(f, P) {
   if (!f.ok) {
     return `<tr class="err-row">
       <td><div class="fund-name">${f.name}</div><div class="fund-code">${f.code}</div></td>
-      <td colspan="9">❌ 取数失败：${f.err || '未知错误'}</td>
+      <td colspan="10">❌ 取数失败：${f.err || '未知错误'}</td>
     </tr>`;
   }
   const cls = RULE_COLOR[f.rule] || 'ab-dim';
@@ -310,12 +310,13 @@ function render_fund_row(f, P) {
     <td ${color_cls(f.clip)}>${clip_disp}</td>
     <td ${color_cls(f.clip_amt)}>${clip_amt_disp}</td>
     <td ${color_cls(f.dist_roll)}>${fmt_signed(f.dist_roll)}</td>
+    <td ${color_cls(f.day_chg)}>${fmt_signed(f.day_chg)}</td>
     <td>${f.rsi != null ? f.rsi.toFixed(0) : '—'}</td>
     <td ${color_cls(f.vs_twap)}>${fmt_signed(f.vs_twap)}</td>
     <td ${color_cls(f.pnl_pct)}>${fmt_pct(f.pnl_pct)}</td>
   </tr>
   <tr class="fund-chart-row" id="chart-${f.code}">
-    <td class="fund-chart-cell" colspan="9">
+    <td class="fund-chart-cell" colspan="10">
       ${render_signal_panel(f, P)}
       <img alt="${f.name} 净值图" data-src="/api/fund-exit/chart/${f.code}" data-try="0"
            onerror="if((+this.dataset.try)<3){this.dataset.try=+this.dataset.try+1;const s=(this.dataset.src||this.src).split('?')[0];const me=this;setTimeout(()=>{me.src=s+'?r='+Date.now();},700);}else{this.replaceWith(Object.assign(document.createElement('p'),{className:'chart-err',textContent:'图表加载失败 — 收起再展开可重试'}));}">
@@ -349,6 +350,7 @@ function render_table(title, funds, P) {
         <th>本周%</th>
         <th>本周额</th>
         <th>距滚高</th>
+        <th>日涨跌</th>
         <th>RSI</th>
         <th>vs均匀</th>
         <th>盈亏</th>

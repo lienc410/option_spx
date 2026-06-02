@@ -227,6 +227,7 @@ class FundResult:
     dist_ma20: float = float("nan")
     dist_ma60: float = float("nan")
     dist_roll: float = float("nan")      # 距滚动高（A6 统一参照）
+    day_chg: float = float("nan")        # 最近一日涨跌% (累计净值环比)
     trend: str = ""
     rule: int = 6
     action: str = ""
@@ -273,6 +274,7 @@ def analyze(name, code, mv, pnl_pct, weeks_remaining) -> FundResult:
     r.dist_ma20 = r.latest / r.ma20 - 1 if r.ma20 == r.ma20 else float("nan")
     r.dist_ma60 = r.latest / r.ma60 - 1 if r.ma60 == r.ma60 else float("nan")
     r.dist_roll = r.latest / r.roll_high - 1 if r.roll_high == r.roll_high else float("nan")
+    r.day_chg = float(nav.iloc[-1] / nav.iloc[-2] - 1) if n >= 2 else float("nan")
 
     # 趋势三态 + 5.6 band-hysteresis（压日度 whipsaw，见 _trend_label）
     r.trend = _trend_label(r.latest, r.ma20, r.ma60)
@@ -488,7 +490,7 @@ def write_json(results, path, regime, floor_target, suggested_total, non_strong_
             "trail_trigger": _num(r.trail_trigger),
             "rsi": _num(r.rsi), "ann_vol": _num(r.ann_vol),
             "dist_ma20": _num(r.dist_ma20), "dist_ma60": _num(r.dist_ma60),
-            "dist_roll": _num(r.dist_roll),
+            "dist_roll": _num(r.dist_roll), "day_chg": _num(r.day_chg),
             "trend": r.trend, "rule": r.rule, "action": r.action,
             "base": _num(r.base), "extra": _num(r.extra),
             "clip": _num(r.clip), "clip_amt": _num(r.mv * r.clip) if r.ok else None,
