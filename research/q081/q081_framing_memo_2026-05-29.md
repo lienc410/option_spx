@@ -4,7 +4,7 @@
 **Owner**: Quant Researcher
 **Status**: FRAMING — pending PM ratification before P0 kickoff
 **Trigger**: 2nd quant pre-framing memo 2026-05-29（PM 转发，原文存 `task/q081_framing_2nd_quant_input_2026-05-29.md`）；PM 初始问题为"低 VIX 下 BCD vs BPS 的资源效率"
-**Approval**: 待 PM 看完本 framing 拍板
+**Approval**: PM 2026-06-01 拍板（a. 框架同意 / b. cash-bound PM 直接确认 / c. hurdle = QQQ rolling / d. G-review 1+2 同一位 2nd quant）
 
 ---
 
