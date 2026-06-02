@@ -567,7 +567,48 @@ def portfolio_summary_payload() -> dict:
             "combined_maintenance_margin": round((live_maint or 0.0) + (etrade_maint or 0.0), 2),
         },
         "next_review_item": _next_review_item(q041),
+        "debit_cash_budget": _debit_cash_budget_snapshot(),
     }
+
+
+def _debit_cash_budget_snapshot() -> dict:
+    """SPEC-111: compute current debit cash-budget utilization for display."""
+    try:
+        from strategy.cash_budget_governance import (
+            CAP_PCT, ALERT_PCT, CASH_FLOOR_USD,
+            get_current_liquid_cash, get_open_debit_total_usd,
+        )
+        cash = get_current_liquid_cash()
+        debit = get_open_debit_total_usd()
+        liquid = cash.get("total") or 0.0
+        open_debit = debit.get("total") or 0.0
+        util_pct = (open_debit / max(liquid, 1.0) * 100.0) if liquid > 0 else 0.0
+
+        if liquid < CASH_FLOOR_USD:
+            status = "floor"
+        elif util_pct >= CAP_PCT * 100:
+            status = "red"
+        elif util_pct >= ALERT_PCT * 100:
+            status = "orange"
+        elif util_pct >= 50.0:
+            status = "gold"
+        else:
+            status = "green"
+
+        return {
+            "liquid_cash": round(liquid, 2),
+            "open_debit_usd": round(open_debit, 2),
+            "utilization_pct": round(util_pct, 1),
+            "cap_pct": CAP_PCT * 100,
+            "alert_pct": ALERT_PCT * 100,
+            "cash_floor_usd": CASH_FLOOR_USD,
+            "status": status,
+            "source": cash.get("source"),
+        }
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("_debit_cash_budget_snapshot failed: %s", exc)
+        return {"status": "unavailable", "error": str(exc)}
 
 
 def _next_review_item(q041: dict) -> dict:

@@ -221,10 +221,23 @@ def _current_value(legs, spx, sigma, days_held):
     return total
 
 
-def _position_contracts(position: Position, account_size: float) -> float:
+def _position_contracts(position: Position, account_size: float, params=None) -> float:
     if position.bp_per_contract <= 0 or position.bp_target <= 0:
         return 0.0
-    return account_size * position.bp_target * position.overlay_factor / position.bp_per_contract
+    contracts = account_size * position.bp_target * position.overlay_factor / position.bp_per_contract
+    # SPEC-111: cap BCD debit at bcd_max_debit_usd to comply with cash-budget governance
+    if position.strategy == StrategyName.BULL_CALL_DIAGONAL:
+        _p = params
+        if _p is None:
+            try:
+                from strategy.selector import DEFAULT_PARAMS as _DP
+                _p = _DP
+            except Exception:
+                pass
+        max_debit = getattr(_p, "bcd_max_debit_usd", 22_000.0) if _p is not None else 22_000.0
+        if max_debit > 0 and contracts * position.bp_per_contract > max_debit:
+            contracts = max_debit / position.bp_per_contract
+    return contracts
 
 
 def _position_total_bp(position: Position, account_size: float) -> float:

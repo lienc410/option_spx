@@ -1081,6 +1081,35 @@ def evaluate_candidate(candidate: dict, state: dict | None = None) -> Governance
             rule = candidate_rule
             reason = candidate_reason
             break
+
+    # SPEC-111: debit cash-budget cap (additive to BP caps; applied only on accept path)
+    if accepted and not is_risk_reducing(candidate):
+        sk = str(candidate.get("strategy_key") or "")
+        is_paper = bool(candidate.get("paper_trade"))
+        try:
+            from strategy.cash_budget_governance import (
+                DEBIT_STRATEGIES,
+                evaluate_debit_cash_budget,
+                log_cash_budget_decision,
+            )
+            if sk in DEBIT_STRATEGIES and not is_paper:
+                cash_decision = evaluate_debit_cash_budget(candidate)
+                log_cash_budget_decision(candidate, cash_decision)
+                if not cash_decision["accepted"]:
+                    accepted = False
+                    rule = "R111"
+                    reason = cash_decision["reason"]
+                elif cash_decision.get("alert"):
+                    _send_alert(
+                        "⚠️ <b>Debit cash-utilization alert (SPEC-111)</b>\n"
+                        f"Post-entry debit: <code>${cash_decision['stats']['post_entry_total_debit']:,.0f}</code> "
+                        f"= <code>{cash_decision['stats']['post_entry_utilization_pct']:.1f}%</code> of liquid cash\n"
+                        f"Cap: {int(cash_decision['stats']['cap_pct']*100)}% · Alert: {int(cash_decision['stats']['alert_pct']*100)}%\n"
+                        f"Liquid: <code>${cash_decision['stats']['current_liquid_cash']:,.0f}</code>"
+                    )
+        except Exception as exc:
+            log.warning("sleeve_governance: SPEC-111 cash budget check failed: %s", exc)
+
     return GovernanceDecision(accepted, rule, reason, candidate, state, requested_bp, requested_pct, _iso_now())
 
 

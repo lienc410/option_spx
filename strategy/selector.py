@@ -75,6 +75,11 @@ class StrategyParams:
     bp_target_low_vol:  float = 0.15   # LOW_VOL:  15% — Q045 J3 joint optimum (SPEC-084)
     bp_target_normal:   float = 0.15   # NORMAL:   15% — Q045 J3 joint optimum (SPEC-084)
     bp_target_high_vol: float = 0.14   # HIGH_VOL: 14% — Q045 J3 joint optimum (SPEC-084)
+    # SPEC-111 (2026-06-01): BCD max debit per trade (USD). Reduces BCD sizing ~7%
+    # so backtest median debit $23,864 → ≤$22,000, complying with 60%-of-cash cap.
+    # Applied in backtest engine when sizing BCD positions. In production, the
+    # cash_budget_governance.py hard cap enforces this dynamically against live cash.
+    bcd_max_debit_usd: float = 22_000.0
 
     # Total BP ceiling per regime (fraction of account_size, all concurrent positions combined)
     # Governs maximum aggregate portfolio margin utilization at any point in time.

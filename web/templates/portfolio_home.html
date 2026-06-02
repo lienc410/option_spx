@@ -2406,6 +2406,17 @@ async function loadSnapshot() {
     const openCount = spxOpen + q041Pos;
     const basisFallback = data.bp_basis_source === "default_params";
 
+    // SPEC-111: debit cash budget row
+    const dcb = data.debit_cash_budget || {};
+    const dcbStatus = dcb.status || 'unavailable';
+    const dcbColor = dcbStatus === 'red' ? 'var(--red)' : dcbStatus === 'orange' ? 'var(--orange)' : dcbStatus === 'gold' ? 'var(--gold)' : dcbStatus === 'green' ? 'var(--green)' : 'var(--text-2)';
+    const dcbLabel = dcb.open_debit_usd != null ? `$${Math.round(dcb.open_debit_usd).toLocaleString()} / $${Math.round(dcb.liquid_cash||0).toLocaleString()}  (${(dcb.utilization_pct||0).toFixed(1)}% — cap ${dcb.cap_pct||60}%, alert ${dcb.alert_pct||75}%)` : '—';
+    const dcbRow = dcbStatus !== 'unavailable' ? `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-top:1px solid var(--border);margin-top:6px">
+        <span style="font-family:var(--f-ui);font-size:0.62rem;color:var(--text-2)">Debit cash budget</span>
+        <span style="font-family:var(--f-mono);font-size:0.62rem;color:${dcbColor}">${dcbLabel}</span>
+      </div>` : '';
+
     body.innerHTML = `
       <div class="snapshot-strip${basisFallback ? '' : ' has-idle'}" id="snap-strip">
         <span class="snap-metric"><span class="snap-lbl">Margin</span><span class="snap-num" id="snap-val-margin">${basisFallback ? '—' : fmtPct(totalReal)}</span></span>
@@ -2414,7 +2425,8 @@ async function loadSnapshot() {
         <span class="snap-sep">·</span>
         <span class="snap-metric"><span class="snap-lbl">Open</span><span class="snap-num" id="snap-val-positions">${openCount}</span></span>
       </div>
-      <div id="margin-alloc"></div>`;
+      <div id="margin-alloc"></div>
+      ${dcbRow}`;
 
     try {
       _renderMarginAllocation(data);
