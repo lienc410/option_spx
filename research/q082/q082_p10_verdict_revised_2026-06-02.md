@@ -3,6 +3,7 @@
 **Date**: 2026-06-02 (revised same-day after G2 final re-ratify)
 **Owner**: Quant Researcher
 **Status**: FINAL — Q082 ratified close on three findings (verdict Z + two independent findings)
+**Operational deployment**: PM elected **Option C** 2026-06-02 — keep deployed SPEC-111 cap=60% (commit 6f133fc) for 30-60 day live test instead of immediate patch to 50%. Z verdict "research-ratified, operationally on hold pending data". Tripwire to patch documented in SPEC-111 §Live-Test Tripwire.
 **Prior**:
 - P8 verdict (deprecated): X recommended on aggregate +9.7pp + Sortino +0.9
 - G2 reply 2026-06-02: CHALLENGE Q3 (X insufficient), demand three computations

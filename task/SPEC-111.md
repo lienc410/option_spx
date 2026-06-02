@@ -2,8 +2,21 @@
 
 **Type**: governance / risk management
 **Date**: 2026-06-01
-**Status**: **APPROVED — REVISED 2026-06-02** — PM signed 2026-06-01 at cap=60%; Q082 G2 final re-ratify 2026-06-02 refined cap to **50%** based on full 26y BCD synth reconstruction (n=137); BCD sizing reduce ~23%; alert=75%, floor=$30k unchanged. Pending PM re-sign on revised cap + Developer implementation.
-**Cross-reference**: `research/q082/q082_p10_verdict_revised_2026-06-02.md` Verdict Z — cap parameter no longer independent of Q082
+**Status**: **DEPLOYED at cap=60% (commit 6f133fc, 2026-06-02)** — Q082 G2 ratified cap=50%; **PM elected Option C** (operational live-test) 2026-06-02: keep deployed cap=60% for 30-60 day live test, patch to 50% only if data trigger fires (see Live-Test Tripwire below).
+**Cross-reference**: `research/q082/q082_p10_verdict_revised_2026-06-02.md` Verdict Z — research-ratified at 50%; operational config at 60% pending live-test outcome.
+
+### Live-Test Tripwire (PM Option C, valid 2026-06-02 → 2026-08-01)
+
+Decision tree for cap parameter at 60-day review (≈ **2026-08-01**):
+
+| Observed condition during live test | Action |
+|---|---|
+| Σ debit utilization stays < 50% throughout window | Cap=60% sufficient; Q082 Z analysis archived as "research-ratified but operationally unnecessary"; no SPEC-111 patch |
+| Σ debit utilization touches 50% but never >55% | Marginal; default to KEEPING cap=60% but note in Q082 close that data slightly favors Z |
+| Σ debit utilization exceeds 55% even once | Trigger SPEC-111.1 patch: cap 60%→50%, BCD max_debit $22k→$18.5k. Backtest cache refresh required |
+| 75% concurrent alert fires | Immediate ad-hoc review (do NOT wait for 60-day window); likely indicates structural issue requiring tighter cap regardless |
+
+**Where data lives**: `data/cash_budget_decisions.jsonl` (per-decision row) + Portfolio Snapshot "Debit cash budget" field.
 **Owner**: Quant Researcher (draft) → PM ratify → Developer implementation
 **Source**: Q081 P5 Verdict A (research/q081/q081_p5_verdict_2026-06-01.md), G-review 2 ratified 2026-06-01 (Q2 RATIFY-65→60, Q3 RATIFY-60, Q4 CHALLENGE-add alert)
 **Parent**: SPEC-104 (Sleeve Governance, BP-based caps) — additive, no breaking change
