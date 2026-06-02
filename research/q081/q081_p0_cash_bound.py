@@ -22,16 +22,22 @@ OUT = ROOT / "research" / "q081" / "q081_p0_cash_bound.csv"
 
 # Hardcoded snapshot from live broker pull 2026-06-01 21:02 ET
 # (script can be re-run later to regenerate from API — see __main__)
+# PM 2026-06-01 correction: Schwab liquid ($205k cash + $96k BOXX) will be
+# converted to QQQ tomorrow. Treat steady-state Schwab as if that move
+# already happened. Today's literal snapshot lives in
+# `q081_p0_cash_bound_today_snapshot.csv` for audit; the steady-state
+# baseline below is what Q081 analysis uses going forward.
 SNAPSHOT = {
     "schwab": {
         "nlv": 631728.49,
-        "cash_balance": 205253.92,
+        "cash_balance": 0.00,            # PM moving to QQQ
         "buying_power": 567757.30,
-        "maintenance_margin": 63971.19,
+        "maintenance_margin": 63971.19,  # will rise modestly post-QQQ purchase, ignore for P0
         "positions": [
             {"symbol": "NVDA", "type": "stock_individual", "mv": 130624.20},
             {"symbol": "INTU", "type": "stock_individual", "mv": 23868.00},
-            {"symbol": "BOXX", "type": "cash_like",        "mv": 96216.93},  # 1-3mo T-bill ETF
+            # BOXX dissolves into QQQ
+            {"symbol": "QQQ_pending", "type": "beta_deployed", "mv": 301470.85},  # = cash + BOXX
             {"symbol": "MSFT", "type": "stock_individual", "mv": 116443.14},
             {"symbol": "META", "type": "stock_individual", "mv": 59429.70},
         ],

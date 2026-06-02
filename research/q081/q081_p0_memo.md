@@ -9,71 +9,84 @@
 
 ## Verdict
 
-**Cash-bound premise CONFIRMED, with operational nuance.**
+**Cash-bound premise CONFIRMED, and ACUTE in steady-state.**
 
-PM verbal confirmation 2026-06-01 + live data both support that idle cash is
-actively managed, not sitting fallow. Any new BCD debit DOES displace
-yield-bearing capital. Q081 proceeds to P1.
-
-But the picture is asymmetric across brokers, which affects the cap design
-in §3 below.
+PM ratification 2026-06-01 + live data + PM correction (Schwab $301k liquid
+moves to QQQ tomorrow → treat as already-QQQ for steady-state baseline) all
+support the framing thesis. Effective liquid cash collapses to E-Trade's
+$37k = **3.0% of combined NLV**. Median BCD debit ($23.9k) consumes 65% of
+total available cash. Two typical BCD positions exhaust all cash, forcing
+QQQ/SPY liquidation. Q081 proceeds to P1 with steady-state baseline.
 
 ---
 
-## Data snapshot
+## Data — steady-state baseline (PM correction applied)
 
-(Full numbers in `q081_p0_cash_bound.csv`. Headlines:)
+PM 2026-06-01: Schwab cash $205k + BOXX $96k → QQQ tomorrow. Steady-state
+treats Schwab liquid as already-QQQ. Today's literal snapshot lives in
+`q081_p0_cash_bound_today_snapshot.csv` for audit; analysis below uses the
+post-rebalance baseline (`q081_p0_cash_bound.csv`).
 
 | Metric | Schwab | E-Trade | Combined |
 |---|---|---|---|
 | NLV | $631,728 | $608,037 | $1,239,765 |
-| Cash (raw) | $205,254 (32.5%) | $37,046 (6.1%) | $242,299 (19.5%) |
-| Cash-like (BOXX) | $96,217 (15.2%) | 0 | $96,217 (7.8%) |
-| **Total liquid** | **$301,471 (47.7%)** | **$37,046 (6.1%)** | **$338,516 (27.3%)** |
-| Beta deployed (QQQ+SPY) | 0 | $447,188 (73.5%) | $447,188 (36.1%) |
+| Cash | 0 (moves to QQQ) | $37,046 (6.1%) | **$37,046 (3.0%)** |
+| Beta deployed (QQQ+SPY) | $301,471 (47.7%) | $447,188 (73.5%) | **$748,659 (60.4%)** |
 | Individual stocks | $330,365 (52.3%) | $160,848 (26.5%) | $491,213 (39.6%) |
 | Maintenance margin | $63,971 (10.1%) | $105,607 (17.4%) | $169,578 (13.7%) |
 | BP headroom | $567,924 (89.9%) | $123,431 (20.3%) | $691,789 (55.8%) |
+
+**Sharpened picture**: BP is grossly under-utilized (combined 13.7% maint
+margin, 56% headroom), while liquid cash is 3% of NLV. The asymmetry that
+the framing memo flagged — BCD consuming the bottleneck resource and not
+touching the slack resource — is **structural** in this account.
 
 ---
 
 ## Observations
 
-### 1. The two brokers run very different resource profiles
-- **Schwab is BP-loose AND cash-loose** (89.9% BP headroom, 47.7% liquid). Cash management via BOXX (1-3mo T-bill ETF, ~5% yield).
-- **E-Trade is BP-tight AND cash-tight** (20.3% BP headroom, 6.1% raw cash). Heavily deployed in QQQ + SPY (73.5% of NLV).
-- **Combined**: BP overall loose (55.8% headroom), but cash actively put to work — $543k in QQQ/SPY/BOXX = 43.8% of NLV is yield-bearing-but-not-idle.
+### 1. Steady-state profile is uniformly QQQ-displacing
+After PM's rebalance, both brokers run heavy beta + low cash. Schwab beta
+goes from 0 → $301k; combined beta becomes 60.4% of NLV. Any new BCD MUST
+come from either (a) E-Trade's $37k cash or (b) liquidating QQQ/SPY. Both
+displace QQQ exposure. Hurdle = QQQ rolling return universally applies.
 
-### 2. Cash-bound premise holds operationally, not literally
-PM does NOT have $0 idle cash. PM HAS actively managed all idle cash into yield instruments. **Premise correctly translates to**: any new debit must displace BOXX (5% hurdle) or beta exposure (~10% QQQ hurdle, per PM ratification).
+### 2. Cash-bound premise holds operationally AND sharply
+PM does NOT have $0 idle cash. PM HAS actively put all idle cash into beta.
+Effective cash for new debit is $37k = 3.0% of NLV. Median BCD debit
+($23.9k) is 65% of all available cash. **Two BCD positions exhaust all
+liquid cash; subsequent positions require QQQ sales.**
 
-### 3. BCD opening creates asymmetric drag depending on broker
-- BCD on Schwab → likely displaces BOXX or raw cash. Hurdle ≈ 5%.
-- BCD on E-Trade → no room to add debit without liquidating QQQ/SPY. Hurdle ≈ QQQ rolling return (~10%, per PM ratification).
-- PM ratified hurdle = QQQ → use **conservative case (QQQ)** as the single hurdle in P2-P3.
+### 3. BP-utilization argument is structurally correct
+Combined BP utilization 13.7%, headroom 56% — vast BP slack. A pure
+BP-based cap (current SPEC-104 design) would allow ~$300k more BCD debit
+before approaching margin limits. But this would require liquidating
+~$260k of QQQ/SPY to fund. SPEC-104 has zero language about this trade.
+**Framing memo §0 thesis is structurally validated**: BP cap does not
+constrain BCD's true bottleneck.
 
-### 4. BP-utilization argument is correct at COMBINED level
-SPEC-104 sleeve caps measured against combined BP (or per-broker BP). Combined BP utilization is 13.7%, vs 55.8% headroom — vast BP slack. A pure BP-utilization cap will not bite a BCD stack until cash is depleted, supporting framing memo §0 thesis.
-
-### 5. Concentration risk to flag (Q081 out of scope, but noted)
-E-Trade SPY $310k + QQQ $137k = $447k beta. ~37% of total NLV is beta-deployed via E-Trade alone. Worth a separate sleeve-level review at some point.
+### 4. Concentration risk to flag (Q081 out of scope, but noted)
+Post-rebalance, combined beta is $749k = 60.4% of NLV concentrated in
+QQQ + SPY (with $447k on E-Trade alone). Worth a separate sleeve-level
+review at some point — single broker, single beta. Not Q081's scope.
 
 ---
 
 ## Implications for P1-P5
 
-- **Use QQQ rolling return as hurdle** per PM ratification — even though some
-  cash would actually displace BOXX (lower hurdle). This is conservative.
-- **Combined-account treatment in P1**: model "available cash for BCD debit"
-  as Schwab liquid + E-Trade liquid combined, not per-broker. PM can move
-  cash between brokers; the constraint is total liquid.
-- **Cap design (if Conclusion 1 wins)**: a `cash_budget_pct` cap on
-  debit-strategy footprint should be set against **combined NLV** (not
-  per-broker), with X% chosen via P3 hurdle-vs-BCD analysis.
-- **Historical reconstruction caveat**: today's snapshot is one
-  point-in-time. Daily snapshot history (data/daily_snapshot.jsonl) has NLV
-  but not the cash/beta breakdown. P1 will need either PM to confirm the
-  profile is stable, or accept this single anchor as representative.
+- **Hurdle = QQQ rolling return** (PM ratification). After Schwab rebalance,
+  there is no longer a "lower hurdle BOXX path" — all displacement is QQQ.
+- **Effective cash for BCD = $37k**. Sizing analysis in P1 must show how
+  the 21 historical BCD trades would have stacked against $37k available
+  cash if PM's current steady-state had been in force.
+- **Cap design (if Conclusion 1 wins)**: a `cash_budget_pct ≤ X%` cap on
+  combined NLV would have bitten well before BP cap ever did. Likely
+  X ≤ 5% NLV gives ~2 BCD positions; X ≤ 10% gives ~5. P3 will choose X
+  via hurdle-adjusted ROE.
+- **Historical reconstruction caveat**: today's snapshot is point-in-time.
+  Daily snapshot history (data/daily_snapshot.jsonl) has NLV but not
+  cash/beta breakdown. P1 will project today's profile back as
+  representative, or PM can flag historical regime shifts.
 
 ---
 
