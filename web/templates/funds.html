@@ -57,6 +57,9 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .fund-code { font-family:var(--f-mono);font-size:0.62rem;color:var(--text-2);margin-top:1px; }
 .chev { display:inline-block;color:var(--text-2);font-size:0.7em;margin-right:5px;transition:transform 0.15s; }
 .fund-row.expanded .chev { transform:rotate(90deg);color:var(--gold); }
+.dot { display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:middle; }
+.dot-fresh { background:var(--green); }
+.dot-stale { background:var(--gold); }
 
 /* action badge */
 .action-badge { display:inline-block;font-size:0.62rem;font-family:var(--f-ui);padding:2px 8px;border-radius:9999px;white-space:nowrap; }
@@ -162,7 +165,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
   <div class="page-hero" style="display:flex;justify-content:space-between;align-items:flex-end;">
     <div>
       <h1>基金 <em>清仓信号</em></h1>
-      <p class="page-meta">纪律工具 · 逐步清仓过渡期 · <span style="color:var(--gold)">▸ 点击任意基金行展开：净值图 + 信号轨迹</span></p>
+      <p class="page-meta">纪律工具 · 逐步清仓过渡期 · <span style="color:var(--gold)">▸ 点击行展开净值图+信号</span> · <span class="dot dot-fresh"></span>今日净值已出 <span class="dot dot-stale"></span>未出(用昨日)</p>
     </div>
     <button class="rec-btn" onclick="openRec()">＋ 记录减仓</button>
   </div>
@@ -283,7 +286,7 @@ function render_signal_panel(f, P) {
   </div>`;
 }
 
-function render_fund_row(f, P) {
+function render_fund_row(f, P, dataDate) {
   if (!f.ok) {
     return `<tr class="err-row">
       <td><div class="fund-name">${f.name}</div><div class="fund-code">${f.code}</div></td>
@@ -299,11 +302,14 @@ function render_fund_row(f, P) {
   const clip_disp = f.clip > 0 ? fmt_pct(f.clip) : '持有';
   const clip_amt_disp = f.clip_amt > 0 ? fmt_cny(f.clip_amt) : '—';
   const action_short = (f.action || '').split('｜')[0].replace(/^[①②③④⑤⑥]/, '').substring(0, 16);
+  // 状态灯：该只今日净值是否已更新（latest_date == 批次最新日 → 绿；落后 → 黄）
+  const fresh = f.latest_date && dataDate && f.latest_date === dataDate;
+  const dot = `<span class="dot ${fresh?'dot-fresh':'dot-stale'}" title="${fresh?('今日净值已更新 '+f.latest_date):('未出今日净值，在用 '+(f.latest_date||'?'))}"></span>`;
 
   return `<tr class="fund-row" data-code="${f.code}" onclick="toggle_chart('${f.code}')">
     <td>
-      <div class="fund-name"><span class="chev">▸</span>${f.name}${lock}</div>
-      <div class="fund-code" style="margin-left:13px">${f.code}</div>
+      <div class="fund-name">${dot}<span class="chev">▸</span>${f.name}${lock}</div>
+      <div class="fund-code" style="margin-left:26px">${f.code}</div>
     </td>
     <td>${fmt_cny(f.mv)}</td>
     <td><span class="action-badge ${cls}">${action_short}</span>${veto}</td>
@@ -337,9 +343,9 @@ function toggle_chart(code) {
   }
 }
 
-function render_table(title, funds, P) {
+function render_table(title, funds, P, dataDate) {
   if (!funds.length) return '';
-  const rows = funds.map(f => render_fund_row(f, P)).join('');
+  const rows = funds.map(f => render_fund_row(f, P, dataDate)).join('');
   return `
     <div class="section-label">${title}</div>
     <table class="fund-table">
@@ -424,9 +430,9 @@ async function load(retry=0) {
 
   const P = d.params || {};
   const tablesHtml =
-    render_table('🟡 信号减仓（rule 3/4/5 · 周TWAP + 前置 · 按本周% 降序）', reducible, P) +
-    render_table('🟢 上升趋势 · 纯持有（rule 1 · 让利润奔跑 · 不进清仓钟）', strong, P) +
-    render_table('🔵 仅走周TWAP（rule 2深套 / 6观察 / 0数据不足 · 无前置）', other, P);
+    render_table('🟡 信号减仓（rule 3/4/5 · 周TWAP + 前置 · 按本周% 降序）', reducible, P, d.data_date) +
+    render_table('🟢 上升趋势 · 纯持有（rule 1 · 让利润奔跑 · 不进清仓钟）', strong, P, d.data_date) +
+    render_table('🔵 仅走周TWAP（rule 2深套 / 6观察 / 0数据不足 · 无前置）', other, P, d.data_date);
 
   const disclaimer = d.disclaimer
     ? `<p class="disclaimer">⚠️ ${d.disclaimer}</p>` : '';
