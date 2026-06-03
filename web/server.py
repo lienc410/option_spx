@@ -4528,8 +4528,10 @@ def api_position():
         short_exp    = short_pos.get("expiry") or ""
         long_exp     = long_pos.get("expiry") or ""
 
-        def _call_mid(exp_iso: str, strike: float):
-            """Single-call mid via Schwab chain (covers SPX + SPXW)."""
+        def _call_quote(exp_iso: str, strike: float):
+            """Single-call mid + greeks via Schwab chain (covers SPX + SPXW).
+            Returns dict {mid, bid, ask, delta, gamma, theta, vega, iv} or None.
+            """
             try:
                 today = _date_t.today()
                 exp_d = _date_t.fromisoformat(exp_iso)
@@ -4538,24 +4540,58 @@ def api_position():
                                   center_strike=strike, strike_window=20)
                 for r in rows:
                     if r.get("expiry") == exp_iso and float(r["strike"]) == strike:
-                        return float(r["mid"]) if r.get("mid") is not None else None
+                        def _f(k):
+                            v = r.get(k)
+                            return float(v) if v not in (None, "") else None
+                        return {
+                            "mid":   _f("mid"),
+                            "bid":   _f("bid"),
+                            "ask":   _f("ask"),
+                            "delta": _f("delta"),
+                            "gamma": _f("gamma"),
+                            "theta": _f("theta"),
+                            "vega":  _f("vega"),
+                            "iv":    _f("iv"),
+                        }
             except Exception:
                 return None
             return None
 
-        short_mid = _call_mid(short_exp, short_strike)
-        long_mid  = _call_mid(long_exp, long_strike)
+        short_q = _call_quote(short_exp, short_strike)
+        long_q  = _call_quote(long_exp, long_strike)
+        short_mid = short_q.get("mid") if short_q else None
+        long_mid  = long_q.get("mid") if long_q else None
 
         if short_mid is not None and long_mid is not None:
             entry_debit = abs(float(short_pos.get("actual_premium") or 0))
             contracts   = float(short_pos.get("contracts") or 1)
             combined_mark = round(long_mid - short_mid, 2)
             combined_pnl  = round((combined_mark - entry_debit) * contracts * 100, 2)
+
+            # Net diagonal greeks: short leg side = -1, long leg side = +1.
+            # Theta convention: chain returns per-day theta (negative for long
+            # options). For the diagonal holder, short leg contributes -(-theta)
+            # = +|theta| (we collect time decay), long leg contributes +theta
+            # (we pay it). Standard signed sum carries that correctly.
+            def _net(key):
+                s = short_q.get(key) if short_q else None
+                l = long_q.get(key)  if long_q  else None
+                if s is None or l is None: return None
+                return round(-s + l, 4)
+
+            spread_bid = round((long_q.get("bid") or 0) - (short_q.get("ask") or 0), 2) \
+                if short_q.get("ask") is not None and long_q.get("bid") is not None else None
+            spread_ask = round((long_q.get("ask") or 0) - (short_q.get("bid") or 0), 2) \
+                if short_q.get("bid") is not None and long_q.get("ask") is not None else None
+
             live = {
                 "visible": True,
                 "mark": combined_mark,
-                "bid": None, "ask": None,
-                "delta": None, "gamma": None, "theta": None, "vega": None,
+                "bid": spread_bid, "ask": spread_ask,
+                "delta": _net("delta"),
+                "gamma": _net("gamma"),
+                "theta": _net("theta"),
+                "vega":  _net("vega"),
                 "unrealized_pnl": combined_pnl,
                 "trade_log_pnl":  combined_pnl,
                 "combined_trade_log_pnl": combined_pnl,
@@ -4564,10 +4600,25 @@ def api_position():
                 "pricing_source": "single_leg_calls",
                 "diagonal_short_mid": round(short_mid, 2),
                 "diagonal_long_mid":  round(long_mid, 2),
+                # Per-leg detail for frontend collapsed-card render
+                "diagonal_short_leg": {
+                    "account": short_pos.get("account"),
+                    "strike": short_strike, "expiry": short_exp,
+                    "mid": round(short_mid, 2),
+                    "bid": short_q.get("bid"), "ask": short_q.get("ask"),
+                    "delta": short_q.get("delta"), "iv": short_q.get("iv"),
+                },
+                "diagonal_long_leg": {
+                    "account": long_pos.get("account"),
+                    "strike": long_strike, "expiry": long_exp,
+                    "mid": round(long_mid, 2),
+                    "bid": long_q.get("bid"), "ask": long_q.get("ask"),
+                    "delta": long_q.get("delta"), "iv": long_q.get("iv"),
+                },
             }
             # Per-position: set mark=None so home-page per-position PnL skips
             # and falls back to live.combined_trade_log_pnl. Carry leg metadata
-            # for richer UI later.
+            # for the collapsed-card render.
             position_lives[short_pos["trade_id"]] = {
                 "visible": True, "mark": None,
                 "diagonal_leg_role": "short",
