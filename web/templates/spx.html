@@ -1823,31 +1823,48 @@ function openTradeModal(kind, presetAccount, addTranche) {
     updateCloseDerivedFields();
   } else if (kind === 'correct') {
     title.textContent = 'Correct Position';
+    // Per-position picker: when state has 2+ open positions (e.g. Schwab +
+    // ETrade), let PM pick which trade_id to correct. Form fields pre-fill
+    // from whichever is selected. Falls back to flat CURRENT_POS for
+    // single-position state (legacy schema).
+    const _legs = (CURRENT_POS?.positions || []);
+    const _multi = _legs.length > 1;
+    const _legOptions = _multi
+      ? _legs.map((p, i) => {
+          const acct = (p.account || 'schwab');
+          const acctLabel = acct.charAt(0).toUpperCase() + acct.slice(1);
+          return `<option value="${i}">${acctLabel} · ${p.short_strike ?? '?'}/${p.long_strike ?? '?'} · exp ${p.expiry ?? '?'}</option>`;
+        }).join('')
+      : '';
     body.innerHTML = modalShell(`
+      ${_multi ? `<div class="modal-field full" style="margin-bottom:8px">
+        <label class="modal-label">Position to correct</label>
+        <select id="correct-leg-pick" class="modal-select" onchange="updateCorrectFormForLeg()">${_legOptions}</select>
+      </div>` : ''}
       <div class="modal-grid">
         <div class="modal-field">
           <label class="modal-label">Actual Premium</label>
-          <input id="correct-actual-premium" class="modal-input" type="number" step="0.01" value="${CURRENT_POS?.actual_premium ?? ''}">
+          <input id="correct-actual-premium" class="modal-input" type="number" step="0.01" value="${(_legs[0] ?? CURRENT_POS)?.actual_premium ?? ''}">
         </div>
         <div class="modal-field">
           <label class="modal-label">Contracts</label>
-          <input id="correct-contracts" class="modal-input" type="number" step="1" value="${CURRENT_POS?.contracts ?? 1}">
+          <input id="correct-contracts" class="modal-input" type="number" step="1" value="${(_legs[0] ?? CURRENT_POS)?.contracts ?? 1}">
         </div>
         <div class="modal-field">
           <label class="modal-label">Short Strike</label>
-          <input id="correct-short-strike" class="modal-input" type="number" value="${CURRENT_POS?.short_strike ?? ''}">
+          <input id="correct-short-strike" class="modal-input" type="number" value="${(_legs[0] ?? CURRENT_POS)?.short_strike ?? ''}">
         </div>
         <div class="modal-field">
           <label class="modal-label">Long Strike</label>
-          <input id="correct-long-strike" class="modal-input" type="number" value="${CURRENT_POS?.long_strike ?? ''}">
+          <input id="correct-long-strike" class="modal-input" type="number" value="${(_legs[0] ?? CURRENT_POS)?.long_strike ?? ''}">
         </div>
         <div class="modal-field">
           <label class="modal-label">Short Expiry</label>
-          <input id="correct-expiry" class="modal-input" type="date" value="${CURRENT_POS?.expiry ?? ''}">
+          <input id="correct-expiry" class="modal-input" type="date" value="${(_legs[0] ?? CURRENT_POS)?.expiry ?? ''}">
         </div>
         <div class="modal-field">
           <label class="modal-label">Long Expiry <span style="font-weight:400;color:var(--text-2);font-size:0.65rem">(diagonal only)</span></label>
-          <input id="correct-long-expiry" class="modal-input" type="date" value="${CURRENT_POS?.long_expiry ?? ''}" placeholder="leave blank if vertical">
+          <input id="correct-long-expiry" class="modal-input" type="date" value="${(_legs[0] ?? CURRENT_POS)?.long_expiry ?? ''}" placeholder="leave blank if vertical">
         </div>
         <div class="modal-field full">
           <label class="modal-label">Reason</label>
@@ -2023,9 +2040,32 @@ async function submitPositionNote() {
   setTimeout(closeTradeModal, 400);
 }
 
+function updateCorrectFormForLeg() {
+  // Multi-position correct flow: refill the form fields when PM picks a
+  // different broker's position from the dropdown.
+  const sel = document.getElementById('correct-leg-pick');
+  if (!sel || !CURRENT_POS?.positions) return;
+  const p = CURRENT_POS.positions[Number(sel.value || 0)];
+  if (!p) return;
+  const setV = (id, v) => { const e = document.getElementById(id); if (e) e.value = v ?? ''; };
+  setV('correct-actual-premium', p.actual_premium);
+  setV('correct-contracts',      p.contracts ?? 1);
+  setV('correct-short-strike',   p.short_strike);
+  setV('correct-long-strike',    p.long_strike);
+  setV('correct-expiry',         p.expiry);
+  setV('correct-long-expiry',    p.long_expiry);
+}
+
 async function submitCorrection() {
+  // Identify which trade_id to correct: when state has multiple positions,
+  // read from the picker; else fall back to the flat CURRENT_POS.trade_id.
+  const sel = document.getElementById('correct-leg-pick');
+  const pickIdx = sel ? Number(sel.value || 0) : null;
+  const picked = (pickIdx != null && CURRENT_POS?.positions)
+    ? CURRENT_POS.positions[pickIdx] : null;
+  const tradeId = picked?.trade_id || CURRENT_POS?.trade_id;
   const payload = {
-    trade_id: CURRENT_POS?.trade_id,
+    trade_id: tradeId,
     target_event: 'open',
     fields: {
       actual_premium: document.getElementById('correct-actual-premium').value || null,
@@ -2034,7 +2074,7 @@ async function submitCorrection() {
       long_strike: Number(document.getElementById('correct-long-strike').value || 0),
       expiry: document.getElementById('correct-expiry').value || null,
       long_expiry: document.getElementById('correct-long-expiry')?.value || null,
-      paper_trade: !!CURRENT_POS?.paper_trade,
+      paper_trade: !!(picked ?? CURRENT_POS)?.paper_trade,
     },
     reason: document.getElementById('correct-reason').value || '',
   };
