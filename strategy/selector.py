@@ -182,6 +182,11 @@ from strategy.state      import get_position_action
 IVP_HIGH_THRESHOLD = 70.0
 IVP_LOW_THRESHOLD  = 40.0
 
+# SPEC-113: NORMAL × IV_LOW × BULLISH carve-in
+# VIX < 18 → BCD; VIX >= 18 → reduce_wait
+# Threshold from Q083 P13 +8vp short-leg skew sensitivity: [18,20) sub-cells become weak under pessimistic skew
+SPEC_113_VIX_THRESHOLD = 18.0
+
 # IVP multi-horizon thresholds (SPEC-048~055)
 REGIME_DECAY_IVP63_MAX   = 50
 REGIME_DECAY_IVP252_MIN  = 50
@@ -1201,9 +1206,58 @@ def select_strategy(
 
     if iv_s == IVSignal.LOW:
         if t == TrendSignal.BULLISH:
+            # SPEC-113 carve: VIX<18 routes to BCD (spike-decay state with +vega cushion)
+            if vix.vix < SPEC_113_VIX_THRESHOLD:
+                from strategy.bcd_filter import should_block_bcd
+                if (not params.disable_entry_gates and should_block_bcd(
+                    params.bcd_comfort_filter_mode,
+                    vix=vix.vix,
+                    dist_30d_high_pct=trend.dist_30d_high_pct,
+                    ma_gap_pct=trend.ma_gap_pct,
+                    date=vix.date,
+                )):
+                    return _reduce_wait(
+                        f"SPEC-113 BCD carve (NORMAL+IV_LOW+BULL+VIX<{SPEC_113_VIX_THRESHOLD}) but "
+                        f"comfortable-top filter (SPEC-079): risk_score=3 "
+                        f"(vix={vix.vix:.1f}, dist_30d={trend.dist_30d_high_pct:.3f}, "
+                        f"ma_gap={trend.ma_gap_pct:.3f})",
+                        vix, iv, trend, macro_warn,
+                        canonical_strategy=StrategyName.BULL_CALL_DIAGONAL.value,
+                        params=params,
+                    )
+
+                action = get_position_action(
+                    StrategyName.BULL_CALL_DIAGONAL.value,
+                    is_wait=False,
+                    strategy_key=catalog_strategy_key(StrategyName.BULL_CALL_DIAGONAL.value),
+                )
+                local_spike = (iv.ivp63 >= LOCAL_SPIKE_IVP63_MIN and iv.ivp252 < LOCAL_SPIKE_IVP252_MAX)
+                return _build_recommendation(
+                    StrategyName.BULL_CALL_DIAGONAL,
+                    vix=vix, iv=iv, trend=trend,
+                    legs=[
+                        Leg("BUY",  "CALL", 90, 0.70, "Long leg — deep ITM, high delta"),
+                        Leg("SELL", "CALL", 45, 0.30, "Short leg — OTM, collects theta"),
+                    ],
+                    size_rule=_compute_size_tier(
+                        StrategyName.BULL_CALL_DIAGONAL.value, iv, vix, iv_s, t
+                    ),
+                    rationale=(
+                        f"NORMAL + IV LOW + BULLISH + VIX={vix.vix:.1f} < {SPEC_113_VIX_THRESHOLD} "
+                        f"(SPEC-113 carve) — spike-decay state where BCD +vega cushion is structurally rewarded "
+                        f"(P11 +18.5% period-ROE on 46 carved trades, +8vp Sortino 0.860)"
+                    ),
+                    position_action=action,
+                    macro_warning=macro_warn,
+                    local_spike=local_spike,
+                )
+
+            # VIX >= 18: stays reduce_wait
             return _reduce_wait(
-                "NORMAL + IV LOW + BULLISH — thin premium (IVP<40) makes Diagonal risk/reward unfavourable; wait for IV to expand",
+                f"NORMAL + IV LOW + BULLISH + VIX={vix.vix:.1f} >= {SPEC_113_VIX_THRESHOLD} — "
+                f"SPEC-113 carve gate (VIX too high for +vega cushion to dominate under pessimistic skew)",
                 vix, iv, trend, macro_warn,
+                canonical_strategy=StrategyName.BULL_CALL_DIAGONAL.value,
                 params=params,
             )
 

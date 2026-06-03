@@ -185,7 +185,7 @@ STRATEGIES_BY_KEY: dict[str, StrategyDescriptor] = {
 NAME_TO_KEY = {desc.name: key for key, desc in STRATEGIES_BY_KEY.items()}
 KEY_TO_NAME = {key: desc.name for key, desc in STRATEGIES_BY_KEY.items()}
 
-CANONICAL_MATRIX: dict[str, dict[str, dict[str, str]]] = {
+CANONICAL_MATRIX: dict[str, dict[str, dict[str, str | dict[str, str]]]] = {
     "LOW_VOL": {
         "HIGH":    {"BULLISH": "bull_call_diagonal", "NEUTRAL": "iron_condor",    "BEARISH": "reduce_wait"},
         "NEUTRAL": {"BULLISH": "bull_call_diagonal", "NEUTRAL": "iron_condor",    "BEARISH": "reduce_wait"},
@@ -194,7 +194,12 @@ CANONICAL_MATRIX: dict[str, dict[str, dict[str, str]]] = {
     "NORMAL": {
         "HIGH":    {"BULLISH": "bull_put_spread",    "NEUTRAL": "iron_condor",    "BEARISH": "iron_condor"},
         "NEUTRAL": {"BULLISH": "bull_put_spread",    "NEUTRAL": "iron_condor",    "BEARISH": "iron_condor"},
-        "LOW":     {"BULLISH": "reduce_wait",        "NEUTRAL": "reduce_wait",    "BEARISH": "reduce_wait"},
+        "LOW":     {
+            # SPEC-113: VIX<18 carve to BCD; VIX≥18 stays reduce_wait
+            "BULLISH": {"VIX_LT_18": "bull_call_diagonal", "VIX_GE_18": "reduce_wait"},
+            "NEUTRAL": "reduce_wait",
+            "BEARISH": "reduce_wait",
+        },
     },
     "HIGH_VOL": {
         "HIGH":    {"BULLISH": "bull_put_spread_hv", "NEUTRAL": "iron_condor_hv", "BEARISH": "bear_call_spread_hv"},
@@ -237,13 +242,35 @@ def manual_entry_options() -> list[dict[str, str]]:
     return out
 
 
+def _condition_label(key: str) -> str:
+    return {"VIX_LT_18": "VIX < 18", "VIX_GE_18": "VIX ≥ 18"}.get(key, key)
+
+
+def _render_cell(value: str | dict[str, str]) -> Any:
+    if isinstance(value, str):
+        return {
+            "type": "single",
+            "strategy": strategy_descriptor(value).key,
+            "name": strategy_descriptor(value).name,
+        }
+    # dict-valued conditional cell (SPEC-113: NORMAL.LOW.BULLISH)
+    return {
+        "type": "conditional",
+        "conditions": {
+            cond_key: {
+                "strategy": strategy_descriptor(strat).key,
+                "name": strategy_descriptor(strat).name,
+                "label": _condition_label(cond_key),
+            }
+            for cond_key, strat in value.items()
+        },
+    }
+
+
 def matrix_payload() -> dict[str, Any]:
     return {
         regime: {
-            iv: {
-                trend: strategy_descriptor(key).key
-                for trend, key in trend_map.items()
-            }
+            iv: {trend: _render_cell(cell) for trend, cell in trend_map.items()}
             for iv, trend_map in iv_map.items()
         }
         for regime, iv_map in CANONICAL_MATRIX.items()

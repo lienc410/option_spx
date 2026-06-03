@@ -59,7 +59,12 @@ class SelectorCatalogConsistencyTests(unittest.TestCase):
         for iv_map in CANONICAL_MATRIX.values():
             for trend_map in iv_map.values():
                 for key in trend_map.values():
-                    self.assertIn(key, STRATEGIES_BY_KEY)
+                    # SPEC-113: some cells are dicts (conditional routing)
+                    if isinstance(key, dict):
+                        for sub_key in key.values():
+                            self.assertIn(sub_key, STRATEGIES_BY_KEY)
+                    else:
+                        self.assertIn(key, STRATEGIES_BY_KEY)
 
     def test_low_vol_bullish_still_selects_diagonal(self) -> None:
         rec = select_strategy(

@@ -1,0 +1,500 @@
+{
+  "LOW_VOL_HIGH_BULLISH": {
+    "strategy": "Reduce / Wait",
+    "canonical_strategy": "Bull Call Diagonal",
+    "legs": [],
+    "size_rule": "Hold cash; re-evaluate when conditions improve",
+    "rationale": "LOW_VOL + BULLISH but IV=HIGH (IVP=75) \u2014 vol expansion signal in low-vol regime; DIAGONAL short leg exposed"
+  },
+  "LOW_VOL_HIGH_NEUTRAL": {
+    "strategy": "Reduce / Wait",
+    "canonical_strategy": "Iron Condor",
+    "legs": [],
+    "size_rule": "Hold cash; re-evaluate when conditions improve",
+    "rationale": "LOW_VOL + NEUTRAL but IVP=75 outside 20\u201350 \u2014 Iron Condor risk/reward unfavourable"
+  },
+  "LOW_VOL_HIGH_BEARISH": {
+    "strategy": "Reduce / Wait",
+    "canonical_strategy": "Reduce / Wait",
+    "legs": [],
+    "size_rule": "Hold cash; re-evaluate when conditions improve",
+    "rationale": "LOW_VOL + BEARISH \u2014 \u4f4e\u6ce2\u52a8\u73af\u5883\u4e2d\u7684\u65b9\u5411\u6027\u770b\u8dcc\u65e0\u7edf\u8ba1\u8fb9\u9645\uff1bV\u578b\u53cd\u8f6c\u6982\u7387\u9ad8\uff0c\u7b49\u5f85\u8d8b\u52bf\u786e\u8ba4"
+  },
+  "LOW_VOL_NEUTRAL_BULLISH": {
+    "strategy": "Bull Call Diagonal",
+    "canonical_strategy": "Bull Call Diagonal",
+    "legs": [
+      {
+        "action": "BUY",
+        "option": "CALL",
+        "dte": 90,
+        "delta": 0.7
+      },
+      {
+        "action": "SELL",
+        "option": "CALL",
+        "dte": 45,
+        "delta": 0.3
+      }
+    ],
+    "size_rule": "Full size \u2014 risk \u2264 4.5% of account (signals agree + VIX flat/falling)",
+    "rationale": "LOW_VOL + BULLISH \u2014 theta is cheap; use 45 DTE short leg to widen collection window"
+  },
+  "LOW_VOL_NEUTRAL_NEUTRAL": {
+    "strategy": "Reduce / Wait",
+    "canonical_strategy": "Iron Condor",
+    "legs": [],
+    "size_rule": "Hold cash; re-evaluate when conditions improve",
+    "rationale": "LOW_VOL + NEUTRAL but IVP=55 outside 20\u201350 \u2014 Iron Condor risk/reward unfavourable"
+  },
+  "LOW_VOL_NEUTRAL_BEARISH": {
+    "strategy": "Reduce / Wait",
+    "canonical_strategy": "Reduce / Wait",
+    "legs": [],
+    "size_rule": "Hold cash; re-evaluate when conditions improve",
+    "rationale": "LOW_VOL + BEARISH \u2014 \u4f4e\u6ce2\u52a8\u73af\u5883\u4e2d\u7684\u65b9\u5411\u6027\u770b\u8dcc\u65e0\u7edf\u8ba1\u8fb9\u9645\uff1bV\u578b\u53cd\u8f6c\u6982\u7387\u9ad8\uff0c\u7b49\u5f85\u8d8b\u52bf\u786e\u8ba4"
+  },
+  "LOW_VOL_LOW_BULLISH": {
+    "strategy": "Bull Call Diagonal",
+    "canonical_strategy": "Bull Call Diagonal",
+    "legs": [
+      {
+        "action": "BUY",
+        "option": "CALL",
+        "dte": 90,
+        "delta": 0.7
+      },
+      {
+        "action": "SELL",
+        "option": "CALL",
+        "dte": 45,
+        "delta": 0.3
+      }
+    ],
+    "size_rule": "Half size \u2014 risk \u2264 2.25% of account (VIX rising or signals mixed)",
+    "rationale": "LOW_VOL + BULLISH \u2014 theta is cheap; use 45 DTE short leg to widen collection window"
+  },
+  "LOW_VOL_LOW_NEUTRAL": {
+    "strategy": "Iron Condor",
+    "canonical_strategy": "Iron Condor",
+    "legs": [
+      {
+        "action": "SELL",
+        "option": "CALL",
+        "dte": 45,
+        "delta": 0.16
+      },
+      {
+        "action": "BUY",
+        "option": "CALL",
+        "dte": 45,
+        "delta": 0.08
+      },
+      {
+        "action": "SELL",
+        "option": "PUT",
+        "dte": 45,
+        "delta": 0.16
+      },
+      {
+        "action": "BUY",
+        "option": "PUT",
+        "dte": 45,
+        "delta": 0.08
+      }
+    ],
+    "size_rule": "Half size \u2014 risk \u2264 2.25% of account (VIX rising or signals mixed)",
+    "rationale": "LOW_VOL + NEUTRAL \u2014 range-bound market; 16-delta wings give ~70% PoP"
+  },
+  "LOW_VOL_LOW_BEARISH": {
+    "strategy": "Reduce / Wait",
+    "canonical_strategy": "Reduce / Wait",
+    "legs": [],
+    "size_rule": "Hold cash; re-evaluate when conditions improve",
+    "rationale": "LOW_VOL + BEARISH \u2014 \u4f4e\u6ce2\u52a8\u73af\u5883\u4e2d\u7684\u65b9\u5411\u6027\u770b\u8dcc\u65e0\u7edf\u8ba1\u8fb9\u9645\uff1bV\u578b\u53cd\u8f6c\u6982\u7387\u9ad8\uff0c\u7b49\u5f85\u8d8b\u52bf\u786e\u8ba4"
+  },
+  "NORMAL_HIGH_BULLISH": {
+    "strategy": "Reduce / Wait",
+    "canonical_strategy": "Bull Put Spread",
+    "legs": [],
+    "size_rule": "Hold cash; re-evaluate when conditions improve",
+    "rationale": "NORMAL + IV HIGH + BULLISH \u2014 no strategy has statistically significant alpha in this cell; REDUCE_WAIT (SPEC-060)"
+  },
+  "NORMAL_HIGH_NEUTRAL": {
+    "strategy": "Iron Condor",
+    "canonical_strategy": "Iron Condor",
+    "legs": [
+      {
+        "action": "SELL",
+        "option": "CALL",
+        "dte": 45,
+        "delta": 0.16
+      },
+      {
+        "action": "BUY",
+        "option": "CALL",
+        "dte": 45,
+        "delta": 0.08
+      },
+      {
+        "action": "SELL",
+        "option": "PUT",
+        "dte": 45,
+        "delta": 0.16
+      },
+      {
+        "action": "BUY",
+        "option": "PUT",
+        "dte": 45,
+        "delta": 0.08
+      }
+    ],
+    "size_rule": "Full size \u2014 risk \u2264 4.5% of account (signals agree + VIX flat/falling)",
+    "rationale": "NORMAL + IV HIGH + NEUTRAL \u2014 rich premium + no directional edge: Iron Condor"
+  },
+  "NORMAL_HIGH_BEARISH": {
+    "strategy": "Iron Condor",
+    "canonical_strategy": "Iron Condor",
+    "legs": [
+      {
+        "action": "SELL",
+        "option": "CALL",
+        "dte": 45,
+        "delta": 0.16
+      },
+      {
+        "action": "BUY",
+        "option": "CALL",
+        "dte": 45,
+        "delta": 0.08
+      },
+      {
+        "action": "SELL",
+        "option": "PUT",
+        "dte": 45,
+        "delta": 0.16
+      },
+      {
+        "action": "BUY",
+        "option": "PUT",
+        "dte": 45,
+        "delta": 0.08
+      }
+    ],
+    "size_rule": "Full size \u2014 risk \u2264 4.5% of account (signals agree + VIX flat/falling)",
+    "rationale": "NORMAL + IV HIGH + BEARISH + VIX stable \u2014 MA50 lag means downtrend confirmed; IC collects from both sides without directional bet"
+  },
+  "NORMAL_NEUTRAL_BULLISH": {
+    "strategy": "Reduce / Wait",
+    "canonical_strategy": "Bull Put Spread",
+    "legs": [],
+    "size_rule": "Hold cash; re-evaluate when conditions improve",
+    "rationale": "NORMAL + IV NEUTRAL + BULLISH but IVP=55 \u2265 55 \u2014 stressed vol environment, BPS tail risk too high"
+  },
+  "NORMAL_NEUTRAL_NEUTRAL": {
+    "strategy": "Reduce / Wait",
+    "canonical_strategy": "Iron Condor",
+    "legs": [],
+    "size_rule": "Hold cash; re-evaluate when conditions improve",
+    "rationale": "NORMAL + IV NEUTRAL + NEUTRAL but IVP=55 outside 20\u201350 \u2014 Iron Condor risk/reward unfavourable"
+  },
+  "NORMAL_NEUTRAL_BEARISH": {
+    "strategy": "Reduce / Wait",
+    "canonical_strategy": "Iron Condor",
+    "legs": [],
+    "size_rule": "Hold cash; re-evaluate when conditions improve",
+    "rationale": "NORMAL + IV NEUTRAL + BEARISH but IVP=55 outside 20\u201350 \u2014 IC risk/reward unfavourable"
+  },
+  "NORMAL_LOW_NEUTRAL": {
+    "strategy": "Reduce / Wait",
+    "canonical_strategy": "Reduce / Wait",
+    "legs": [],
+    "size_rule": "Hold cash; re-evaluate when conditions improve",
+    "rationale": "NORMAL + IV LOW + NEUTRAL \u2014 no directional edge and premium cheap; skip"
+  },
+  "NORMAL_LOW_BEARISH": {
+    "strategy": "Reduce / Wait",
+    "canonical_strategy": "Reduce / Wait",
+    "legs": [],
+    "size_rule": "Hold cash; re-evaluate when conditions improve",
+    "rationale": "NORMAL + IV LOW + BEARISH \u2014 low premium insufficient for IC; skip"
+  },
+  "HIGH_VOL_HIGH_BULLISH": {
+    "strategy": "Bull Put Spread (High Vol)",
+    "canonical_strategy": "Bull Put Spread (High Vol)",
+    "legs": [
+      {
+        "action": "SELL",
+        "option": "PUT",
+        "dte": 35,
+        "delta": 0.2
+      },
+      {
+        "action": "BUY",
+        "option": "PUT",
+        "dte": 35,
+        "delta": 0.1
+      }
+    ],
+    "size_rule": "50% size \u2014 risk \u2264 0.8% of account (HIGH_VOL, reduced exposure)",
+    "rationale": "HIGH_VOL (22\u2264VIX<35) \u2014 elevated premium offsets risk; tighter params (\u03b40.2, 35DTE, 50% size)"
+  },
+  "HIGH_VOL_HIGH_NEUTRAL": {
+    "strategy": "Iron Condor (High Vol)",
+    "canonical_strategy": "Iron Condor (High Vol)",
+    "legs": [
+      {
+        "action": "SELL",
+        "option": "CALL",
+        "dte": 45,
+        "delta": 0.16
+      },
+      {
+        "action": "BUY",
+        "option": "CALL",
+        "dte": 45,
+        "delta": 0.08
+      },
+      {
+        "action": "SELL",
+        "option": "PUT",
+        "dte": 45,
+        "delta": 0.16
+      },
+      {
+        "action": "BUY",
+        "option": "PUT",
+        "dte": 45,
+        "delta": 0.08
+      }
+    ],
+    "size_rule": "50% size \u2014 risk \u2264 0.8% of account (HIGH_VOL, reduced exposure)",
+    "rationale": "HIGH_VOL + NEUTRAL + VIX stable \u2014 inflated premium on both sides; symmetric IC captures vol risk premium without directional bet"
+  },
+  "HIGH_VOL_HIGH_BEARISH": {
+    "strategy": "Reduce / Wait",
+    "canonical_strategy": "Bear Call Spread (High Vol)",
+    "legs": [],
+    "size_rule": "Hold cash; re-evaluate when conditions improve",
+    "rationale": "HIGH_VOL + BEARISH but ivp63=75 >= 70 \u2014 VIX at 63-day high; mean reversion risk too elevated for BCS_HV short call"
+  },
+  "HIGH_VOL_NEUTRAL_BULLISH": {
+    "strategy": "Iron Condor (High Vol)",
+    "canonical_strategy": "Iron Condor (High Vol)",
+    "legs": [
+      {
+        "action": "SELL",
+        "option": "CALL",
+        "dte": 45,
+        "delta": 0.16
+      },
+      {
+        "action": "BUY",
+        "option": "CALL",
+        "dte": 45,
+        "delta": 0.08
+      },
+      {
+        "action": "SELL",
+        "option": "PUT",
+        "dte": 45,
+        "delta": 0.16
+      },
+      {
+        "action": "BUY",
+        "option": "PUT",
+        "dte": 45,
+        "delta": 0.08
+      }
+    ],
+    "size_rule": "50% size \u2014 risk \u2264 0.8% of account (HIGH_VOL, reduced exposure)",
+    "rationale": "HIGH_VOL + BULLISH + IV NEUTRAL + VIX stable \u2014 IC_HV dominates BPS_HV in this cell; double-sided premium with no directional bet (SPEC-060)"
+  },
+  "HIGH_VOL_NEUTRAL_NEUTRAL": {
+    "strategy": "Iron Condor (High Vol)",
+    "canonical_strategy": "Iron Condor (High Vol)",
+    "legs": [
+      {
+        "action": "SELL",
+        "option": "CALL",
+        "dte": 45,
+        "delta": 0.16
+      },
+      {
+        "action": "BUY",
+        "option": "CALL",
+        "dte": 45,
+        "delta": 0.08
+      },
+      {
+        "action": "SELL",
+        "option": "PUT",
+        "dte": 45,
+        "delta": 0.16
+      },
+      {
+        "action": "BUY",
+        "option": "PUT",
+        "dte": 45,
+        "delta": 0.08
+      }
+    ],
+    "size_rule": "50% size \u2014 risk \u2264 0.8% of account (HIGH_VOL, reduced exposure)",
+    "rationale": "HIGH_VOL + NEUTRAL + VIX stable \u2014 inflated premium on both sides; symmetric IC captures vol risk premium without directional bet"
+  },
+  "HIGH_VOL_NEUTRAL_BEARISH": {
+    "strategy": "Bear Call Spread (High Vol)",
+    "canonical_strategy": "Bear Call Spread (High Vol)",
+    "legs": [
+      {
+        "action": "SELL",
+        "option": "CALL",
+        "dte": 45,
+        "delta": 0.2
+      },
+      {
+        "action": "BUY",
+        "option": "CALL",
+        "dte": 45,
+        "delta": 0.1
+      }
+    ],
+    "size_rule": "50% size \u2014 risk \u2264 0.8% of account (HIGH_VOL BEARISH, reduced exposure)",
+    "rationale": "HIGH_VOL + BEARISH + VIX stable \u2014 inflated call premium with directional tailwind; \u03b40.20 short call has high PoP"
+  },
+  "HIGH_VOL_LOW_BULLISH": {
+    "strategy": "Bull Put Spread (High Vol)",
+    "canonical_strategy": "Bull Put Spread (High Vol)",
+    "legs": [
+      {
+        "action": "SELL",
+        "option": "PUT",
+        "dte": 35,
+        "delta": 0.2
+      },
+      {
+        "action": "BUY",
+        "option": "PUT",
+        "dte": 35,
+        "delta": 0.1
+      }
+    ],
+    "size_rule": "50% size \u2014 risk \u2264 0.8% of account (HIGH_VOL, reduced exposure)",
+    "rationale": "HIGH_VOL (22\u2264VIX<35) \u2014 elevated premium offsets risk; tighter params (\u03b40.2, 35DTE, 50% size)"
+  },
+  "HIGH_VOL_LOW_NEUTRAL": {
+    "strategy": "Iron Condor (High Vol)",
+    "canonical_strategy": "Iron Condor (High Vol)",
+    "legs": [
+      {
+        "action": "SELL",
+        "option": "CALL",
+        "dte": 45,
+        "delta": 0.16
+      },
+      {
+        "action": "BUY",
+        "option": "CALL",
+        "dte": 45,
+        "delta": 0.08
+      },
+      {
+        "action": "SELL",
+        "option": "PUT",
+        "dte": 45,
+        "delta": 0.16
+      },
+      {
+        "action": "BUY",
+        "option": "PUT",
+        "dte": 45,
+        "delta": 0.08
+      }
+    ],
+    "size_rule": "50% size \u2014 risk \u2264 0.8% of account (HIGH_VOL, reduced exposure)",
+    "rationale": "HIGH_VOL + NEUTRAL + VIX stable \u2014 inflated premium on both sides; symmetric IC captures vol risk premium without directional bet"
+  },
+  "HIGH_VOL_LOW_BEARISH": {
+    "strategy": "Bear Call Spread (High Vol)",
+    "canonical_strategy": "Bear Call Spread (High Vol)",
+    "legs": [
+      {
+        "action": "SELL",
+        "option": "CALL",
+        "dte": 45,
+        "delta": 0.2
+      },
+      {
+        "action": "BUY",
+        "option": "CALL",
+        "dte": 45,
+        "delta": 0.1
+      }
+    ],
+    "size_rule": "50% size \u2014 risk \u2264 0.8% of account (HIGH_VOL BEARISH, reduced exposure)",
+    "rationale": "HIGH_VOL + BEARISH + VIX stable \u2014 inflated call premium with directional tailwind; \u03b40.20 short call has high PoP"
+  },
+  "EXTREME_VOL_HIGH_BULLISH": {
+    "strategy": "Reduce / Wait",
+    "canonical_strategy": "Bull Put Spread (High Vol)",
+    "legs": [],
+    "size_rule": "Hold cash; re-evaluate when conditions improve",
+    "rationale": "EXTREME_VOL (VIX \u2265 35) \u2014 tail risk too elevated; hold cash"
+  },
+  "EXTREME_VOL_HIGH_NEUTRAL": {
+    "strategy": "Reduce / Wait",
+    "canonical_strategy": "Iron Condor (High Vol)",
+    "legs": [],
+    "size_rule": "Hold cash; re-evaluate when conditions improve",
+    "rationale": "EXTREME_VOL (VIX \u2265 35) \u2014 tail risk too elevated; hold cash"
+  },
+  "EXTREME_VOL_HIGH_BEARISH": {
+    "strategy": "Reduce / Wait",
+    "canonical_strategy": "Bear Call Spread (High Vol)",
+    "legs": [],
+    "size_rule": "Hold cash; re-evaluate when conditions improve",
+    "rationale": "EXTREME_VOL (VIX \u2265 35) \u2014 tail risk too elevated; hold cash"
+  },
+  "EXTREME_VOL_NEUTRAL_BULLISH": {
+    "strategy": "Reduce / Wait",
+    "canonical_strategy": "Bull Put Spread (High Vol)",
+    "legs": [],
+    "size_rule": "Hold cash; re-evaluate when conditions improve",
+    "rationale": "EXTREME_VOL (VIX \u2265 35) \u2014 tail risk too elevated; hold cash"
+  },
+  "EXTREME_VOL_NEUTRAL_NEUTRAL": {
+    "strategy": "Reduce / Wait",
+    "canonical_strategy": "Iron Condor (High Vol)",
+    "legs": [],
+    "size_rule": "Hold cash; re-evaluate when conditions improve",
+    "rationale": "EXTREME_VOL (VIX \u2265 35) \u2014 tail risk too elevated; hold cash"
+  },
+  "EXTREME_VOL_NEUTRAL_BEARISH": {
+    "strategy": "Reduce / Wait",
+    "canonical_strategy": "Bear Call Spread (High Vol)",
+    "legs": [],
+    "size_rule": "Hold cash; re-evaluate when conditions improve",
+    "rationale": "EXTREME_VOL (VIX \u2265 35) \u2014 tail risk too elevated; hold cash"
+  },
+  "EXTREME_VOL_LOW_BULLISH": {
+    "strategy": "Reduce / Wait",
+    "canonical_strategy": "Bull Put Spread (High Vol)",
+    "legs": [],
+    "size_rule": "Hold cash; re-evaluate when conditions improve",
+    "rationale": "EXTREME_VOL (VIX \u2265 35) \u2014 tail risk too elevated; hold cash"
+  },
+  "EXTREME_VOL_LOW_NEUTRAL": {
+    "strategy": "Reduce / Wait",
+    "canonical_strategy": "Iron Condor (High Vol)",
+    "legs": [],
+    "size_rule": "Hold cash; re-evaluate when conditions improve",
+    "rationale": "EXTREME_VOL (VIX \u2265 35) \u2014 tail risk too elevated; hold cash"
+  },
+  "EXTREME_VOL_LOW_BEARISH": {
+    "strategy": "Reduce / Wait",
+    "canonical_strategy": "Bear Call Spread (High Vol)",
+    "legs": [],
+    "size_rule": "Hold cash; re-evaluate when conditions improve",
+    "rationale": "EXTREME_VOL (VIX \u2265 35) \u2014 tail risk too elevated; hold cash"
+  }
+}
