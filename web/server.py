@@ -5467,8 +5467,13 @@ def api_position_correction():
     })
 
     resolved = next((t for t in resolve_log() if t["id"] == trade_id), None)
-    current = read_state()
-    if target_event == "open" and current and current.get("trade_id") == trade_id and resolved and resolved.get("open"):
+    # Multi-position state (Schwab + ETrade): the correction may target a
+    # non-primary trade_id. Match against every open position's trade_id,
+    # not just read_state's flattened primary, so siblings are reachable.
+    from strategy.state import read_all_positions
+    all_pos = (read_all_positions() or {}).get("positions") or []
+    tid_open = any(p.get("trade_id") == trade_id for p in all_pos)
+    if target_event == "open" and tid_open and resolved and resolved.get("open"):
         ropen = resolved["open"]
         update_open_position(
             trade_id=trade_id,
