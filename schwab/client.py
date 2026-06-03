@@ -670,7 +670,11 @@ def _strategy_quote_layout(state: dict | None) -> list[dict] | None:
             {"name": "short_put", "option_type": "PUT", "strike": state.get("short_strike"), "multiplier": -1.0},
             {"name": "long_put", "option_type": "PUT", "strike": state.get("long_strike"), "multiplier": 1.0},
         ]
-    if strategy_key in {"bear_call_spread_hv"}:
+    if strategy_key in {"bear_call_spread_hv", "bull_call_diagonal"}:
+        # bull_call_diagonal: each position row in state stores a single expiry
+        # (PM opens broker-by-broker, each as a vertical at one expiry). Treat
+        # as vertical for live-quote lookup. True per-leg-expiry diagonals
+        # would need long_expiry added to schema.
         return [
             {"name": "short_call", "option_type": "CALL", "strike": state.get("short_strike"), "multiplier": -1.0},
             {"name": "long_call", "option_type": "CALL", "strike": state.get("long_strike"), "multiplier": 1.0},
@@ -877,14 +881,21 @@ def spread_quote_for_strikes(
     expiry: str,
     short_strike: float,
     long_strike: float,
+    option_type: str = "PUT",
 ) -> dict:
-    """Mark/bid/ask for a specific put spread via Schwab chain (no Greeks, lightweight)."""
-    cache_key = f"swquote:{underlying}:{expiry}:{short_strike}:{long_strike}"
+    """Mark/bid/ask for a specific vertical spread via Schwab chain. Default
+    PUT for bull put credit spreads; pass 'CALL' for BCD / bear-call / iron-condor.
+    """
+    side = "CALL" if str(option_type).upper().startswith("C") else "PUT"
+    cache_key = f"swquote:{underlying}:{expiry}:{side}:{short_strike}:{long_strike}"
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
+    # Use a layout-matching strategy_key so _strategy_quote_layout picks legs
+    # of the right option_type (CALL or PUT).
+    mock_strategy = "bear_call_spread_hv" if side == "CALL" else "bull_put_spread"
     mock_state = {
-        "strategy_key": "bull_put_spread",
+        "strategy_key": mock_strategy,
         "underlying": underlying,
         "expiry": expiry,
         "short_strike": short_strike,

@@ -4515,24 +4515,32 @@ def api_position():
     primary_sw = (str(state.get("short_strike")), str(state.get("long_strike")))
     expiry = state.get("expiry", "")
     underlying = state.get("underlying", "SPX")
+    # Map strategy → option_type so broker spread-quote lookups don't pull
+    # the wrong instrument (e.g., quoting PUTs for a Bull Call Diagonal).
+    _strategy_key = str(state.get("strategy_key") or "").lower()
+    _quote_option_type = "CALL" if _strategy_key in {
+        "bull_call_diagonal", "bear_call_spread_hv",
+    } else "PUT"
 
     for p in positions:
         tid = p.get("trade_id")
-        if not tid or not expiry:
+        p_expiry = p.get("expiry") or expiry  # per-position expiry; falls back to state-level
+        if not tid or not p_expiry:
             continue
         acct = (p.get("account") or "schwab").lower()
         ss, ls = str(p.get("short_strike") or ""), str(p.get("long_strike") or "")
         if not (ss and ls):
             continue
-        ck = (ss, ls)
+        ck = (ss, ls, p_expiry)  # cache per-(strikes, expiry) — different expiries are different quotes
 
         if acct == "etrade":
             if ck not in _et_cache:
                 try:
                     from etrade.client import get_option_spread_quote
                     _et_cache[ck] = get_option_spread_quote(
-                        underlier=underlying, expiry=expiry,
+                        underlier=underlying, expiry=p_expiry,
                         short_strike=float(ss), long_strike=float(ls),
+                        option_type=_quote_option_type,
                     )
                 except Exception:
                     _et_cache[ck] = {"visible": False}
@@ -4542,13 +4550,16 @@ def api_position():
 
         elif acct == "schwab":
             if ck not in _sw_cache:
-                if ck == primary_sw:
-                    _sw_cache[ck] = live   # reuse already-computed schwab_live (has Greeks)
+                # primary_sw match → reuse the live snapshot computed up top
+                # (only valid when this position's expiry matches state-level).
+                if (ss, ls) == primary_sw and p_expiry == expiry:
+                    _sw_cache[ck] = live
                 else:
                     try:
                         from schwab.client import spread_quote_for_strikes
                         _sw_cache[ck] = spread_quote_for_strikes(
-                            underlying, expiry, float(ss), float(ls)
+                            underlying, p_expiry, float(ss), float(ls),
+                            option_type=_quote_option_type,
                         )
                     except Exception:
                         _sw_cache[ck] = {"visible": False}

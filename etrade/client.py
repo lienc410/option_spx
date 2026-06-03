@@ -259,9 +259,15 @@ def get_option_spread_quote(
     expiry: str,
     short_strike: float,
     long_strike: float,
+    option_type: str = "PUT",
 ) -> dict:
-    """Mark/bid/ask for a put spread. mark = (bid+ask)/2 per leg, spread_mark = short - long."""
-    cache_key = f"optquote:{underlier}:{expiry}:{short_strike}:{long_strike}"
+    """Mark/bid/ask for a vertical spread (PUT or CALL). mark = (bid+ask)/2
+    per leg, spread_mark = short_mid - long_mid (Schwab credit-spread convention,
+    so debit spreads return a negative mark). option_type='PUT' by default for
+    bull put credit spreads; pass 'CALL' for BCD / bear-call / iron-condor.
+    """
+    side = "CALL" if str(option_type).upper().startswith("C") else "PUT"
+    cache_key = f"optquote:{underlier}:{expiry}:{side}:{short_strike}:{long_strike}"
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
@@ -272,7 +278,7 @@ def get_option_spread_quote(
         y, m, d = expiry.split("-")
 
         def sym(strike: float) -> str:
-            return f"{underlier}:{y}:{m}:{d}:PUT:{int(strike)}"
+            return f"{underlier}:{y}:{m}:{d}:{side}:{int(strike)}"
 
         client = _market_client()
         payload = client.get_quote(
