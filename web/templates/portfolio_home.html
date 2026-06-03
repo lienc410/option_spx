@@ -1663,76 +1663,38 @@ async function loadSpx() {
           const isEt = a === 'etrade';
           return `<span style="font-family:var(--f-ui);font-size:0.60rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:${isEt ? 'var(--orange)' : 'var(--blue)'};background:var(--theme-lit-131);border:1px solid var(--theme-lit-134);padding:1px 6px;border-radius:4px">${isEt ? 'E-Trade' : 'Schwab'}</span>`;
         };
-        // Cross-broker BCD: one collapsed card showing both legs + combined
-        // mark + combined PnL. Per-position rows would be misleading because
-        // each broker only holds ONE leg of the diagonal.
-        const isCrossBcd = live && live.structure === 'cross-broker diagonal'
-                                && live.diagonal_short_leg && live.diagonal_long_leg;
-        let posRows;
-        if (isCrossBcd) {
-          const sL = live.diagonal_short_leg;
-          const lL = live.diagonal_long_leg;
-          const entryDebit = Math.abs(Number(allPositions[0].actual_premium || 0));
-          const contracts  = Number(allPositions[0].contracts || 1);
-          const combinedPnl = (Number(live.mark) - entryDebit) * contracts * 100;
-          const pnlCls = combinedPnl >= 0 ? 'var(--green)' : 'var(--red)';
-          const legRow = (role, leg) => {
-            const isShort = role === 'short';
-            return `<div style="display:flex;align-items:center;gap:8px;padding:3px 0;border-top:1px solid var(--border)">
-              ${acctBadge(leg.account || 'schwab')}
-              <span style="font-family:var(--f-mono);font-size:0.62rem;font-weight:600;color:${isShort ? 'var(--red)' : 'var(--green)'};text-transform:uppercase">${role}</span>
-              <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-2)">${leg.strike}C @ ${leg.expiry}</span>
-              <span style="font-family:var(--f-mono);font-size:0.66rem;color:var(--text-2)">δ${leg.delta != null ? leg.delta.toFixed(3) : '—'}</span>
-              <span style="display:flex;gap:8px;align-items:center;margin-left:auto">
-                <span style="font-family:var(--f-mono);font-size:0.64rem;color:var(--text-2);white-space:nowrap"><strong style="color:var(--text)">M</strong> ${fmt(leg.mid)} · <strong style="color:var(--text)">B</strong> ${fmt(leg.bid)} · <strong style="color:var(--text)">A</strong> ${fmt(leg.ask)}</span>
-              </span>
-            </div>`;
-          };
-          posRows = `
-            <div style="padding:5px 0;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <span style="font-family:var(--f-mono);font-size:0.62rem;font-weight:600;color:var(--gold);text-transform:uppercase;letter-spacing:0.06em">Diagonal (cross-broker)</span>
-              <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-2)">${contracts}× @ entry $${entryDebit.toFixed(2)}</span>
-              <span style="margin-left:auto;display:flex;gap:8px;align-items:center">
-                <span style="font-family:var(--f-mono);font-size:0.68rem;color:${pnlCls}">${combinedPnl >= 0 ? '+' : '-'}$${Math.abs(combinedPnl).toFixed(0)}</span>
-                <span style="font-family:var(--f-mono);font-size:0.64rem;color:var(--text-2);white-space:nowrap"><strong style="color:var(--text)">M</strong> ${fmt(live.mark)} · <strong style="color:var(--text)">B</strong> ${fmt(live.bid)} · <strong style="color:var(--text)">A</strong> ${fmt(live.ask)}</span>
-              </span>
-            </div>
-            ${legRow('short', sL)}
-            ${legRow('long', lL)}`;
-        } else {
-          posRows = allPositions.map(p => {
-            const acct      = p.account || 'schwab';
-            const strikes   = p.short_strike ? `${p.short_strike} / ${p.long_strike || '—'}` : '—';
-            const entryPrem = Number(p.actual_premium ?? p.model_premium ?? 0);
-            const premStr   = entryPrem ? `$${entryPrem.toFixed(2)}` : '—';
-            const n         = Number(p.contracts) || 1;
-            // Per-account P&L: each row uses its own broker's mark
-            let pnlHtml = '', tgtHtml = '';
-            const _liveForAcct = positionLives[p.trade_id]
-              || (acct === 'etrade' ? etradeLive : live);
-            const markForAcct = _liveForAcct.visible ? _liveForAcct.mark : spreadMark;
-            if (markForAcct != null && entryPrem) {
-              const acctPnl = (entryPrem - markForAcct) * n * 100;
-              const cls     = acctPnl >= 0 ? 'var(--green)' : 'var(--red)';
-              pnlHtml = `<span style="font-family:var(--f-mono);font-size:0.68rem;color:${cls}">${acctPnl >= 0 ? '+' : ''}$${acctPnl.toFixed(0)}</span>`;
-            }
-            if (entryPrem) {
-              const tgt = entryPrem * n * 100 * 0.60;
-              tgtHtml = `<span style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2)">tgt +$${Math.round(tgt).toLocaleString()}</span>`;
-            }
-            const mkBaHtml = _liveForAcct.visible
-              ? `<span style="font-family:var(--f-mono);font-size:0.64rem;color:var(--text-2);white-space:nowrap"><strong style="color:var(--text)">M</strong> ${fmt(_liveForAcct.mark)} · <strong style="color:var(--text)">B</strong> ${fmt(_liveForAcct.bid)} · <strong style="color:var(--text)">A</strong> ${fmt(_liveForAcct.ask)}</span>`
-              : '';
-            const freshChip = quoteFreshnessChip(_liveForAcct, acct);
-            return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid var(--border)">
-              ${acctBadge(acct)}
-              <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-2)">${strikes}</span>
-              <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-2)">${n}× @ ${premStr}</span>
-              ${tgtHtml}
-              <span style="display:flex;gap:8px;align-items:center;margin-left:auto">${pnlHtml}${mkBaHtml}${freshChip}</span>
-            </div>`;
-          }).join('');
-        }
+        const posRows = allPositions.map(p => {
+          const acct      = p.account || 'schwab';
+          const strikes   = p.short_strike ? `${p.short_strike} / ${p.long_strike || '—'}` : '—';
+          const entryPrem = Number(p.actual_premium ?? p.model_premium ?? 0);
+          const premStr   = entryPrem ? `$${entryPrem.toFixed(2)}` : '—';
+          const n         = Number(p.contracts) || 1;
+          // Per-account P&L: each row uses its own broker's mark
+          let pnlHtml = '', tgtHtml = '';
+          const _liveForAcct = positionLives[p.trade_id]
+            || (acct === 'etrade' ? etradeLive : live);
+          const markForAcct = _liveForAcct.visible ? _liveForAcct.mark : spreadMark;
+          if (markForAcct != null && entryPrem) {
+            const acctPnl = (entryPrem - markForAcct) * n * 100;
+            const cls     = acctPnl >= 0 ? 'var(--green)' : 'var(--red)';
+            pnlHtml = `<span style="font-family:var(--f-mono);font-size:0.68rem;color:${cls}">${acctPnl >= 0 ? '+' : ''}$${acctPnl.toFixed(0)}</span>`;
+          }
+          if (entryPrem) {
+            const tgt = entryPrem * n * 100 * 0.60;
+            tgtHtml = `<span style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2)">tgt +$${Math.round(tgt).toLocaleString()}</span>`;
+          }
+          const mkBaHtml = _liveForAcct.visible
+            ? `<span style="font-family:var(--f-mono);font-size:0.64rem;color:var(--text-2);white-space:nowrap"><strong style="color:var(--text)">M</strong> ${fmt(_liveForAcct.mark)} · <strong style="color:var(--text)">B</strong> ${fmt(_liveForAcct.bid)} · <strong style="color:var(--text)">A</strong> ${fmt(_liveForAcct.ask)}</span>`
+            : '';
+          const freshChip = quoteFreshnessChip(_liveForAcct, acct);
+          return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid var(--border)">
+            ${acctBadge(acct)}
+            <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-2)">${strikes}</span>
+            <span style="font-family:var(--f-mono);font-size:0.70rem;color:var(--text-2)">${n}× @ ${premStr}</span>
+            ${tgtHtml}
+            <span style="display:flex;gap:8px;align-items:center;margin-left:auto">${pnlHtml}${mkBaHtml}${freshChip}</span>
+          </div>`;
+        }).join('');
         // Live risk block — always rendered; shows placeholder outside market hours
         const totalContracts = allPositions.reduce((s, p) => s + (Number(p.contracts) || 0), 0);
         const fmtPos = (v, mult) => v != null ? ((v * mult) >= 0 ? '+' : '') + (v * mult).toFixed(0) : null;
