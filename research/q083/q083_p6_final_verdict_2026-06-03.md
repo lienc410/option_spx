@@ -139,11 +139,25 @@ Pattern not stable across halves. In first half, IVP252 was actually BEST; in se
 
 **ALL THREE have mean-PnL CI that crosses zero**. None is statistically significant per-trade.
 
-### Q1 skew bracket — OUTSTANDING
+### Q1 skew bracket — COMPLETED (P7)
 
-Couldn't run cleanly due to missing per-leg premium fields in D3 output. **Expected direction**: BPS is net SHORT vega; skew steepening in DOWN moves makes short-put IV expand faster than long-put IV. Real BPS loses MORE than BS-flat synth shows in DOWN. So IVP63/IVP126 wide-regime PnL is likely **OVERSTATED** by ~15-30% based on Q082 P10 skew bracket experience (which moved BCD DOWN drag -19 → -21pp = ~13% worse).
+Re-simulated all 30 IVP63 trades with short-leg σ +5vp in DOWN exits (BPS short-vega direction).
 
-If we conservatively haircut IVP63 mean $308 by 30% → $216. Sortino likely drops similarly.
+| Metric | Baseline (BS-flat) | Skew bracket | Shift |
+|---|---:|---:|---:|
+| Mean PnL/contract | +$308 | **+$214** | **-30.5%** |
+| Sortino | **+0.878** | **+0.379** ⚠ | -0.499 |
+| Worst trade | -$1,138 | -$1,737 | -$599 |
+| DOWN-window mean | -$730 | -$1,295 | -$565 (77% worse) |
+
+**Critical**: Skew-bracketed Sortino **0.379 falls BELOW the 0.5 verdict threshold**. Combined with Q3 bootstrap CI crossing zero AND Q2b time-split moderate, **IVP63 edge is not robust enough for immediate SPEC**.
+
+This is the THIRD strike against immediate replacement:
+1. Q3 bootstrap CI: mean CI [-$38, +$547] crosses zero (statistical insignificance)
+2. Q2b time split: edge concentrated in 2013-2026 (recency bias)
+3. Q1 skew bracket: -30% haircut pulls Sortino below threshold (real-chain reality)
+
+Real-chain BPS edge is materially smaller than BS-flat synth shows. Per Q082 P10 lesson on caveat-sign discipline: this caveat moves AGAINST the proposed SPEC, not for it.
 
 ---
 
