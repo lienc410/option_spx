@@ -5405,7 +5405,8 @@ def api_trade_log():
 _CORRECTABLE_FIELDS = {
         "open": {
             "actual_premium", "model_premium", "contracts", "short_strike", "long_strike",
-            "expiry", "dte_at_entry", "entry_spx", "entry_vix", "note", "paper_trade",
+            "expiry", "long_expiry", "dte_at_entry", "entry_spx", "entry_vix",
+            "note", "paper_trade",
         },
     "close": {
         "exit_premium", "exit_spx", "exit_reason", "actual_pnl", "note",
@@ -5465,6 +5466,7 @@ def api_position_correction():
             short_strike=ropen.get("short_strike"),
             long_strike=ropen.get("long_strike"),
             expiry=ropen.get("expiry"),
+            long_expiry=ropen.get("long_expiry"),
             dte_at_entry=ropen.get("dte_at_entry"),
             contracts=ropen.get("contracts"),
             actual_premium=ropen.get("actual_premium"),

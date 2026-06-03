@@ -1841,9 +1841,13 @@ function openTradeModal(kind, presetAccount, addTranche) {
           <label class="modal-label">Long Strike</label>
           <input id="correct-long-strike" class="modal-input" type="number" value="${CURRENT_POS?.long_strike ?? ''}">
         </div>
-        <div class="modal-field full">
-          <label class="modal-label">Expiry</label>
+        <div class="modal-field">
+          <label class="modal-label">Short Expiry</label>
           <input id="correct-expiry" class="modal-input" type="date" value="${CURRENT_POS?.expiry ?? ''}">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Long Expiry <span style="font-weight:400;color:var(--text-2);font-size:0.65rem">(diagonal only)</span></label>
+          <input id="correct-long-expiry" class="modal-input" type="date" value="${CURRENT_POS?.long_expiry ?? ''}" placeholder="leave blank if vertical">
         </div>
         <div class="modal-field full">
           <label class="modal-label">Reason</label>
@@ -2029,6 +2033,7 @@ async function submitCorrection() {
       short_strike: Number(document.getElementById('correct-short-strike').value || 0),
       long_strike: Number(document.getElementById('correct-long-strike').value || 0),
       expiry: document.getElementById('correct-expiry').value || null,
+      long_expiry: document.getElementById('correct-long-expiry')?.value || null,
       paper_trade: !!CURRENT_POS?.paper_trade,
     },
     reason: document.getElementById('correct-reason').value || '',
