@@ -397,15 +397,27 @@ def add_note(note: str, **extra_fields) -> None:
 
 
 def update_open_position(**fields) -> None:
-    """Patch the current open position in place without resetting identity fields."""
+    """Patch the current open position in place without resetting identity fields.
+
+    If `trade_id` is among the fields, only the position matching that trade_id
+    is updated — required so the per-leg Correct flow in /spx doesn't bulk-apply
+    one broker's correction to every position in state.
+    """
     data = _load_raw()
     if data is None or data.get("status") != "open":
         return
+    target_tid = fields.get("trade_id")
+    # Do NOT propagate trade_id into per-position updates — it's the selector,
+    # not a value to write. (Without this, an update for trade_id=A would
+    # rename every position's trade_id to A, hiding distinct positions.)
+    update_fields = {k: v for k, v in fields.items() if k != "trade_id" and v is not None}
     if "positions" in data:
         for pos in data.get("positions") or []:
-            pos.update({k: v for k, v in fields.items() if v is not None})
+            if target_tid and pos.get("trade_id") != target_tid:
+                continue
+            pos.update(update_fields)
     else:
-        data.update({k: v for k, v in fields.items() if v is not None})
+        data.update(update_fields)
     _save(data)
 
 
