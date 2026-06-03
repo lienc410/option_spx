@@ -276,9 +276,14 @@ def get_option_spread_quote(
         return {"visible": False, "error": "token_invalid"}
     try:
         y, m, d = expiry.split("-")
+        # SPX → SPXW disambiguation for non-3rd-Friday expiries (PM-settled
+        # weeklies). get_option_quotes_by_strike already does this; mirror
+        # it here so spread quotes for BCD / weekly verticals don't return
+        # empty.
+        etrade_ticker = _etrade_spx_ticker(expiry) if str(underlier).upper() == "SPX" else underlier
 
         def sym(strike: float) -> str:
-            return f"{underlier}:{y}:{m}:{d}:{side}:{int(strike)}"
+            return f"{etrade_ticker}:{y}:{m}:{d}:{side}:{int(strike)}"
 
         client = _market_client()
         payload = client.get_quote(
