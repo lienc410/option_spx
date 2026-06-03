@@ -260,14 +260,20 @@ def get_option_spread_quote(
     short_strike: float,
     long_strike: float,
     option_type: str = "PUT",
+    long_expiry: str | None = None,
 ) -> dict:
-    """Mark/bid/ask for a vertical spread (PUT or CALL). mark = (bid+ask)/2
-    per leg, spread_mark = short_mid - long_mid (Schwab credit-spread convention,
-    so debit spreads return a negative mark). option_type='PUT' by default for
-    bull put credit spreads; pass 'CALL' for BCD / bear-call / iron-condor.
+    """Mark/bid/ask for a vertical or diagonal spread (PUT or CALL).
+    mark = (bid+ask)/2 per leg, spread_mark = short_mid - long_mid (credit-
+    spread convention, so debit spreads return a negative mark).
+
+    `long_expiry` defaults to `expiry` (vertical); pass a later date to
+    look the long leg up on a different chain (true diagonal). When the
+    two legs share an expiry, both strikes are batched into a single
+    get_quote call. Diagonals run two get_quote calls (one per leg).
     """
     side = "CALL" if str(option_type).upper().startswith("C") else "PUT"
-    cache_key = f"optquote:{underlier}:{expiry}:{side}:{short_strike}:{long_strike}"
+    long_exp = long_expiry or expiry
+    cache_key = f"optquote:{underlier}:{expiry}:{long_exp}:{side}:{short_strike}:{long_strike}"
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
@@ -275,48 +281,59 @@ def get_option_spread_quote(
     if not is_token_valid():
         return {"visible": False, "error": "token_invalid"}
     try:
-        y, m, d = expiry.split("-")
-        # SPX → SPXW disambiguation for non-3rd-Friday expiries (PM-settled
-        # weeklies). get_option_quotes_by_strike already does this; mirror
-        # it here so spread quotes for BCD / weekly verticals don't return
-        # empty.
-        etrade_ticker = _etrade_spx_ticker(expiry) if str(underlier).upper() == "SPX" else underlier
-
-        def sym(strike: float) -> str:
-            return f"{etrade_ticker}:{y}:{m}:{d}:{side}:{int(strike)}"
-
         client = _market_client()
-        payload = client.get_quote(
-            [sym(short_strike), sym(long_strike)],
-            detail_flag="options",
-            resp_format="json",
-        )
-        # Key by strikePrice (float) — Product.symbol is just "SPX" for all rows
-        quotes = {
-            float(q["Product"]["strikePrice"]): q
-            for q in _as_list(_dig(payload, "QuoteResponse", "QuoteData"))
-            if _dig(q, "Product", "strikePrice") is not None
-        }
+        # SPX → SPXW disambiguation per leg's own expiry (Mon/Wed weeklies on
+        # one leg, monthly 3rd-Fri on the other is a real case for diagonals).
+        def _sym(strike: float, exp_iso: str) -> str:
+            yy, mm, dd = exp_iso.split("-")
+            ticker = _etrade_spx_ticker(exp_iso) if str(underlier).upper() == "SPX" else underlier
+            return f"{ticker}:{yy}:{mm}:{dd}:{side}:{int(strike)}"
 
-        def extract(strike: float) -> dict:
-            row = quotes.get(float(strike), {})
-            opt = row.get("Option") or {}  # E-Trade puts bid/ask under "Option", not "All"
+        def _fetch_one(strike: float, exp_iso: str) -> dict:
+            payload = client.get_quote([_sym(strike, exp_iso)],
+                                       detail_flag="options", resp_format="json")
+            rows = _as_list(_dig(payload, "QuoteResponse", "QuoteData"))
+            row = rows[0] if rows else {}
+            opt = row.get("Option") or {}
             bid = _num(opt.get("bid"))
             ask = _num(opt.get("ask"))
             mark = round((bid + ask) / 2, 2) if bid is not None and ask is not None else None
-            # Freshness fields live at the QuoteData row top level (peer to Product / Option).
-            # If E-Trade omits them, leave None and frontend defaults to "unknown".
             return {
-                "bid": bid,
-                "ask": ask,
-                "mark": mark,
+                "bid": bid, "ask": ask, "mark": mark,
                 "quote_status":  row.get("quoteStatus"),
                 "ah_flag":       row.get("ahFlag"),
                 "date_time_utc": row.get("dateTimeUTC"),
             }
 
-        short = extract(short_strike)
-        long_ = extract(long_strike)
+        if long_exp == expiry:
+            # Vertical: batch both strikes in one call (preserves prior behavior)
+            yy, mm, dd = expiry.split("-")
+            ticker = _etrade_spx_ticker(expiry) if str(underlier).upper() == "SPX" else underlier
+            payload = client.get_quote(
+                [f"{ticker}:{yy}:{mm}:{dd}:{side}:{int(short_strike)}",
+                 f"{ticker}:{yy}:{mm}:{dd}:{side}:{int(long_strike)}"],
+                detail_flag="options", resp_format="json",
+            )
+            quotes = {
+                float(q["Product"]["strikePrice"]): q
+                for q in _as_list(_dig(payload, "QuoteResponse", "QuoteData"))
+                if _dig(q, "Product", "strikePrice") is not None
+            }
+            def _extract(strike: float) -> dict:
+                row = quotes.get(float(strike), {})
+                opt = row.get("Option") or {}
+                bid = _num(opt.get("bid")); ask = _num(opt.get("ask"))
+                mark = round((bid + ask) / 2, 2) if bid is not None and ask is not None else None
+                return {"bid": bid, "ask": ask, "mark": mark,
+                        "quote_status":  row.get("quoteStatus"),
+                        "ah_flag":       row.get("ahFlag"),
+                        "date_time_utc": row.get("dateTimeUTC")}
+            short = _extract(short_strike)
+            long_ = _extract(long_strike)
+        else:
+            # Diagonal: per-leg fetches (different chains)
+            short = _fetch_one(short_strike, expiry)
+            long_ = _fetch_one(long_strike, long_exp)
         spread_bid = (
             round(short["bid"] - long_["ask"], 2)
             if short["bid"] is not None and long_["ask"] is not None

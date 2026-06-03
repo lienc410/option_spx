@@ -4524,16 +4524,22 @@ def api_position():
         "bull_call_diagonal", "bear_call_spread_hv",
     } else "PUT"
 
+    state_long_expiry = state.get("long_expiry")
     for p in positions:
         tid = p.get("trade_id")
-        p_expiry = p.get("expiry") or expiry  # per-position expiry; falls back to state-level
+        p_expiry = p.get("expiry") or expiry  # per-position SHORT-leg expiry
+        # per-position LONG-leg expiry (true diagonals); fall back to
+        # state-level long_expiry, then to short expiry (= vertical)
+        p_long_expiry = p.get("long_expiry") or state_long_expiry or p_expiry
         if not tid or not p_expiry:
             continue
         acct = (p.get("account") or "schwab").lower()
         ss, ls = str(p.get("short_strike") or ""), str(p.get("long_strike") or "")
         if not (ss and ls):
             continue
-        ck = (ss, ls, p_expiry)  # cache per-(strikes, expiry) — different expiries are different quotes
+        # Cache key includes BOTH leg expiries — diagonal vs vertical at same
+        # short expiry produce different marks and must not collide.
+        ck = (ss, ls, p_expiry, p_long_expiry)
 
         if acct == "etrade":
             if ck not in _et_cache:
@@ -4543,6 +4549,7 @@ def api_position():
                         underlier=underlying, expiry=p_expiry,
                         short_strike=float(ss), long_strike=float(ls),
                         option_type=_quote_option_type,
+                        long_expiry=p_long_expiry if p_long_expiry != p_expiry else None,
                     )
                 except Exception:
                     _et_cache[ck] = {"visible": False}
@@ -4553,8 +4560,9 @@ def api_position():
         elif acct == "schwab":
             if ck not in _sw_cache:
                 # primary_sw match → reuse the live snapshot computed up top
-                # (only valid when this position's expiry matches state-level).
-                if (ss, ls) == primary_sw and p_expiry == expiry:
+                # (only valid when this position's expiries match state-level).
+                if (ss, ls) == primary_sw and p_expiry == expiry \
+                        and p_long_expiry == (state_long_expiry or expiry):
                     _sw_cache[ck] = live
                 else:
                     try:
@@ -4562,6 +4570,7 @@ def api_position():
                         _sw_cache[ck] = spread_quote_for_strikes(
                             underlying, p_expiry, float(ss), float(ls),
                             option_type=_quote_option_type,
+                            long_expiry=p_long_expiry if p_long_expiry != p_expiry else None,
                         )
                     except Exception:
                         _sw_cache[ck] = {"visible": False}

@@ -670,14 +670,21 @@ def _strategy_quote_layout(state: dict | None) -> list[dict] | None:
             {"name": "short_put", "option_type": "PUT", "strike": state.get("short_strike"), "multiplier": -1.0},
             {"name": "long_put", "option_type": "PUT", "strike": state.get("long_strike"), "multiplier": 1.0},
         ]
-    if strategy_key in {"bear_call_spread_hv", "bull_call_diagonal"}:
-        # bull_call_diagonal: each position row in state stores a single expiry
-        # (PM opens broker-by-broker, each as a vertical at one expiry). Treat
-        # as vertical for live-quote lookup. True per-leg-expiry diagonals
-        # would need long_expiry added to schema.
+    if strategy_key == "bear_call_spread_hv":
         return [
             {"name": "short_call", "option_type": "CALL", "strike": state.get("short_strike"), "multiplier": -1.0},
             {"name": "long_call", "option_type": "CALL", "strike": state.get("long_strike"), "multiplier": 1.0},
+        ]
+    if strategy_key == "bull_call_diagonal":
+        # bull_call_diagonal: short and long legs may sit at different expiries.
+        # state.expiry is the SHORT leg's expiry (front month). state.long_expiry
+        # carries the LONG leg's expiry when PM has populated it; otherwise
+        # falls back to state.expiry (= treat as vertical).
+        short_exp = state.get("expiry")
+        long_exp  = state.get("long_expiry") or short_exp
+        return [
+            {"name": "short_call", "option_type": "CALL", "strike": state.get("short_strike"), "expiry": short_exp, "multiplier": -1.0},
+            {"name": "long_call",  "option_type": "CALL", "strike": state.get("long_strike"),  "expiry": long_exp,  "multiplier":  1.0},
         ]
     if strategy_key in {"iron_condor", "iron_condor_hv"}:
         return [
@@ -713,11 +720,15 @@ def _spread_live_snapshot_from_chain(state: dict | None, positions_payload: dict
 
     # Fetch chain per-leg with each leg's own strike as center so dense SPX
     # strike lists don't push the far leg out of the strike_window cutoff.
+    # Per-leg expiry support: spec may carry its own "expiry" (e.g. true
+    # diagonals where short and long legs sit at different expiries).
+    # Falls back to state.expiry when the leg doesn't specify one.
     leg_rows: list[dict] = []
     for spec in leg_specs:
         option_type = str(spec["option_type"]).upper()
+        leg_expiry = str(spec.get("expiry") or expiry)
         leg_chain = _get_option_chain_exact_expiry(
-            underlying, option_type, expiry,
+            underlying, option_type, leg_expiry,
             center_strike=spec["strike"], strike_window=20,
         )
         row = _find_chain_row(leg_chain, spec["strike"])
@@ -882,22 +893,34 @@ def spread_quote_for_strikes(
     short_strike: float,
     long_strike: float,
     option_type: str = "PUT",
+    long_expiry: str | None = None,
 ) -> dict:
-    """Mark/bid/ask for a specific vertical spread via Schwab chain. Default
-    PUT for bull put credit spreads; pass 'CALL' for BCD / bear-call / iron-condor.
+    """Mark/bid/ask for a vertical or diagonal via Schwab chain.
+
+    Default PUT for bull put credit spreads; pass 'CALL' for BCD / bear-call /
+    iron-condor. `long_expiry` defaults to `expiry` (vertical); pass a later
+    date to lookup the long leg on a different chain (true diagonal).
     """
     side = "CALL" if str(option_type).upper().startswith("C") else "PUT"
-    cache_key = f"swquote:{underlying}:{expiry}:{side}:{short_strike}:{long_strike}"
+    long_exp = long_expiry or expiry
+    cache_key = f"swquote:{underlying}:{expiry}:{long_exp}:{side}:{short_strike}:{long_strike}"
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
-    # Use a layout-matching strategy_key so _strategy_quote_layout picks legs
-    # of the right option_type (CALL or PUT).
-    mock_strategy = "bear_call_spread_hv" if side == "CALL" else "bull_put_spread"
+    # When the two legs share an expiry, route through the vertical layout;
+    # for true diagonals (CALL only — BCD), use bull_call_diagonal layout so
+    # _spread_live_snapshot_from_chain looks up each leg at its own expiry.
+    if side == "CALL" and long_exp != expiry:
+        mock_strategy = "bull_call_diagonal"
+    elif side == "CALL":
+        mock_strategy = "bear_call_spread_hv"
+    else:
+        mock_strategy = "bull_put_spread"
     mock_state = {
         "strategy_key": mock_strategy,
         "underlying": underlying,
         "expiry": expiry,
+        "long_expiry": long_exp,
         "short_strike": short_strike,
         "long_strike": long_strike,
     }
