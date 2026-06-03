@@ -4495,6 +4495,103 @@ def api_position():
     all_pos = read_all_positions()
     positions = (all_pos or {}).get("positions", [])
     live = live_position_snapshot(state)
+    underlying = state.get("underlying", "SPX")
+    expiry = state.get("expiry", "")
+    _strategy_key = str(state.get("strategy_key") or "").lower()
+
+    # Per-tranche live quotes keyed by trade_id; also maintain etrade_live for compat
+    position_lives: dict = {}
+    etrade_live: dict = {"visible": False}
+
+    # ── Cross-broker Bull Call Diagonal special-case ─────────────────────────
+    # When PM legs a single diagonal across two brokers (different expiries,
+    # different strikes — front-month SHORT call on one broker, back-month
+    # LONG call on the other), each "position" record is a SINGLE leg, not a
+    # vertical. The legacy vertical-quote path would force same-expiry on
+    # both legs and return a meaningless mark. Convention per BCD spec:
+    #   • earlier expiry → SHORT leg (sold OTM call at short_strike)
+    #   • later expiry   → LONG  leg (bought ITM call at long_strike)
+    positions_sorted = sorted(positions, key=lambda pp: pp.get("expiry") or "")
+    is_cross_broker_bcd = (
+        _strategy_key == "bull_call_diagonal"
+        and len(positions_sorted) >= 2
+        and len({pp.get("expiry") for pp in positions_sorted}) >= 2
+    )
+    if is_cross_broker_bcd:
+        from schwab.client import get_option_chain as _get_chain
+        from datetime import date as _date_t
+
+        short_pos = positions_sorted[0]
+        long_pos  = positions_sorted[-1]
+        short_strike = float(short_pos.get("short_strike") or 0)
+        long_strike  = float(long_pos.get("long_strike") or 0)
+        short_exp    = short_pos.get("expiry") or ""
+        long_exp     = long_pos.get("expiry") or ""
+
+        def _call_mid(exp_iso: str, strike: float):
+            """Single-call mid via Schwab chain (covers SPX + SPXW)."""
+            try:
+                today = _date_t.today()
+                exp_d = _date_t.fromisoformat(exp_iso)
+                dte = max(1, (exp_d - today).days)
+                rows = _get_chain(underlying, "CALL", target_dte=dte, dte_range=3,
+                                  center_strike=strike, strike_window=20)
+                for r in rows:
+                    if r.get("expiry") == exp_iso and float(r["strike"]) == strike:
+                        return float(r["mid"]) if r.get("mid") is not None else None
+            except Exception:
+                return None
+            return None
+
+        short_mid = _call_mid(short_exp, short_strike)
+        long_mid  = _call_mid(long_exp, long_strike)
+
+        if short_mid is not None and long_mid is not None:
+            entry_debit = abs(float(short_pos.get("actual_premium") or 0))
+            contracts   = float(short_pos.get("contracts") or 1)
+            combined_mark = round(long_mid - short_mid, 2)
+            combined_pnl  = round((combined_mark - entry_debit) * contracts * 100, 2)
+            live = {
+                "visible": True,
+                "mark": combined_mark,
+                "bid": None, "ask": None,
+                "delta": None, "gamma": None, "theta": None, "vega": None,
+                "unrealized_pnl": combined_pnl,
+                "trade_log_pnl":  combined_pnl,
+                "combined_trade_log_pnl": combined_pnl,
+                "symbol": f"{underlying} BCD {short_exp}/{long_exp}",
+                "structure": "cross-broker diagonal",
+                "pricing_source": "single_leg_calls",
+                "diagonal_short_mid": round(short_mid, 2),
+                "diagonal_long_mid":  round(long_mid, 2),
+            }
+            # Per-position: set mark=None so home-page per-position PnL skips
+            # and falls back to live.combined_trade_log_pnl. Carry leg metadata
+            # for richer UI later.
+            position_lives[short_pos["trade_id"]] = {
+                "visible": True, "mark": None,
+                "diagonal_leg_role": "short",
+                "diagonal_leg_strike": short_strike,
+                "diagonal_leg_expiry": short_exp,
+                "diagonal_leg_mid": round(short_mid, 2),
+            }
+            position_lives[long_pos["trade_id"]] = {
+                "visible": True, "mark": None,
+                "diagonal_leg_role": "long",
+                "diagonal_leg_strike": long_strike,
+                "diagonal_leg_expiry": long_exp,
+                "diagonal_leg_mid": round(long_mid, 2),
+            }
+        return jsonify({
+            "open": True,
+            **state,
+            "positions": positions,
+            "schwab_live": live,
+            "etrade_live": etrade_live,
+            "position_lives": position_lives,
+        })
+
+    # ── Legacy vertical path (everything except cross-broker BCD) ───────────
     # Combined trade-log P&L across all accounts using the same spread mark
     spread_mark = live.get("mark") if live.get("visible") else None
     if spread_mark is not None and positions:
@@ -4507,17 +4604,11 @@ def api_position():
             live["combined_trade_log_pnl"] = round(combined_pnl, 2)
         except Exception:
             pass
-    # Per-tranche live quotes keyed by trade_id; also maintain etrade_live for compat
-    position_lives: dict = {}
-    etrade_live: dict = {"visible": False}
     _et_cache: dict = {}
     _sw_cache: dict = {}
     primary_sw = (str(state.get("short_strike")), str(state.get("long_strike")))
-    expiry = state.get("expiry", "")
-    underlying = state.get("underlying", "SPX")
     # Map strategy → option_type so broker spread-quote lookups don't pull
     # the wrong instrument (e.g., quoting PUTs for a Bull Call Diagonal).
-    _strategy_key = str(state.get("strategy_key") or "").lower()
     _quote_option_type = "CALL" if _strategy_key in {
         "bull_call_diagonal", "bear_call_spread_hv",
     } else "PUT"
