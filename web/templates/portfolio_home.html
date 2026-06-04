@@ -1683,7 +1683,12 @@ async function loadSpx() {
             pnlHtml = `<span style="font-family:var(--f-mono);font-size:0.68rem;color:${cls}">${acctPnl >= 0 ? '+' : ''}$${acctPnl.toFixed(0)}</span>`;
           }
           if (entryPrem) {
-            const tgt = entryPrem * n * 100 * 0.60;
+            // Profit target: 60% of credit received (credit spreads) or 50%
+            // gain on debit paid (debit spreads like BCD). Without the
+            // abs(), debit positions render the credit-spread formula on a
+            // negative entryPrem and display a meaningless "+$22,980".
+            const isDebit = entryPrem < 0;
+            const tgt = Math.abs(entryPrem) * n * 100 * (isDebit ? 0.50 : 0.60);
             tgtHtml = `<span style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2)">tgt +$${Math.round(tgt).toLocaleString()}</span>`;
           }
           const mkBaHtml = _liveForAcct.visible
@@ -1731,23 +1736,27 @@ async function loadSpx() {
           const prem  = Number(p.actual_premium || p.model_premium) || 0;
           return sum + Math.max(0, (width - prem) * n * 100);
         }, 0);
-        // Tgt Profit = 60% of total credit received
+        // Tgt Profit: 60% of total credit received (credit spreads) or 50% of
+        // total debit paid (debit spreads like BCD). Without this branch
+        // the card silently disappears for debit positions because the sum
+        // of negative entry_premium fails the > 0 gate.
         const totalPremAll = allPositions.reduce(
           (sum, p) => sum + (Number(p.actual_premium || p.model_premium) || 0) * (Number(p.contracts) || 0), 0);
-        const maxPnlAll = totalPremAll > 0 ? totalPremAll * 100 : null;
+        const isDebitAll = totalPremAll < 0;
+        const tgtPctAll = isDebitAll ? 0.50 : 0.60;
+        const tgtProfitAll = totalPremAll !== 0 ? Math.abs(totalPremAll) * 100 * tgtPctAll : null;
         // Captured%: pnl / tgt_profit; only shown when pnl >= 0
         const posWithMark = allPositions.filter(p => _markFor(p) != null);
         const partial = posWithMark.length < allPositions.length ? '~' : '';
         let tgtHtml = '', capturedHtml = '', maxRiskHtml = '';
-        if (maxPnlAll != null) {
-          tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Profit</div><div class="pos-value profit">+$${Math.round(maxPnlAll * 0.60).toLocaleString()}</div></div>`;
+        if (tgtProfitAll != null) {
+          tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Profit</div><div class="pos-value profit">+$${Math.round(tgtProfitAll).toLocaleString()}</div></div>`;
         }
         if (totalMaxRisk > 0) {
           maxRiskHtml = `<div class="pos-item"><div class="pos-label">Max Risk</div><div class="pos-value" style="color:var(--text-2)">-$${Math.round(totalMaxRisk).toLocaleString()}</div></div>`;
         }
-        if (pnl != null && pnl >= 0 && maxPnlAll != null) {
-          const tgtProfit = maxPnlAll * 0.60;
-          const pct = Math.min(pnl / tgtProfit * 100, 100);
+        if (pnl != null && pnl >= 0 && tgtProfitAll != null) {
+          const pct = Math.min(pnl / tgtProfitAll * 100, 100);
           const pctCls = pct >= 100 ? 'profit' : pct >= 60 ? 'warn' : '';
           capturedHtml = `<div class="pos-item"><div class="pos-label">Captured</div><div class="pos-value ${pctCls}">${partial}${pct.toFixed(1)}%${pct >= 100 ? ' ✓' : ''}</div></div>`;
         }
