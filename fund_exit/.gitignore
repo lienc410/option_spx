@@ -5,4 +5,5 @@ charts/
 fund_signals.json
 positions.csv
 trade_log.csv
+signal_log.csv
 __pycache__/

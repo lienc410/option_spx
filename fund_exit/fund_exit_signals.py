@@ -406,6 +406,9 @@ def main():
                data_date, weeks_remaining, twap_frac)
     print(f"写出 {OUTDIR / 'fund_signals.json'}")
 
+    # ── 每日信号日志（按 净值日×代码 去重 upsert）──
+    write_signal_log(results, OUTDIR / "signal_log.csv")
+
     # ── 图 ──
     chart_dir = OUTDIR / "charts"
     chart_dir.mkdir(exist_ok=True)
@@ -532,6 +535,42 @@ def write_json(results, path, regime, floor_target, suggested_total, non_strong_
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
     os.replace(tmp, path)
+
+
+_RULE_NAME = {1: "①上升持有", 2: "②深套", 3: "③确认下降", 4: "④破追踪带",
+              5: "⑤破MA20", 6: "⑥观察", 0: "数据不足"}
+
+
+def write_signal_log(results, path):
+    """每只基金、每个净值日的信号分类(rule)+ 指标，按 (date,code) upsert。
+    3 次/日扫描幂等：同一净值日重跑只覆盖该日该只这一行。"""
+    import csv as _csv
+    cols = ["date", "code", "name", "rule", "rule_name", "trend", "clip",
+            "base", "extra", "dist_roll", "day_chg", "rsi", "oversold", "mv", "recorded_at"]
+    now = datetime.now().isoformat(timespec="seconds")
+    new = {}
+    for r in results:
+        if not r.ok or not r.latest_date:
+            continue
+        new[(r.latest_date, r.code)] = {
+            "date": r.latest_date, "code": r.code, "name": r.name,
+            "rule": r.rule, "rule_name": _RULE_NAME.get(r.rule, ""), "trend": r.trend,
+            "clip": _num(r.clip), "base": _num(r.base), "extra": _num(r.extra),
+            "dist_roll": _num(r.dist_roll), "day_chg": _num(r.day_chg),
+            "rsi": round(r.rsi, 1) if r.rsi == r.rsi else "",
+            "oversold": int(r.oversold), "mv": _num(r.mv), "recorded_at": now,
+        }
+    merged = {}
+    if path.exists():
+        with open(path, encoding="utf-8") as f:
+            for row in _csv.DictReader(f):
+                merged[(row.get("date"), row.get("code"))] = row
+    merged.update(new)   # 同 (date,code) 以本次为准
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = _csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
+        w.writeheader()
+        for k in sorted(merged, key=lambda x: (x[0] or "", x[1] or "")):
+            w.writerow({c: merged[k].get(c, "") for c in cols})
 
 
 def plot_fund(r: FundResult, chart_dir: Path):
