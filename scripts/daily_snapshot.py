@@ -97,11 +97,33 @@ def _authoritative_index_close(symbol: str, fallback, label: str):
     return fallback
 
 
+# strategy_key → option_type for the broker greeks lookup. Mirrors the same
+# map in scripts/compute_greek_attribution.py — keep them in sync.
+_STRATEGY_OPTION_TYPE = {
+    "bull_put_spread":     "PUT",
+    "bull_put_spread_hv":  "PUT",
+    "bear_call_spread_hv": "CALL",
+    "bull_call_diagonal":  "CALL",
+    "iron_condor":         "PUT",
+    "iron_condor_hv":      "PUT",
+}
+
+
+def _option_type_for(strategy_key) -> str:
+    return _STRATEGY_OPTION_TYPE.get(str(strategy_key or "").lower(), "PUT")
+
+
 def _attach_broker_greeks(positions: list[dict]) -> None:
     """Mutates positions in place: adds greeks_short / greeks_long via Schwab
     chain. SPX index options have no greeks in Polygon historical chain, so
     capturing them at snapshot time is the only way to feed path B
     attribution.
+
+    Per-leg lookup: each leg uses its own (option_type, strike, expiry) so
+    BCD-style diagonals where short and long sit on different expiry chains
+    are quoted correctly. option_type is derived from each position's
+    strategy_key (BCD → CALL; BPS → PUT). Calls into Schwab are batched by
+    (option_type, expiry) to minimise API hits.
     """
     if not positions:
         return
@@ -111,56 +133,63 @@ def _attach_broker_greeks(positions: list[dict]) -> None:
         print(f"[daily_snapshot] schwab.client import failed: {exc}", file=sys.stderr)
         return
     today_d = datetime.now(ET).date()
-    # Group positions by expiry — one chain call per expiry covers all legs
-    by_expiry: dict[str, list[dict]] = {}
+
+    # Build a per-leg request list. Each entry knows its option_type, the
+    # chain expiry to query, the strike, and which position dict + key to
+    # write the result into.
+    requests: list[tuple[str, str, float, dict, str]] = []
     for p in positions:
-        ex = p.get("expiry")
-        if ex:
-            by_expiry.setdefault(ex, []).append(p)
-    for expiry, group in by_expiry.items():
+        opt = _option_type_for(p.get("strategy_key"))
+        ss = p.get("short_strike")
+        short_exp = p.get("expiry")
+        if ss is not None and short_exp:
+            requests.append((opt, short_exp, float(ss), p, "greeks_short"))
+        ls = p.get("long_strike")
+        long_exp = p.get("long_expiry") or p.get("expiry")
+        if ls is not None and long_exp:
+            requests.append((opt, long_exp, float(ls), p, "greeks_long"))
+
+    # Group by (option_type, expiry) so each unique chain is fetched once.
+    by_chain: dict[tuple[str, str], list[tuple[float, dict, str]]] = {}
+    for opt, exp, strike, pos, leg_key in requests:
+        by_chain.setdefault((opt, exp), []).append((strike, pos, leg_key))
+
+    for (opt, expiry), legs in by_chain.items():
         try:
             exp_d = datetime.fromisoformat(expiry).date()
             dte = (exp_d - today_d).days
             if dte <= 0:
                 continue
-            strikes = []
-            for p in group:
-                ss, ls = p.get("short_strike"), p.get("long_strike")
-                if ss: strikes.append(float(ss))
-                if ls: strikes.append(float(ls))
-            if not strikes:
-                continue
+            strikes = [s for s, _, _ in legs]
             center = (min(strikes) + max(strikes)) / 2.0
-            # Schwab strike_window semantics undocumented — empirically window=20
-            # returns only ~$100 around center (way too narrow for any spread).
-            # Use a fixed wide window so any spread up to ~$1000 wide is covered
-            # in one chain call. SPX puts are $5 increments near ATM.
+            # Schwab strike_window=20 only returns ~$100 around center. Use a
+            # fixed wide window so any spread up to ~$1000 wide is covered
+            # in one chain call.
             window = 200
-            chain = get_option_chain("SPX", "PUT", target_dte=int(dte),
+            chain = get_option_chain("SPX", opt, target_dte=int(dte),
                                      dte_range=0, center_strike=center,
                                      strike_window=window)
             if not chain:
-                print(f"[daily_snapshot] greek chain empty for {expiry}", file=sys.stderr)
+                print(f"[daily_snapshot] greek chain empty for {opt} {expiry}",
+                      file=sys.stderr)
                 continue
             by_strike = {float(r["strike"]): r for r in chain
                          if r.get("strike") is not None and r.get("expiry") == expiry}
-            for p in group:
-                for leg, key in (("short_strike", "greeks_short"),
-                                 ("long_strike",  "greeks_long")):
-                    k = p.get(leg)
-                    if k is None: continue
-                    row = by_strike.get(float(k))
-                    if row is None: continue
-                    p[key] = {
-                        "delta": _r(row.get("delta"), 4),
-                        "gamma": _r(row.get("gamma"), 6),
-                        "theta": _r(row.get("theta"), 4),
-                        "vega":  _r(row.get("vega"),  4),
-                        "iv":    _r(row.get("iv"),    4),
-                        "mark":  _r(row.get("mid"),   2),
-                    }
+            for strike, pos, leg_key in legs:
+                row = by_strike.get(strike)
+                if row is None:
+                    continue
+                pos[leg_key] = {
+                    "delta": _r(row.get("delta"), 4),
+                    "gamma": _r(row.get("gamma"), 6),
+                    "theta": _r(row.get("theta"), 4),
+                    "vega":  _r(row.get("vega"),  4),
+                    "iv":    _r(row.get("iv"),    4),
+                    "mark":  _r(row.get("mid"),   2),
+                }
         except Exception as exc:
-            print(f"[daily_snapshot] greek fetch for {expiry} failed: {exc}", file=sys.stderr)
+            print(f"[daily_snapshot] greek fetch for {opt} {expiry} failed: {exc}",
+                  file=sys.stderr)
             continue
 
 
@@ -252,10 +281,16 @@ def build_record() -> dict | None:
             spx_positions.append({
                 "account":        p.get("account"),
                 "trade_id":       p.get("trade_id"),
+                "strategy_key":   p.get("strategy_key") or pos.get("strategy_key"),
                 "short_strike":   _num(p.get("short_strike")),
                 "long_strike":    _num(p.get("long_strike")),
                 "contracts":      _num(p.get("contracts")),
                 "expiry":         expiry_str,
+                # Per-leg long-expiry survives the snapshot so compute_greek_
+                # attribution can re-quote diagonal long legs at the right
+                # chain after the position has been closed (current_position
+                # .json is gone by then).
+                "long_expiry":    p.get("long_expiry"),
                 "dte_current":    current_dte,
                 "dte_at_entry":   _num(p.get("dte_at_entry")),
                 "opened_at":      p.get("opened_at"),

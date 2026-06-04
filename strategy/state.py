@@ -91,12 +91,19 @@ def _append_closed_trade_rows(legs_to_close, *, exit_premium, exit_reason,
                 row = {
                     "trade_id":     leg.get("trade_id"),
                     "strategy":     bucket,
+                    # strategy_key drives option_type (PUT vs CALL) on the
+                    # attribution compute side; without it, closed BCDs would
+                    # fall back to entry_credit-sign heuristics.
+                    "strategy_key": strategy_key,
                     "account":      leg.get("account") or "schwab",
                     "underlying":   underlying or "SPX",
                     "short_strike": leg.get("short_strike"),
                     "long_strike":  leg.get("long_strike"),
                     "contracts":    int(contracts),
                     "expiry":       leg.get("expiry"),
+                    # long_expiry lets diagonal closed-trade attribution quote
+                    # each leg on its own chain.
+                    "long_expiry":  leg.get("long_expiry"),
                     "opened_at":    leg.get("opened_at"),
                     "closed_at":    closed_at_iso,
                     "entry_credit_per_share": entry_credit,
