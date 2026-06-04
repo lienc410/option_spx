@@ -206,8 +206,8 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
       <select id="rec-fund" onchange="recFundChanged()"></select>
     </div>
     <div class="fld">
-      <label>减仓金额 ¥（按赎回到手/市值减少）</label>
-      <input id="rec-amount" type="number" min="0" step="100" placeholder="如 13296">
+      <label>减仓份额（份，券商赎回填的份额）</label>
+      <input id="rec-shares" type="number" min="0" step="1" placeholder="如 9000" oninput="recCalc()">
       <div class="fld-hint" id="rec-hint"></div>
     </div>
     <div class="fld">
@@ -472,9 +472,9 @@ function openRec() {
   if (!LAST || !LAST.funds) { return; }
   const sel = document.getElementById('rec-fund');
   sel.innerHTML = LAST.funds.filter(f=>f.ok && (f.mv||0)>0)
-    .map(f=>`<option value="${f.code}" data-mv="${f.mv}" data-clip="${f.clip||0}" data-amt="${f.clip_amt||0}">${f.name}（${f.code}）· 持仓 ${fmt_cny(f.mv)}</option>`).join('');
+    .map(f=>`<option value="${f.code}" data-mv="${f.mv}" data-clip="${f.clip||0}" data-amt="${f.clip_amt||0}" data-unit="${f.unit_nav||0}">${f.name}（${f.code}）· 持仓 ${fmt_cny(f.mv)}</option>`).join('');
   document.getElementById('rec-date').value = (LAST.data_date) || new Date().toISOString().slice(0,10);
-  document.getElementById('rec-amount').value = '';
+  document.getElementById('rec-shares').value = '';
   document.getElementById('rec-note').value = '';
   document.getElementById('rec-msg').textContent = '';
   recFundChanged();
@@ -483,30 +483,43 @@ function openRec() {
 function closeRec() { document.getElementById('rec-mask').classList.remove('open'); }
 
 function recFundChanged() {
+  document.getElementById('rec-shares').value = '';
+  recCalc();
+}
+
+function recCalc() {
   const o = document.getElementById('rec-fund').selectedOptions[0];
   if (!o) return;
-  const mv = +o.dataset.mv, clip = +o.dataset.clip, amt = +o.dataset.amt;
+  const unit = +o.dataset.unit, mv = +o.dataset.mv, amt = +o.dataset.amt, clip = +o.dataset.clip;
+  const totalSh = unit>0 ? mv/unit : 0;
+  const suggSh  = unit>0 ? amt/unit : 0;
+  const sh = +document.getElementById('rec-shares').value || 0;
+  const amount = sh * unit;
+  const fmtSh = x => Math.round(x).toLocaleString('zh-CN');
   document.getElementById('rec-hint').innerHTML =
-    `本周建议 <b>${(clip*100).toFixed(1)}%</b> ≈ ${fmt_cny(amt)} &nbsp;`
-    + `<a onclick="document.getElementById('rec-amount').value=${Math.round(amt)}">填建议额</a> · `
-    + `<a onclick="document.getElementById('rec-amount').value=${Math.round(mv)}">全部赎回</a>`;
+    `单位净值 <b>${unit>0?unit.toFixed(4):'—'}</b> · 约 ${amount>0?'<b style="color:var(--gold)">'+fmt_cny(amount)+'</b>':'¥—'}（持仓约 ${fmtSh(totalSh)} 份）<br>`
+    + `本周建议 ${(clip*100).toFixed(1)}% ≈ <a onclick="document.getElementById('rec-shares').value=${Math.round(suggSh)};recCalc()">${fmtSh(suggSh)}份</a> · `
+    + `<a onclick="document.getElementById('rec-shares').value=${Math.round(totalSh)};recCalc()">全部赎回(${fmtSh(totalSh)}份)</a>`;
 }
 
 async function submitRec() {
   const o = document.getElementById('rec-fund').selectedOptions[0];
-  const amount = +document.getElementById('rec-amount').value;
+  const shares = +document.getElementById('rec-shares').value;
+  const unit = o ? +o.dataset.unit : 0;
+  const amount = shares * unit;
   const msg = document.getElementById('rec-msg');
-  if (!o || !(amount>0)) { msg.style.color='var(--red)'; msg.textContent='请选基金并填正数金额'; return; }
+  if (!o || !(shares>0)) { msg.style.color='var(--red)'; msg.textContent='请选基金并填正数份额'; return; }
+  if (!(unit>0)) { msg.style.color='var(--red)'; msg.textContent='缺单位净值，无法换算（稍后重试或刷新）'; return; }
   const btn = document.getElementById('rec-submit'); btn.disabled = true;
   try {
     const r = await fetch('/api/fund-exit/record-trade', {method:'POST',headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({code:o.value, amount_cny:amount, date:document.getElementById('rec-date').value, note:document.getElementById('rec-note').value})});
+      body: JSON.stringify({code:o.value, shares:shares, amount_cny:amount, date:document.getElementById('rec-date').value, note:document.getElementById('rec-note').value})});
     const j = await r.json();
     if (!j.ok) { msg.style.color='var(--red)'; msg.textContent='失败：'+(j.error||'未知'); btn.disabled=false; return; }
     msg.style.color='var(--green)';
-    msg.textContent = `已记录：${j.name} 减 ${fmt_cny(j.amount)}（${(j.pct_sold*100).toFixed(1)}%），余 ${fmt_cny(j.new_mv)}`;
+    msg.textContent = `已记录：${j.name} 赎 ${Math.round(shares).toLocaleString('zh-CN')}份 ≈ ${fmt_cny(j.amount)}（${(j.pct_sold*100).toFixed(1)}%），余 ${fmt_cny(j.new_mv)}`;
     await load(); await loadTrades();
-    setTimeout(closeRec, 1100);
+    setTimeout(closeRec, 1300);
   } catch(e) { msg.style.color='var(--red)'; msg.textContent='网络错误'; }
   btn.disabled = false;
 }
@@ -521,10 +534,11 @@ async function loadTrades() {
   document.getElementById('trades-total').textContent = `已减仓累计 ${fmt_cny(tot)} · ${tr.length} 笔`;
   document.getElementById('trades-body').innerHTML = `
     <table class="trades-table">
-      <thead><tr><th>日期</th><th>基金</th><th>减仓¥</th><th>占比</th><th>当时信号</th><th>建议%</th><th>备注</th></tr></thead>
+      <thead><tr><th>日期</th><th>基金</th><th>份额</th><th>减仓¥</th><th>占比</th><th>当时信号</th><th>建议%</th><th>备注</th></tr></thead>
       <tbody>${tr.map(t=>`<tr>
         <td>${t.trade_date||''}</td>
         <td style="color:var(--text)">${t.name||t.code}</td>
+        <td>${t.shares?Math.round(+t.shares).toLocaleString('zh-CN'):'—'}</td>
         <td>${fmt_cny(+t.amount_cny)}</td>
         <td>${t.pct_sold?(+t.pct_sold*100).toFixed(1)+'%':'—'}</td>
         <td>${RULE_LABEL[+t.rule]??'—'}</td>

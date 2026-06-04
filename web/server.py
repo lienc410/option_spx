@@ -373,6 +373,10 @@ def fund_exit_record_trade():
         amount = float(body.get("amount_cny"))
     except (TypeError, ValueError):
         return jsonify({"ok": False, "error": "amount_cny 无效"}), 400
+    try:
+        shares = float(body.get("shares")) if body.get("shares") not in (None, "") else None
+    except (TypeError, ValueError):
+        shares = None
     trade_date = str(body.get("date", "")).strip() or _dt.now().strftime("%Y-%m-%d")
     note = str(body.get("note", "")).strip()
     if not code or amount <= 0:
@@ -396,16 +400,24 @@ def fund_exit_record_trade():
                     break
 
     tl = _FUND_DIR / "trade_log.csv"
-    new_file = not tl.exists()
-    with open(tl, "a", newline="", encoding="utf-8") as fh:
-        w = _csv.writer(fh)
-        if new_file:
-            w.writerow(["trade_date", "code", "name", "amount_cny", "pct_sold", "nav",
-                        "rule", "recommended_clip", "note", "recorded_at"])
-        w.writerow([trade_date, code, name, f"{amount:.2f}", f"{pct:.4f}",
-                    nav if nav is not None else "", rule if rule is not None else "",
-                    rec_clip if rec_clip is not None else "", note,
-                    _dt.now().isoformat(timespec="seconds")])
+    tl_cols = ["trade_date", "code", "name", "shares", "amount_cny", "pct_sold", "nav",
+               "rule", "recommended_clip", "note", "recorded_at"]
+    existing = []
+    if tl.exists():   # 读旧行(可能旧 schema 无 shares)，整体以新表头重写，旧行 shares 留空
+        with open(tl, encoding="utf-8") as fh:
+            existing = list(_csv.DictReader(fh))
+    new_row = {"trade_date": trade_date, "code": code, "name": name,
+               "shares": f"{shares:.2f}" if shares is not None else "",
+               "amount_cny": f"{amount:.2f}", "pct_sold": f"{pct:.4f}",
+               "nav": nav if nav is not None else "", "rule": rule if rule is not None else "",
+               "recommended_clip": rec_clip if rec_clip is not None else "", "note": note,
+               "recorded_at": _dt.now().isoformat(timespec="seconds")}
+    with open(tl, "w", newline="", encoding="utf-8") as fh:
+        w = _csv.DictWriter(fh, fieldnames=tl_cols, extrasaction="ignore")
+        w.writeheader()
+        for r in existing:
+            w.writerow({c: r.get(c, "") for c in tl_cols})
+        w.writerow(new_row)
 
     pf = _FUND_DIR / "positions.csv"
     with open(pf, encoding="utf-8") as fh:
@@ -420,6 +432,7 @@ def fund_exit_record_trade():
             w.writerow({k: r.get(k, "") for k in ["code", "name", "market_value", "pnl_pct"]})
 
     return jsonify({"ok": True, "code": code, "name": name, "amount": round(amount, 2),
+                    "shares": round(shares, 2) if shares is not None else None,
                     "pct_sold": round(pct, 4), "new_mv": round(new_mv, 2)})
 
 

@@ -177,6 +177,20 @@ def _trend_label(latest, ma20, ma60) -> str:
     return "震荡"
 
 
+def fetch_unit_nav(code: str, retries: int = 2, pause: float = 0.6):
+    """最新单位净值(份额估值用：金额 = 份额 × 单位净值)。失败返回 None。"""
+    for i in range(retries):
+        try:
+            df = ak.fund_open_fund_info_em(symbol=code, indicator="单位净值走势")
+            df["净值日期"] = pd.to_datetime(df["净值日期"])
+            v = pd.to_numeric(df.sort_values("净值日期")["单位净值"], errors="coerce").dropna()
+            if len(v):
+                return float(v.iloc[-1])
+        except Exception:  # noqa: BLE001
+            time.sleep(pause * (i + 1))
+    return None
+
+
 def fetch_market_regime() -> str:
     """沪深300 现价 vs MA60 → 上下文提示（不进决策, per 5.5）。"""
     try:
@@ -228,6 +242,7 @@ class FundResult:
     dist_ma60: float = float("nan")
     dist_roll: float = float("nan")      # 距滚动高（A6 统一参照）
     day_chg: float = float("nan")        # 最近一日涨跌% (累计净值环比)
+    unit_nav: float = float("nan")       # 最新单位净值 (份额→金额换算用)
     trend: str = ""
     rule: int = 6
     action: str = ""
@@ -307,6 +322,7 @@ def analyze(name, code, mv, pnl_pct, weeks_remaining) -> FundResult:
 
     r.df = df
     r.latest_date = df["date"].iloc[-1].strftime("%Y-%m-%d")
+    r.unit_nav = fetch_unit_nav(code) or float(df["nav"].iloc[-1])   # 单位净值(失败→退回累计)
     s = signal_at(df["nav"], weeks_remaining)
     for k in ("n", "latest", "short_hist", "ma20", "ma60", "roll_high", "rsi", "ann_vol",
               "trail", "trail_trigger", "dist_ma20", "dist_ma60", "dist_roll", "day_chg",
@@ -498,6 +514,7 @@ def write_json(results, path, regime, floor_target, suggested_total, non_strong_
             "rsi": _num(r.rsi), "ann_vol": _num(r.ann_vol),
             "dist_ma20": _num(r.dist_ma20), "dist_ma60": _num(r.dist_ma60),
             "dist_roll": _num(r.dist_roll), "day_chg": _num(r.day_chg),
+            "unit_nav": _num(r.unit_nav),
             "trend": r.trend, "rule": r.rule, "action": r.action,
             "base": _num(r.base), "extra": _num(r.extra),
             "clip": _num(r.clip), "clip_amt": _num(r.mv * r.clip) if r.ok else None,
