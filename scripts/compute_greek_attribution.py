@@ -46,7 +46,7 @@ OUT_PATH = DATA / "strategy_pnl_attribution.jsonl"
 R = 0.05            # 1-yr T-bill ~
 Q = 0.013           # SPX dividend yield ~
 DAYS_PER_YEAR = 365.0
-COMPUTE_METHOD = "bs_with_broker_pathB_v2"
+COMPUTE_METHOD = "bs_call_put_pathB_v3"   # v3: CALL support + per-leg expiry (BCD)
 
 
 # ── data loaders ─────────────────────────────────────────────────────────────
@@ -59,10 +59,12 @@ class Position:
     short_strike: float
     long_strike: float
     contracts: int
-    expiry: date
+    expiry: date                                 # short-leg expiry for diagonals
     opened_at: date
+    option_type: str = "PUT"                     # "PUT" (BPS) | "CALL" (BCD, bear-call)
+    long_expiry: Optional[date] = None           # long-leg expiry when diagonal; None = vertical
     closed_at: Optional[date] = None             # None when still open
-    entry_credit_per_share: Optional[float] = None  # broker spread credit
+    entry_credit_per_share: Optional[float] = None  # broker spread credit (signed: + = received, − = paid)
     exit_debit_per_share: Optional[float] = None    # broker spread debit on close
     entry_short_fill: Optional[float] = None     # per-leg broker fill at open (manually seeded)
     entry_long_fill: Optional[float] = None
@@ -71,24 +73,74 @@ class Position:
     realized_pnl: Optional[float] = None         # broker-reported, for chart reconciliation
 
 
+# Strategy → option_type. PUT default for bull put credit spreads (BPS).
+_STRATEGY_OPTION_TYPE = {
+    "bull_put_spread":     "PUT",
+    "bull_put_spread_hv":  "PUT",
+    "bear_call_spread_hv": "CALL",
+    "bull_call_diagonal":  "CALL",
+    "iron_condor":         "PUT",  # IC uses both; treat as put-side dominant for now
+    "iron_condor_hv":      "PUT",
+}
+
+
+def _strategy_key_for(p: dict) -> str:
+    """Best-effort pull of strategy_key from snapshot position dict or
+    daily_snapshot record. Falls back to bull_put_spread (legacy default).
+    """
+    return str(p.get("strategy_key") or p.get("strategy") or "bull_put_spread").lower()
+
+
+CURRENT_POSITION_FILE = REPO / "logs" / "current_position.json"
+
+
+def _current_state() -> dict:
+    """Read logs/current_position.json — has strategy_key, long_expiry per
+    position. daily_snapshot.jsonl doesn't currently carry those fields, so
+    we cross-reference live state for open-position metadata.
+    """
+    try:
+        with open(CURRENT_POSITION_FILE) as f:
+            return json.load(f) or {}
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
 def load_open_positions() -> list[Position]:
-    """Pull currently-open SPX positions from latest daily_snapshot row."""
+    """Pull currently-open SPX positions from latest daily_snapshot row,
+    enriched with strategy_key + long_expiry from current_position.json.
+    """
     with open(DAILY_SNAPSHOT) as f:
         rows = [json.loads(line) for line in f if line.strip()]
     if not rows:
         return []
     latest = rows[-1]
+    state = _current_state()
+    state_strategy_key = str(state.get("strategy_key") or "").lower()
+    state_positions = {p.get("trade_id"): p for p in (state.get("positions") or [])}
     positions = []
     for p in (latest.get("strategies", {}).get("spx_spread", {}).get("positions") or []):
         ep = p.get("entry_premium")
+        tid = p.get("trade_id")
+        live = state_positions.get(tid, {})
+        # Strategy key — fallback chain: snapshot field → state file → BPS default
+        strat_key = str(p.get("strategy_key") or state_strategy_key or "bull_put_spread").lower()
+        # Option type from strategy_key, falling back to sign of entry premium
+        # (negative = debit = call spread; positive = credit = put spread).
+        option_type = _STRATEGY_OPTION_TYPE.get(strat_key)
+        if option_type is None:
+            option_type = "CALL" if (ep is not None and float(ep) < 0) else "PUT"
+        long_exp_iso = p.get("long_expiry") or live.get("long_expiry")
         positions.append(Position(
-            trade_id=p["trade_id"],
+            trade_id=tid,
             account=p["account"],
             strategy="spx_spread",
+            option_type=option_type,
             short_strike=float(p["short_strike"]),
             long_strike=float(p["long_strike"]),
             contracts=int(p["contracts"]),
             expiry=date.fromisoformat(p["expiry"]),
+            long_expiry=date.fromisoformat(long_exp_iso) if long_exp_iso else None,
             opened_at=date.fromisoformat(p["opened_at"]),
             entry_credit_per_share=float(ep) if ep is not None else None,
         ))
@@ -107,14 +159,25 @@ def load_closed_trades() -> list[Position]:
             if not line.strip():
                 continue
             r = json.loads(line)
+            # Option type from explicit field, strategy_key, or entry_credit sign
+            opt = r.get("option_type")
+            if not opt:
+                sk = str(r.get("strategy_key") or "").lower()
+                opt = _STRATEGY_OPTION_TYPE.get(sk)
+                if opt is None:
+                    ec = r.get("entry_credit_per_share")
+                    opt = "CALL" if (ec is not None and float(ec) < 0) else "PUT"
+            long_exp_iso = r.get("long_expiry")
             positions.append(Position(
                 trade_id=r["trade_id"],
                 account=r["account"],
                 strategy=r["strategy"],
+                option_type=str(opt).upper(),
                 short_strike=float(r["short_strike"]),
                 long_strike=float(r["long_strike"]),
                 contracts=int(r["contracts"]),
                 expiry=date.fromisoformat(r["expiry"]),
+                long_expiry=date.fromisoformat(long_exp_iso) if long_exp_iso else None,
                 opened_at=date.fromisoformat(r["opened_at"]),
                 closed_at=date.fromisoformat(r["closed_at"]),
                 entry_credit_per_share=float(r.get("entry_credit_per_share")) if r.get("entry_credit_per_share") is not None else None,
@@ -129,12 +192,32 @@ def load_closed_trades() -> list[Position]:
 
 
 def load_spx_history() -> dict[str, float]:
-    """Date ISO → SPX close. q042 cache is the source of truth."""
+    """Date ISO → SPX close. q042 cache is primary; daily_snapshot.market.spx
+    fills the trailing window (q042 cache refresh lags, but daily_snapshot
+    writes the current SPX every market-close run).
+    """
     out: dict[str, float] = {}
-    with open(SPX_HIST) as f:
-        d = json.load(f)
-    for row in d["full"]["payload"]["history"]:
-        out[row["date"]] = float(row["close"])
+    try:
+        with open(SPX_HIST) as f:
+            d = json.load(f)
+        for row in d["full"]["payload"]["history"]:
+            out[row["date"]] = float(row["close"])
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+        pass
+    # Trailing fallback from daily_snapshot
+    try:
+        with open(DAILY_SNAPSHOT) as f:
+            for line in f:
+                try:
+                    r = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                iso = r.get("date")
+                spx = (r.get("market") or {}).get("spx")
+                if iso and spx and iso not in out:
+                    out[iso] = float(spx)
+    except FileNotFoundError:
+        pass
     return out
 
 
@@ -194,14 +277,18 @@ def trading_days(start: date, end: date) -> list[date]:
     return out
 
 
-def load_chain_mark(snapshot_date: date, strike: float, expiry: date) -> Optional[float]:
-    """Per-leg day_close from q041 SPX parquet. Prefer SPXW (PM trades weeklies)."""
+def load_chain_mark(snapshot_date: date, strike: float, expiry: date,
+                    option_type: str = "PUT") -> Optional[float]:
+    """Per-leg day_close from q041 SPX parquet. Prefer SPXW (PM trades weeklies).
+    option_type: 'PUT' or 'CALL' — was hard-coded 'put' before generalization.
+    """
     p = SNAPSHOT_DIR / snapshot_date.isoformat() / "SPX.parquet"
     if not p.exists():
         return None
     df = pd.read_parquet(p, columns=["occ_ticker", "strike_price", "contract_type",
                                      "expiration_date", "day_close"])
-    m = ((df.contract_type == "put") &
+    ct = str(option_type).lower()
+    m = ((df.contract_type == ct) &
          (df.expiration_date == expiry.isoformat()) &
          (df.strike_price == strike))
     rows = df[m]
@@ -215,7 +302,7 @@ def load_chain_mark(snapshot_date: date, strike: float, expiry: date) -> Optiona
     return float(mk.iloc[0])
 
 
-# ── BS math ──────────────────────────────────────────────────────────────────
+# ── BS math (PUT + CALL) ─────────────────────────────────────────────────────
 
 def bs_put(S: float, K: float, T: float, r: float, q: float, sigma: float) -> float:
     if sigma <= 0 or T <= 0:
@@ -225,14 +312,31 @@ def bs_put(S: float, K: float, T: float, r: float, q: float, sigma: float) -> fl
     return K * math.exp(-r * T) * norm.cdf(-d2) - S * math.exp(-q * T) * norm.cdf(-d1)
 
 
-def solve_iv(target: float, S: float, K: float, T: float, r: float, q: float) -> Optional[float]:
+def bs_call(S: float, K: float, T: float, r: float, q: float, sigma: float) -> float:
+    if sigma <= 0 or T <= 0:
+        return max(S - K, 0.0)
+    d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
+    d2 = d1 - sigma * math.sqrt(T)
+    return S * math.exp(-q * T) * norm.cdf(d1) - K * math.exp(-r * T) * norm.cdf(d2)
+
+
+def _bs_price(opt: str, S, K, T, r, q, sigma):
+    return bs_call(S, K, T, r, q, sigma) if str(opt).upper() == "CALL" else bs_put(S, K, T, r, q, sigma)
+
+
+def solve_iv(target: float, S: float, K: float, T: float, r: float, q: float,
+             option_type: str = "PUT") -> Optional[float]:
     if target <= 0 or T <= 0:
         return None
-    intrinsic = max(K * math.exp(-r * T) - S * math.exp(-q * T), 0.0)
+    opt = str(option_type).upper()
+    if opt == "CALL":
+        intrinsic = max(S * math.exp(-q * T) - K * math.exp(-r * T), 0.0)
+    else:
+        intrinsic = max(K * math.exp(-r * T) - S * math.exp(-q * T), 0.0)
     if target <= intrinsic + 1e-6:
         return 0.01
     try:
-        f = lambda s: bs_put(S, K, T, r, q, s) - target
+        f = lambda s: _bs_price(opt, S, K, T, r, q, s) - target
         return brentq(f, 1e-4, 5.0, xtol=1e-5)
     except (ValueError, RuntimeError):
         return None
@@ -246,12 +350,31 @@ def bs_greeks_put(S: float, K: float, T: float, r: float, q: float, sigma: float
     d2 = d1 - sigma * sqT
     delta = -math.exp(-q * T) * norm.cdf(-d1)
     gamma = math.exp(-q * T) * norm.pdf(d1) / (S * sigma * sqT)
-    # Theta per year, calendar-time convention (negative for long ATM put)
     theta_yr = (-S * math.exp(-q * T) * norm.pdf(d1) * sigma / (2 * sqT)
                 + r * K * math.exp(-r * T) * norm.cdf(-d2)
                 - q * S * math.exp(-q * T) * norm.cdf(-d1))
     vega_dec = S * math.exp(-q * T) * norm.pdf(d1) * sqT
     return {"delta": delta, "gamma": gamma, "theta_yr": theta_yr, "vega_dec": vega_dec}
+
+
+def bs_greeks_call(S: float, K: float, T: float, r: float, q: float, sigma: float) -> dict:
+    if sigma <= 0 or T <= 0:
+        return {"delta": 0.0, "gamma": 0.0, "theta_yr": 0.0, "vega_dec": 0.0}
+    sqT = math.sqrt(T)
+    d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * sqT)
+    d2 = d1 - sigma * sqT
+    delta = math.exp(-q * T) * norm.cdf(d1)
+    gamma = math.exp(-q * T) * norm.pdf(d1) / (S * sigma * sqT)
+    # Call theta per year, calendar-time convention (negative for long ATM call)
+    theta_yr = (-S * math.exp(-q * T) * norm.pdf(d1) * sigma / (2 * sqT)
+                - r * K * math.exp(-r * T) * norm.cdf(d2)
+                + q * S * math.exp(-q * T) * norm.cdf(d1))
+    vega_dec = S * math.exp(-q * T) * norm.pdf(d1) * sqT
+    return {"delta": delta, "gamma": gamma, "theta_yr": theta_yr, "vega_dec": vega_dec}
+
+
+def _bs_greeks(opt: str, S, K, T, r, q, sigma):
+    return bs_greeks_call(S, K, T, r, q, sigma) if str(opt).upper() == "CALL" else bs_greeks_put(S, K, T, r, q, sigma)
 
 
 # ── per-day per-leg state ────────────────────────────────────────────────────
@@ -260,22 +383,24 @@ def day_state(pos: Position, d: date, spx_hist: dict[str, float],
               broker_greeks: Optional[dict] = None,
               override_ms: Optional[float] = None,
               override_ml: Optional[float] = None) -> Optional[dict]:
-    """Build per-day state. Path priority:
-      1. Edge-day mark overrides (broker fill) → BS-solve IV/greeks from them
-      2. Broker chain greeks captured at snapshot time (Path B)
-      3. Chain day_close mark → BS reverse-solve IV + greeks (Path A)
+    """Build per-day state. Supports PUT (BPS) and CALL (BCD, bear-call) plus
+    per-leg expiry for true diagonals (pos.long_expiry > pos.expiry).
     """
     iso = d.isoformat()
     S = spx_hist.get(iso)
     if S is None:
         return None
-    T = max((pos.expiry - d).days, 1) / DAYS_PER_YEAR
+    opt = (pos.option_type or "PUT").upper()
+    short_exp = pos.expiry
+    long_exp  = pos.long_expiry or pos.expiry
+    T_s = max((short_exp - d).days, 1) / DAYS_PER_YEAR
+    T_l = max((long_exp  - d).days, 1) / DAYS_PER_YEAR
     # Path B: prefer broker chain greeks (when not overriding marks for fills)
     if override_ms is None and override_ml is None and broker_greeks is not None:
         bg = broker_greeks.get((iso, pos.trade_id))
         if bg:
             return {
-                "date": iso, "S": S, "T": T,
+                "date": iso, "S": S, "T_s": T_s, "T_l": T_l,
                 "ms": bg["short"]["mark"], "ml": bg["long"]["mark"],
                 "iv_s": bg["short"]["iv"], "iv_l": bg["long"]["iv"],
                 "gs": {"delta": bg["short"]["delta"], "gamma": bg["short"]["gamma"],
@@ -284,18 +409,18 @@ def day_state(pos: Position, d: date, spx_hist: dict[str, float],
                        "theta_yr": bg["long"]["theta_yr"], "vega_dec": bg["long"]["vega_dec"]},
                 "broker": True,
             }
-    # Path A: chain mark + BS reverse-solve (with optional edge mark overrides)
-    ms = override_ms if override_ms is not None else load_chain_mark(d, pos.short_strike, pos.expiry)
-    ml = override_ml if override_ml is not None else load_chain_mark(d, pos.long_strike, pos.expiry)
+    # Path A: chain mark + BS reverse-solve (per-leg expiry for diagonals)
+    ms = override_ms if override_ms is not None else load_chain_mark(d, pos.short_strike, short_exp, opt)
+    ml = override_ml if override_ml is not None else load_chain_mark(d, pos.long_strike,  long_exp,  opt)
     if ms is None or ml is None:
         return None
-    iv_s = solve_iv(ms, S, pos.short_strike, T, R, Q)
-    iv_l = solve_iv(ml, S, pos.long_strike, T, R, Q)
+    iv_s = solve_iv(ms, S, pos.short_strike, T_s, R, Q, option_type=opt)
+    iv_l = solve_iv(ml, S, pos.long_strike,  T_l, R, Q, option_type=opt)
     if iv_s is None or iv_l is None:
         return None
-    gs = bs_greeks_put(S, pos.short_strike, T, R, Q, iv_s)
-    gl = bs_greeks_put(S, pos.long_strike, T, R, Q, iv_l)
-    return {"date": iso, "S": S, "T": T, "ms": ms, "ml": ml,
+    gs = _bs_greeks(opt, S, pos.short_strike, T_s, R, Q, iv_s)
+    gl = _bs_greeks(opt, S, pos.long_strike,  T_l, R, Q, iv_l)
+    return {"date": iso, "S": S, "T_s": T_s, "T_l": T_l, "ms": ms, "ml": ml,
             "iv_s": iv_s, "iv_l": iv_l, "gs": gs, "gl": gl, "broker": False}
 
 
@@ -346,11 +471,13 @@ def emit_row(out_f, pos: Position, t0: dict, t1: dict, attr: dict) -> None:
         "prev_date":    t0["date"],
         "trade_id":     pos.trade_id,
         "strategy":     pos.strategy,
+        "option_type":  pos.option_type,
         "account":      pos.account,
         "short_strike": pos.short_strike,
         "long_strike":  pos.long_strike,
         "contracts":    pos.contracts,
         "expiry":       pos.expiry.isoformat(),
+        "long_expiry":  pos.long_expiry.isoformat() if pos.long_expiry else None,
         "dte":          (pos.expiry - date.fromisoformat(t1["date"])).days,
         "S_t0":         round(t0["S"], 2),
         "S_t1":         round(t1["S"], 2),
@@ -391,18 +518,19 @@ def compute() -> int:
     )
 
     def synth_state(pos: Position, d: date, S: float, iv_s: float, iv_l: float) -> dict:
-        """Fill in a day with no chain data. Holds IV constant from last chain
-        date; marks + greeks computed via BS at frozen IV + actual S/T. This
-        is what smooths multi-day gaps (e.g., 5-04 to 5-11 in q041 history)
-        so per-day delta/gamma attribution stays moderate instead of bunching
-        into a single Taylor step.
+        """Gap-day synthesis: hold IV constant, recompute marks + greeks via BS
+        at actual S and per-leg T. Per-option-type (CALL/PUT) and per-leg
+        expiry (diagonals).
         """
-        T = max((pos.expiry - d).days, 1) / DAYS_PER_YEAR
-        ms = bs_put(S, pos.short_strike, T, R, Q, iv_s)
-        ml = bs_put(S, pos.long_strike,  T, R, Q, iv_l)
-        gs = bs_greeks_put(S, pos.short_strike, T, R, Q, iv_s)
-        gl = bs_greeks_put(S, pos.long_strike,  T, R, Q, iv_l)
-        return {"date": d.isoformat(), "S": S, "T": T,
+        opt = (pos.option_type or "PUT").upper()
+        long_exp = pos.long_expiry or pos.expiry
+        T_s = max((pos.expiry - d).days, 1) / DAYS_PER_YEAR
+        T_l = max((long_exp   - d).days, 1) / DAYS_PER_YEAR
+        ms = _bs_price(opt, S, pos.short_strike, T_s, R, Q, iv_s)
+        ml = _bs_price(opt, S, pos.long_strike,  T_l, R, Q, iv_l)
+        gs = _bs_greeks(opt, S, pos.short_strike, T_s, R, Q, iv_s)
+        gl = _bs_greeks(opt, S, pos.long_strike,  T_l, R, Q, iv_l)
+        return {"date": d.isoformat(), "S": S, "T_s": T_s, "T_l": T_l,
                 "ms": ms, "ml": ml, "iv_s": iv_s, "iv_l": iv_l,
                 "gs": gs, "gl": gl, "synthetic": True}
 
@@ -443,12 +571,14 @@ def compute() -> int:
             #              into both legs so ms-ml equals broker credit while
             #              keeping each leg close to chain mark (IV preserved).
             om, ol = None, None
+            opt = (pos.option_type or "PUT").upper()
+            long_exp = pos.long_expiry or pos.expiry
             if d == pos.opened_at:
                 if pos.entry_short_fill is not None:
                     om, ol = pos.entry_short_fill, pos.entry_long_fill
                 elif pos.entry_credit_per_share is not None:
-                    cm = load_chain_mark(d, pos.short_strike, pos.expiry)
-                    cl = load_chain_mark(d, pos.long_strike, pos.expiry)
+                    cm = load_chain_mark(d, pos.short_strike, pos.expiry, opt)
+                    cl = load_chain_mark(d, pos.long_strike,  long_exp,   opt)
                     if cm is not None and cl is not None:
                         adj = ((cm - cl) - pos.entry_credit_per_share) / 2.0
                         om = max(cm - adj, 0.01)
@@ -457,8 +587,8 @@ def compute() -> int:
                 if pos.exit_short_fill is not None:
                     om, ol = pos.exit_short_fill, pos.exit_long_fill
                 elif pos.exit_debit_per_share is not None:
-                    cm = load_chain_mark(d, pos.short_strike, pos.expiry)
-                    cl = load_chain_mark(d, pos.long_strike, pos.expiry)
+                    cm = load_chain_mark(d, pos.short_strike, pos.expiry, opt)
+                    cl = load_chain_mark(d, pos.long_strike,  long_exp,   opt)
                     if cm is not None and cl is not None:
                         adj = ((cm - cl) - pos.exit_debit_per_share) / 2.0
                         om = max(cm - adj, 0.01)
