@@ -1683,12 +1683,21 @@ async function loadSpx() {
             pnlHtml = `<span style="font-family:var(--f-mono);font-size:0.68rem;color:${cls}">${acctPnl >= 0 ? '+' : ''}$${acctPnl.toFixed(0)}</span>`;
           }
           if (entryPrem) {
-            // Profit target: 60% of credit received (credit spreads) or 50%
-            // gain on debit paid (debit spreads like BCD). Without the
-            // abs(), debit positions render the credit-spread formula on a
-            // negative entryPrem and display a meaningless "+$22,980".
+            // Profit target = X% of max_profit (NOT X% of premium).
+            //   credit spread (BPS / IC): max_profit = credit_received,
+            //     target = 60% × credit (matches catalog '60% target')
+            //   debit spread (BCD):       max_profit = width − |debit|
+            //     target = 50% × max_profit (matches catalog 'close at 50%
+            //     profit'). For debit positions, max_profit IS capped by the
+            //     spread width — a percent-of-debit formula can exceed the
+            //     theoretical ceiling (BCD: 50% × $383 = $191/sh, but max
+            //     profit is only $67/sh = width $450 − debit $383).
+            const width = Math.abs(Number(p.short_strike || 0) - Number(p.long_strike || 0));
             const isDebit = entryPrem < 0;
-            const tgt = Math.abs(entryPrem) * n * 100 * (isDebit ? 0.50 : 0.60);
+            const maxProfitPerShare = isDebit
+              ? Math.max(0, width - Math.abs(entryPrem))
+              : Math.abs(entryPrem);
+            const tgt = maxProfitPerShare * n * 100 * (isDebit ? 0.50 : 0.60);
             tgtHtml = `<span style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2)">tgt +$${Math.round(tgt).toLocaleString()}</span>`;
           }
           const mkBaHtml = _liveForAcct.visible
@@ -1736,15 +1745,26 @@ async function loadSpx() {
           const prem  = Number(p.actual_premium || p.model_premium) || 0;
           return sum + Math.max(0, (width - prem) * n * 100);
         }, 0);
-        // Tgt Profit: 60% of total credit received (credit spreads) or 50% of
-        // total debit paid (debit spreads like BCD). Without this branch
-        // the card silently disappears for debit positions because the sum
-        // of negative entry_premium fails the > 0 gate.
-        const totalPremAll = allPositions.reduce(
-          (sum, p) => sum + (Number(p.actual_premium || p.model_premium) || 0) * (Number(p.contracts) || 0), 0);
-        const isDebitAll = totalPremAll < 0;
+        // Tgt Profit: sum per-position max_profit, then take X% target.
+        //   credit: max_profit = credit, target = 60%
+        //   debit:  max_profit = width − |debit| (capped by spread width),
+        //           target = 50% (per catalog 'close at 50% profit').
+        // Previously this used X% of premium directly, which over-stated
+        // the target for debit spreads — BCD's 50%×|debit| = $191/sh blew
+        // past the theoretical ceiling of width $450 − debit $383 = $67/sh.
+        let totalMaxProfit = 0;
+        let isDebitAll = false;
+        for (const p of allPositions) {
+          const prem = Number(p.actual_premium || p.model_premium) || 0;
+          const ct   = Number(p.contracts) || 0;
+          if (!prem || !ct) continue;
+          if (prem < 0) isDebitAll = true;
+          const w = Math.abs(Number(p.short_strike || 0) - Number(p.long_strike || 0));
+          const maxPerShare = prem < 0 ? Math.max(0, w - Math.abs(prem)) : Math.abs(prem);
+          totalMaxProfit += maxPerShare * ct * 100;
+        }
         const tgtPctAll = isDebitAll ? 0.50 : 0.60;
-        const tgtProfitAll = totalPremAll !== 0 ? Math.abs(totalPremAll) * 100 * tgtPctAll : null;
+        const tgtProfitAll = totalMaxProfit > 0 ? totalMaxProfit * tgtPctAll : null;
         // Captured%: pnl / tgt_profit; only shown when pnl >= 0
         const posWithMark = allPositions.filter(p => _markFor(p) != null);
         const partial = posWithMark.length < allPositions.length ? '~' : '';
