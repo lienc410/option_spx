@@ -1290,6 +1290,59 @@ function toggleSettling() {
 function fmtDollars(n) { return typeof n === 'number' ? '$' + Math.round(n).toLocaleString() : '—'; }
 function fmtNum(n, dec) { return typeof n === 'number' ? n.toFixed(dec ?? 0) : '—'; }
 
+// Black-Scholes call value (used to estimate diagonal max profit at the
+// short leg's expiry when the long leg still has time remaining).
+// Standard error-function approximation for normal CDF — accurate to <1e-7.
+function _normalCdf(x) {
+  const a1 =  0.254829592, a2 = -0.284496736, a3 =  1.421413741;
+  const a4 = -1.453152027, a5 =  1.061405429, p  =  0.3275911;
+  const sign = x < 0 ? -1 : 1;
+  x = Math.abs(x) / Math.sqrt(2);
+  const t = 1.0 / (1.0 + p * x);
+  const y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+  return 0.5 * (1.0 + sign * y);
+}
+function bsCall(S, K, T, sigma, r, q) {
+  if (!(T > 0) || !(sigma > 0) || !(S > 0) || !(K > 0)) return Math.max(0, S - K);
+  r = r ?? 0.05; q = q ?? 0.013;
+  const sqT = Math.sqrt(T);
+  const d1 = (Math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * sqT);
+  const d2 = d1 - sigma * sqT;
+  return S * Math.exp(-q * T) * _normalCdf(d1) - K * Math.exp(-r * T) * _normalCdf(d2);
+}
+
+// Max-profit-per-share for a debit call spread.
+//   Vertical: width − |debit| (short caps profit at short_strike at expiry)
+//   Diagonal: BS-estimate long call value at SPX = short_strike at short
+//             expiry (long still has time remaining) − |debit|. Accounts for
+//             long-leg extrinsic that a vertical formula ignores.
+function _diagonalMaxProfitPerShare(p) {
+  const debit = Math.abs(Number(p.actual_premium || p.model_premium || 0));
+  if (!debit) return 0;
+  const sk = Number(p.short_strike || 0);
+  const lk = Number(p.long_strike || 0);
+  const width = Math.abs(sk - lk);
+  if (!sk || !lk) return Math.max(0, width - debit);
+  const shortExp = p.expiry;
+  const longExp  = p.long_expiry;
+  // Vertical (same expiry on both legs): use width − debit (correct)
+  if (!longExp || longExp === shortExp) return Math.max(0, width - debit);
+  // Diagonal: compute long call value at short_strike at short expiry
+  try {
+    const sd = new Date(shortExp + 'T00:00:00Z');
+    const ld = new Date(longExp  + 'T00:00:00Z');
+    const remainingDays = (ld - sd) / 86400000;
+    if (remainingDays <= 0) return Math.max(0, width - debit);
+    const T = remainingDays / 365;
+    const ivPct = Number(p.entry_vix) || 17;  // entry VIX as IV proxy
+    const sigma = ivPct / 100;
+    const longValue = bsCall(sk, lk, T, sigma, 0.05, 0.013);
+    return Math.max(0, longValue - debit);
+  } catch (_) {
+    return Math.max(0, width - debit);
+  }
+}
+
 // ── SPEC-110: E*Trade monthly NLV widget ────────────────────────────────────
 let _etMonthlyData = null;
 let _etMonthlyFetched = false;
@@ -1683,22 +1736,21 @@ async function loadSpx() {
             pnlHtml = `<span style="font-family:var(--f-mono);font-size:0.68rem;color:${cls}">${acctPnl >= 0 ? '+' : ''}$${acctPnl.toFixed(0)}</span>`;
           }
           if (entryPrem) {
-            // Profit target = X% of max_profit (NOT X% of premium).
-            //   credit spread (BPS / IC): max_profit = credit_received,
-            //     target = 60% × credit (matches catalog '60% target')
-            //   debit spread (BCD):       max_profit = width − |debit|
-            //     target = 50% × max_profit (matches catalog 'close at 50%
-            //     profit'). For debit positions, max_profit IS capped by the
-            //     spread width — a percent-of-debit formula can exceed the
-            //     theoretical ceiling (BCD: 50% × $383 = $191/sh, but max
-            //     profit is only $67/sh = width $450 − debit $383).
-            const width = Math.abs(Number(p.short_strike || 0) - Number(p.long_strike || 0));
+            // Profit target = X% of max_profit.
+            //   credit (BPS / IC): max = credit_received, target = 60%
+            //   debit  (BCD):      max = vertical (width − |debit|) for
+            //     same-expiry verticals; BS-estimated diagonal max for
+            //     positions where long_expiry > short_expiry. Target = 50%.
             const isDebit = entryPrem < 0;
             const maxProfitPerShare = isDebit
-              ? Math.max(0, width - Math.abs(entryPrem))
+              ? _diagonalMaxProfitPerShare(p)
               : Math.abs(entryPrem);
-            const tgt = maxProfitPerShare * n * 100 * (isDebit ? 0.50 : 0.60);
-            tgtHtml = `<span style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2)">tgt +$${Math.round(tgt).toLocaleString()}</span>`;
+            const maxTotal = maxProfitPerShare * n * 100;
+            const tgt = maxTotal * (isDebit ? 0.50 : 0.60);
+            const maxStr = isDebit
+              ? ` <span style="color:var(--text-2)">(max $${Math.round(maxTotal).toLocaleString()})</span>`
+              : '';
+            tgtHtml = `<span style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2)">tgt +$${Math.round(tgt).toLocaleString()}${maxStr}</span>`;
           }
           const mkBaHtml = _liveForAcct.visible
             ? `<span style="font-family:var(--f-mono);font-size:0.64rem;color:var(--text-2);white-space:nowrap"><strong style="color:var(--text)">M</strong> ${fmt(_liveForAcct.mark)} · <strong style="color:var(--text)">B</strong> ${fmt(_liveForAcct.bid)} · <strong style="color:var(--text)">A</strong> ${fmt(_liveForAcct.ask)}</span>`
@@ -1745,13 +1797,11 @@ async function loadSpx() {
           const prem  = Number(p.actual_premium || p.model_premium) || 0;
           return sum + Math.max(0, (width - prem) * n * 100);
         }, 0);
-        // Tgt Profit: sum per-position max_profit, then take X% target.
-        //   credit: max_profit = credit, target = 60%
-        //   debit:  max_profit = width − |debit| (capped by spread width),
-        //           target = 50% (per catalog 'close at 50% profit').
-        // Previously this used X% of premium directly, which over-stated
-        // the target for debit spreads — BCD's 50%×|debit| = $191/sh blew
-        // past the theoretical ceiling of width $450 − debit $383 = $67/sh.
+        // Max Profit (theoretical) + Tgt Profit (50% recommended).
+        //   credit:   max = credit_received,                 target = 60% × max
+        //   debit:    max = vertical or BS-estimated diagonal max (long
+        //             leg's residual extrinsic at short expiry),
+        //             target = 50% × max  (per catalog 'close at 50% profit')
         let totalMaxProfit = 0;
         let isDebitAll = false;
         for (const p of allPositions) {
@@ -1759,8 +1809,9 @@ async function loadSpx() {
           const ct   = Number(p.contracts) || 0;
           if (!prem || !ct) continue;
           if (prem < 0) isDebitAll = true;
-          const w = Math.abs(Number(p.short_strike || 0) - Number(p.long_strike || 0));
-          const maxPerShare = prem < 0 ? Math.max(0, w - Math.abs(prem)) : Math.abs(prem);
+          const maxPerShare = prem < 0
+            ? _diagonalMaxProfitPerShare(p)
+            : Math.abs(prem);
           totalMaxProfit += maxPerShare * ct * 100;
         }
         const tgtPctAll = isDebitAll ? 0.50 : 0.60;
@@ -1768,9 +1819,12 @@ async function loadSpx() {
         // Captured%: pnl / tgt_profit; only shown when pnl >= 0
         const posWithMark = allPositions.filter(p => _markFor(p) != null);
         const partial = posWithMark.length < allPositions.length ? '~' : '';
-        let tgtHtml = '', capturedHtml = '', maxRiskHtml = '';
+        let tgtHtml = '', maxProfitHtml = '', capturedHtml = '', maxRiskHtml = '';
         if (tgtProfitAll != null) {
-          tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Profit</div><div class="pos-value profit">+$${Math.round(tgtProfitAll).toLocaleString()}</div></div>`;
+          tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Profit ${isDebitAll ? '(50%)' : '(60%)'}</div><div class="pos-value profit">+$${Math.round(tgtProfitAll).toLocaleString()}</div></div>`;
+        }
+        if (isDebitAll && totalMaxProfit > 0) {
+          maxProfitHtml = `<div class="pos-item"><div class="pos-label">Max Profit</div><div class="pos-value" style="color:var(--text-2)">+$${Math.round(totalMaxProfit).toLocaleString()}</div></div>`;
         }
         if (totalMaxRisk > 0) {
           maxRiskHtml = `<div class="pos-item"><div class="pos-label">Max Risk</div><div class="pos-value" style="color:var(--text-2)">-$${Math.round(totalMaxRisk).toLocaleString()}</div></div>`;
@@ -1785,7 +1839,7 @@ async function loadSpx() {
           ${pos.opened_at ? `<div class="pos-item"><div class="pos-label">Opened</div><div class="pos-value">${pos.opened_at}</div></div>` : ''}
           ${pos.expiry    ? `<div class="pos-item"><div class="pos-label">Expiry</div><div class="pos-value">${pos.expiry}${dte != null ? ' (' + dte + 'd)' : ''}</div></div>` : ''}
           ${pnl != null ? `<div class="pos-item"><div class="pos-label">P&L (all accts)</div><div class="pos-value ${pnlCls}">${pnlStr}</div></div>` : ''}
-          ${tgtHtml}${maxRiskHtml}${capturedHtml}
+          ${tgtHtml}${maxProfitHtml}${maxRiskHtml}${capturedHtml}
           <div class="pos-item full" style="padding:0">${posRows}</div>
           ${liveHtml}
         `;
