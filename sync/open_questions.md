@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-05-29（**SPEC-108.1 DONE + Fidelity PASS w/ 2 notes**。BCD 56% strategy distribution finding。SPEC-108.2 mutex gap → low-priority backlog）
+最后更新：2026-06-03（**Q083 CLOSED + SPEC-113 DEPLOYED**。NORMAL×IV_LOW×BULLISH×VIX<18 carve to BCD。3 withdrawals / 5 new memories / T+30 monitor 2026-07-03）
 
 ---
 
@@ -33,6 +33,20 @@
 ---
 
 ## 策略设计待解决
+
+### Q083 — NORMAL×IV_LOW×BULLISH BCD Carve
+
+- **状态**：**resolved** (Q083 CLOSED — SPEC-113 DEPLOYED 2026-06-03)
+- **结论**：VIX∈[15,18) + NORMAL + BULL + IVP<40 → BCD（90DTE δ0.70 long + 45DTE δ0.30 short）；VIX≥18 仍 reduce_wait。3 withdrawals / 4 G-reviews / 15 phases
+- **根因**：NORMAL×BULL 有 67.5% 日子落在 IV_LOW 列（67.5% → reduce_wait）；VIX spike 后回落至 15-25 但 IVP 尚低 — 恰恰是 PM 想开仓却被堵死的典型状态
+- **Narrowing 依据**：VIX 18-20 + 悲观 skew（+8vp 短腿）mean +$150 → 不扩展；VIX 15-18 Sortino 0.860 安全
+- **Expected impact（today's scale）**：+$8,857/yr（QQQ opp cost deducted），+1.6 BCD/yr；cash floor 117 days/yr < $30k（+27d），PM ratified 警惕线
+- **5 new feedback memories**：post-withdrawal front-load robustness / cash-bound 报今天绝对数 / decision type governs significance standard / circular metric validation / stratum cutpoint overfit
+- **T+30 monitor**：2026-07-03 remote agent（46.4% cash time-coverage，>55% → Quant 重审）
+- **Forward dependency**（§6.2）：加第二个 debit 策略必须回审 SPEC-111 floor 机制
+- **来源**：`task/SPEC-113_handoff.md`, `research/q083/`
+
+---
 
 ### Q078 — BPS Ladder / Selector-Gated SPX Execution Cadence
 

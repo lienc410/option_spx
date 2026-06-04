@@ -1,6 +1,21 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-05-29 (**SPEC-108.1 DONE + Quant Fidelity Review PASS**。Ladder drift bands + V1b shadow + Stage 2 gate 写入。Strategy 分布 finding：BCD 56% / BPS 3.1%（反 PM mental model）。V1b→V3 mutex 单向 gap → SPEC-108.2 backlog。commits 221ef5c + 26f6bf5）
+Last Updated: 2026-06-03 (**Q083 CLOSED + SPEC-113 DEPLOYED**。NORMAL×IV_LOW×BULLISH×VIX<18 carve to BCD。3 withdrawals / 4 G-reviews / 15 phases / 5 new feedback memories。Net +$8,857/yr，cash floor +27 days/yr PM ratified 警惕线。T+30 check scheduled 2026-07-03）
+
+### R-20260603-01 — Q083: NORMAL×IV_LOW×BULLISH BCD Carve (CLOSED → SPEC-113 DEPLOYED)
+
+- **Topic**: NORMAL 体制 + 趋势向上 + IV_LOW cell 长期 reduce_wait 导致 VIX spike 后回落窗口完全堵死（26y 数据 NORMAL×BULL 有 67.5% 落在 IV_LOW 列）。研究是否可在 VIX<18 sub-cell 开 BCD 填补
+- **Method**: 15 phases；3 withdrawals；4 G-reviews（G2 framing / G2.5 P1-P9 / P15 full validation / AC-N regression）。Skew 悲观情景（+8vp 短腿 skew）是最终 narrowing 依据
+- **Final carve（SPEC-113）**：VIX∈[15,18) + NORMAL + BULL + IVP<40 → BCD（90DTE δ0.70 long + 45DTE δ0.30 short，同 LOW_VOL×BULL）；VIX≥18 仍 reduce_wait
+- **Validation**：46 笔（vs 原 82 笔，VIX<18 subcut）；Sortino 0.860（VIX 15-18 悲观假设仍安全）；VIX 18-20 悲观下 mean +$150 → 不扩展
+- **Expected impact（今天 SPX 5000+ 规模）**：+$8,857/yr（QQQ 10% opp cost）；+SGOV: +$9,066/yr；cash floor 117 days/yr below $30k（+27d），PM ratified 警惕线
+- **3 撤回过程**：①循环 IVP 验证（feedback memory）；②wrong significance standard：execution constraint 用 alpha 标准（feedback memory）；③SPEC-112 IVP 窗口缩短→通过率 2%，PM 直接否
+- **2 次"比例游戏"被抓**：①sequential ladder 88.9% skip rate ≠ cash occupancy（真实 46.4%）；②历史摊薄 4-5% opp ratio ≠ 今天绝对额（$7,101 历史 vs $22,200 今天，3.13x）→ feedback memory cash-bound
+- **实现**：dict-valued matrix cell（约束不散落），AC-N bit-identical regression（26 non-new cells 字符级一致）
+- **5 new feedback memories**：①post-withdrawal front-load robustness；②cash-bound 账户报今天绝对数；③decision type governs significance standard；④circular metric validation；⑤stratum cutpoint overfit
+- **T+30 monitor**：2026-07-03 remote agent cash time-coverage check（46.4% target；>55% → Quant 重审；3连亏损 → 同上）
+- **Forward dependency**（SPEC-113 §6.2）：加第二个 debit 策略时必须回审 SPEC-111 floor 机制（sequential ladder 现为双保险之一）
+- **来源**：`task/SPEC-113_handoff.md`, `research/q083/`
 
 ### R-20260528-01 — Q078: BPS Ladder / Selector-Gated SPX Execution Cadence (CLOSED 2026-05-28)
 

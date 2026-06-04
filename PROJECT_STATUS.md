@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-05-29 (**SPEC-108.1 DONE + Quant Fidelity Review PASS w/ 2 notes**。Ladder drift bands + V1b shadow + Stage 2 gate 修订。13/13 AC / 65/65 regression / 40/40 unit。Key finding: 26y PASS days BCD 56% dominant（BPS 仅 3.1%）— Stage 1 shadow 将以 BCD trade quality 为主。V1b→V3 mutex 单向 gap → SPEC-108.2 minor backlog。commits 221ef5c + 26f6bf5 — `See: task/SPEC-108.1.md`)
+Last Updated: 2026-06-03 (**Q083 CLOSED + SPEC-113 DEPLOYED**。NORMAL×IV_LOW×BULLISH×VIX<18 carve to BCD。3 withdrawals / 4 G-reviews / 15 phases / 5 new feedback memories。Net +$8,857/yr（QQQ opp cost 扣完）。T+30 cash check scheduled 2026-07-03 — `See: task/SPEC-113_handoff.md`, `research/q083/`)
 Owner: Planner or PM
 
 ## Current Phase
@@ -30,7 +30,7 @@ Owner: Planner or PM
 
 _(currently empty)_
 
-**Future seeds**（PM-discretionary）：Q042 Stage 2/3 ramp / SPEC-105 Stage 2 active mode / HV Ladder re-promotion / Q042 Sleeve B（n > 3-5 trades）/ Q077 PARKED
+**Future seeds**（PM-discretionary）：Q042 Stage 2/3 ramp / SPEC-105 Stage 2 active mode / HV Ladder re-promotion / Q042 Sleeve B（n > 3-5 trades）/ Q077 PARKED / SPEC-113 §6.2 second debit strategy trigger（加第二个 debit 策略时必须回审 SPEC-111 floor 机制）
 
 **Low-priority backlog**（PM-discretionary，no time-lock）：
 - **SPEC-108.2**：V1b→V3 mutex 反向检查（5 行代码；Stage 2 前处理）
@@ -53,6 +53,8 @@ Expected Net Ann ROE:   7.95% (Layer-1 Arch-3) → 8.20% when booster Stage 2 ac
 ```
 
 ## Recently Closed Specs
+
+- `SPEC-113` — NORMAL×IV_LOW×BULLISH×VIX<18 carve to BCD. Closed **DONE + DEPLOYED 2026-06-03**. 在 selector matrix NORMAL×LOW×BULLISH cell 开 sub-cell：VIX∈[15,18) → BCD（同 LOW_VOL×BULL legs：90DTE δ0.70 long call + 45DTE δ0.30 short call）；VIX≥18 仍 reduce_wait。**预期增益（今天 SPX 5000+ 规模）**：+$8,857/yr（QQQ 10% opp cost 扣完），+SGOV 5%: +$9,066/yr；+1.6 BCD/yr（在原本被堵死的 spike 后回落窗口）。**Cash floor 影响**：117 days/yr 低于 $30k（+27 天，vs 89 天 baseline）——PM ratified 为"警惕线"（非硬底线）。**实现方式**：dict-valued matrix cell（约束不散落多处，P10 教训），VIX 条件写在数据结构中，前端可渲染；**AC-N bit-identical regression**（26 个非新 cell 路由结果逐行一字不差）。**Q083 研究过程**：3 withdrawals / 4 G-reviews（G2/G2.5/P15/AC-N）/ 15 phases / 5 new feedback memories。**T+30 monitor**：2026-07-03 remote agent 自动跑 cash time-coverage check（目标 46.4%，±10pp PASS，>55% → Quant 重审）。**Forward dependency**（写进 SPEC-113 §6.2）：加第二个 debit 策略时必须回审 SPEC-111 floor 机制 — `See: task/SPEC-113_handoff.md`, `research/q083/`
 
 - `SPEC-108.1` — Ladder Drift Bands + V1b Shadow + Stage 2 Gate Revision. Closed **DONE + Quant Fidelity Review PASS 2026-05-29**（commits 221ef5c + 26f6bf5）. Inline 修订 SPEC-108 §0 R5/R6/R7：drift bands（SPX×0.93 + IV×1.5 + BS reprice + safe fallback）+ V1b shadow-default + Stage 2 gate 9 conditions 正式写入。13/13 AC / 65/65 regression / 40/40 unit / R1-R4 math PASS。**2 non-blocking notes**：①V1b→V3 mutex 单向（V3 active 不 block V1b；Stage 2 前需 SPEC-108.2 加 5 行反向检查）；②**Strategy 分布反 PM mental model**：26y / 3119 PASS days 实测 BCD 56% / IC_HV 19.5% / IC 9.5% / BPS_HV 9.3% / BPS 仅 3.1%——ladder 以 BCD 为主，非"weekly BPS ladder"。Stage 1 shadow 质量比较以 BCD trade quality 为主。BCD + Q042 long-gamma 暴露联合监控为可选小研究。**Low-priority backlog**：SPEC-108.2（mutex 双向，5 行）— `See: task/SPEC-108.1.md`
 
