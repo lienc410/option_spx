@@ -1613,11 +1613,14 @@ async function loadSpx() {
     if (rec.rationale)
       document.getElementById('rationale-spx').textContent = rec.rationale;
 
-    // Legs structure
+    // Legs structure — option type from l.option (CALL/PUT); was hard-coded
+    // PUT, which mislabelled bull_call_diagonal / bear_call_spread / IC call
+    // wings as puts.
     if (legs.length > 0) {
-      const legHtml = legs.map(l =>
-        `<span class="leg-chip ${l.action === 'SELL' ? 'leg-sell' : 'leg-buy'}">${l.action} PUT · ${l.dte}d · Δ${Number(l.delta).toFixed(2)}</span>`
-      ).join('<span class="leg-sep"> / </span>');
+      const legHtml = legs.map(l => {
+        const opt = String(l.option || l.option_type || 'PUT').toUpperCase();
+        return `<span class="leg-chip ${l.action === 'SELL' ? 'leg-sell' : 'leg-buy'}">${l.action} ${opt} · ${l.dte}d · Δ${Number(l.delta).toFixed(2)}</span>`;
+      }).join('<span class="leg-sep"> / </span>');
       document.getElementById('structure-spx').innerHTML = legHtml;
     }
 
