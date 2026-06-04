@@ -239,6 +239,63 @@ class FundResult:
     df: pd.DataFrame = field(default=None, repr=False)
 
 
+def weeks_remaining_at(d) -> int:
+    """从某日到清仓 deadline 的剩余周数(向上取整，最少 1)。"""
+    days_left = (LIQUIDATION_DEADLINE - d).days
+    return max(1, math.ceil(days_left / 7)) if days_left > 0 else 1
+
+
+def signal_at(nav, weeks_remaining) -> dict:
+    """从累计净值序列(升序，截至某日)计算该日信号。analyze 与历史回填共用，确保口径一致。"""
+    n = len(nav)
+    latest = float(nav.iloc[-1])
+    ma20 = float(nav.tail(MA_SHORT).mean()) if n >= MA_SHORT else float("nan")
+    ma60 = float(nav.tail(MA_LONG).mean()) if n >= MA_LONG else float("nan")
+    roll_high = float(nav.tail(min(ROLL_HIGH_WIN, n)).max())
+    rsi_v = rsi(nav, RSI_PERIOD)
+    rets = nav.pct_change().dropna()
+    sigma_d = float(rets.tail(60).std()) if len(rets) >= 20 else float("nan")
+    ann_vol = sigma_d * np.sqrt(252) if sigma_d == sigma_d else float("nan")
+    trail = (float(np.clip(TRAIL_Z * sigma_d * np.sqrt(TRAIL_HORIZON_D), TRAIL_FLOOR, TRAIL_CAP))
+             if sigma_d == sigma_d else TRAIL_DEFAULT)
+    trail_trigger = roll_high * (1 - trail)
+    dist_ma20 = latest / ma20 - 1 if ma20 == ma20 else float("nan")
+    dist_ma60 = latest / ma60 - 1 if ma60 == ma60 else float("nan")
+    dist_roll = latest / roll_high - 1 if roll_high == roll_high else float("nan")
+    day_chg = float(nav.iloc[-1] / nav.iloc[-2] - 1) if n >= 2 else float("nan")
+    trend = _trend_label(latest, ma20, ma60)
+    oversold = (rsi_v == rsi_v and rsi_v < RSI_OVERSOLD)
+    # 规则引擎（优先级）；深套用 dist_roll（统一滚动高，A6）
+    if trend == "上升":
+        rule = 1
+    elif trend == "下降" and dist_roll <= -DEEP:
+        rule = 2
+    elif trend == "下降":
+        rule = 3
+    elif latest <= trail_trigger:
+        rule = 4
+    elif trend == "震荡" and ma20 > ma60 and latest < ma20:
+        rule = 5
+    elif trend == "数据不足":
+        rule = 0
+    else:
+        rule = 6
+    # 周频截止日 TWAP：base = 1/剩余周数；extra = 弱倾斜前置（超卖只挡 extra）
+    base = 0.0 if rule == 1 else min(1.0, 1.0 / weeks_remaining)
+    depth = max(0.0, -dist_roll) if dist_roll == dist_roll else 0.0
+    lean = 0.0 if rule in NO_LEAN_RULES else min(LEAN_SLOPE * depth, LEAN_MAX)
+    extra_vetoed = oversold and lean > 0
+    if extra_vetoed:
+        lean = 0.0
+    extra = base * lean
+    return dict(n=n, latest=latest, short_hist=n < MA_LONG, ma20=ma20, ma60=ma60,
+                roll_high=roll_high, rsi=rsi_v, ann_vol=ann_vol, trail=trail,
+                trail_trigger=trail_trigger, dist_ma20=dist_ma20, dist_ma60=dist_ma60,
+                dist_roll=dist_roll, day_chg=day_chg, trend=trend, oversold=oversold,
+                rule=rule, base=base, extra=extra, clip=min(base + extra, 1.0),
+                extra_vetoed=extra_vetoed)
+
+
 def analyze(name, code, mv, pnl_pct, weeks_remaining) -> FundResult:
     r = FundResult(name=name, code=code, mv=mv, pnl_pct=pnl_pct)
     try:
@@ -249,67 +306,15 @@ def analyze(name, code, mv, pnl_pct, weeks_remaining) -> FundResult:
         return r
 
     r.df = df
-    nav = df["nav"]
-    n = len(df)
-    r.n = n
-    r.latest = float(nav.iloc[-1])
     r.latest_date = df["date"].iloc[-1].strftime("%Y-%m-%d")
-    r.short_hist = n < MA_LONG
-
-    r.ma20 = float(nav.tail(MA_SHORT).mean()) if n >= MA_SHORT else float("nan")
-    r.ma60 = float(nav.tail(MA_LONG).mean()) if n >= MA_LONG else float("nan")
-    r.roll_high = float(nav.tail(min(ROLL_HIGH_WIN, n)).max())
-    r.rsi = rsi(nav, RSI_PERIOD)
-    rets = nav.pct_change().dropna()
-    sigma_d = float(rets.tail(60).std()) if len(rets) >= 20 else float("nan")
-    r.ann_vol = sigma_d * np.sqrt(252) if sigma_d == sigma_d else float("nan")
-
-    # 5.4 追踪止盈带：连续随基金自身波动缩放（σ-scaled），带宽=1σ 的 ~6 周移动。
-    if sigma_d == sigma_d:
-        r.trail = float(np.clip(TRAIL_Z * sigma_d * np.sqrt(TRAIL_HORIZON_D),
-                                TRAIL_FLOOR, TRAIL_CAP))
-    else:
-        r.trail = TRAIL_DEFAULT
-    r.trail_trigger = r.roll_high * (1 - r.trail)
-    r.dist_ma20 = r.latest / r.ma20 - 1 if r.ma20 == r.ma20 else float("nan")
-    r.dist_ma60 = r.latest / r.ma60 - 1 if r.ma60 == r.ma60 else float("nan")
-    r.dist_roll = r.latest / r.roll_high - 1 if r.roll_high == r.roll_high else float("nan")
-    r.day_chg = float(nav.iloc[-1] / nav.iloc[-2] - 1) if n >= 2 else float("nan")
-
-    # 趋势三态 + 5.6 band-hysteresis（压日度 whipsaw，见 _trend_label）
-    r.trend = _trend_label(r.latest, r.ma20, r.ma60)
-
-    # 超卖否决：仅 RSI<RSI_OVERSOLD（A1：去掉"创新低"那条腿——它是下行动能、非超卖）
-    r.oversold = (r.rsi == r.rsi and r.rsi < RSI_OVERSOLD)
-
-    # ── 规则引擎（优先级）；深套用 dist_roll（统一滚动高，A6）──
-    if r.trend == "上升":   # PM 2026-05-31: 全部上升趋势纯持有(让赢家跑), 不论距高
-        rule = 1
-    elif r.trend == "下降" and r.dist_roll <= -DEEP:
-        rule = 2
-    elif r.trend == "下降":
-        rule = 3
-    elif r.latest <= r.trail_trigger:
-        rule = 4
-    elif r.trend == "震荡" and r.ma20 > r.ma60 and r.latest < r.ma20:
-        rule = 5
-    elif r.trend == "数据不足":
-        rule = 0
-    else:
-        rule = 6
-
-    r.rule = rule
-    r.action = ACTION_TEXT[rule]
-    # 周频截止日 TWAP：base = 1/剩余周数(of 现值) → 线性清空至 deadline；extra = 弱倾斜前置
-    base_frac = min(1.0, 1.0 / weeks_remaining)
-    r.base = 0.0 if rule == 1 else base_frac
-    depth = max(0.0, -r.dist_roll) if r.dist_roll == r.dist_roll else 0.0
-    lean = 0.0 if rule in NO_LEAN_RULES else min(LEAN_SLOPE * depth, LEAN_MAX)
-    if r.oversold and lean > 0:   # 超卖只挡前置 lean，不挡 base TWAP（仍按期出，避免砸底加码）
-        lean = 0.0
+    s = signal_at(df["nav"], weeks_remaining)
+    for k in ("n", "latest", "short_hist", "ma20", "ma60", "roll_high", "rsi", "ann_vol",
+              "trail", "trail_trigger", "dist_ma20", "dist_ma60", "dist_roll", "day_chg",
+              "trend", "oversold", "rule", "base", "extra", "clip"):
+        setattr(r, k, s[k])
+    r.action = ACTION_TEXT[r.rule]
+    if s["extra_vetoed"]:
         r.action += "｜超卖否决前置(RSI<{}，仅走 TWAP)".format(RSI_OVERSOLD)
-    r.extra = r.base * lean
-    r.clip = min(r.base + r.extra, 1.0)
     return r
 
 
@@ -317,8 +322,7 @@ def analyze(name, code, mv, pnl_pct, weeks_remaining) -> FundResult:
 def main():
     # 周频截止日 TWAP：按真实今日到 deadline 的剩余周数定步
     today = datetime.now().date()
-    days_left = (LIQUIDATION_DEADLINE - today).days
-    weeks_remaining = max(1, math.ceil(days_left / 7)) if days_left > 0 else 1
+    weeks_remaining = weeks_remaining_at(today)
     twap_frac = min(1.0, 1.0 / weeks_remaining)   # 本周均匀 TWAP 比例(基准)
 
     print("=" * 90)
@@ -573,6 +577,52 @@ def write_signal_log(results, path):
             w.writerow({c: merged[k].get(c, "") for c in cols})
 
 
+def backfill_signal_log(days=60):
+    """回放近 N 个交易日的信号，一次性补进 signal_log.csv（幂等 upsert，口径同 signal_at）。
+    mv 留空（历史持仓未知）；rule/趋势/距滚高/RSI/日涨跌 精确重建。"""
+    import csv as _csv
+    path = OUTDIR / "signal_log.csv"
+    cols = ["date", "code", "name", "rule", "rule_name", "trend", "clip", "base", "extra",
+            "dist_roll", "day_chg", "rsi", "oversold", "mv", "recorded_at"]
+    now = datetime.now().isoformat(timespec="seconds") + " backfill"
+    merged = {}
+    if path.exists():
+        with open(path, encoding="utf-8") as f:
+            for row in _csv.DictReader(f):
+                merged[(row.get("date"), row.get("code"))] = row
+    print(f"回放近 {days} 交易日信号 …")
+    for name, code, mv, pnl in load_holdings():
+        print(f"  {code} {name} ...", end=" ")
+        try:
+            df = fetch_nav(code)
+        except Exception as e:  # noqa: BLE001
+            print(f"失败: {e}")
+            continue
+        nav, dates, n = df["nav"], df["date"], len(df)
+        start = max(MA_LONG, n - days)   # 需 ≥MA_LONG 历史才有趋势
+        cnt = 0
+        for i in range(start, n):
+            d = dates.iloc[i].strftime("%Y-%m-%d")
+            s = signal_at(nav.iloc[:i + 1], weeks_remaining_at(dates.iloc[i].date()))
+            merged[(d, code)] = {
+                "date": d, "code": code, "name": name,
+                "rule": s["rule"], "rule_name": _RULE_NAME.get(s["rule"], ""), "trend": s["trend"],
+                "clip": _num(s["clip"]), "base": _num(s["base"]), "extra": _num(s["extra"]),
+                "dist_roll": _num(s["dist_roll"]), "day_chg": _num(s["day_chg"]),
+                "rsi": round(s["rsi"], 1) if s["rsi"] == s["rsi"] else "",
+                "oversold": int(s["oversold"]), "mv": "", "recorded_at": now,
+            }
+            cnt += 1
+        print(f"{cnt} 天")
+        time.sleep(0.4)
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = _csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
+        w.writeheader()
+        for k in sorted(merged, key=lambda x: (x[0] or "", x[1] or "")):
+            w.writerow({c: merged[k].get(c, "") for c in cols})
+    print(f"signal_log 现有 {len(merged)} 行")
+
+
 def plot_fund(r: FundResult, chart_dir: Path):
     df = r.df.tail(min(ROLL_HIGH_WIN, r.n)).copy()
     nav = df["nav"]
@@ -652,4 +702,7 @@ def print_summary(ok, failed, regime, floor_target, suggested_total, non_strong_
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "backfill":
+        backfill_signal_log(int(sys.argv[2]) if len(sys.argv) > 2 else 60)
+    else:
+        main()

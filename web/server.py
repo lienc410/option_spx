@@ -423,6 +423,32 @@ def fund_exit_record_trade():
                     "pct_sold": round(pct, 4), "new_mv": round(new_mv, 2)})
 
 
+@app.route("/api/fund-exit/signal-history")
+def fund_exit_signal_history():
+    """每只基金的每日信号分类历史（近 ~90 交易日），供前端迷你时间线。"""
+    import csv as _csv
+    sl = _FUND_DIR / "signal_log.csv"
+    hist = {}
+    if sl.exists():
+        with open(sl, encoding="utf-8") as fh:
+            for row in _csv.DictReader(fh):
+                def _f(k):
+                    v = row.get(k)
+                    try:
+                        return float(v) if v not in (None, "") else None
+                    except ValueError:
+                        return None
+                hist.setdefault(row.get("code"), []).append({
+                    "date": row.get("date"),
+                    "rule": int(row["rule"]) if row.get("rule") not in (None, "") else None,
+                    "rule_name": row.get("rule_name"),
+                    "day_chg": _f("day_chg"), "dist_roll": _f("dist_roll"), "clip": _f("clip"),
+                })
+    for c in hist:
+        hist[c] = sorted(hist[c], key=lambda x: x["date"] or "")[-90:]
+    return jsonify({"history": hist})
+
+
 @app.route("/api/fund-exit/trades")
 def fund_exit_trades():
     """最近减仓记录（倒序）。"""

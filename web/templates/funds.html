@@ -98,6 +98,15 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .sig-watch { border-top:1px solid var(--border);padding-top:9px;margin-top:9px; }
 .sig-watch-line { font-family:var(--f-mono);font-size:0.66rem;color:var(--text-2);margin:3px 0;text-align:left; }
 .sig-watch-line b { color:var(--text);font-weight:500; }
+.sig-timeline { border-top:1px solid var(--border);padding-top:9px;margin-top:9px;text-align:left; }
+.sig-tl-label { font-size:0.58rem;color:var(--text-2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px; }
+.tl-cell { display:inline-block;width:7px;height:14px;margin:0 1px 0 0;border-radius:1px;vertical-align:middle; }
+.tl-r1 { background:var(--green); }
+.tl-r2 { background:var(--red); }
+.tl-r3, .tl-r4, .tl-r5 { background:var(--gold); }
+.tl-r6, .tl-r0 { background:var(--border-3); }
+.tl-legend { font-size:0.58rem;color:var(--text-2);margin-top:5px; }
+.tl-legend .tl-cell { height:9px;width:9px;border-radius:50%; }
 .gate-on  { color:var(--gold); }
 .gate-off { color:var(--text-2); }
 .tr-up { color:var(--green); } .tr-dn { color:var(--red); } .tr-ch { color:var(--text-2); }
@@ -273,6 +282,14 @@ function render_signal_panel(f, P) {
     ? `周TWAP <b>${fmt_pct(f.base)}</b>${f.extra>0 ? ' + 前置 <b>'+fmt_pct(f.extra)+'</b>' : (vetoApplied ? ' + 前置 0%(超卖否决)' : '')} = <b>${fmt_pct(f.clip)}</b>`
     : fmt_pct(f.clip);
 
+  // 信号历史迷你时间线（左旧右新；颜色=分类）
+  const hist = (typeof SIG_HIST !== 'undefined' && SIG_HIST[f.code]) || [];
+  const tlHtml = hist.length ? `<div class="sig-timeline">
+      <div class="sig-tl-label">信号历史 · 近 ${hist.length} 交易日（左旧→右新）</div>
+      ${hist.map(h=>`<span class="tl-cell tl-r${h.rule}" title="${h.date} ${h.rule_name||''}${h.day_chg!=null?' · 日'+fmt_signed(h.day_chg):''}"></span>`).join('')}
+      <div class="tl-legend"><span class="tl-cell tl-r1"></span>持有 &nbsp;<span class="tl-cell tl-r3"></span>减仓(③④⑤) &nbsp;<span class="tl-cell tl-r2"></span>深套 &nbsp;<span class="tl-cell tl-r6"></span>观察</div>
+    </div>` : '';
+
   return `<div class="sig-panel">
     <div class="sig-grid">
       <div class="sig-k">趋势</div><div class="sig-v">${trendChip} <span style="color:var(--text-2)">${maStack}</span></div>
@@ -283,6 +300,7 @@ function render_signal_panel(f, P) {
     </div>
     <div class="sig-hit">▶ 命中 ${f.action||''}</div>
     ${W.length?`<div class="sig-watch">${W.join('')}</div>`:''}
+    ${tlHtml}
   </div>`;
 }
 
@@ -384,6 +402,10 @@ async function load(retry=0) {
     return;
   }
 
+  // 信号历史（迷你时间线用）—— 渲染前先取，失败不阻塞主表
+  try { SIG_HIST = (await (await fetch('/api/fund-exit/signal-history')).json()).history || {}; }
+  catch(e) { SIG_HIST = {}; }
+
   // staleness check
   if (d.generated_at) {
     const genMs = new Date(d.generated_at).getTime();
@@ -443,6 +465,7 @@ async function load(retry=0) {
 
 // ── 记录减仓 ──
 let LAST = null;
+let SIG_HIST = {};
 const RULE_LABEL = {1:'①上升',2:'②深套',3:'③确认下降',4:'④破带',5:'⑤破MA20',6:'⑥观察',0:'数据不足'};
 
 function openRec() {
