@@ -62,7 +62,8 @@ OUTDIR = Path(__file__).resolve().parent
 #   · 强势①(上升趋势)纯持有，base=extra=0（PM 接受 ~60% 惰性，破势后才入清仓钟）。
 DEEP = 0.15               # 深套界：距滚动高 ≤ -DEEP（A6：深套/追踪统一用滚动高）
 RSI_OVERSOLD = 30         # 超卖否决阈
-LIQUIDATION_DEADLINE = date(2026, 8, 31)   # 可减持仓位软目标清空日（~3 个月）
+DEADLINE_FAST = date(2026, 7, 16)   # 可减持(非上升)仓 ~6 周清空（加速）
+DEADLINE_SLOW = date(2026, 8, 31)   # 上升趋势仓 延长清仓（慢速 TWAP，给赢家更多时间）
 LEAN_SLOPE = 4.0          # 弱倾斜斜率：回撤 12.5% → lean 触顶
 LEAN_MAX = 0.50           # 弱势最多比 TWAP 快 50%
 NO_LEAN_RULES = {1, 2, 6, 0}   # ①持有/②深套不砸底/⑥观察/⓪数据不足：不前置，只走 base TWAP
@@ -122,7 +123,7 @@ def load_holdings():
 LOCKED = {}
 
 ACTION_TEXT = {
-    1: "①上升趋势：让利润奔跑，纯持有",
+    1: "①上升趋势：延长慢清(慢速TWAP)，让赢家多跑",
     2: "②深套：不加码砸底，仅走周 TWAP 逐步出",
     3: "③确认下降趋势：周 TWAP + 弱倾斜前置",
     4: "④震荡·破追踪带：周 TWAP + 弱倾斜前置",
@@ -254,14 +255,15 @@ class FundResult:
     df: pd.DataFrame = field(default=None, repr=False)
 
 
-def weeks_remaining_at(d) -> int:
-    """从某日到清仓 deadline 的剩余周数(向上取整，最少 1)。"""
-    days_left = (LIQUIDATION_DEADLINE - d).days
+def weeks_remaining_at(d, deadline) -> int:
+    """从某日到给定 deadline 的剩余周数(向上取整，最少 1)。"""
+    days_left = (deadline - d).days
     return max(1, math.ceil(days_left / 7)) if days_left > 0 else 1
 
 
-def signal_at(nav, weeks_remaining) -> dict:
-    """从累计净值序列(升序，截至某日)计算该日信号。analyze 与历史回填共用，确保口径一致。"""
+def signal_at(nav, weeks_fast, weeks_slow) -> dict:
+    """从累计净值序列(升序，截至某日)计算该日信号。analyze 与历史回填共用，确保口径一致。
+    base 用 weeks_slow(上升①·延长清仓) 或 weeks_fast(其余·6周加速)。"""
     n = len(nav)
     latest = float(nav.iloc[-1])
     ma20 = float(nav.tail(MA_SHORT).mean()) if n >= MA_SHORT else float("nan")
@@ -296,7 +298,8 @@ def signal_at(nav, weeks_remaining) -> dict:
     else:
         rule = 6
     # 周频截止日 TWAP：base = 1/剩余周数；extra = 弱倾斜前置（超卖只挡 extra）
-    base = 0.0 if rule == 1 else min(1.0, 1.0 / weeks_remaining)
+    # 上升趋势①用慢速(延长 deadline)，其余用快速(6周)；都按周频 TWAP 清
+    base = min(1.0, 1.0 / (weeks_slow if rule == 1 else weeks_fast))
     depth = max(0.0, -dist_roll) if dist_roll == dist_roll else 0.0
     lean = 0.0 if rule in NO_LEAN_RULES else min(LEAN_SLOPE * depth, LEAN_MAX)
     extra_vetoed = oversold and lean > 0
@@ -311,7 +314,7 @@ def signal_at(nav, weeks_remaining) -> dict:
                 extra_vetoed=extra_vetoed)
 
 
-def analyze(name, code, mv, pnl_pct, weeks_remaining) -> FundResult:
+def analyze(name, code, mv, pnl_pct, weeks_fast, weeks_slow) -> FundResult:
     r = FundResult(name=name, code=code, mv=mv, pnl_pct=pnl_pct)
     try:
         df = fetch_nav(code)
@@ -323,7 +326,7 @@ def analyze(name, code, mv, pnl_pct, weeks_remaining) -> FundResult:
     r.df = df
     r.latest_date = df["date"].iloc[-1].strftime("%Y-%m-%d")
     r.unit_nav = fetch_unit_nav(code) or float(df["nav"].iloc[-1])   # 单位净值(失败→退回累计)
-    s = signal_at(df["nav"], weeks_remaining)
+    s = signal_at(df["nav"], weeks_fast, weeks_slow)
     for k in ("n", "latest", "short_hist", "ma20", "ma60", "roll_high", "rsi", "ann_vol",
               "trail", "trail_trigger", "dist_ma20", "dist_ma60", "dist_roll", "day_chg",
               "trend", "oversold", "rule", "base", "extra", "clip"):
@@ -338,12 +341,14 @@ def analyze(name, code, mv, pnl_pct, weeks_remaining) -> FundResult:
 def main():
     # 周频截止日 TWAP：按真实今日到 deadline 的剩余周数定步
     today = datetime.now().date()
-    weeks_remaining = weeks_remaining_at(today)
-    twap_frac = min(1.0, 1.0 / weeks_remaining)   # 本周均匀 TWAP 比例(基准)
+    weeks_fast = weeks_remaining_at(today, DEADLINE_FAST)
+    weeks_slow = weeks_remaining_at(today, DEADLINE_SLOW)
+    twap_fast = min(1.0, 1.0 / weeks_fast)
+    twap_slow = min(1.0, 1.0 / weeks_slow)
 
     print("=" * 90)
-    print(f"基金清仓信号 v4(周频TWAP) | deadline {LIQUIDATION_DEADLINE} | "
-          f"剩 {weeks_remaining} 周 | 本周 TWAP {twap_frac:.1%}/只")
+    print(f"基金清仓信号 v5(双速TWAP) | 快 {weeks_fast}周→{DEADLINE_FAST} {twap_fast:.1%}/只 | "
+          f"上升慢 {weeks_slow}周→{DEADLINE_SLOW} {twap_slow:.1%}/只")
     print("=" * 90)
 
     regime = fetch_market_regime()
@@ -354,7 +359,7 @@ def main():
     for name, code, mv, pnl in holdings:
         print(f"  拉取 {code} {name} ...", end=" ")
         try:
-            r = analyze(name, code, mv, pnl, weeks_remaining)
+            r = analyze(name, code, mv, pnl, weeks_fast, weeks_slow)
             if r.ok:
                 print(f"OK n={r.n} {r.trend} -> 规则{r.rule} 本周clip={r.clip:.1%}")
             else:
@@ -371,11 +376,14 @@ def main():
     failed = [r for r in results if not r.ok]
     data_date = max((r.latest_date for r in ok), default=today.isoformat())
 
-    # ── 本周 TWAP 目标（仅非强势仓）+ 偏离对照 ──
-    non_strong = [r for r in ok if r.rule != 1]
-    non_strong_mv = sum(r.mv for r in non_strong)
-    floor_target = twap_frac * non_strong_mv       # 本周均匀清仓目标
+    # ── 两个清仓池：上升①(慢速·延长) vs 其余(6周·加速) ──
+    slow_mv = sum(r.mv for r in ok if r.rule == 1)
+    fast_mv = sum(r.mv for r in ok if r.rule != 1)
     suggested_total = sum(r.mv * r.clip for r in ok)
+    cad = {"weeks_fast": weeks_fast, "weeks_slow": weeks_slow,
+           "twap_fast": twap_fast, "twap_slow": twap_slow,
+           "fast_mv": fast_mv, "slow_mv": slow_mv, "suggested_total": suggested_total,
+           "deadline_fast": DEADLINE_FAST.isoformat(), "deadline_slow": DEADLINE_SLOW.isoformat()}
 
     # ── 汇总表 ──
     rows = []
@@ -391,7 +399,7 @@ def main():
                 "vsTWAP%": np.nan, "费率": "见App核对", "锁定/备注": LOCKED.get(r.code, ""),
             })
             continue
-        dev = r.clip - twap_frac
+        dev = r.clip - (twap_slow if r.rule == 1 else twap_fast)   # vs 本池 TWAP
         rows.append({
             "基金名称": r.name, "代码": r.code, "市值": round(r.mv, 2),
             "建议动作": r.action, "数据日": r.latest_date, "最新净值": round(r.latest, 4),
@@ -416,14 +424,11 @@ def main():
 
     # ── 输出 Excel ──
     xlsx = OUTDIR / "基金技术出场信号.xlsx"
-    write_excel(df, xlsx, regime, floor_target, suggested_total, non_strong_mv,
-                data_date, weeks_remaining, twap_frac)
+    write_excel(df, xlsx, regime, data_date, cad)
     print(f"\n写出 {xlsx}")
 
     # ── 输出 JSON（前端数据契约, schema 见 task/fund_exit_FE_handoff.md）──
-    write_json(results, OUTDIR / "fund_signals.json", regime,
-               floor_target, suggested_total, non_strong_mv,
-               data_date, weeks_remaining, twap_frac)
+    write_json(results, OUTDIR / "fund_signals.json", regime, data_date, cad)
     print(f"写出 {OUTDIR / 'fund_signals.json'}")
 
     # ── 每日信号日志（按 净值日×代码 去重 upsert）──
@@ -440,21 +445,20 @@ def main():
     print(f"写出 {len(ok)} 张图 -> {chart_dir}")
 
     # ── 文字小结 ──
-    print_summary(ok, failed, regime, floor_target, suggested_total, non_strong_mv,
-                  twap_frac, weeks_remaining)
+    print_summary(ok, failed, regime, cad)
 
 
-def write_excel(df, path, regime, floor_target, suggested_total, non_strong_mv,
-                data_date, weeks_remaining, twap_frac):
+def write_excel(df, path, regime, data_date, cad):
     from openpyxl.styles import Font, PatternFill, Alignment
 
     with pd.ExcelWriter(path, engine="openpyxl") as xw:
         df.to_excel(xw, index=False, sheet_name="信号", startrow=4)
         ws = xw.sheets["信号"]
-        ws["A1"] = f"基金清仓信号(周频TWAP)  |  数据日 {data_date}  |  纪律工具, 非投资建议"
+        ws["A1"] = f"基金清仓信号(双速TWAP)  |  数据日 {data_date}  |  纪律工具, 非投资建议"
         ws["A2"] = f"市场regime(仅提示): {regime}"
-        ws["A3"] = (f"可减持仓 ¥{non_strong_mv:,.0f} · 剩 {weeks_remaining} 周清空 · 本周 TWAP {twap_frac:.1%}/只  |  "
-                    f"本周均匀目标 ¥{floor_target:,.0f}  |  本周建议合计 ¥{suggested_total:,.0f}(含弱倾斜)")
+        ws["A3"] = (f"加速(非上升) ¥{cad['fast_mv']:,.0f} · 剩 {cad['weeks_fast']}周 · {cad['twap_fast']:.1%}/只  |  "
+                    f"延长(上升①) ¥{cad['slow_mv']:,.0f} · 剩 {cad['weeks_slow']}周 · {cad['twap_slow']:.1%}/只  |  "
+                    f"本周建议合计 ¥{cad['suggested_total']:,.0f}")
         ws["A1"].font = Font(bold=True, size=12)
 
         # 百分比格式列
@@ -490,16 +494,13 @@ def _num(x):
         return None
 
 
-def write_json(results, path, regime, floor_target, suggested_total, non_strong_mv,
-               data_date, weeks_remaining, twap_frac):
+def write_json(results, path, regime, data_date, cad):
     """前端数据契约。schema 见 task/fund_exit_FE_handoff.md。"""
     import json
     from datetime import datetime
 
     ok = [r for r in results if r.ok]
-    strong = [r for r in ok if r.rule == 1]
     total_mv = sum(r.mv for r in results)
-    strong_mv = sum(r.mv for r in strong)
 
     funds = []
     for r in results:
@@ -518,7 +519,7 @@ def write_json(results, path, regime, floor_target, suggested_total, non_strong_
             "trend": r.trend, "rule": r.rule, "action": r.action,
             "base": _num(r.base), "extra": _num(r.extra),
             "clip": _num(r.clip), "clip_amt": _num(r.mv * r.clip) if r.ok else None,
-            "vs_twap": _num(r.clip - twap_frac) if r.ok else None,
+            "vs_twap": _num(r.clip - (cad["twap_slow"] if r.rule == 1 else cad["twap_fast"])) if r.ok else None,
             "oversold": r.oversold,
             "locked": LOCKED.get(r.code, ""),
             "chart": f"charts/{r.code}_{r.name}.png" if r.ok else None,
@@ -529,24 +530,23 @@ def write_json(results, path, regime, floor_target, suggested_total, non_strong_
         "data_date": data_date,
         "market_regime": regime,
         "disclaimer": "纪律工具，非投资建议；阈值先验非优化；费率/锁定/赎回以中信App为准。",
-        "cadence": {                       # 周频截止日 TWAP
-            "deadline": LIQUIDATION_DEADLINE.isoformat(),
-            "weeks_remaining": weeks_remaining,
-            "weekly_twap": _num(twap_frac),
+        "cadence": {                       # 双速周频 TWAP
+            "fast": {"deadline": cad["deadline_fast"], "weeks": cad["weeks_fast"],
+                     "twap": _num(cad["twap_fast"]), "mv": _num(cad["fast_mv"])},
+            "slow": {"deadline": cad["deadline_slow"], "weeks": cad["weeks_slow"],
+                     "twap": _num(cad["twap_slow"]), "mv": _num(cad["slow_mv"])},
             "op_freq": "每周一次(美东晚间下单, 成交落次日中国净值)",
         },
         "params": {"DEEP": DEEP, "rsi_oversold": RSI_OVERSOLD,
                    "trail_formula": f"clip({TRAIL_Z}σ·√{TRAIL_HORIZON_D}d, {TRAIL_FLOOR}, {TRAIL_CAP})",
                    "trend_band": TREND_BAND,
-                   "model": "clip = base(周频TWAP=1/剩余周) + extra(弱倾斜前置, 可被RSI<{}否决)".format(RSI_OVERSOLD),
-                   "lean": f"min({LEAN_SLOPE}×回撤, {LEAN_MAX})×base",
-                   "strong_rule": "全部上升趋势(最新>MA20>MA60)纯持有"},
+                   "model": "clip = base(周频TWAP: 上升①用慢速延长 deadline, 其余用快速6周) + extra(弱倾斜前置, 可被RSI<{}否决)".format(RSI_OVERSOLD),
+                   "lean": f"min({LEAN_SLOPE}×回撤, {LEAN_MAX})×base"},
         "account": {
-            "total_mv": _num(total_mv), "held_strong_mv": _num(strong_mv),
-            "held_strong_pct": _num(strong_mv / total_mv) if total_mv else 0,
-            "non_strong_mv": _num(non_strong_mv),
-            "floor_target": _num(floor_target), "suggested_total": _num(suggested_total),
-            "floor_met": bool(suggested_total >= floor_target - 1e-6),
+            "total_mv": _num(total_mv),
+            "fast_mv": _num(cad["fast_mv"]), "slow_mv": _num(cad["slow_mv"]),
+            "slow_pct": _num(cad["slow_mv"] / total_mv) if total_mv else 0,
+            "suggested_total": _num(cad["suggested_total"]),
         },
         "funds": funds,
     }
@@ -620,7 +620,9 @@ def backfill_signal_log(days=60):
         cnt = 0
         for i in range(start, n):
             d = dates.iloc[i].strftime("%Y-%m-%d")
-            s = signal_at(nav.iloc[:i + 1], weeks_remaining_at(dates.iloc[i].date()))
+            d_i = dates.iloc[i].date()
+            s = signal_at(nav.iloc[:i + 1], weeks_remaining_at(d_i, DEADLINE_FAST),
+                          weeks_remaining_at(d_i, DEADLINE_SLOW))
             merged[(d, code)] = {
                 "date": d, "code": code, "name": name,
                 "rule": s["rule"], "rule_name": _RULE_NAME.get(s["rule"], ""), "trend": s["trend"],
@@ -664,8 +666,7 @@ def plot_fund(r: FundResult, chart_dir: Path):
     plt.close(fig)
 
 
-def print_summary(ok, failed, regime, floor_target, suggested_total, non_strong_mv,
-                  twap_frac, weeks_remaining):
+def print_summary(ok, failed, regime, cad):
     print("\n" + "=" * 90)
     print("文字小结")
     print("=" * 90)
@@ -674,21 +675,23 @@ def print_summary(ok, failed, regime, floor_target, suggested_total, non_strong_
         by_rule.setdefault(r.rule, []).append(r)
 
     sell = [r for r in ok if r.clip > 0]
-    hold_strong = by_rule.get(1, [])
+    uptrend = by_rule.get(1, [])
 
     print(f"\n市场: {regime}")
-    print(f"可减持仓 ¥{non_strong_mv:,.0f} · 剩 {weeks_remaining} 周清空 · 本周 TWAP {twap_frac:.1%}/只 "
-          f"(均匀目标 ¥{floor_target:,.0f}) · 本周建议合计 ¥{suggested_total:,.0f}(含弱倾斜)")
+    print(f"加速(非上升) ¥{cad['fast_mv']:,.0f}·剩{cad['weeks_fast']}周·{cad['twap_fast']:.1%}/只 | "
+          f"延长(上升①) ¥{cad['slow_mv']:,.0f}·剩{cad['weeks_slow']}周·{cad['twap_slow']:.1%}/只 | "
+          f"本周建议合计 ¥{cad['suggested_total']:,.0f}")
 
     print(f"\n【本周建议卖出 {len(sell)} 只】(clip = 周TWAP base + 弱倾斜 extra)")
     for r in sorted(sell, key=lambda x: -x.clip):
-        print(f"  {r.code} {r.name:<18} {r.action.split('｜')[0]:<24} "
+        pool = "慢" if r.rule == 1 else "快"
+        print(f"  {r.code} {r.name:<18} [{pool}]{r.action.split('｜')[0]:<22} "
               f"卖{r.clip:.1%}(TWAP{r.base:.1%}+前置{r.extra:.1%}) ≈¥{r.mv*r.clip:,.0f}  "
               f"距滚高{r.dist_roll:+.1%} RSI{r.rsi:.0f}{' 超卖' if r.oversold else ''}")
 
-    print(f"\n【上升趋势·让利润奔跑 {len(hold_strong)} 只】(纯持有, 不进清仓钟)")
-    for r in hold_strong:
-        print(f"  {r.code} {r.name:<18} 距滚高{r.dist_roll:+.1%} RSI{r.rsi:.0f}  (不卖, 破势后才入钟)")
+    print(f"\n【上升趋势·延长清仓 {len(uptrend)} 只】(慢速 TWAP {cad['twap_slow']:.1%}/周, 给赢家更多时间)")
+    for r in uptrend:
+        print(f"  {r.code} {r.name:<18} 距滚高{r.dist_roll:+.1%} RSI{r.rsi:.0f}  慢卖{r.clip:.1%}/周 ≈¥{r.mv*r.clip:,.0f}")
 
     # 深套两只专项
     print("\n【深套专项】中欧医疗 003095 / 华夏兴阳 009010")
@@ -710,12 +713,11 @@ def print_summary(ok, failed, regime, floor_target, suggested_total, non_strong_
         for r in failed:
             print(f"  {r.code} {r.name}: {r.err}")
 
-    strong_mv = sum(r.mv for r in hold_strong)
     total_mv = sum(r.mv for r in ok) + sum(r.mv for r in failed)
-    held_pct = strong_mv / total_mv if total_mv else 0
-    print(f"\n注: 上升趋势纯持有为 PM 风险偏好(接受惰性, 让赢家跑), 当前 {len(hold_strong)} 只 "
-          f"¥{strong_mv:,.0f} ≈ 账户 {held_pct:.0%}, 只要保持上升就不卖; 阈值是先验非优化; "
-          "费率/锁定/具体赎回以中信App为准。")
+    slow_pct = cad["slow_mv"] / total_mv if total_mv else 0
+    print(f"\n注: 双速清仓(PM 2026-06-04)—— 非上升仓 {cad['weeks_fast']}周加速清, 上升①仓 "
+          f"¥{cad['slow_mv']:,.0f}(≈账户{slow_pct:.0%}) {cad['weeks_slow']}周延长慢清(给赢家更多时间, 仍逐步出); "
+          "阈值先验非优化; 费率/锁定/具体赎回以中信App为准。")
 
 
 if __name__ == "__main__":
