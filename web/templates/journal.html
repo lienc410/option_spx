@@ -1219,8 +1219,33 @@ function _renderAttrDailyTable(payload) {
     return parts.length ? parts.join(' / ') : '—';
   };
 
+  // Per-day Position-level Greeks (Δ×n / Γ×n / Θ×n / V×n) read straight from
+  // the API. These are NOT attribution PnL — they're the start-of-day
+  // exposure that produced the day's attribution, mirroring the home page
+  // Live Risk chips. Formatters match the home page units exactly.
+  const _signedFixed = (v, dec, suffix) => v == null ? '—' : (Number(v) >= 0 ? '+' : '') + Number(v).toFixed(dec) + (suffix || '');
+  const _sumIgnoringNulls = vals => {
+    const ok = vals.filter(v => v != null);
+    return ok.length ? ok.reduce((a, v) => a + Number(v), 0) / ok.length : null;
+  };
   const factorRows = [
     { label: 'Position', custom: true, cell: _positionCell, total: _positionTotal },
+    { label: 'Δ×n  $/pt',   key: 'pv_delta_n',  breakAfter: false,
+      fmt: v => _signedFixed(v, 0),
+      total: _sumIgnoringNulls,  // mean across visible days
+      totalFmt: v => v == null ? '—' : 'avg ' + _signedFixed(v, 0) },
+    { label: 'Γ×n  Δ/pt',   key: 'pv_gamma_n', breakAfter: false,
+      fmt: v => _signedFixed(v, 3),
+      total: _sumIgnoringNulls,
+      totalFmt: v => v == null ? '—' : 'avg ' + _signedFixed(v, 3) },
+    { label: 'Θ×n  $/d',    key: 'pv_theta_n', breakAfter: false,
+      fmt: v => _signedFixed(v, 0),
+      total: _sumIgnoringNulls,
+      totalFmt: v => v == null ? '—' : 'avg ' + _signedFixed(v, 0) },
+    { label: 'V×n  $/vol',  key: 'pv_vega_n',  breakAfter: true,
+      fmt: v => _signedFixed(v, 0),
+      total: _sumIgnoringNulls,
+      totalFmt: v => v == null ? '—' : 'avg ' + _signedFixed(v, 0) },
     { label: 'ΔS', key: 'dS', fmt: v => v == null ? '—' : _signedNum(v, 2), total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: v => _signedNum(v, 2) },
     { label: 'ΔVIX', key: 'dVIX', breakAfter: true, fmt: v => v == null ? '—' : _signedNum(v, 2), total: vals => vals.some(v => v == null) ? null : vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: v => v == null ? '—' : _signedNum(v, 2) },
     { label: 'Delta', key: 'delta_attr', fmt: _signedMoney, total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: _signedMoney },

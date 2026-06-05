@@ -466,6 +466,27 @@ def existing_keys() -> set[tuple[str, str]]:
 
 
 def emit_row(out_f, pos: Position, t0: dict, t1: dict, attr: dict) -> None:
+    # Position-level (×n×100) greeks at t0 — the start-of-day exposure that
+    # drove the day's attribution. These mirror what the home page Live Risk
+    # panel shows: Δ×n in $/pt, Γ×n in Δ/pt, Θ×n in $/d, V×n in $/vol-pt.
+    # Net spread sign convention: short leg side = -1, long leg side = +1.
+    mult = 100 * pos.contracts
+    gs0 = t0.get("gs") or {}
+    gl0 = t0.get("gl") or {}
+    def _net_t0(k):
+        s = gs0.get(k); l = gl0.get(k)
+        if s is None or l is None:
+            return None
+        return -float(s) + float(l)
+    delta_per_share = _net_t0("delta")
+    gamma_per_share = _net_t0("gamma")
+    theta_yr_per_share = _net_t0("theta_yr")
+    vega_dec_per_share = _net_t0("vega_dec")
+    pv_delta_n = round(mult * delta_per_share,    4) if delta_per_share    is not None else None
+    pv_gamma_n = round(mult * gamma_per_share,    6) if gamma_per_share    is not None else None
+    pv_theta_n = round(mult * theta_yr_per_share / DAYS_PER_YEAR, 4) if theta_yr_per_share is not None else None
+    pv_vega_n  = round(mult * vega_dec_per_share / 100.0,         4) if vega_dec_per_share is not None else None
+
     row = {
         "date":         t1["date"],
         "prev_date":    t0["date"],
@@ -489,6 +510,11 @@ def emit_row(out_f, pos: Position, t0: dict, t1: dict, attr: dict) -> None:
         "mark_l_t0":    round(t0["ml"], 2),
         "mark_s_t1":    round(t1["ms"], 2),
         "mark_l_t1":    round(t1["ml"], 2),
+        # Position-level greeks at t0 — convention matches the home page chips.
+        "pv_delta_n":   pv_delta_n,
+        "pv_gamma_n":   pv_gamma_n,
+        "pv_theta_n":   pv_theta_n,
+        "pv_vega_n":    pv_vega_n,
         **attr,
         "synthetic_t0": bool(t0.get("synthetic")),
         "synthetic_t1": bool(t1.get("synthetic")),

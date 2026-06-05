@@ -486,6 +486,23 @@ def fund_exit_chart(code):
     return send_from_directory(str(charts), match.name)
 
 
+@app.route("/partnership")
+def partnership_page():
+    return render_template("partnership.html")
+
+
+@app.route("/api/partnership/book")
+def api_partnership_book():
+    from web.partnership_book import read_book
+    return jsonify(read_book())
+
+
+@app.route("/api/partnership/live-nlv")
+def api_partnership_live_nlv():
+    from web.partnership_book import live_nlv
+    return jsonify(live_nlv())
+
+
 @app.route("/performance")
 def performance_page():
     return render_template("performance.html")
@@ -2581,11 +2598,19 @@ def api_strategy_greek_attribution():
     # frontend matrix render a 'Position' row showing what's in the spread.
     positions_by_date: dict[str, dict[str, dict]] = {}
     keys = ("actual_pnl", "delta_attr", "gamma_attr", "theta_attr", "vega_attr", "residual")
+    # Position-level greeks at t0 — summed across trade_ids per date so the
+    # matrix can show the aggregate Δ×n / Γ×n / Θ×n / V×n exposure each day.
+    greek_keys = ("pv_delta_n", "pv_gamma_n", "pv_theta_n", "pv_vega_n")
+    greek_by_date: dict[str, dict[str, float]] = {}
     for r in rows:
         d = r["date"]
         bucket = by_date.setdefault(d, {k: 0.0 for k in keys})
         for k in keys:
             bucket[k] += float(r.get(k) or 0.0)
+        gbucket = greek_by_date.setdefault(d, {k: 0.0 for k in greek_keys})
+        for k in greek_keys:
+            if r.get(k) is not None:
+                gbucket[k] += float(r.get(k) or 0.0)
         meta = meta_by_date.setdefault(d, {"S_t0": None, "S_t1": None, "prev_date": None})
         for k in ("S_t0", "S_t1"):
             if meta.get(k) is None and r.get(k) is not None:
@@ -2619,12 +2644,17 @@ def api_strategy_greek_attribution():
         prev_date = meta.get("prev_date")
         v0 = vix_by_date.get(str(prev_date)) if prev_date else None
         v1 = vix_by_date.get(d)
+        gbucket = greek_by_date.get(d) or {}
         daily.append({
             "date": d,
             "dS": round(float(s1) - float(s0), 2) if s0 is not None and s1 is not None else None,
             "dVIX": round(float(v1) - float(v0), 2) if v0 is not None and v1 is not None else None,
             "synthetic": bool(synth_by_date.get(d)),
             "positions": list(positions_by_date.get(d, {}).values()),
+            "pv_delta_n": round(gbucket.get("pv_delta_n"), 4) if gbucket.get("pv_delta_n") is not None else None,
+            "pv_gamma_n": round(gbucket.get("pv_gamma_n"), 6) if gbucket.get("pv_gamma_n") is not None else None,
+            "pv_theta_n": round(gbucket.get("pv_theta_n"), 4) if gbucket.get("pv_theta_n") is not None else None,
+            "pv_vega_n":  round(gbucket.get("pv_vega_n"),  4) if gbucket.get("pv_vega_n")  is not None else None,
             **{k: round(by_date[d][k], 2) for k in keys},
         })
 
