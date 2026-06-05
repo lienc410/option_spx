@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Book · 合伙账本</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=book2"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=book2">
+<script src="{{ url_for('static', filename='theme.js') }}?v=book2"></script>
+<style>
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+html { font-size:14px; }
+body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-height:100vh; line-height:1.55; }
+
+.nav { position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:50px;background:var(--nav-bg-strong);backdrop-filter:blur(12px);border-bottom:1px solid var(--border); }
+.nav-brand { font-family:var(--f-display);font-size:1.05rem;color:var(--gold); }
+.nav-brand em { font-style:italic; }
+.nav-links { display:flex;gap:2px;flex-wrap:wrap; }
+.nav-link { font-size:0.76rem;padding:5px 10px;border-radius:5px;color:var(--text-2);text-decoration:none;transition:0.15s; }
+.nav-link:hover { color:var(--text);background:var(--surface-hi); }
+.nav-link.active { color:var(--gold);background:var(--gold-bg); }
+.nav-right { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2); }
+
+.page { max-width:880px;margin:0 auto;padding:28px 24px 60px; }
+.page-hero { margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border); }
+.page-hero h1 { font-family:var(--f-display);font-size:1.7rem;font-weight:400; }
+.page-hero h1 em { font-style:italic;color:var(--text-2); }
+.page-meta { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2);margin-top:6px; }
+.page-sub { font-size:0.72rem;color:var(--text-2);margin-top:6px;max-width:640px; }
+
+/* page tabs */
+.page-tabs { display:flex;gap:4px;margin-bottom:18px;border-bottom:1px solid var(--border); }
+.page-tab { font-size:0.76rem;padding:8px 14px;color:var(--text-2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:0.15s;background:none;border-top:none;border-left:none;border-right:none;font-family:var(--f-ui); }
+.page-tab:hover { color:var(--text); }
+.page-tab.active { color:var(--gold);border-bottom-color:var(--gold); }
+
+.section-label { font-size:0.60rem;font-weight:700;letter-spacing:0.13em;text-transform:uppercase;color:var(--text-2);margin:24px 0 10px; }
+
+/* AUM hero strip */
+.aum-card { background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:14px; }
+.aum-top { display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px; }
+.aum-label { font-size:0.60rem;font-weight:700;text-transform:uppercase;letter-spacing:0.10em;color:var(--text-2); }
+.aum-value { font-family:var(--f-mono);font-size:1.9rem;color:var(--text); }
+.aum-asof { font-family:var(--f-mono);font-size:0.62rem;color:var(--text-2); }
+
+/* split bar — blue=Schwab, orange=E*Trade */
+.split-bar { display:flex;height:12px;border-radius:6px;overflow:hidden;margin-top:14px;background:var(--surface-hi); }
+.split-seg { height:100%; }
+.seg-schwab { background:var(--blue); }
+.seg-etrade { background:var(--orange); }
+.split-legend { display:flex;gap:18px;margin-top:8px;flex-wrap:wrap; }
+.legend-item { display:flex;align-items:center;gap:6px;font-size:0.66rem;color:var(--text-2); }
+.legend-dot { width:9px;height:9px;border-radius:2px;display:inline-block; }
+.legend-dot.schwab { background:var(--blue); }
+.legend-dot.etrade { background:var(--orange); }
+.legend-val { font-family:var(--f-mono);color:var(--text); }
+
+/* live overlay */
+.live-grid { display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:6px; }
+.live-card { background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:13px 15px;border-left:3px solid var(--border-2); }
+.live-card.schwab { border-left-color:var(--blue); }
+.live-card.etrade { border-left-color:var(--orange); }
+.live-head { display:flex;align-items:center;justify-content:space-between;margin-bottom:8px; }
+.live-broker { font-size:0.72rem;font-weight:600;color:var(--text); }
+.live-acct { font-family:var(--f-mono);font-size:0.60rem;color:var(--text-2); }
+.live-row { display:flex;justify-content:space-between;align-items:baseline;padding:3px 0; }
+.live-rk { font-size:0.64rem;color:var(--text-2); }
+.live-rv { font-family:var(--f-mono);font-size:0.78rem;color:var(--text); }
+.live-drift { font-family:var(--f-mono);font-size:0.72rem; }
+.live-unavail { font-size:0.68rem;color:var(--text-2);padding:6px 0; }
+.live-caveat { font-size:0.62rem;color:var(--orange);margin-top:6px;line-height:1.5; }
+
+/* tables */
+.book-table { width:100%;border-collapse:collapse;margin-bottom:6px; }
+.book-table th { font-size:0.56rem;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-2);padding:6px 8px;text-align:right;border-bottom:1px solid var(--border-2);white-space:nowrap; }
+.book-table th:first-child { text-align:left; }
+.book-table td { font-family:var(--f-mono);font-size:0.74rem;padding:7px 8px;border-bottom:1px solid var(--border);text-align:right;vertical-align:middle;color:var(--text); }
+.book-table td:first-child { text-align:left;font-family:var(--f-ui);color:var(--text); }
+.book-table tr.total-row td { border-top:1px solid var(--border-2);border-bottom:none;font-weight:600;color:var(--text); }
+.book-table tr.total-row td:first-child { font-family:var(--f-ui); }
+.book-table th.grp-lien, .book-table td.grp-lien { background:rgba(72,136,232,0.04); }
+.book-table th.grp-cxz, .book-table td.grp-cxz { background:rgba(224,128,64,0.04); }
+.mini-split { display:inline-flex;height:7px;width:70px;border-radius:4px;overflow:hidden;background:var(--surface-hi);vertical-align:middle; }
+.mini-split .s { background:var(--blue); }
+.mini-split .e { background:var(--orange); }
+.pos { color:var(--green); }
+.neg { color:var(--red); }
+.dim { color:var(--text-2); }
+.note-block { font-size:0.66rem;color:var(--text-2);line-height:1.6;margin-top:10px;border-left:2px solid var(--border-2);padding-left:12px; }
+.banner { background:var(--gold-bg);border:1px solid var(--gold-border,var(--gold));border-radius:7px;padding:9px 14px;font-size:0.68rem;color:var(--gold);margin-bottom:14px; }
+.err { color:var(--text-2);font-size:0.78rem;padding:20px 0; }
+.refresh-btn { font-family:var(--f-ui);font-size:0.64rem;color:var(--text-2);background:var(--surface-hi);border:1px solid var(--border);border-radius:5px;padding:4px 10px;cursor:pointer;transition:0.15s; }
+.refresh-btn:hover { color:var(--text);border-color:var(--border-2); }
+.src-badge { display:inline-block;font-size:0.54rem;font-weight:700;letter-spacing:0.10em;padding:1px 6px;border-radius:4px;vertical-align:middle; }
+.src-drive { background:var(--green-bg);color:var(--green); }
+.src-local { background:var(--gray-bg);color:var(--text-2);border:1px solid var(--gray-border); }
+
+/* member statement */
+.member-select-row { display:flex;align-items:center;gap:10px;margin-bottom:16px; }
+.member-select-row label { font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-2); }
+.member-select { font-family:var(--f-ui);font-size:0.82rem;background:var(--surface-hi);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 12px;cursor:pointer; }
+.ms-hero { background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:14px; }
+.ms-name { font-family:var(--f-display);font-size:1.4rem;color:var(--text); }
+.ms-big { font-family:var(--f-mono);font-size:1.6rem;color:var(--text);margin-top:4px; }
+.ms-statline { font-family:var(--f-mono);font-size:0.66rem;color:var(--text-2);margin-top:4px; }
+.acct-panel { background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:14px 16px;margin-bottom:12px;border-left:3px solid var(--border-2); }
+.acct-panel.schwab { border-left-color:var(--blue); }
+.acct-panel.etrade { border-left-color:var(--orange); }
+.acct-panel-head { font-size:0.70rem;font-weight:600;color:var(--text);margin-bottom:10px; }
+.kv-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:10px 16px;margin-bottom:10px; }
+.kv { }
+.kv-k { font-size:0.56rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-2);margin-bottom:2px; }
+.kv-v { font-family:var(--f-mono);font-size:0.86rem;color:var(--text); }
+.empty-note { font-size:0.70rem;color:var(--text-2);padding:4px 0; }
+.hidden { display:none; }
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="nav-brand">SPX <em>Strat</em></div>
+  <div class="nav-links">
+    <a href="/"                   class="nav-link">Portfolio</a>
+    <a href="/spx"                class="nav-link">SPX</a>
+    <a href="/q042"               class="nav-link">DD Overlay</a>
+    <a href="/aftermath"          class="nav-link">Aftermath</a>
+    <a href="/q041"               class="nav-link">Sleeves</a>
+    <a href="/portfolio-backtest" class="nav-link">Port BT</a>
+    <a href="/performance"        class="nav-link">Performance</a>
+    <a href="/journal"            class="nav-link">Journal</a>
+    <a href="/margin"             class="nav-link">Margin</a>
+    <a href="/funds"              class="nav-link">Funds</a>
+    <a href="/partnership"        class="nav-link active">Book</a>
+  </div>
+  <div class="nav-right" id="nav-date">—</div>
+</nav>
+
+<div class="page">
+  <div class="page-hero">
+    <h1>Partnership <em>Book</em></h1>
+    <div class="page-sub">家庭合伙投资账本 — 只读镜像。真值源是 Google Sheet（纯公式引擎）；本页只读取其已算缓存值，不回写。</div>
+    <div class="page-meta" id="meta-line">加载中…</div>
+  </div>
+
+  <div class="page-tabs">
+    <button class="page-tab active" data-tab="overview" onclick="switchTab('overview')">Overview</button>
+    <button class="page-tab" data-tab="member" onclick="switchTab('member')">Member Statement</button>
+  </div>
+
+  <div id="tab-overview"><div class="err">加载中…</div></div>
+  <div id="tab-member" class="hidden"></div>
+</div>
+
+<script>
+let BOOK = null;
+
+const fmtUSD = (v) => (v === null || v === undefined) ? '—' : '$' + Math.round(v).toLocaleString('en-US');
+const fmtPct = (v) => (v === null || v === undefined) ? '—' : (v * 100).toFixed(1) + '%';
+const fmtSignedUSD = (v) => (v === null || v === undefined) ? '—' : (v >= 0 ? '+' : '−') + '$' + Math.abs(Math.round(v)).toLocaleString('en-US');
+const fmtSignedPct = (v) => (v === null || v === undefined) ? '—' : (v >= 0 ? '+' : '−') + Math.abs(v * 100).toFixed(2) + '%';
+const pnlClass = (v) => (v === null || v === undefined) ? '' : (v >= 0 ? 'pos' : 'neg');
+
+function switchTab(tab) {
+  document.querySelectorAll('.page-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.getElementById('tab-overview').classList.toggle('hidden', tab !== 'overview');
+  document.getElementById('tab-member').classList.toggle('hidden', tab !== 'member');
+}
+
+/* ---------------- Overview ---------------- */
+function renderAUM(b) {
+  const aum = b.aum || {};
+  const sw = aum.schwab || {}, et = aum.etrade || {};
+  const swPct = (sw.pct || 0) * 100, etPct = (et.pct || 0) * 100;
+  return `
+    <div class="aum-card">
+      <div class="aum-top">
+        <div>
+          <div class="aum-label">家庭总现值 · Family AUM</div>
+          <div class="aum-value">${fmtUSD(aum.total)}</div>
+        </div>
+        <div class="aum-asof">对账截至 ${(b.reconciled?.schwab_ccc354?.date) || '—'} · 投入 ${fmtUSD(b.total?.contrib)} · 盈亏 <span class="${pnlClass(b.total?.pnl)}">${fmtSignedUSD(b.total?.pnl)}</span> · ${fmtPct(b.total?.return_pct)}</div>
+      </div>
+      <div class="split-bar">
+        <div class="split-seg seg-schwab" style="width:${swPct}%"></div>
+        <div class="split-seg seg-etrade" style="width:${etPct}%"></div>
+      </div>
+      <div class="split-legend">
+        <span class="legend-item"><span class="legend-dot schwab"></span>Schwab (CCC-354) <span class="legend-val">${fmtUSD(sw.value)} · ${swPct.toFixed(1)}%</span></span>
+        <span class="legend-item"><span class="legend-dot etrade"></span>E*Trade PM <span class="legend-val">${fmtUSD(et.value)} · ${etPct.toFixed(1)}%</span></span>
+      </div>
+    </div>`;
+}
+
+function renderLiveCard(d, kind) {
+  const acct = d.account ? `<span class="live-acct">acct ${d.account}</span>` : '';
+  if (!d.available) {
+    return `<div class="live-card ${kind}">
+      <div class="live-head"><span class="live-broker">${d.label}</span>${acct}</div>
+      <div class="live-unavail">${d.message || '实时数据不可用'}</div>
+      ${d.reconciled ? `<div class="live-row"><span class="live-rk">对账值 ${d.reconciled.date}</span><span class="live-rv">${fmtUSD(d.reconciled.value)}</span></div>` : ''}
+    </div>`;
+  }
+  const drift = d.drift || {};
+  const dc = pnlClass(drift.abs);
+  return `<div class="live-card ${kind}">
+    <div class="live-head"><span class="live-broker">${d.label}</span>${acct}</div>
+    <div class="live-row"><span class="live-rk">实时 NLV</span><span class="live-rv">${fmtUSD(d.live_value)}</span></div>
+    ${d.reconciled ? `<div class="live-row"><span class="live-rk">对账值 ${d.reconciled.date}</span><span class="live-rv">${fmtUSD(d.reconciled.value)}</span></div>` : ''}
+    <div class="live-row"><span class="live-rk">漂移 drift</span><span class="live-drift ${dc}">${fmtSignedUSD(drift.abs)} · ${fmtSignedPct(drift.pct)}</span></div>
+  </div>`;
+}
+
+function renderLive(live) {
+  if (!live) return '';
+  return `
+    <div class="section-label">Live NLV Overlay · 实时叠加</div>
+    <div class="live-grid">
+      ${renderLiveCard(live.schwab || {label:'Schwab'}, 'schwab')}
+      ${renderLiveCard(live.etrade || {label:'E*Trade'}, 'etrade')}
+    </div>
+    <div class="live-caveat">⚠ 实时值取自当前配置的券商账户，<b>未确认</b>与账本里的 CCC-354 / PM 池为同一账户（acct 尾号供核对）。漂移仅供参考，不回写。</div>`;
+}
+
+function memberSplit(schwab, etrade) {
+  const tot = (schwab || 0) + (etrade || 0);
+  if (tot <= 0) return '—';
+  const sp = (schwab || 0) / tot * 100, ep = (etrade || 0) / tot * 100;
+  return `<span class="mini-split"><span class="s" style="width:${sp}%"></span><span class="e" style="width:${ep}%"></span></span>`;
+}
+
+function renderMembers(b) {
+  const rows = (b.members || []).map(m => `
+    <tr>
+      <td>${m.name}</td>
+      <td>${fmtUSD(m.schwab_value)}</td>
+      <td>${fmtUSD(m.etrade_value)}</td>
+      <td>${fmtUSD(m.total_value)}</td>
+      <td>${memberSplit(m.schwab_value, m.etrade_value)}</td>
+      <td>${fmtUSD(m.contrib)}</td>
+      <td class="${pnlClass(m.pnl)}">${fmtSignedUSD(m.pnl)}</td>
+      <td class="${pnlClass(m.return_pct)}">${fmtPct(m.return_pct)}</td>
+    </tr>`).join('');
+  const t = b.total || {};
+  const totalRow = `
+    <tr class="total-row">
+      <td>合计 / 家庭</td>
+      <td>${fmtUSD(t.schwab_value)}</td>
+      <td>${fmtUSD(t.etrade_value)}</td>
+      <td>${fmtUSD(t.total_value)}</td>
+      <td></td>
+      <td>${fmtUSD(t.contrib)}</td>
+      <td class="${pnlClass(t.pnl)}">${fmtSignedUSD(t.pnl)}</td>
+      <td class="${pnlClass(t.return_pct)}">${fmtPct(t.return_pct)}</td>
+    </tr>`;
+  return `
+    <div class="section-label">Members · 每人跨账户现值</div>
+    <table class="book-table">
+      <thead><tr>
+        <th>Member</th><th>Schwab</th><th>E*Trade</th><th>Total Value</th>
+        <th>Split</th><th>Contributed</th><th>P&amp;L</th><th>Return</th>
+      </tr></thead>
+      <tbody>${rows}${totalRow}</tbody>
+    </table>`;
+}
+
+function renderCCCByYear(b) {
+  const years = b.by_year || [];
+  if (!years.length) return '';
+  const partnerNames = ['Chinchaung', 'Lien', 'Xinzhong/CXZ', 'Alvin', 'Lucas'];
+  const head = `<th>Period</th><th>TWR</th>` + partnerNames.map(n => `<th>${n} $</th>`).join('') + `<th>Total P&amp;L</th>`;
+  const rows = years.map(y => {
+    const pcols = partnerNames.map(n => {
+      const v = (y.partners || {})[n];
+      return `<td class="${pnlClass(v)}">${fmtSignedUSD(v)}</td>`;
+    }).join('');
+    return `<tr><td>${y.period}</td><td>${fmtPct(y.twr)}</td>${pcols}<td class="${pnlClass(y.total_pnl)}">${fmtSignedUSD(y.total_pnl)}</td></tr>`;
+  }).join('');
+  return `
+    <div class="section-label">CCC-354 Returns by Year · 时间加权（全员同池）</div>
+    <table class="book-table">
+      <thead><tr>${head}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="note-block">同一资金池的时间加权收益（TWR）对每位合伙人相同；$ 列为各人当年盈亏（按资本规模不同）。「Since inception」累计含并入前收益，故大于两年份之和。</div>`;
+}
+
+function renderETByYear(b) {
+  const eby = b.etrade_by_year || {};
+  const lien = eby.lien || [], cxz = eby.cxz || [];
+  if (!lien.length && !cxz.length) return '';
+  // Align by period label (union, preserving order from CXZ then any extra Lien)
+  const periods = [];
+  cxz.forEach(r => { if (!periods.includes(r.period)) periods.push(r.period); });
+  lien.forEach(r => { if (!periods.includes(r.period)) periods.push(r.period); });
+  const lienMap = Object.fromEntries(lien.map(r => [r.period, r]));
+  const cxzMap = Object.fromEntries(cxz.map(r => [r.period, r]));
+  const rows = periods.map(p => {
+    const l = lienMap[p], c = cxzMap[p];
+    const cell = (x, grp) => x
+      ? `<td class="grp-${grp} ${pnlClass(x.return_pct)}">${x.return_pct === null ? '<span class="dim">数据不全</span>' : fmtPct(x.return_pct)}</td><td class="grp-${grp} ${pnlClass(x.pnl)}">${x.pnl === null ? '<span class="dim">—</span>' : fmtSignedUSD(x.pnl)}</td>`
+      : `<td class="grp-${grp} dim">—</td><td class="grp-${grp} dim">—</td>`;
+    return `<tr><td>${p}</td>${cell(l, 'lien')}${cell(c, 'cxz')}</tr>`;
+  }).join('');
+  return `
+    <div class="section-label">E*Trade Returns by Year · 各自独立账户（并入前）</div>
+    <table class="book-table">
+      <thead><tr>
+        <th>Period</th>
+        <th class="grp-lien">Lien Return</th><th class="grp-lien">Lien P&amp;L</th>
+        <th class="grp-cxz">CXZ Return</th><th class="grp-cxz">CXZ P&amp;L</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="note-block">E*Trade 2026-06-01 才并池，并入前 Lien（3370+4511）与 CXZ（6842）是各自独立账户，故无统一池 TWR。窗口不同：Lien 用 Nov→Nov 季度值近似且 2024 对账单仅自 08 月、数据不全；CXZ 按日历年自 May'24。累计收益率见上方 PM Pool 表（Lien 35.4% 自 2025 起时间加权 / CXZ 43.6% 自始）。</div>`;
+}
+
+function renderETPool(b) {
+  const pool = b.etrade_pool || [];
+  if (!pool.length) return '';
+  const rows = pool.map(p => `
+    <tr>
+      <td>${p.name}</td>
+      <td>${fmtUSD(p.contributed)}</td>
+      <td>${fmtUSD(p.cost_basis)}</td>
+      <td>${fmtUSD(p.current_value)}</td>
+      <td>${fmtPct(p.share_pct)}</td>
+      <td class="${pnlClass(p.return_on_invested)}">${fmtPct(p.return_on_invested)}</td>
+    </tr>`).join('');
+  return `
+    <div class="section-label">E*Trade PM Pool · 2026-06-01 并入</div>
+    <table class="book-table">
+      <thead><tr>
+        <th>Partner</th><th>Contributed</th><th>Cost Basis</th>
+        <th>Current Value</th><th>Share %</th><th>Return on Invested</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="note-block">份额按并入当日市值设定；收益率分母 = 成本基数（CXZ 用实际净投入 $207,907，含并入前收益；Lien 用并入当日市值 option B + 自 2025 起时间加权 35.4%）。</div>`;
+}
+
+function renderOverview(b) {
+  return renderAUM(b) + `<div id="live-slot"></div>` + renderMembers(b)
+    + renderCCCByYear(b) + renderETByYear(b) + renderETPool(b);
+}
+
+/* ---------------- Member Statement ---------------- */
+function renderMemberSelect(b) {
+  const opts = (b.member_statements || []).map((m, i) =>
+    `<option value="${i}">${m.name}</option>`).join('');
+  return `
+    <div class="member-select-row">
+      <label>Member</label>
+      <select class="member-select" id="member-select" onchange="renderMemberStatement(this.value)">${opts}</select>
+    </div>
+    <div id="ms-body"></div>`;
+}
+
+function cccPanel(ms) {
+  const c = ms.ccc;
+  if (!c) return '';
+  const byYear = (c.by_year || []).map(y =>
+    `<tr><td>${y.period}</td><td>${fmtPct(y.twr)}</td><td class="${pnlClass(y.pnl)}">${fmtSignedUSD(y.pnl)}</td></tr>`).join('');
+  return `
+    <div class="acct-panel schwab">
+      <div class="acct-panel-head">Schwab · CCC-354 合伙账户</div>
+      <div class="kv-grid">
+        <div class="kv"><div class="kv-k">Net Capital</div><div class="kv-v">${fmtUSD(c.net_capital)}</div></div>
+        <div class="kv"><div class="kv-k">Current Balance</div><div class="kv-v">${fmtUSD(c.balance)}</div></div>
+        <div class="kv"><div class="kv-k">P&amp;L</div><div class="kv-v ${pnlClass(c.pnl)}">${fmtSignedUSD(c.pnl)}</div></div>
+        <div class="kv"><div class="kv-k">Share %</div><div class="kv-v">${fmtPct(c.share_pct)}</div></div>
+        <div class="kv"><div class="kv-k">Simple Return</div><div class="kv-v ${pnlClass(c.simple_return)}">${fmtPct(c.simple_return)}</div></div>
+        <div class="kv"><div class="kv-k">Annualized IRR</div><div class="kv-v">${fmtPct(c.irr)}</div></div>
+      </div>
+      <table class="book-table" style="margin-top:4px">
+        <thead><tr><th>Period</th><th>TWR</th><th>P&amp;L</th></tr></thead>
+        <tbody>${byYear}</tbody>
+      </table>
+    </div>`;
+}
+
+function etPanel(ms) {
+  const e = ms.etrade;
+  if (!e) return `<div class="acct-panel"><div class="acct-panel-head">E*Trade PM</div><div class="empty-note">该成员无 E*Trade 账户。</div></div>`;
+  const byYear = (e.by_year || []).map(y =>
+    `<tr><td>${y.period}</td><td class="${pnlClass(y.return_pct)}">${y.return_pct === null ? '<span class="dim">数据不全</span>' : fmtPct(y.return_pct)}</td><td class="${pnlClass(y.pnl)}">${y.pnl === null ? '<span class="dim">—</span>' : fmtSignedUSD(y.pnl)}</td></tr>`).join('');
+  return `
+    <div class="acct-panel etrade">
+      <div class="acct-panel-head">E*Trade · PM Pool（2026-06-01 并入）</div>
+      <div class="kv-grid">
+        <div class="kv"><div class="kv-k">Cost Basis</div><div class="kv-v">${fmtUSD(e.cost_basis)}</div></div>
+        <div class="kv"><div class="kv-k">Current Value</div><div class="kv-v">${fmtUSD(e.current_value)}</div></div>
+        <div class="kv"><div class="kv-k">Share %</div><div class="kv-v">${fmtPct(e.share_pct)}</div></div>
+        <div class="kv"><div class="kv-k">Return on Invested</div><div class="kv-v ${pnlClass(e.return_on_invested)}">${fmtPct(e.return_on_invested)}</div></div>
+      </div>
+      <table class="book-table" style="margin-top:4px">
+        <thead><tr><th>Period</th><th>Return</th><th>P&amp;L</th></tr></thead>
+        <tbody>${byYear}</tbody>
+      </table>
+    </div>`;
+}
+
+function renderMemberStatement(idx) {
+  const ms = (BOOK.member_statements || [])[idx];
+  if (!ms) return;
+  const t = ms.total;
+  const body = document.getElementById('ms-body');
+  body.innerHTML = `
+    <div class="ms-hero">
+      <div class="ms-name">${ms.name}</div>
+      <div class="ms-big">${fmtUSD(t.current)}</div>
+      <div class="ms-statline">合并投入 ${fmtUSD(t.contrib)} · 盈亏 <span class="${pnlClass(t.pnl)}">${fmtSignedUSD(t.pnl)}</span> · 收益率 ${fmtPct(t.return_pct)}</div>
+      <div class="split-bar" style="max-width:380px">
+        <div class="split-seg seg-schwab" style="width:${(t.schwab_pct||0)*100}%"></div>
+        <div class="split-seg seg-etrade" style="width:${(t.etrade_pct||0)*100}%"></div>
+      </div>
+      <div class="split-legend">
+        <span class="legend-item"><span class="legend-dot schwab"></span>Schwab <span class="legend-val">${fmtUSD(t.schwab_value)}</span></span>
+        <span class="legend-item"><span class="legend-dot etrade"></span>E*Trade <span class="legend-val">${fmtUSD(t.etrade_value)}</span></span>
+      </div>
+    </div>
+    ${cccPanel(ms)}
+    ${etPanel(ms)}
+    <div class="note-block">每段「盈亏」只属于该账户：CCC 盈亏=账户内盈亏；E*Trade 盈亏=现值−成本基数（含并入前收益）。合并盈亏=两者相加；累计含 E*Trade 并入前收益，故大于各年份之和。</div>`;
+}
+
+/* ---------------- Loader ---------------- */
+async function load() {
+  const meta = document.getElementById('meta-line');
+  const ov = document.getElementById('tab-overview');
+  let book;
+  try {
+    book = await (await fetch('/api/partnership/book')).json();
+  } catch (e) {
+    ov.innerHTML = `<div class="err">账本接口读取失败。</div>`;
+    return;
+  }
+  BOOK = book;
+  if (!book.available) {
+    meta.textContent = '账本不可用';
+    ov.innerHTML = `<div class="banner">${book.message || '账本数据不可用'}</div>`;
+    return;
+  }
+  const mtime = book.workbook_mtime ? book.workbook_mtime.replace('T', ' ').slice(0, 16) : '—';
+  const isDrive = book.source === 'google_drive';
+  const srcBadge = isDrive
+    ? `<span class="src-badge src-drive">DRIVE</span>`
+    : `<span class="src-badge src-local">LOCAL</span>`;
+  meta.innerHTML = `${srcBadge} <code>${book.source_file}</code> · 工作簿更新 ${mtime} UTC · <button class="refresh-btn" onclick="load()">↻ Refresh</button>`;
+
+  ov.innerHTML = renderOverview(book);
+  document.getElementById('tab-member').innerHTML = renderMemberSelect(book);
+  renderMemberStatement(0);
+
+  // Live overlay loads separately (broker calls may be slow / fail-soft)
+  const liveSlot = document.getElementById('live-slot');
+  liveSlot.innerHTML = `<div class="section-label">Live NLV Overlay · 实时叠加</div><div class="live-unavail" style="padding-left:8px">读取券商实时余额…</div>`;
+  try {
+    const live = await (await fetch('/api/partnership/live-nlv')).json();
+    liveSlot.innerHTML = renderLive(live);
+  } catch (e) {
+    liveSlot.innerHTML = `<div class="section-label">Live NLV Overlay · 实时叠加</div><div class="live-unavail" style="padding-left:8px">实时余额读取失败（账本数据不受影响）。</div>`;
+  }
+}
+
+document.getElementById('nav-date').textContent =
+  new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+load();
+</script>
+</body>
+</html>

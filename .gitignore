@@ -23,3 +23,9 @@ data/matrix_consistency_audit_*.csv
 
 # fund_exit 隔离 venv
 .venv_fund/
+
+# Partnership Book — family financial PII; read from disk at runtime, never
+# committed to the remote. Deploy the workbook to the host out-of-band (scp).
+research/book_management/
+# Broker statements (account PII)
+data/etrade_statements/
