@@ -4884,6 +4884,7 @@ def api_position_open():
     }
     account = str(body.get("account") or "schwab").strip().lower()
     add_tranche = bool(body.get("add_tranche", False))
+    pm_override = bool(body.get("pm_override", False))
     try:
         from strategy.sleeve_governance import evaluate_candidate, log_decision, maybe_alert_decision
 
@@ -4900,17 +4901,24 @@ def api_position_open():
             "requested_bp_dollars": body.get("requested_bp_dollars") or body.get("bp_usage_dollars"),
             "bp_preview": body.get("bp_preview"),
             "paper_trade": paper_trade,
+            # PM override is metadata only — gate still evaluates and logs
+            # truthfully; we just don't block the open downstream.
+            "pm_override": pm_override,
         }
         governance_decision = evaluate_candidate(governance_candidate)
         log_decision(governance_decision)
-        if not governance_decision.accepted and not paper_trade:
+        if not governance_decision.accepted and not paper_trade and not pm_override:
             maybe_alert_decision(governance_decision)
             return jsonify({
                 "error": "Sleeve governance blocked entry",
                 "governance": governance_decision.as_dict(),
             }), 400
+        # When PM overrides a blocked decision, still alert (audit) so the
+        # block + the override both show up in the decision feed.
+        if not governance_decision.accepted and pm_override and not paper_trade:
+            maybe_alert_decision(governance_decision)
     except Exception as exc:
-        if not paper_trade:
+        if not paper_trade and not pm_override:
             return jsonify({"error": f"Sleeve governance unavailable: {exc}"}), 503
 
     ladder_state_for_active = None

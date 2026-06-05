@@ -1740,6 +1740,10 @@ function openTradeModal(kind, presetAccount, addTranche) {
           <label class="modal-check"><input id="open-paper-trade" type="checkbox"> Mark as paper trade</label>
         </div>
         <div class="modal-field">
+          <label class="modal-label">PM Override <span style="font-weight:400;color:var(--text-2);font-size:0.65rem">(bypass sleeve gate)</span></label>
+          <label class="modal-check"><input id="open-pm-override" type="checkbox"> Force open through sleeve block</label>
+        </div>
+        <div class="modal-field">
           <label class="modal-label">Scan Rows</label>
           <select id="open-scan-limit" class="modal-select" onchange="renderStrikeScan(CURRENT_OPEN_DRAFT)">
             <option value="5" selected>Top 5</option>
@@ -1972,6 +1976,7 @@ async function submitOpenPosition() {
     iv_signal: effectiveIvBucket(CURRENT_REC?.iv_snapshot || {}),
     trend_signal: CURRENT_REC?.trend_snapshot?.signal ?? null,
     paper_trade: !!document.getElementById('open-paper-trade')?.checked,
+    pm_override: !!document.getElementById('open-pm-override')?.checked,
     note: document.getElementById('open-note').value || '',
   };
   const addTranche = !!document.getElementById('open-submit-btn')?.dataset.addTranche;
@@ -1979,7 +1984,12 @@ async function submitOpenPosition() {
   let lastData = null;
   for (const acct of accounts) {
     lastData = await postJson('/api/position/open', { ...basePayload, account: acct, add_tranche: addTranche });
-    if (lastData.error) return showTradeModalMessage(lastData.error, true);
+    if (lastData.error) {
+      // If sleeve governance blocked and PM didn't override, surface a hint
+      const hint = (lastData.error || '').match(/sleeve/i) && !basePayload.pm_override
+        ? ' (tick "PM Override" to force open)' : '';
+      return showTradeModalMessage(lastData.error + hint, true);
+    }
   }
   const label = accountSel === 'both' ? 'Schwab + E-Trade' : accountSel.charAt(0).toUpperCase() + accountSel.slice(1);
   showTradeModalMessage(addTranche ? `Added tranche [${label}] ${lastData.trade_id}` : `Opened [${label}] trade ${lastData.trade_id}`);
