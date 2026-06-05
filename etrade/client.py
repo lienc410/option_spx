@@ -163,7 +163,16 @@ def _normalize_balance_payload(payload: dict) -> dict:
     return {
         "configured": True,
         "authenticated": True,
-        "net_liquidation": _num(realtime.get("netMv") or portfolio_margin.get("liquidatingEquity")),
+        # NLV must include cash. E*Trade `netMv` is net market value of POSITIONS
+        # only (excludes cash) — using it understated NLV by the cash balance
+        # (verified 2026-06-04: netMv 604,285 vs totalAccountValue 634,843, diff
+        # = 30,558 cash). `totalAccountValue` (RealTimeValues) == `liquidatingEquity`
+        # (PortfolioMargin) is the true account NLV; netMv only as last resort.
+        "net_liquidation": _num(
+            realtime.get("totalAccountValue")
+            or portfolio_margin.get("liquidatingEquity")
+            or realtime.get("netMv")
+        ),
         # SPEC-107 followup 2026-05-27: ETrade `totalMarginRqmts` is the
         # authoritative PM/Reg-T maintenance margin requirement (= house
         # requirement when broker applies house surcharge). DO NOT silently
