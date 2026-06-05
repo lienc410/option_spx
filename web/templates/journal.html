@@ -1191,7 +1191,36 @@ function _renderAttrDailyTable(payload) {
     return;
   }
   const visibleRows = _attrWindow === '7d' ? rows.slice(-7) : _attrWindow === '30d' ? rows.slice(-30) : rows;
+
+  // Map option_type → short strategy label that matches PM's vocabulary.
+  // PUT spreads → BPS, CALL spreads → BCD (other CALL strategies are rare
+  // enough that BCD covers the vast majority of historical attribution).
+  const _stratLabel = opt => String(opt || 'PUT').toUpperCase() === 'CALL' ? 'BCD' : 'BPS';
+  // Roll up the per-date position roster into 'BCD ×2', 'BPS ×4 / BCD ×2' etc.
+  const _positionCell = row => {
+    const ps = row && row.positions ? row.positions : [];
+    if (!ps.length) return '<span class="neu">—</span>';
+    const counts = {};
+    ps.forEach(p => {
+      const lbl = _stratLabel(p.option_type);
+      counts[lbl] = (counts[lbl] || 0) + (Number(p.contracts) || 0);
+    });
+    return Object.entries(counts).map(([k, v]) => `${k}×${v}`).join(' / ');
+  };
+  // Right-column rollup: distinct trade count per strategy across the window.
+  const _positionTotal = rows => {
+    const trades = {};
+    rows.forEach(r => (r.positions || []).forEach(p => {
+      const lbl = _stratLabel(p.option_type);
+      const set = trades[lbl] || (trades[lbl] = new Set());
+      if (p.trade_id) set.add(p.trade_id);
+    }));
+    const parts = Object.entries(trades).map(([k, s]) => `${k} ${s.size}t`);
+    return parts.length ? parts.join(' / ') : '—';
+  };
+
   const factorRows = [
+    { label: 'Position', custom: true, cell: _positionCell, total: _positionTotal },
     { label: 'ΔS', key: 'dS', fmt: v => v == null ? '—' : _signedNum(v, 2), total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: v => _signedNum(v, 2) },
     { label: 'ΔVIX', key: 'dVIX', breakAfter: true, fmt: v => v == null ? '—' : _signedNum(v, 2), total: vals => vals.some(v => v == null) ? null : vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: v => v == null ? '—' : _signedNum(v, 2) },
     { label: 'Delta', key: 'delta_attr', fmt: _signedMoney, total: vals => vals.reduce((a, v) => a + (Number(v) || 0), 0), totalFmt: _signedMoney },
@@ -1203,6 +1232,13 @@ function _renderAttrDailyTable(payload) {
   ];
   const head = `<thead><tr><th class="row-head">Factor</th>${visibleRows.map(r => `<th>${r.date}${r.synthetic ? ' ⚠' : ''}</th>`).join('')}<th class="total-col">Total · Cum</th></tr></thead>`;
   const body = factorRows.map(fr => {
+    if (fr.custom) {
+      // Custom rows operate on the whole visible row, not a single key.
+      // Used by the 'Position' header row at the top of the matrix.
+      const cells = visibleRows.map(r => `<td class="neu">${fr.cell(r)}</td>`).join('');
+      const total = fr.total(visibleRows);
+      return `<tr class="factor-break"><th class="row-head">${fr.label}</th>${cells}<td class="total-col neu">${total}</td></tr>`;
+    }
     const vals = visibleRows.map(r => r[fr.key]);
     const total = fr.total(vals);
     const cells = vals.map(v => `<td class="${_signedCls(v)}">${fr.fmt(v)}</td>`).join('');

@@ -2576,6 +2576,10 @@ def api_strategy_greek_attribution():
     by_date: dict[str, dict[str, float]] = {}
     meta_by_date: dict[str, dict[str, float | str | None]] = {}
     synth_by_date: dict[str, bool] = {}
+    # Per-date position roster — distinct (trade_id, option_type, contracts,
+    # account) tuples that contributed attribution on that day. Lets the
+    # frontend matrix render a 'Position' row showing what's in the spread.
+    positions_by_date: dict[str, dict[str, dict]] = {}
     keys = ("actual_pnl", "delta_attr", "gamma_attr", "theta_attr", "vega_attr", "residual")
     for r in rows:
         d = r["date"]
@@ -2590,6 +2594,20 @@ def api_strategy_greek_attribution():
             meta["prev_date"] = str(r.get("prev_date"))
         if r.get("synthetic_t0") or r.get("synthetic_t1"):
             synth_by_date[d] = True
+        # Position roster (dedup by trade_id within the day)
+        tid = r.get("trade_id") or ""
+        roster = positions_by_date.setdefault(d, {})
+        if tid and tid not in roster:
+            try:
+                ct = int(r.get("contracts") or 0)
+            except (TypeError, ValueError):
+                ct = 0
+            roster[tid] = {
+                "trade_id":    tid,
+                "option_type": (r.get("option_type") or "PUT"),
+                "contracts":   ct,
+                "account":     r.get("account"),
+            }
 
     dates = sorted(by_date.keys())
     per_day = [by_date[d] for d in dates]
@@ -2606,6 +2624,7 @@ def api_strategy_greek_attribution():
             "dS": round(float(s1) - float(s0), 2) if s0 is not None and s1 is not None else None,
             "dVIX": round(float(v1) - float(v0), 2) if v0 is not None and v1 is not None else None,
             "synthetic": bool(synth_by_date.get(d)),
+            "positions": list(positions_by_date.get(d, {}).values()),
             **{k: round(by_date[d][k], 2) for k in keys},
         })
 
