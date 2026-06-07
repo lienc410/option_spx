@@ -73,7 +73,10 @@ class StateAndApiTests(unittest.TestCase):
         data = res.get_json()
         self.assertIn("strategies", data)
         self.assertIn("matrix", data)
-        self.assertEqual(data["matrix"]["NORMAL"]["HIGH"]["BULLISH"], "bull_put_spread")
+        # SPEC-113: matrix_payload renders cells as {type, strategy, name} dicts
+        # (single) or {type:"conditional", conditions:{...}} for VIX-gated cells.
+        bps_cell = data["matrix"]["NORMAL"]["HIGH"]["BULLISH"]
+        self.assertEqual(bps_cell["strategy"], "bull_put_spread")
         manual_keys = {item["key"] for item in data["manual_entry_options"]}
         self.assertNotIn("reduce_wait", manual_keys)
 

@@ -3575,6 +3575,53 @@ def _q041_paper_progress() -> dict:
     }
 
 
+def _q041_t2_paper_state() -> tuple[dict, dict]:
+    """SPEC-115 Phase A: live T2 CSP candidate + governance decision + cumulative counts.
+
+    Returns (t2_state, t2_counts). Fail-soft: any error → status="error" per strategy.
+    """
+    t2_state: dict = {}
+    today = date.today().isoformat()
+    try:
+        from strategy.q041_selector import select_t2_csp
+        from strategy.sleeve_governance import evaluate_candidate
+        for sk in ("q041_t2_googl_csp", "q041_t2_amzn_csp"):
+            try:
+                cand = select_t2_csp(sk, today)
+                if cand is None:
+                    t2_state[sk] = {"status": "no_candidate", "reason": "chain or band missing"}
+                    continue
+                dec = evaluate_candidate(cand)
+                t2_state[sk] = {
+                    "status": "open" if dec.accepted else "blocked",
+                    "candidate": cand,
+                    "decision": {"accepted": dec.accepted, "reason": getattr(dec, "reason", None)},
+                }
+            except Exception as exc:
+                t2_state[sk] = {"status": "error", "reason": str(exc)}
+    except Exception as exc:
+        t2_state = {"_error": str(exc)}
+
+    counts = {"total_signals": 0, "blocked": 0, "opens": 0}
+    log_path = Path(__file__).parent.parent / "data" / "q041_paper_log.jsonl"
+    if log_path.exists():
+        try:
+            for line in log_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                rec = json.loads(line)
+                counts["total_signals"] += 1
+                if rec.get("event") == "blocked":
+                    counts["blocked"] += 1
+                elif rec.get("event") == "open":
+                    counts["opens"] += 1
+        except Exception:
+            pass
+
+    return t2_state, counts
+
+
 def _build_q041_overview_payload() -> dict:
     from web.portfolio_surface import attribution_payload, sleeve_candidates_payload
 
@@ -3587,10 +3634,13 @@ def _build_q041_overview_payload() -> dict:
     paper = _q041_paper_progress()
     summaries = _q041_backtest_summaries(backtest_payload, attr_data)
     candidates = sleeve_candidates_payload()
+    t2_state, t2_counts = _q041_t2_paper_state()
     return {
         "status": "ok",
         "as_of": _now_et_iso(),
         "routing_note": "Tier 1 SPX CSP is eliminated by Q055; Tier 2 remains paper-trading active; Tier 3 remains observe-only.",
+        "t2_paper_state": t2_state,
+        "t2_paper_counts": t2_counts,
         "tier_status": {
             "tier1": {
                 "state": "eliminated",

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.spxstrat.q041_t2_paper_signals</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/macbook/SPX_strat/venv/bin/python</string>
+    <string>-m</string>
+    <string>notify.q041_paper_telegram</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/macbook/SPX_strat</string>
+
+  <!-- 16:50 ET Mon-Fri (after q041_chain_sanity 16:45): 5 separate dicts -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Hour</key><integer>16</integer><key>Minute</key><integer>50</integer><key>Weekday</key><integer>1</integer></dict>
+    <dict><key>Hour</key><integer>16</integer><key>Minute</key><integer>50</integer><key>Weekday</key><integer>2</integer></dict>
+    <dict><key>Hour</key><integer>16</integer><key>Minute</key><integer>50</integer><key>Weekday</key><integer>3</integer></dict>
+    <dict><key>Hour</key><integer>16</integer><key>Minute</key><integer>50</integer><key>Weekday</key><integer>4</integer></dict>
+    <dict><key>Hour</key><integer>16</integer><key>Minute</key><integer>50</integer><key>Weekday</key><integer>5</integer></dict>
+  </array>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>KeepAlive</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/macbook/SPX_strat/logs/q041_t2_paper_signals.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/macbook/SPX_strat/logs/q041_t2_paper_signals.err.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Users/macbook/SPX_strat/venv/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HOME</key>
+    <string>/Users/macbook</string>
+  </dict>
+</dict>
+</plist>

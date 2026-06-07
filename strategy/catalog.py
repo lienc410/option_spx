@@ -160,6 +160,59 @@ STRATEGIES_BY_KEY: dict[str, StrategyDescriptor] = {
         short_vega=True,
         delta_sign="neut",
     ),
+    # ── SPEC-115 Phase A: Q041 T2 CSP paper-trade strategies ──────────────────
+    "q041_t2_googl_csp": StrategyDescriptor(
+        key="q041_t2_googl_csp",
+        name="Q041 T2 GOOGL CSP",
+        emoji="📋",
+        direction="bull",
+        underlying="GOOGL",
+        trade_type="Credit — Cash-Secured Put (Paper)",
+        dte_text="21 DTE (±3d)",
+        delta_text="Short put δ0.20 (±5pp)",
+        when_text=(
+            "Daily EOD scan; Q041 paper-trade lane only. SPEC-111 cash cap binds "
+            "single GOOGL CSP ($36.6k) typically > $22.2k cap."
+        ),
+        risk_text=(
+            "Assignment risk = K × 100 cash. Single-name tail (missing COVID/2019-2021 "
+            "in 4y backtest). Paper trade verifies cash-bound boundary."
+        ),
+        detail_roll_text="No roll in paper. Default exit: hold to expiry or assignment.",
+        max_risk_text="K × 100 cash collateral per contract (~$36.6k at K=$366).",
+        target_return_text="Full credit at expiry (S_exit > K).",
+        roll_rule_text="None — Phase A is observation lane.",
+        short_gamma=True,
+        short_vega=False,
+        delta_sign="pos",
+        manual_entry_allowed=False,
+    ),
+    "q041_t2_amzn_csp": StrategyDescriptor(
+        key="q041_t2_amzn_csp",
+        name="Q041 T2 AMZN CSP",
+        emoji="📋",
+        direction="bull",
+        underlying="AMZN",
+        trade_type="Credit — Cash-Secured Put (Paper)",
+        dte_text="21 DTE (±3d)",
+        delta_text="Short put δ0.25 (±5pp)",
+        when_text=(
+            "Daily EOD scan; Q041 paper-trade lane only. SPEC-111 cash cap binds "
+            "single AMZN CSP ($25.2k) typically > $22.2k cap."
+        ),
+        risk_text=(
+            "Assignment risk = K × 100 cash. Single-name tail (missing COVID/2019-2021 "
+            "in 4y backtest). Paper trade verifies cash-bound boundary."
+        ),
+        detail_roll_text="No roll in paper. Default exit: hold to expiry or assignment.",
+        max_risk_text="K × 100 cash collateral per contract (~$25.2k at K=$252).",
+        target_return_text="Full credit at expiry (S_exit > K).",
+        roll_rule_text="None — Phase A is observation lane.",
+        short_gamma=True,
+        short_vega=False,
+        delta_sign="pos",
+        manual_entry_allowed=False,
+    ),
     "reduce_wait": StrategyDescriptor(
         key="reduce_wait",
         name="Reduce / Wait",

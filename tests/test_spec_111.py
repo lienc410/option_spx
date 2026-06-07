@@ -53,7 +53,7 @@ class TestAC1_CashBudgetEvaluator(unittest.TestCase):
     def _eval(self, debit_usd: float, open_debit: float, liquid: float):
         with patch("strategy.cash_budget_governance.get_current_liquid_cash",
                    return_value=_mock_cash(liquid)), \
-             patch("strategy.cash_budget_governance.get_open_debit_total_usd",
+             patch("strategy.cash_budget_governance.get_open_cash_collateral_total_usd",
                    return_value=_mock_open_debit(open_debit)):
             return evaluate_debit_cash_budget(_bcd_candidate(debit_usd))
 
@@ -197,7 +197,7 @@ class TestAC3_APIField(unittest.TestCase):
              patch.object(ps, "_safe_q041_snapshot", return_value={}), \
              patch("strategy.cash_budget_governance.get_current_liquid_cash",
                    return_value=_mock_cash(37_000)), \
-             patch("strategy.cash_budget_governance.get_open_debit_total_usd",
+             patch("strategy.cash_budget_governance.get_open_cash_collateral_total_usd",
                    return_value=_mock_open_debit(5_000)):
             res = app.test_client().get("/api/portfolio/summary")
         data = res.get_json() or {}
@@ -211,7 +211,7 @@ class TestAC3_APIField(unittest.TestCase):
         from strategy.cash_budget_governance import CAP_PCT, ALERT_PCT
         with patch("strategy.cash_budget_governance.get_current_liquid_cash",
                    return_value=_mock_cash(100_000)), \
-             patch("strategy.cash_budget_governance.get_open_debit_total_usd",
+             patch("strategy.cash_budget_governance.get_open_cash_collateral_total_usd",
                    return_value=_mock_open_debit(20_000)):
             import web.portfolio_surface as ps
             result = ps._debit_cash_budget_snapshot()
@@ -219,17 +219,23 @@ class TestAC3_APIField(unittest.TestCase):
         self.assertEqual(result["status"], "green")
 
 
-# ── AC5: manual override bypass ────────────────────────────────────────────────
+# ── AC5: paper trade now goes through cash gate (SPEC-115 changed this) ─────────
 
-class TestAC5_OverrideBypass(unittest.TestCase):
-    def test_paper_trade_bypasses_cash_budget(self):
-        """paper_trade=True candidate → SPEC-111 check skipped in evaluate_candidate."""
+class TestAC5_PaperTradeGated(unittest.TestCase):
+    def test_paper_trade_now_subject_to_cash_budget(self):
+        """SPEC-115: paper_trade=True candidate NOW走 cash gate (bypass removed).
+
+        Previously SPEC-111 skipped paper trades; SPEC-115 phase A drops that
+        bypass per PM. Verify a BCD paper trade exceeding the cap is blocked R111.
+        """
         import strategy.sleeve_governance as gov
+        import strategy.cash_budget_governance as cbg
         candidate = {
             "strategy_key": "bull_call_diagonal",
             "paper_trade": True,
             "sleeve": "spx_pm",
             "requested_bp_dollars": 25_000.0,
+            "debit_usd": 25_000.0,
         }
         with patch.object(gov, "current_governance_state", return_value={
             "basis_dollars": 500_000.0,
@@ -239,10 +245,13 @@ class TestAC5_OverrideBypass(unittest.TestCase):
             "stress_episode_active": False,
             "second_leg_active": False,
             "booster_active": False,
-        }):
+        }), patch.object(cbg, "get_current_liquid_cash",
+                         return_value={"total": 37_000.0, "source": "live", "breakdown": {}, "error": None}), \
+             patch.object(cbg, "get_open_cash_collateral_total_usd",
+                          return_value={"total": 0.0, "positions": []}):
             decision = gov.evaluate_candidate(candidate)
-        # Paper trade should NOT be blocked by SPEC-111 cash budget
-        self.assertNotEqual(decision.rule, "R111")
+        # $25k debit > 60% of $37k ($22.2k) → blocked by cash gate now
+        self.assertEqual(decision.rule, "R111")
 
 
 # ── AC6: regression ────────────────────────────────────────────────────────────

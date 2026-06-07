@@ -1,12 +1,12 @@
-"""SPEC-111 — Debit-strategy cash-budget cap + concurrent-utilization alert.
+"""SPEC-111 — Cash-budget cap + concurrent-utilization alert.
 
-Cash-side governance layer parallel to (not replacing) SPEC-104 BP caps.
-Binding constraint for debit strategies in a cash-bound account is CASH, not BP.
+Governs any strategy that occupies liquid cash: debit strategies (BCD) and
+cash-secured puts (CSP). Extended by SPEC-115 Phase A to cover Q041 T2 CSPs.
 
 Rules:
-  Hard cap:   Σ debit_open ≥ 60% × liquid_cash  → BLOCK new debit open
-  Alert:      Σ debit_open ≥ 75% × liquid_cash  → NOTIFY (allow trade)
-  Cash floor: liquid_cash < $30,000              → BLOCK regardless of cap math
+  Hard cap:   Σ cash_occupied ≥ 60% × liquid_cash  → BLOCK
+  Alert:      Σ cash_occupied ≥ 75% × liquid_cash  → NOTIFY (allow)
+  Cash floor: liquid_cash < $30,000                 → BLOCK regardless
 
 Fail-safe: on any broker API failure, BLOCK (fail closed, not open).
 """
@@ -26,7 +26,14 @@ DECISIONS_LOG = DATA_DIR / "cash_budget_decisions.jsonl"
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 
-DEBIT_STRATEGIES: frozenset[str] = frozenset({"bull_call_diagonal"})
+# SPEC-115 Phase A: extended to cover CSP cash collateral strategies
+CASH_OCCUPYING_STRATEGIES: frozenset[str] = frozenset({
+    "bull_call_diagonal",    # debit (SPEC-111/113)
+    "q041_t2_googl_csp",     # CSP cash collateral (SPEC-115 phase A)
+    "q041_t2_amzn_csp",      # CSP cash collateral (SPEC-115 phase A)
+})
+# Backward-compat alias — do not remove (test_spec_111.py imports this)
+DEBIT_STRATEGIES: frozenset[str] = CASH_OCCUPYING_STRATEGIES
 
 CASH_LIKE_SYMBOLS: frozenset[str] = frozenset({"BOXX", "SGOV", "SHV", "USFR", "BIL"})
 
@@ -149,14 +156,14 @@ def get_current_liquid_cash() -> dict:
     return result
 
 
-def get_open_debit_total_usd() -> dict:
-    """Sum entry debit paid for all currently-open DEBIT_STRATEGIES positions.
+def get_open_cash_collateral_total_usd() -> dict:
+    """Sum cash occupied by all open CASH_OCCUPYING_STRATEGIES positions.
+
+    BCD: cash = abs(entry_premium) × contracts × 100 (debit paid)
+    CSP: cash = short_strike × contracts × 100 (cash collateral)
 
     Returns:
-        {
-          "total": float,
-          "positions": [{"trade_id": str, "strategy_key": str, "debit_usd": float}, ...],
-        }
+        {"total": float, "positions": [...]}
     """
     try:
         from strategy.state import read_all_positions
@@ -171,65 +178,83 @@ def get_open_debit_total_usd() -> dict:
         if str(pos.get("status") or "open").lower() not in {"", "open"}:
             continue
         sk = str(pos.get("strategy_key") or "")
-        if sk not in DEBIT_STRATEGIES:
+        if sk not in CASH_OCCUPYING_STRATEGIES:
             continue
-        premium = _num(pos.get("actual_premium") or pos.get("model_premium")) or 0.0
         n = _num(pos.get("contracts")) or 1.0
-        debit = abs(premium) * n * 100.0  # premium is debit per share × 100
+        if sk == "bull_call_diagonal":
+            # BCD: debit paid
+            premium = _num(pos.get("actual_premium") or pos.get("model_premium")) or 0.0
+            cash_usd = abs(premium) * n * 100.0
+        else:
+            # CSP: cash collateral = K × 100 × n
+            strike = _num(pos.get("short_strike") or pos.get("strike")) or 0.0
+            cash_usd = strike * 100.0 * n
         positions.append({
             "trade_id": pos.get("trade_id"),
             "strategy_key": sk,
-            "debit_usd": round(debit, 2),
+            "cash_usd": round(cash_usd, 2),
         })
-        total += debit
+        total += cash_usd
 
     return {"total": round(total, 2), "positions": positions}
 
 
+# Backward-compat alias for external callers
+def get_open_debit_total_usd() -> dict:
+    return get_open_cash_collateral_total_usd()
+
+
 # ── Core evaluator ─────────────────────────────────────────────────────────────
 
-def evaluate_debit_cash_budget(candidate: dict) -> dict:
-    """SPEC-111: evaluate whether a new debit-strategy open is within cash budget.
+def evaluate_cash_collateral_budget(candidate: dict) -> dict:
+    """SPEC-111/115: evaluate cash-budget gate for any cash-occupying strategy.
+
+    Handles both debit (BCD via entry_debit_usd / debit_usd) and CSP cash
+    collateral (q041_t2_* via cash_need_usd = K × 100).
 
     Args:
-        candidate: governance candidate dict (must have strategy_key + bp/debit dollars)
+        candidate: governance candidate dict with strategy_key + cash amount field
 
     Returns:
-        {
-          "accepted": bool,
-          "reason": str,           # populated if rejected
-          "alert": bool,           # True if 75% threshold crossed (but accepted)
-          "stats": {
-            "current_liquid_cash": float,
-            "currently_open_debit": float,
-            "candidate_debit": float,
-            "post_entry_total_debit": float,
-            "post_entry_utilization_pct": float,
-            "cap_pct": float,
-            "alert_pct": float,
-            "cash_floor_usd": float,
-          }
-        }
-    Fail-safe: on liquid_cash read failure → accepted=False, reason="cash_read_unavailable".
+        {"accepted": bool, "reason": str, "alert": bool, "stats": {...}}
+
+    Fail-safe: on liquid_cash read failure → accepted=False.
     """
-    # Candidate debit: prefer explicit `debit_usd`, else use requested_bp_dollars
-    candidate_debit = _num(candidate.get("debit_usd") or candidate.get("requested_bp_dollars")) or 0.0
-    candidate_debit = abs(candidate_debit)
+    sk = str(candidate.get("strategy_key") or "")
+    if sk not in CASH_OCCUPYING_STRATEGIES:
+        return {"accepted": True, "reason": "not_cash_occupying", "alert": False, "stats": {}}
+
+    # Resolve cash_need: CSP uses cash_need_usd; BCD uses debit_usd / requested_bp_dollars
+    cash_need = (
+        _num(candidate.get("cash_need_usd"))
+        or _num(candidate.get("debit_usd"))         # BCD backward compat
+        or _num(candidate.get("entry_debit_usd"))   # BCD backward compat
+        or _num(candidate.get("requested_bp_dollars"))
+    )
+    if cash_need is None:
+        return {
+            "accepted": False, "alert": False,
+            "reason": "missing cash_need_usd / debit_usd / requested_bp_dollars",
+            "stats": {},
+        }
+    candidate_cash = abs(cash_need)
+
+    prefix = "debit_cash_budget" if sk == "bull_call_diagonal" else "cash_collateral"
 
     # Get liquid cash (fail-safe: block on unavailable)
     cash_data = get_current_liquid_cash()
     liquid_cash = cash_data.get("total") or 0.0
     if cash_data.get("source") == "unavailable":
-        log.error("cash_budget_governance: liquid cash unavailable — blocking debit open (fail-safe)")
+        log.error("cash_budget_governance: liquid cash unavailable — blocking (fail-safe)")
         return {
             "accepted": False,
             "reason": "cash_read_unavailable",
             "alert": False,
             "stats": {
                 "current_liquid_cash": 0.0,
-                "currently_open_debit": 0.0,
-                "candidate_debit": candidate_debit,
-                "post_entry_total_debit": candidate_debit,
+                "currently_open_cash": 0.0,
+                "candidate_cash": candidate_cash,
+                "post_entry_total_cash": candidate_cash,
                 "post_entry_utilization_pct": 0.0,
                 "cap_pct": CAP_PCT,
                 "alert_pct": ALERT_PCT,
@@ -245,21 +270,21 @@ def evaluate_debit_cash_budget(candidate: dict) -> dict:
             "alert": False,
             "stats": {
                 "current_liquid_cash": liquid_cash,
-                "currently_open_debit": 0.0,
-                "candidate_debit": candidate_debit,
-                "post_entry_total_debit": candidate_debit,
-                "post_entry_utilization_pct": candidate_debit / max(liquid_cash, 1.0) * 100.0,
+                "currently_open_cash": 0.0,
+                "candidate_cash": candidate_cash,
+                "post_entry_total_cash": candidate_cash,
+                "post_entry_utilization_pct": candidate_cash / max(liquid_cash, 1.0) * 100.0,
                 "cap_pct": CAP_PCT,
                 "alert_pct": ALERT_PCT,
                 "cash_floor_usd": CASH_FLOOR_USD,
             },
         }
 
-    # Open debit total
-    debit_data = get_open_debit_total_usd()
-    open_debit = debit_data.get("total") or 0.0
+    # Open cash collateral total
+    open_data = get_open_cash_collateral_total_usd()
+    open_cash = open_data.get("total") or 0.0
 
-    post_entry = open_debit + candidate_debit
+    post_entry = open_cash + candidate_cash
     utilization = post_entry / max(liquid_cash, 1.0)
 
     cap_threshold = CAP_PCT * liquid_cash
@@ -267,8 +292,12 @@ def evaluate_debit_cash_budget(candidate: dict) -> dict:
 
     stats = {
         "current_liquid_cash": round(liquid_cash, 2),
-        "currently_open_debit": round(open_debit, 2),
-        "candidate_debit": round(candidate_debit, 2),
+        "currently_open_cash": round(open_cash, 2),
+        # Keep legacy key names for SPEC-111 test compatibility
+        "currently_open_debit": round(open_cash, 2),
+        "candidate_cash": round(candidate_cash, 2),
+        "candidate_debit": round(candidate_cash, 2),
+        "post_entry_total_cash": round(post_entry, 2),
         "post_entry_total_debit": round(post_entry, 2),
         "post_entry_utilization_pct": round(utilization * 100.0, 1),
         "cap_pct": CAP_PCT,
@@ -281,7 +310,7 @@ def evaluate_debit_cash_budget(candidate: dict) -> dict:
         return {
             "accepted": False,
             "reason": (
-                f"debit_cash_cap: post-entry debit ${post_entry:,.0f} "
+                f"{prefix}: post-entry cash ${post_entry:,.0f} "
                 f"= {utilization*100:.1f}% of ${liquid_cash:,.0f} liquid "
                 f"(cap {CAP_PCT*100:.0f}%)"
             ),
@@ -324,3 +353,9 @@ def log_cash_budget_decision(
         path.parent.mkdir(parents=True, exist_ok=True),
         path.open("a").write(json.dumps(payload, sort_keys=True) + "\n"),
     )
+
+
+# Backward-compat alias — SPEC-111 callers use evaluate_debit_cash_budget
+def evaluate_debit_cash_budget(candidate: dict) -> dict:
+    """Deprecated alias for evaluate_cash_collateral_budget (SPEC-115 rename)."""
+    return evaluate_cash_collateral_budget(candidate)

@@ -206,6 +206,14 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
     <a href="/q041/archive" style="font-family:var(--f-ui);font-size:0.65rem;color:var(--blue);text-decoration:none;white-space:nowrap">→ 查看归档</a>
   </div>
 
+  <!-- SPEC-115 Phase A — T2 paper trade observation banner -->
+  <div class="phase-a-banner" style="background:var(--gold-bg);border:1px solid var(--gold-border);padding:9px 13px;margin-bottom:12px;font-size:0.64rem;color:var(--text-2);border-radius:6px;line-height:1.5">
+    <strong style="color:var(--text)">Phase A — T2 Paper Trade Observation</strong>
+    · 期望多数日 governance-blocked（SPEC-111 cash cap binds 单 GOOGL $36.6k / AMZN $25.2k > $22.2k cap）。
+    · 0 fire in observation period verifies cash-bound boundary（按 PM ratify 这是成功，非失败）。
+    <span id="t2-paper-counts" style="font-family:var(--f-mono);color:var(--text);margin-left:6px"></span>
+  </div>
+
   <div class="tier-grid" id="tier-active-grid">
     <div style="grid-column:1/-1;padding:28px;text-align:center">
       <span style="font-family:var(--f-ui);font-size:0.72rem;color:var(--text-muted);font-style:italic">Loading…</span>
@@ -401,6 +409,35 @@ function specBlock(sleeve_id) {
   </div>`;
 }
 
+// SPEC-115 Phase A: render today's live T2 candidate + governance decision
+function renderT2Decision(t2) {
+  if (!t2 || t2.status === 'no_candidate') {
+    return `<div class="tier-spec" style="border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
+      <div class="spec-row"><span class="spec-key">今日信号</span><span class="spec-val" style="color:var(--text-2)">无候选（链缺失或 Δ/DTE/close 越界）</span></div>
+    </div>`;
+  }
+  if (t2.status === 'error') {
+    return `<div class="tier-spec" style="border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
+      <div class="spec-row"><span class="spec-key">今日信号</span><span class="spec-val" style="color:var(--red)">error: ${t2.reason||''}</span></div>
+    </div>`;
+  }
+  const c = t2.candidate || {};
+  const dec = t2.decision || {};
+  const blocked = !dec.accepted;
+  const pill = blocked
+    ? `<span style="font-family:var(--f-mono);font-size:0.58rem;color:var(--orange);background:var(--orange-bg);border:1px solid var(--orange-border);padding:1px 7px;border-radius:4px">❌ blocked</span>`
+    : `<span style="font-family:var(--f-mono);font-size:0.58rem;color:var(--green);background:var(--green-bg);border:1px solid var(--green-border);padding:1px 7px;border-radius:4px">✅ paper open</span>`;
+  const reason = blocked
+    ? `<div class="spec-row"><span class="spec-key" style="color:var(--text-2)">原因</span><span class="spec-val" style="color:var(--text-2);font-size:0.56rem">${dec.reason||''}</span></div>`
+    : '';
+  return `<div class="tier-spec" style="border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
+    <div class="spec-row"><span class="spec-key">今日信号</span><span class="spec-val">${pill}</span></div>
+    <div class="spec-row"><span class="spec-key">K / Δ / DTE</span><span class="spec-val"><b>$${Math.round(c.short_strike)}</b> · Δ${(c.delta||0).toFixed(2)} · ${c.dte}d</span></div>
+    <div class="spec-row"><span class="spec-key">现金占用</span><span class="spec-val"><b>$${(c.cash_need_usd||0).toLocaleString()}</b></span></div>
+    ${reason}
+  </div>`;
+}
+
 function statusPill(s) {
   if (s === 'eliminated') return `<span class="status-pill pill-eliminated">Eliminated</span>`;
   return s === 'watching' || s === 'paper_trading_active'
@@ -442,6 +479,19 @@ async function loadStatus() {
     const tier2Count = d.paper_progress?.by_tier?.tier2?.count || 0;
     const tier2Goal = d.paper_progress?.tier2_goal || 20;
 
+    // SPEC-115 Phase A: live T2 paper decision keyed by underlying
+    const t2State = d.t2_paper_state || {};
+    const t2ByUnderlying = {
+      GOOGL: t2State.q041_t2_googl_csp,
+      AMZN:  t2State.q041_t2_amzn_csp,
+    };
+    const counts = d.t2_paper_counts || {};
+    const countsEl = document.getElementById('t2-paper-counts');
+    if (countsEl && counts.total_signals != null) {
+      countsEl.textContent =
+        `signals: ${counts.total_signals} · blocked: ${counts.blocked||0} · opens: ${counts.opens||0}`;
+    }
+
     // T1 SPX CSP retired — banner above; not rendered as a card here.
     const activeCards = sleeves.filter(sl => sl.underlying !== 'SPX');
     document.getElementById('tier-active-grid').innerHTML = activeCards.map(sl => {
@@ -451,6 +501,8 @@ async function loadStatus() {
       const progress = sl.tier === 'tier2' && sl.underlying === 'GOOGL'
         ? progressBlock('Tier 2 paper progress', tier2Count, tier2Goal)
         : '';
+      const t2 = t2ByUnderlying[sl.underlying];
+      const t2Block = t2 ? renderT2Decision(t2) : '';
       return `<div class="tier-card" style="border-top:3px solid ${color}">
         <div class="tier-card-top">
           <div class="tier-card-row1">
@@ -461,6 +513,7 @@ async function loadStatus() {
         </div>
         ${tail}
         ${specBlock(sl.sleeve_id)}
+        ${t2Block}
         <div class="tier-card-status">
           ${statusPill(sl.candidate_status)}
           <span class="tier-paper-ct">Paper trades: <b>${d.paper_progress?.by_symbol?.[sl.underlying]?.count || 0}</b></span>

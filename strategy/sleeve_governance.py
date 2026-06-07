@@ -1082,18 +1082,17 @@ def evaluate_candidate(candidate: dict, state: dict | None = None) -> Governance
             reason = candidate_reason
             break
 
-    # SPEC-111: debit cash-budget cap (additive to BP caps; applied only on accept path)
+    # SPEC-111/115: cash-budget cap (additive to BP caps; paper trades now included per SPEC-115)
     if accepted and not is_risk_reducing(candidate):
         sk = str(candidate.get("strategy_key") or "")
-        is_paper = bool(candidate.get("paper_trade"))
         try:
             from strategy.cash_budget_governance import (
-                DEBIT_STRATEGIES,
-                evaluate_debit_cash_budget,
+                CASH_OCCUPYING_STRATEGIES,
+                evaluate_cash_collateral_budget,
                 log_cash_budget_decision,
             )
-            if sk in DEBIT_STRATEGIES and not is_paper:
-                cash_decision = evaluate_debit_cash_budget(candidate)
+            if sk in CASH_OCCUPYING_STRATEGIES:
+                cash_decision = evaluate_cash_collateral_budget(candidate)
                 log_cash_budget_decision(candidate, cash_decision)
                 if not cash_decision["accepted"]:
                     accepted = False
