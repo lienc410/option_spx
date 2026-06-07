@@ -1,6 +1,18 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-06-03 (**Q083 CLOSED + SPEC-113 DEPLOYED**。NORMAL×IV_LOW×BULLISH×VIX<18 carve to BCD。3 withdrawals / 4 G-reviews / 15 phases / 5 new feedback memories。Net +$8,857/yr，cash floor +27 days/yr PM ratified 警惕线。T+30 check scheduled 2026-07-03）
+Last Updated: 2026-06-07 (**Q041 alignment 18d CLOSED — Schwab single-source production-ready**。M1 99.59% / M4 1次alert已归因 / M6 100%。q041_massive jobs unloaded + archived。SPEC-114 RATIFIED（chain sanity + SPX/QQQ retry guard）。SPEC-115 outline 待 SPEC-114 ship 后写完整 SPEC）
+
+### R-20260607-01 — Q041 Alignment 18-Day Conclusion + Ops Transition
+
+- **Topic**: 验证 Schwab single-source 是否 production-ready 以支撑 Q041 paper trading promote（18 个有效 alignment 日，5/4-6/3）
+- **Verdict**: **Schwab single-source PRODUCTION-READY**。dual-source alignment 关闭
+- **18 日数据**：M1 symbol coverage 均值 99.59%（min 97.2%，0 alert）；M4 liquid 合约价偏 均值 1.49%（1 次 alert 5/19 18.2%，root-cause 为孤立 timing 偏差非数据质量问题）；M6 IV completeness 100%（0 alert）
+- **Must-have findings（非 verdict，推出 SPEC-114）**：
+  1. Schwab 偶发缺 SPX/QQQ chain — 18 日中 2 次（5/12, 5/15），rate 11.1%。SPX CSP Δ0.20 DTE30 是 formal candidate，chain missing 当天无法生成信号
+  2. Massive 6/4 起停订 → daily_alignment_check.py 变 noise，需替换为 chain sanity
+- **Ops 变更（2026-06-06）**：q041_massive_snapshot + q041_massive_historical launchd unloaded + plists archived；169MB 数据归档 `data/archive/q041_massive_snapshot_archived_2026-06-06/`；q041align 临时 paused；remaining active: com.spxstrat.q041_collect
+- **Next actions**：SPEC-114 chain sanity + retry guard（RATIFIED，dev pending）→ SPEC-115 T2+T3 paper promote（Phase A 先行）
+- **来源**：`research/q041/q041_alignment_conclusion_2026-06-06.md`, `task/SPEC-114.md`, `task/SPEC-115_outline.md`
 
 ### R-20260603-01 — Q083: NORMAL×IV_LOW×BULLISH BCD Carve (CLOSED → SPEC-113 DEPLOYED)
 

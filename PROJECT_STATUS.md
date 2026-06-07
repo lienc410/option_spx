@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-06-03 (**Q083 CLOSED + SPEC-113 DEPLOYED**。NORMAL×IV_LOW×BULLISH×VIX<18 carve to BCD。3 withdrawals / 4 G-reviews / 15 phases / 5 new feedback memories。Net +$8,857/yr（QQQ opp cost 扣完）。T+30 cash check scheduled 2026-07-03 — `See: task/SPEC-113_handoff.md`, `research/q083/`)
+Last Updated: 2026-06-07 (**Q041 alignment 18d CLOSED + SPEC-114 RATIFIED（dev pending）+ SPEC-115 outline 待 PM ratify**。Schwab single-source production-ready。q041_massive jobs unloaded / archived。SPEC-114 chain sanity + SPX/QQQ retry guard — dev ~0.5d。SPEC-115 T2+T3 phased promote 待 SPEC-114 ship 后开 — `See: task/SPEC-114.md`, `task/SPEC-115_outline.md`)
 Owner: Planner or PM
 
 ## Current Phase
@@ -28,9 +28,11 @@ Owner: Planner or PM
 
 ## Active APPROVED Specs
 
-_(currently empty)_
+- **SPEC-114** — Q041 Chain Sanity + SPX/QQQ Retry Guard. **RATIFIED by PM 2026-06-06，awaiting Developer implementation（~0.5 day）**. Part A：`daily_chain_sanity.py` 替换 `daily_alignment_check.py`（4 指标：S1 symbol completeness / S2 row count anomaly / S3 IV completeness / S4 EOD presence）；Part B：`collect_chains.py` 加 SPX/QQQ retry guard（18 日中 2 次 SPX chain missing，rate 11.1%）+ Telegram alert。前置条件：SPEC-115 dev 不开始直到 SPEC-114 ship — `See: task/SPEC-114.md`
 
-**Future seeds**（PM-discretionary）：Q042 Stage 2/3 ramp / SPEC-105 Stage 2 active mode / HV Ladder re-promotion / Q042 Sleeve B（n > 3-5 trades）/ Q077 PARKED / SPEC-113 §6.2 second debit strategy trigger（加第二个 debit 策略时必须回审 SPEC-111 floor 机制）
+- **SPEC-115 outline** — Q041 Paper Trade Promote (T2 GOOGL+AMZN CSP + T3 COST+JPM Earnings IC). **Outline only**，PM ratified "可以推进" 2026-06-06；等 SPEC-114 deploy 后写完整 SPEC。Phase A（T2 CSP，1-1.5 wk dev）先行；Phase B（T3 Earnings IC，1-2 wk dev）独立 SPEC。T2 backtest cache 已 ready（198/188 trades）；T3 需 earnings calendar 数据源 + IMR — `See: task/SPEC-115_outline.md`
+
+**Future seeds**（PM-discretionary）：Q042 Stage 2/3 ramp / SPEC-105 Stage 2 active mode / HV Ladder re-promotion / Q042 Sleeve B（n > 3-5 trades）/ Q077 PARKED / SPEC-113 §6.2 second debit strategy trigger
 
 **Low-priority backlog**（PM-discretionary，no time-lock）：
 - **SPEC-108.2**：V1b→V3 mutex 反向检查（5 行代码；Stage 2 前处理）

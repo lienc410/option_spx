@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-06-03（**Q083 CLOSED + SPEC-113 DEPLOYED**。NORMAL×IV_LOW×BULLISH×VIX<18 carve to BCD。3 withdrawals / 5 new memories / T+30 monitor 2026-07-03）
+最后更新：2026-06-07（**Q041 alignment CLOSED + SPEC-114 RATIFIED + SPEC-115 outline**。Schwab single-source production-ready。q041_massive archived。SPEC-114 dev pending；SPEC-115 T2+T3 phase plan PM ratified）
 
 ---
 
