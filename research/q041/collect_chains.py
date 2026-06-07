@@ -57,6 +57,12 @@ DTE_WINDOW_DAYS = 400
 HTTP_TIMEOUT = 90
 REQUEST_PAUSE_SEC = 0.4  # gentle pacing between symbols
 
+# SPEC-114 Part B: retry guard for index symbols (SPX/QQQ high-priority signals)
+INDEX_SYMBOLS: frozenset[str] = frozenset({"SPX", "QQQ"})
+INDEX_RETRY_MAX = 3
+INDEX_RETRY_BACKOFF_SEC = 30
+COLLECTOR_ALERT_PATH = REPO_ROOT / "data" / "q041_collector_alert.jsonl"
+
 # Schwab API gateway has a response-body size limit ("TooBigBody").
 # $SPX has 5-pt increments and many weeklies. 160 strikes × 180-day window
 # covers ±400 pts at $5 increments — at SPX 7400 that is ±5.4% — fully
@@ -251,9 +257,78 @@ def _safe_filename(symbol: str) -> str:
     return s.replace("/", "_")
 
 
-def collect_one(symbol: str, snapshot_date: str, snapshot_ts: str, log: logging.Logger) -> CollectResult:
+def _write_collector_alert(symbol: str, reason: str, snapshot_date: str) -> None:
+    from zoneinfo import ZoneInfo as _ZI
+    record = {
+        "date": snapshot_date,
+        "symbol": symbol,
+        "reason": reason,
+        "ts": datetime.now(_ZI("America/New_York")).strftime("%H:%M:%S%z"),
+    }
+    COLLECTOR_ALERT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with COLLECTOR_ALERT_PATH.open("a", encoding="utf-8") as f:
+        import json as _json
+        f.write(_json.dumps(record) + "\n")
+
+
+def _send_collector_alert_telegram(symbol: str, log: logging.Logger) -> None:
+    """Push Telegram alert when an index symbol's chain fails all retries."""
+    import os as _os
+    import requests as _req
+    token = _os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    chat_id = _os.getenv("TELEGRAM_CHAT_ID", "").strip()
+    if not token or not chat_id:
+        return
+    text = (
+        f"🚨 Q041 Collector Failure\n"
+        f"{symbol} chain fetch failed {INDEX_RETRY_MAX}x at 16:30 ET.\n"
+        f"Q041 {symbol} signal will be UNAVAILABLE today."
+    )
     try:
-        calls, puts = _fetch_full_chain(symbol)
+        _req.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            data={"chat_id": chat_id, "text": text},
+            timeout=20,
+        )
+    except Exception:
+        log.exception("collector alert telegram failed")
+
+
+def _fetch_chain_with_retry(symbol: str, log: logging.Logger) -> tuple[list, list] | None:
+    """SPEC-114: retry wrapper for INDEX_SYMBOLS (SPX, QQQ); single attempt for others.
+
+    Returns (calls, puts) on success, None on final failure.
+    """
+    attempts = INDEX_RETRY_MAX if symbol in INDEX_SYMBOLS else 1
+    last_exc: Exception | None = None
+    for i in range(attempts):
+        try:
+            calls, puts = _fetch_full_chain(symbol)
+            if calls or puts:
+                if i > 0:
+                    log.info("%s: chain succeeded on attempt %d/%d", symbol, i + 1, attempts)
+                return calls, puts
+            log.warning("%s: empty chain on attempt %d/%d", symbol, i + 1, attempts)
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            log.warning("%s fetch attempt %d/%d failed: %s", symbol, i + 1, attempts, exc)
+        if i < attempts - 1:
+            log.info("%s: retrying in %ds...", symbol, INDEX_RETRY_BACKOFF_SEC)
+            time.sleep(INDEX_RETRY_BACKOFF_SEC)
+    return None
+
+
+def collect_one(symbol: str, snapshot_date: str, snapshot_ts: str, log: logging.Logger) -> CollectResult:
+    chain_result = _fetch_chain_with_retry(symbol, log)
+    if chain_result is None:
+        if symbol in INDEX_SYMBOLS:
+            reason = f"empty_chain_after_{INDEX_RETRY_MAX}_retries"
+            log.error("%s: chain failed all %d retries — writing alert", symbol, INDEX_RETRY_MAX)
+            _write_collector_alert(symbol, reason, snapshot_date)
+            _send_collector_alert_telegram(symbol, log)
+        return CollectResult(symbol, 0, 0, None, error="chain:all_retries_failed")
+    try:
+        calls, puts = chain_result
     except Exception as exc:  # noqa: BLE001
         log.exception("chain fetch failed for %s", symbol)
         return CollectResult(symbol, 0, 0, None, error=f"chain:{exc}")
