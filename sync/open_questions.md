@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-06-07（**Q041 alignment CLOSED + SPEC-114 RATIFIED + SPEC-115 outline**。Schwab single-source production-ready。q041_massive archived。SPEC-114 dev pending；SPEC-115 T2+T3 phase plan PM ratified）
+最后更新：2026-06-08（**SPEC-115 Phase A DEPLOYED**。Q041 T2 GOOGL+AMZN CSP paper trade on air。SPEC-111 cash governance extended。73 PASS。6/9 EOD 首条真实 signal。Phase B waiting 1-week observation）
 
 ---
 
@@ -33,6 +33,22 @@
 ---
 
 ## 策略设计待解决
+
+### Q041 Paper Trade Promotion — Phase A T2+CSP
+
+- **状态**: **in-progress — Phase A DEPLOYED 2026-06-08, awaiting 1-week observation before Phase B**
+- **结论（Phase A）**: T2 GOOGL Δ0.20 DTE21 + AMZN Δ0.25 DTE21 daily rolling CSP **paper trade live**. SPEC-111 cash governance extended to CSP collateral (double-cap: BP + cash). Commit 446037e / 73 PASS. Expected first real signal 2026-06-09 EOD
+- **Phase B（待决）**: T3 COST + JPM Earnings IC。需 earnings calendar 数据源决策（Schwab / yfinance / 付费 / 手动）+ JPM IMR 数据源确认
+- **Decision points（Phase B）**:
+  - Q-B1 Earnings calendar 数据源 (Schwab / yfinance / IEX / 手动)
+  - Q-B2 JPM IMR 数据源 (yfinance / Schwab / 其他)
+  - Q-B3 T-3 时点定义 (calendar day vs trading day)
+  - Q-B4 IC size = 1.0× IV-implied move
+  - Q-B5 Early close 条件 (earnings T0/T+1)
+- **Next**: 1-week Phase A signal observation (6/9-6/15) → PM ratify Phase B scope + decision points → SPEC-115_phase_b.md full SPEC
+- **See**: `task/SPEC-115_phase_a.md`, `task/SPEC-115_outline.md` §2 Phase B scope
+
+---
 
 ### Q083 — NORMAL×IV_LOW×BULLISH BCD Carve
 

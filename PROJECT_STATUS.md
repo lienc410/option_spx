@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-06-07 (**Q041 alignment 18d CLOSED + SPEC-114 RATIFIED（dev pending）+ SPEC-115 outline 待 PM ratify**。Schwab single-source production-ready。q041_massive jobs unloaded / archived。SPEC-114 chain sanity + SPX/QQQ retry guard — dev ~0.5d。SPEC-115 T2+T3 phased promote 待 SPEC-114 ship 后开 — `See: task/SPEC-114.md`, `task/SPEC-115_outline.md`)
+Last Updated: 2026-06-08 (**SPEC-115 Phase A DEPLOYED**。Q041 T2 GOOGL+AMZN CSP paper promote 上线。SPEC-111 cash governance 扩展到 CSP collateral；paper trade now 走双 cap（BP + cash）。73 PASS / commit 446037e。3 launchd jobs active（q041_collect / q041_chain_sanity / q041_t2_paper_signals）。Today 周六无 trading；明天 6/9 16:30 后首条真实 T2 paper signal 推送。Phase B（T3 Earnings IC）待 1 周观察后 PM ratify — `See: task/SPEC-115_phase_a.md`)
 Owner: Planner or PM
 
 ## Current Phase
@@ -28,9 +28,9 @@ Owner: Planner or PM
 
 ## Active APPROVED Specs
 
-- **SPEC-114** — Q041 Chain Sanity + SPX/QQQ Retry Guard. **RATIFIED by PM 2026-06-06，awaiting Developer implementation（~0.5 day）**. Part A：`daily_chain_sanity.py` 替换 `daily_alignment_check.py`（4 指标：S1 symbol completeness / S2 row count anomaly / S3 IV completeness / S4 EOD presence）；Part B：`collect_chains.py` 加 SPX/QQQ retry guard（18 日中 2 次 SPX chain missing，rate 11.1%）+ Telegram alert。前置条件：SPEC-115 dev 不开始直到 SPEC-114 ship — `See: task/SPEC-114.md`
+- **SPEC-114** — Q041 Chain Sanity + SPX/QQQ Retry Guard. **DONE + DEPLOYED 2026-06-07** (commit fe6b6f7). Part A：`daily_chain_sanity.py` 替换 `daily_alignment_check.py`（4 指标：S1 symbol completeness / S2 row count anomaly / S3 IV completeness / S4 EOD presence）；Part B：`collect_chains.py` 加 SPX/QQQ retry guard（18 日中 2 次 SPX chain missing，rate 11.1%）+ Telegram alert。Data foundation for SPEC-115 Phase A/B — `See: task/SPEC-114.md`
 
-- **SPEC-115 outline** — Q041 Paper Trade Promote (T2 GOOGL+AMZN CSP + T3 COST+JPM Earnings IC). **Outline only**，PM ratified "可以推进" 2026-06-06；等 SPEC-114 deploy 后写完整 SPEC。Phase A（T2 CSP，1-1.5 wk dev）先行；Phase B（T3 Earnings IC，1-2 wk dev）独立 SPEC。T2 backtest cache 已 ready（198/188 trades）；T3 需 earnings calendar 数据源 + IMR — `See: task/SPEC-115_outline.md`
+- **SPEC-115 Phase A** — Q041 T2 GOOGL+AMZN CSP paper trade promote. **DONE + DEPLOYED 2026-06-08** (commit 446037e). 2 StrategyDescriptors (q041_t2_googl_csp, q041_t2_amzn_csp) + `strategy/q041_selector.py` T2 signal logic + SPEC-111 cash governance extension + `notify/q041_t2_paper_telegram.py` daily 16:50 ET signal push。GOOGL Δ0.20 DTE21 daily rolling / AMZN Δ0.25 DTE21；walk SPEC-111 double-cap (BP + cash)。73 PASS (new 23 + SPEC-111/113 patch)；3 launchd jobs active；明天 6/9 EOD 首条真实 signal。**Next: Phase B (T3 Earnings IC) full SPEC awaiting 1-week paper trade observation** — `See: task/SPEC-115_phase_a.md`
 
 **Future seeds**（PM-discretionary）：Q042 Stage 2/3 ramp / SPEC-105 Stage 2 active mode / HV Ladder re-promotion / Q042 Sleeve B（n > 3-5 trades）/ Q077 PARKED / SPEC-113 §6.2 second debit strategy trigger
 

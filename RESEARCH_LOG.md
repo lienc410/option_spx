@@ -1,6 +1,6 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-06-07 (**Q041 alignment 18d CLOSED — Schwab single-source production-ready**。M1 99.59% / M4 1次alert已归因 / M6 100%。q041_massive jobs unloaded + archived。SPEC-114 RATIFIED（chain sanity + SPX/QQQ retry guard）。SPEC-115 outline 待 SPEC-114 ship 后写完整 SPEC）
+Last Updated: 2026-06-08 (**SPEC-115 Phase A DEPLOYED**。Q041 T2 GOOGL+AMZN CSP paper promote on air。SPEC-111 cash governance extended to CSP collateral。73 PASS / commit 446037e。3 launchd jobs active。6/9 EOD 首条真实 signal。Phase B Earnings IC waiting 1-week observation）
 
 ### R-20260607-01 — Q041 Alignment 18-Day Conclusion + Ops Transition
 
@@ -3380,3 +3380,26 @@ Owner: Planner or PM
 > **Archive note (2026-05-09):** Entries from 2026-03 and earlier have been moved to
 > `doc/research_log_archive_pre_2026-04.md` to keep this file scannable.
 > The archived entries are: R-20260328-01 through R-20260329-03 (8 entries).
+
+---
+
+### R-20260608-01 — SPEC-115 Phase A Deployment: Q041 T2 GOOGL+AMZN CSP Paper Trade
+
+- **Topic**: Q041 paper trade lane promotion — Phase A (T2 daily rolling CSP)
+- **Method**: Extended SPEC-111 cash governance to CSP collateral; added T2 selector logic + Telegram daily signal push
+- **Findings**:
+  - T2 GOOGL Δ0.20 DTE21 daily rolling + AMZN Δ0.25 DTE21 both walk SPEC-111 double-cap (BP + cash)
+  - Selector reads Schwab chain, checks Δ-band and DTE-band daily; paper_trade=True forces no impact on live trade_log
+  - SPEC-114 data foundation (chain sanity + SPX/QQQ retry) prerequisite satisfied
+  - 73 PASS (23 new tests + SPEC-111/113 regression patches); 0 new defects
+- **Deployment status**: commit 446037e on main + oldair 2026-06-08; 3 launchd jobs active (q041_collect / q041_chain_sanity / q041_t2_paper_signals)
+- **First signal**: 2026-06-09 16:30 ET trading session onwards; daily 16:50 ET Telegram push
+- **Observation window**: 1 week; Phase B (T3 Earnings IC) full SPEC awaits PM ratify post-observation
+- **Risks / Dependencies**: 
+  - Day 1: no trading (Saturday 6/8); first real signal expected 6/9 EOD
+  - Phase B (T3 earnings IC) needs external data source (earnings calendar, JPM IMR) — decision points pending PM ratify
+- **Confidence**: high (Phase A foundation stable; Phase B scope awaiting PM decision)
+- **Next steps**: daily observation 6/9-6/15 → PM Phase B ratify → SPEC-115_phase_b.md full SPEC
+- **Rec**: proceed Phase A observation as planned; parallel prepare Phase B scope/decision points
+- **See**: `task/SPEC-115_phase_a.md`, `commit 446037e`, `research/q041/q041_selector.py`
+
