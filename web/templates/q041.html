@@ -438,6 +438,30 @@ function renderT2Decision(t2) {
   </div>`;
 }
 
+// SPEC-115 Phase B: render T3 earnings countdown chip
+function renderT3Countdown(t3) {
+  if (!t3 || t3.status === 'no_earnings_date') {
+    return `<div class="tier-spec" style="border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
+      <div class="spec-row"><span class="spec-key">下次财报</span><span class="spec-val" style="color:var(--text-2)">无数据（yfinance 未返回）</span></div>
+    </div>`;
+  }
+  if (t3.status === 'error') {
+    return `<div class="tier-spec" style="border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
+      <div class="spec-row"><span class="spec-key">下次财报</span><span class="spec-val" style="color:var(--red)">error</span></div>
+    </div>`;
+  }
+  const days = t3.days_to;
+  const atT3 = days === 3;
+  const stale = t3.status === 'stale';
+  const chipColor = atT3 ? 'var(--gold)' : (stale ? 'var(--orange)' : 'var(--text-2)');
+  const daysLabel = stale ? '已过期(待刷新)' : `T-${days} 交易日`;
+  const chip = `<span style="font-family:var(--f-mono);font-size:0.58rem;color:${chipColor}">${daysLabel}${atT3 ? ' ⚡ 今日触发' : ''}</span>`;
+  return `<div class="tier-spec" style="border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
+    <div class="spec-row"><span class="spec-key">下次财报</span><span class="spec-val"><b>${t3.earn_date}</b></span></div>
+    <div class="spec-row"><span class="spec-key">倒计时</span><span class="spec-val">${chip}</span></div>
+  </div>`;
+}
+
 function statusPill(s) {
   if (s === 'eliminated') return `<span class="status-pill pill-eliminated">Eliminated</span>`;
   return s === 'watching' || s === 'paper_trading_active'
@@ -521,8 +545,16 @@ async function loadStatus() {
         ${progress}
       </div>`;
     }).join('');
-    document.getElementById('tier-observe-grid').innerHTML = reviewOnly.map(sl =>
-      `<div class="tier-card" style="border-top:3px solid var(--text-muted);opacity:0.72">
+    // SPEC-115 Phase B: T3 earnings countdown keyed by underlying
+    const t3State = d.t3_paper_state || {};
+    const t3ByUnderlying = {
+      COST: t3State.q041_t3_cost_earnings_ic,
+      JPM:  t3State.q041_t3_jpm_earnings_ic,
+    };
+    document.getElementById('tier-observe-grid').innerHTML = reviewOnly.map(sl => {
+      const t3 = t3ByUnderlying[sl.underlying];
+      const t3Block = t3 ? renderT3Countdown(t3) : '';
+      return `<div class="tier-card" style="border-top:3px solid var(--text-muted);opacity:0.72">
         <div class="tier-card-top">
           <div class="tier-card-row1">
             <span class="tier-sym" style="color:var(--text-2)">${sl.underlying}</span>
@@ -531,12 +563,13 @@ async function loadStatus() {
           <div class="tier-strat">${STRAT_LABEL[sl.strategy_type]||sl.strategy_type} · BP ≤${sl.bp_target_pct}%</div>
         </div>
         ${specBlock(sl.sleeve_id)}
+        ${t3Block}
         <div class="tier-card-status">
           ${statusPill(sl.candidate_status)}
           <span class="tier-paper-ct" style="font-size:0.57rem;max-width:160px;text-align:right">${sl.caveat||''}</span>
         </div>
-      </div>`
-    ).join('');
+      </div>`;
+    }).join('');
   } catch(e) {
     document.getElementById('tier-active-grid').innerHTML =
       `<div style="padding:20px;color:var(--red);font-family:var(--f-mono);font-size:0.65rem">Error: ${e.message}</div>`;

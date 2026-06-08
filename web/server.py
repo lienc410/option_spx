@@ -3622,6 +3622,36 @@ def _q041_t2_paper_state() -> tuple[dict, dict]:
     return t2_state, counts
 
 
+def _q041_t3_paper_state() -> dict:
+    """SPEC-115 Phase B: T3 earnings IC next-earnings countdown per symbol.
+
+    Returns {strategy_key: {status, earn_date, days_to}}. Fail-soft.
+    """
+    t3_state: dict = {}
+    try:
+        from strategy.q041_earnings_calendar import load_cache
+        from notify.q041_t3_earnings_check import trading_days_until
+        cache = load_cache()
+        for sym, sk in (("COST", "q041_t3_cost_earnings_ic"), ("JPM", "q041_t3_jpm_earnings_ic")):
+            earn_iso = cache.get(sym)
+            if not earn_iso:
+                t3_state[sk] = {"status": "no_earnings_date", "earn_date": None, "days_to": None}
+                continue
+            try:
+                earn_date = date.fromisoformat(str(earn_iso)[:10])
+                days_to = trading_days_until(earn_date)
+                t3_state[sk] = {
+                    "status": "armed" if days_to >= 0 else "stale",
+                    "earn_date": earn_iso,
+                    "days_to": days_to,
+                }
+            except Exception as exc:
+                t3_state[sk] = {"status": "error", "reason": str(exc)}
+    except Exception as exc:
+        t3_state = {"_error": str(exc)}
+    return t3_state
+
+
 def _build_q041_overview_payload() -> dict:
     from web.portfolio_surface import attribution_payload, sleeve_candidates_payload
 
@@ -3635,12 +3665,14 @@ def _build_q041_overview_payload() -> dict:
     summaries = _q041_backtest_summaries(backtest_payload, attr_data)
     candidates = sleeve_candidates_payload()
     t2_state, t2_counts = _q041_t2_paper_state()
+    t3_state = _q041_t3_paper_state()
     return {
         "status": "ok",
         "as_of": _now_et_iso(),
         "routing_note": "Tier 1 SPX CSP is eliminated by Q055; Tier 2 remains paper-trading active; Tier 3 remains observe-only.",
         "t2_paper_state": t2_state,
         "t2_paper_counts": t2_counts,
+        "t3_paper_state": t3_state,
         "tier_status": {
             "tier1": {
                 "state": "eliminated",

@@ -213,6 +213,59 @@ STRATEGIES_BY_KEY: dict[str, StrategyDescriptor] = {
         delta_sign="pos",
         manual_entry_allowed=False,
     ),
+    # ── SPEC-115 Phase B: Q041 T3 earnings IC paper-trade strategies ──────────
+    "q041_t3_cost_earnings_ic": StrategyDescriptor(
+        key="q041_t3_cost_earnings_ic",
+        name="Q041 T3 COST Earnings IC",
+        emoji="📅",
+        direction="neutral",
+        underlying="COST",
+        trade_type="Credit — Iron Condor (Earnings Paper)",
+        dte_text="1-14 DTE (post-earnings nearest)",
+        delta_text="ATM straddle wings, 1.0× implied move width",
+        when_text=(
+            "T-3 trading days before COST earnings; VIX ≥ 15 gate. "
+            "Q041 paper-trade lane (observe-only → cautious paper per PM 2026-06-06)."
+        ),
+        risk_text=(
+            "Max loss = width × 100 ≈ $4,200; 单事件击穿风险 (S_exit < K_put OR > K_call). "
+            "N=15 backtest, 4y window missing COVID/2019-2021. SPEC-111 cap binds."
+        ),
+        detail_roll_text="No roll. T+1 (earnings 次日) auto close.",
+        max_risk_text="(spread_width - net_credit) × 100 per contract.",
+        target_return_text="Full credit at T+1 if both strikes hold.",
+        roll_rule_text="None — paper observation lane.",
+        short_gamma=True,
+        short_vega=True,
+        delta_sign="neut",
+        manual_entry_allowed=False,
+    ),
+    "q041_t3_jpm_earnings_ic": StrategyDescriptor(
+        key="q041_t3_jpm_earnings_ic",
+        name="Q041 T3 JPM Earnings IC",
+        emoji="📅",
+        direction="neutral",
+        underlying="JPM",
+        trade_type="Credit — Iron Condor (Earnings Paper)",
+        dte_text="1-14 DTE (post-earnings nearest)",
+        delta_text="ATM straddle wings, 1.0× implied move width",
+        when_text=(
+            "T-3 trading days before JPM earnings; VIX ≥ 15 gate. "
+            "Optional IMR ≥ 33% filter (skip if historical data missing)."
+        ),
+        risk_text=(
+            "Max loss = width × 100 ≈ $2,000; N=9 backtest (very small sample). "
+            "4y window missing COVID/2019-2021. SPEC-111 cap binds."
+        ),
+        detail_roll_text="No roll. T+1 auto close.",
+        max_risk_text="(spread_width - net_credit) × 100 per contract.",
+        target_return_text="Full credit at T+1 if both strikes hold.",
+        roll_rule_text="None — paper observation lane.",
+        short_gamma=True,
+        short_vega=True,
+        delta_sign="neut",
+        manual_entry_allowed=False,
+    ),
     "reduce_wait": StrategyDescriptor(
         key="reduce_wait",
         name="Reduce / Wait",

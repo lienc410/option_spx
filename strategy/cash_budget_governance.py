@@ -28,9 +28,11 @@ DECISIONS_LOG = DATA_DIR / "cash_budget_decisions.jsonl"
 
 # SPEC-115 Phase A: extended to cover CSP cash collateral strategies
 CASH_OCCUPYING_STRATEGIES: frozenset[str] = frozenset({
-    "bull_call_diagonal",    # debit (SPEC-111/113)
-    "q041_t2_googl_csp",     # CSP cash collateral (SPEC-115 phase A)
-    "q041_t2_amzn_csp",      # CSP cash collateral (SPEC-115 phase A)
+    "bull_call_diagonal",        # debit (SPEC-111/113)
+    "q041_t2_googl_csp",         # CSP cash collateral (SPEC-115 phase A)
+    "q041_t2_amzn_csp",          # CSP cash collateral (SPEC-115 phase A)
+    "q041_t3_cost_earnings_ic",  # IC max-loss collateral (SPEC-115 phase B)
+    "q041_t3_jpm_earnings_ic",   # IC max-loss collateral (SPEC-115 phase B)
 })
 # Backward-compat alias — do not remove (test_spec_111.py imports this)
 DEBIT_STRATEGIES: frozenset[str] = CASH_OCCUPYING_STRATEGIES
@@ -181,12 +183,21 @@ def get_open_cash_collateral_total_usd() -> dict:
         if sk not in CASH_OCCUPYING_STRATEGIES:
             continue
         n = _num(pos.get("contracts")) or 1.0
-        if sk == "bull_call_diagonal":
+        # Prefer explicit cash_need_usd / max_loss_usd if the position carries it
+        # (CSP and IC paper positions store this); else derive per strategy type.
+        explicit = _num(pos.get("cash_need_usd") or pos.get("max_loss_usd"))
+        if explicit is not None:
+            cash_usd = explicit  # already a per-position total (× contracts baked in at open)
+        elif sk == "bull_call_diagonal":
             # BCD: debit paid
             premium = _num(pos.get("actual_premium") or pos.get("model_premium")) or 0.0
             cash_usd = abs(premium) * n * 100.0
-        else:
+        elif sk.endswith("_csp"):
             # CSP: cash collateral = K × 100 × n
+            strike = _num(pos.get("short_strike") or pos.get("strike")) or 0.0
+            cash_usd = strike * 100.0 * n
+        else:
+            # IC or other: fall back to short_strike-based (defensive; should have cash_need)
             strike = _num(pos.get("short_strike") or pos.get("strike")) or 0.0
             cash_usd = strike * 100.0 * n
         positions.append({
