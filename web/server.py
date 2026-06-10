@@ -237,9 +237,12 @@ class _EnumEncoder(json.JSONEncoder):
 
 
 def _json_dc(dc) -> Response:
-    """Serialize a dataclass (with nested enums) to JSON response."""
+    """Serialize a dataclass (with nested enums) to JSON response.
+
+    Sanitizes NaN/Inf → null (browser JSON.parse rejects bare NaN).
+    """
     return app.response_class(
-        json.dumps(asdict(dc), cls=_EnumEncoder, default=str),
+        json.dumps(_json_sanitize(asdict(dc)), cls=_EnumEncoder, default=str),
         mimetype="application/json",
     )
 
@@ -580,7 +583,7 @@ def api_recommendation():
                 "final_priority_name": "raw_selector",
             }
         return app.response_class(
-            json.dumps(payload, cls=_EnumEncoder, default=str),
+            json.dumps(_json_sanitize(payload), cls=_EnumEncoder, default=str),
             mimetype="application/json",
         )
     except Exception as exc:
