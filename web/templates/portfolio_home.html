@@ -1291,6 +1291,16 @@ function toggleSettling() {
 function fmtDollars(n) { return typeof n === 'number' ? '$' + Math.round(n).toLocaleString() : '—'; }
 function fmtNum(n, dec) { return typeof n === 'number' ? n.toFixed(dec ?? 0) : '—'; }
 
+// Defensive JSON fetch: surfaces a clean message on a non-OK response (e.g. the
+// transient Cloudflare 502 during an origin restart) instead of the cryptic
+// "Failed to execute 'json' on 'Response'" that results from parsing an HTML
+// error page. Callers already wrap in try/catch and degrade gracefully.
+async function _getJson(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('HTTP ' + res.status + ' · 服务重启中, 稍后自动恢复');
+  return res.json();
+}
+
 // Black-Scholes call value (used to estimate diagonal max profit at the
 // short leg's expiry when the long leg still has time remaining).
 // Standard error-function approximation for normal CDF — accurate to <1e-7.
@@ -1939,7 +1949,7 @@ async function loadNLVChange() {
   const el = document.getElementById('hero-nlv');
   if (!el) return;
   try {
-    const d = await fetch('/api/portfolio/nlv-change').then(r => r.json());
+    const d = await _getJson('/api/portfolio/nlv-change');
     if (d.status === 'no_history') {
       el.innerHTML = `<span style="color:var(--text-muted)">NLV history pending — first snapshot at 16:30 ET</span>`;
       return;
@@ -2076,7 +2086,7 @@ async function loadQ042() {
   const sigEl  = document.getElementById('q042-signals');
   const listEl = document.getElementById('sleeves-q042');
   try {
-    const data = await fetch('/api/q042/state').then(r => r.json());
+    const data = await _getJson('/api/q042/state');
     if (data.error) throw new Error(data.error);
     const wasNull = !_q042Cache;
     _q042Cache = data;
@@ -2164,7 +2174,7 @@ async function loadSchwabAuthBanner() {
   const banner = document.getElementById('schwab-reauth-banner');
   if (!banner) return;
   try {
-    const s = await fetch('/api/schwab/status').then(r => r.json());
+    const s = await _getJson('/api/schwab/status');
     // Show banner only when Schwab needs a human OAuth re-auth. Access tokens
     // expire intraday and are refreshable; that should not be shown as outage.
     const needsReauth = s.configured && (
@@ -2196,7 +2206,7 @@ async function loadEtradeAuthBanner() {
   const banner = document.getElementById('etrade-reauth-banner');
   if (!banner) return;
   try {
-    const s = await fetch('/api/etrade/status').then(r => r.json());
+    const s = await _getJson('/api/etrade/status');
     // Show banner when:
     //   - configured but not authenticated (token expired locally)
     //   - OR alert_state.invalid (E-Trade returned 401 / API failure)
