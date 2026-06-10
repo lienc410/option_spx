@@ -37,6 +37,33 @@ def _is_market_hours() -> bool:
 app = Flask(__name__, template_folder="templates")
 
 
+# Browsers' Response.json() (JSON.parse) rejects NaN/Infinity with
+# "Unexpected token N", but Python's json.load accepts them — so a NaN in any
+# payload silently breaks the frontend while passing server-side json checks.
+# Sanitize NaN/Inf → null on every jsonify response so the dashboard never
+# chokes on a non-finite float (e.g. a thin-data ivp/vix3m snapshot value).
+import math as _math
+from flask.json.provider import DefaultJSONProvider as _DefaultJSONProvider
+
+
+def _json_sanitize(obj):
+    if isinstance(obj, float):
+        return None if (_math.isnan(obj) or _math.isinf(obj)) else obj
+    if isinstance(obj, dict):
+        return {k: _json_sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_sanitize(v) for v in obj]
+    return obj
+
+
+class _SafeJSONProvider(_DefaultJSONProvider):
+    def dumps(self, obj, **kwargs):
+        return super().dumps(_json_sanitize(obj), **kwargs)
+
+
+app.json = _SafeJSONProvider(app)
+
+
 @app.after_request
 def _no_store_html(resp):
     """Prevent browsers from serving stale dashboard HTML (inline JS lives in the
