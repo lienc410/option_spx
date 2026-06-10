@@ -36,6 +36,22 @@ def _is_market_hours() -> bool:
 
 app = Flask(__name__, template_folder="templates")
 
+
+@app.after_request
+def _no_store_html(resp):
+    """Prevent browsers from serving stale dashboard HTML (inline JS lives in the
+    page; a cached page = stale JS). HTML pages must always be re-fetched so a
+    deploy takes effect on next load. Static assets / JSON are unaffected."""
+    try:
+        ctype = resp.headers.get("Content-Type", "")
+        if ctype.startswith("text/html"):
+            resp.headers["Cache-Control"] = "no-store, must-revalidate"
+            resp.headers["Pragma"] = "no-cache"
+    except Exception:
+        pass
+    return resp
+
+
 _backtest_cache: dict[str, tuple[float, dict]] = {}
 _signals_cache: dict[str, tuple[float, dict]] = {}
 _CACHE_TTL = 300  # 5 minutes
