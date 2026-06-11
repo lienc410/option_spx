@@ -117,15 +117,54 @@ def clear_token_issue() -> None:
             log.warning("etrade.auth: failed to clear %s", ALERT_STATE_FILE, exc_info=True)
 
 
+_LAST_401_RENEW: dict[str, float] = {"ts": 0.0, "ok": False}
+_RENEW_DEBOUNCE_SEC = 15.0
+
+
 def expire_token_on_401() -> None:
-    """Called when E-Trade API returns 401 — marks local token as expired so
-    is_token_valid() returns False and the re-auth flow is prompted."""
-    record_token_issue("token_expired_401")
+    """Called when E-Trade API returns 401.
+
+    E-Trade returns transient 401s on individual calls even when the access
+    token is still alive (rate-limit blips, momentary session glitches). A
+    single 401 must NOT nuke the token and force a full intraday re-login.
+
+    So on 401 we first attempt an authoritative renew (E-Trade's
+    renew_access_token works while the token is genuinely active). If renew
+    succeeds the token was fine — keep it. Only if renew ALSO fails (e.g. the
+    token truly died at midnight ET) do we mark it expired and prompt re-auth.
+
+    A short debounce prevents a burst of concurrent 401s from hammering renew.
+    """
+    import time as _time
+    now_mono = _time.monotonic()
+    if (now_mono - _LAST_401_RENEW["ts"]) < _RENEW_DEBOUNCE_SEC:
+        # A renew was just attempted; reuse its outcome to avoid renew storms.
+        if _LAST_401_RENEW["ok"]:
+            return
+        # recent renew failed → token already marked expired below path ran; no-op
+        return
+
+    record_token_issue("token_401_renew_attempt")
+    try:
+        result = renew_access_token()
+    except Exception as exc:  # noqa: BLE001
+        result = {"ok": False, "reason": f"renew_exc: {exc}"}
+    _LAST_401_RENEW["ts"] = now_mono
+    _LAST_401_RENEW["ok"] = bool(result.get("ok"))
+
+    if result.get("ok"):
+        log.info("etrade.auth: 401 recovered via renew — token kept alive (expiry %s)",
+                 result.get("expires_at"))
+        return
+
+    # Renew failed → genuine expiry (token dead, e.g. past midnight ET).
     token = load_token()
     if token:
         expired = (datetime.now(_ET) - timedelta(seconds=1)).isoformat(timespec="seconds")
         save_token({**token, "expires_at": expired})
-        log.warning("etrade.auth: 401 received — local token marked expired, re-auth required")
+        record_token_issue("token_expired_401")
+        log.warning("etrade.auth: 401 + renew failed (%s) — token marked expired, re-auth required",
+                    result.get("reason"))
 
 
 def _parse_dt(raw: str | None) -> datetime | None:
