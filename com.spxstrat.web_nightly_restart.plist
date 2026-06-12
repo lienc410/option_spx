@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.spxstrat.web_nightly_restart</string>
+
+  <!-- The web process slowly leaks memory (in-process pandas/parquet caches),
+       reaching ~2GB after ~12h. macOS then pressure-terminates it at random
+       daytime moments, causing the recurring 502 windows. A nightly kickstart
+       at 04:00 ET resets RSS to the ~150MB baseline before it grows enough to
+       trigger an unplanned daytime kill. -k atomically terminates + restarts,
+       keeping the KeepAlive service enabled. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/launchctl</string>
+    <string>kickstart</string>
+    <string>-k</string>
+    <string>gui/501/com.spxstrat.web</string>
+  </array>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>4</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/macbook/Library/Logs/spx-strat/web_nightly_restart.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/macbook/Library/Logs/spx-strat/web_nightly_restart.err.log</string>
+</dict>
+</plist>
