@@ -52,7 +52,19 @@ def main() -> None:
             if a.startswith("--port="):
                 port = int(a.split("=")[1])
         print(f"\n🌐  Dashboard → http://localhost:{port}\n")
-        app.run(host="127.0.0.1", port=port, debug=False)
+        try:
+            # Production WSGI server. The Werkzeug dev server's keep-alive
+            # handling races with cloudflared's persistent origin connections
+            # (it closes idle sockets cloudflared still considers live), which
+            # surfaced as intermittent Cloudflare 502s that left no tunnel log.
+            # waitress handles keep-alive correctly and serves requests on a
+            # thread pool so one slow endpoint can't stall the whole dashboard.
+            from waitress import serve
+            serve(app, host="127.0.0.1", port=port, threads=8,
+                  channel_timeout=120, connection_limit=200)
+        except ImportError:
+            print("⚠ waitress not installed — falling back to Flask dev server")
+            app.run(host="127.0.0.1", port=port, debug=False)
         return
 
     # Default: run the bot
