@@ -4,8 +4,14 @@ Path A (BS reverse-solve) — used for historical backfill until path B
 (broker chain greeks captured at snapshot time) is wired in.
 
 Reads:
-  data/daily_snapshot.jsonl       (latest row → open SPX positions)
-  data/q041_massive_snapshot/{d}/SPX.parquet  (per-leg day_close per day)
+  data/daily_snapshot.jsonl       (latest row → open SPX positions; also
+                                   source of per-day Schwab broker marks
+                                   and processing-window upper bound)
+  data/q041_massive_snapshot/{d}/SPX.parquet  (legacy chain mark fallback,
+                                   only consulted when daily_snapshot has
+                                   no broker mark for a given strike/leg —
+                                   Massive subscription expired 2026-06,
+                                   parquet snapshots stop at 2026-05-04)
   data/q042_spx_history_cache.json (SPX close per day; source of truth)
 
 Writes:
@@ -277,17 +283,70 @@ def trading_days(start: date, end: date) -> list[date]:
     return out
 
 
+_BROKER_MARK_INDEX: Optional[dict[tuple[str, float, str, str], float]] = None
+
+
+def _build_broker_mark_index() -> dict[tuple[str, float, str, str], float]:
+    """Build (date_iso, strike, expiry_iso, option_type) → mark from each
+    daily_snapshot SPX position's greeks_short / greeks_long blocks.
+
+    The Schwab snapshot pipeline writes both legs per (account × position) so
+    every (strike, expiry) combo for open positions has a mark per trading day.
+    Used as the primary chain-mark source after the Massive q041 subscription
+    expired (2026-06).
+    """
+    idx: dict[tuple[str, float, str, str], float] = {}
+    if not DAILY_SNAPSHOT.exists():
+        return idx
+    with open(DAILY_SNAPSHOT) as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            iso = r.get("date")
+            if not iso:
+                continue
+            for p in (r.get("strategies", {}).get("spx_spread", {}).get("positions") or []):
+                strat_key = _strategy_key_for(p)
+                opt = _STRATEGY_OPTION_TYPE.get(strat_key, "PUT")
+                gs = p.get("greeks_short") or {}
+                gl = p.get("greeks_long") or {}
+                sk = p.get("short_strike")
+                lk = p.get("long_strike")
+                short_exp = p.get("expiry")
+                long_exp = p.get("long_expiry") or short_exp
+                if sk is not None and short_exp and gs.get("mark") is not None:
+                    idx[(iso, float(sk), str(short_exp), opt)] = float(gs["mark"])
+                if lk is not None and long_exp and gl.get("mark") is not None:
+                    idx[(iso, float(lk), str(long_exp), opt)] = float(gl["mark"])
+    return idx
+
+
 def load_chain_mark(snapshot_date: date, strike: float, expiry: date,
                     option_type: str = "PUT") -> Optional[float]:
-    """Per-leg day_close from q041 SPX parquet. Prefer SPXW (PM trades weeklies).
-    option_type: 'PUT' or 'CALL' — was hard-coded 'put' before generalization.
+    """Per-leg day_close. Primary source: Schwab broker marks captured in
+    daily_snapshot.jsonl. Falls back to legacy q041 parquet for dates that
+    pre-date daily_snapshot coverage (Massive feed expired 2026-06).
     """
+    global _BROKER_MARK_INDEX
+    if _BROKER_MARK_INDEX is None:
+        _BROKER_MARK_INDEX = _build_broker_mark_index()
+    opt = str(option_type).upper()
+    mk = _BROKER_MARK_INDEX.get((snapshot_date.isoformat(), float(strike), expiry.isoformat(), opt))
+    if mk is not None:
+        return mk
+    # Legacy q041 fallback (parquet stops 2026-05-04; will return None for
+    # newer dates, which is the expected behavior — broker greeks handle
+    # those via the day_state primary path).
     p = SNAPSHOT_DIR / snapshot_date.isoformat() / "SPX.parquet"
     if not p.exists():
         return None
     df = pd.read_parquet(p, columns=["occ_ticker", "strike_price", "contract_type",
                                      "expiration_date", "day_close"])
-    ct = str(option_type).lower()
+    ct = opt.lower()
     m = ((df.contract_type == ct) &
          (df.expiration_date == expiry.isoformat()) &
          (df.strike_price == strike))
@@ -296,10 +355,10 @@ def load_chain_mark(snapshot_date: date, strike: float, expiry: date,
         return None
     spxw = rows[rows.occ_ticker.str.contains("SPXW")]
     pick = spxw if not spxw.empty else rows
-    mk = pick.day_close.dropna()
-    if mk.empty:
+    mkc = pick.day_close.dropna()
+    if mkc.empty:
         return None
-    return float(mk.iloc[0])
+    return float(mkc.iloc[0])
 
 
 # ── BS math (PUT + CALL) ─────────────────────────────────────────────────────
@@ -537,11 +596,25 @@ def compute() -> int:
     print(f"[greek-attr] open={len(open_pos)} closed={len(closed_pos)} "
           f"broker_greek_rows={len(broker_greeks)} existing_rows={len(done)}")
 
-    today = max(
-        date.fromisoformat(d.name)
-        for d in SNAPSHOT_DIR.iterdir()
-        if d.name[:1].isdigit()
-    )
+    # Processing upper bound = latest date present in daily_snapshot.jsonl.
+    # (Prior implementation read q041_massive_snapshot/<date>/ directory names;
+    # that feed expired 2026-06 so the cap was stuck at 2026-05-04, silently
+    # short-circuiting trading_days() for any open BCD/BPS opened after that.)
+    snapshot_dates = []
+    with open(DAILY_SNAPSHOT) as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                iso = json.loads(line).get("date")
+            except json.JSONDecodeError:
+                continue
+            if iso:
+                snapshot_dates.append(date.fromisoformat(iso))
+    if not snapshot_dates:
+        print("[greek-attr] no dates in daily_snapshot.jsonl; cannot cap window")
+        return 0
+    today = max(snapshot_dates)
 
     def synth_state(pos: Position, d: date, S: float, iv_s: float, iv_l: float) -> dict:
         """Gap-day synthesis: hold IV constant, recompute marks + greeks via BS
