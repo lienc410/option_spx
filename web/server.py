@@ -343,7 +343,7 @@ def funds_page():
 
 
 def _fund_positions():
-    """读 positions.csv → {code: {name, mv, pnl}}（持仓真值，由记录减仓改写）。"""
+    """读 positions.csv → {code: {name, mv, pnl, orig}}（持仓真值，由记录减仓改写）。"""
     import csv as _csv
     pf = _FUND_DIR / "positions.csv"
     out = {}
@@ -351,14 +351,32 @@ def _fund_positions():
         with open(pf, encoding="utf-8") as f:
             for row in _csv.DictReader(f):
                 try:
+                    mv = float(row["market_value"])
+                    orig = float(row["original_mv"]) if row.get("original_mv") not in (None, "") else mv
                     out[row["code"]] = {
-                        "name": row.get("name", ""),
-                        "mv": float(row["market_value"]),
+                        "name": row.get("name", ""), "mv": mv, "orig": orig,
                         "pnl": float(row["pnl_pct"]) if row.get("pnl_pct") not in (None, "") else None,
                     }
                 except (TypeError, ValueError, KeyError):
                     continue
     return out
+
+
+def _fund_cum_reduced():
+    """{code: 1-Π(1-pct_sold)} 真实累积减仓比例(份额口径, 与 NAV 无关)，from trade_log。"""
+    import csv as _csv
+    tl = _FUND_DIR / "trade_log.csv"
+    rem = {}
+    if tl.exists():
+        with open(tl, encoding="utf-8") as fh:
+            for row in _csv.DictReader(fh):
+                try:
+                    p = float(row.get("pct_sold") or 0)
+                except ValueError:
+                    p = 0.0
+                c = row.get("code")
+                rem[c] = rem.get(c, 1.0) * (1 - p)
+    return {c: 1 - v for c, v in rem.items()}
 
 
 @app.route("/api/fund-exit/signals")
@@ -372,11 +390,12 @@ def fund_exit_signals():
             data = json.load(fh)
     except (ValueError, OSError):   # 读到半截/损坏（前端会自动重试）
         return jsonify({"available": False, "message": "信号刷新中，请稍候"}), 200
-    # 合并 positions.csv 实时市值：记录减仓后即时反映 ¥/总额（信号字段仍来自扫描）
+    # 合并 positions.csv 实时市值 + 累积减仓%（记录减仓后即时反映）
     pos = _fund_positions()
+    cumr = _fund_cum_reduced()
+    cad = data.get("cadence") or {}
     if pos:
-        wk = (data.get("cadence") or {}).get("weekly_twap") or 0.0
-        funds, held, non_strong, suggested = [], 0.0, 0.0, 0.0
+        funds, fast_mv, slow_mv, suggested = [], 0.0, 0.0, 0.0
         for fd in data.get("funds", []):
             code = fd.get("code")
             if code in pos:
@@ -387,23 +406,31 @@ def fund_exit_signals():
                 fd["mv"] = mv
                 if fd.get("clip") is not None:
                     fd["clip_amt"] = round(mv * fd["clip"], 0)
+            fd["cum_reduced"] = round(cumr.get(code, 0.0), 4)   # 每只累积减仓%
             mv = fd.get("mv") or 0.0
             if fd.get("rule") == 1:
-                held += mv
+                slow_mv += mv
             else:
-                non_strong += mv
-                suggested += mv * (fd.get("clip") or 0.0)
+                fast_mv += mv
+            suggested += mv * (fd.get("clip") or 0.0)
             funds.append(fd)
-        total = held + non_strong
+        total = fast_mv + slow_mv
+        orig_total = sum(p["orig"] for p in pos.values())            # 含已清空(mv=0)的
+        reduced_val = sum(p["orig"] * cumr.get(c, 0.0) for c, p in pos.items())
         data["funds"] = funds
+        if cad.get("fast"):
+            cad["fast"]["mv"] = round(fast_mv, 2)
+        if cad.get("slow"):
+            cad["slow"]["mv"] = round(slow_mv, 2)
+        data["cadence"] = cad
         data["account"] = {**data.get("account", {}),
                            "total_mv": round(total, 2),
-                           "held_strong_mv": round(held, 2),
-                           "held_strong_pct": round(held / total, 6) if total else 0,
-                           "non_strong_mv": round(non_strong, 2),
-                           "floor_target": round(wk * non_strong, 2),
+                           "fast_mv": round(fast_mv, 2), "slow_mv": round(slow_mv, 2),
+                           "slow_pct": round(slow_mv / total, 6) if total else 0,
                            "suggested_total": round(suggested, 2),
-                           "floor_met": True}
+                           "week_reduce_pct": round(suggested / total, 6) if total else 0,
+                           "original_total_mv": round(orig_total, 2),
+                           "cum_reduced_pct": round(reduced_val / orig_total, 6) if orig_total else 0}
     data["available"] = True
     return jsonify(data)
 
@@ -471,11 +498,12 @@ def fund_exit_record_trade():
     for r in rows:
         if r["code"] == code:
             r["market_value"] = f"{new_mv:.2f}"
+    pos_cols = ["code", "name", "market_value", "pnl_pct", "original_mv"]
     with open(pf, "w", newline="", encoding="utf-8") as fh:
-        w = _csv.DictWriter(fh, fieldnames=["code", "name", "market_value", "pnl_pct"])
+        w = _csv.DictWriter(fh, fieldnames=pos_cols, extrasaction="ignore")
         w.writeheader()
         for r in rows:
-            w.writerow({k: r.get(k, "") for k in ["code", "name", "market_value", "pnl_pct"]})
+            w.writerow({k: r.get(k, "") for k in pos_cols})
 
     return jsonify({"ok": True, "code": code, "name": name, "amount": round(amount, 2),
                     "shares": round(shares, 2) if shares is not None else None,

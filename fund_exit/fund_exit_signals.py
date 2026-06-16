@@ -98,25 +98,46 @@ HOLDINGS_SEED = [
 POSITIONS_CSV = OUTDIR / "positions.csv"
 
 
+POS_COLS = ["code", "name", "market_value", "pnl_pct", "original_mv"]
+ORIGINAL_SEED = {code: mv for name, code, mv, pnl in HOLDINGS_SEED}
+
+
 def load_holdings():
-    """读 positions.csv（持仓真值）；不存在则用种子生成。返回 (name,code,mv,pnl) 列表，mv>0。"""
+    """读 positions.csv（持仓真值）；不存在则用种子生成。返回 (name,code,mv,pnl) 列表，mv>0。
+    含 original_mv(不可变种子，累积减仓%加权用)；旧档缺该列则按 HOLDINGS_SEED 迁移补写。"""
     import csv as _csv
     if not POSITIONS_CSV.exists():
         with open(POSITIONS_CSV, "w", newline="", encoding="utf-8") as f:
             w = _csv.writer(f)
-            w.writerow(["code", "name", "market_value", "pnl_pct"])
+            w.writerow(POS_COLS)
             for name, code, mv, pnl in HOLDINGS_SEED:
-                w.writerow([code, name, f"{mv:.2f}", pnl])
-    out = []
+                w.writerow([code, name, f"{mv:.2f}", pnl, f"{mv:.2f}"])
     with open(POSITIONS_CSV, encoding="utf-8") as f:
-        for row in _csv.DictReader(f):
+        rows = list(_csv.DictReader(f))
+    changed = False
+    for r in rows:
+        if not r.get("original_mv"):   # 迁移：旧档无 original_mv → 用种子原值
             try:
-                mv = float(row["market_value"])
-            except (TypeError, ValueError):
-                continue
-            if mv > 0:
-                pnl = float(row["pnl_pct"]) if row.get("pnl_pct") not in (None, "") else 0.0
-                out.append((row["name"], row["code"], mv, pnl))
+                cur = float(r.get("market_value") or 0)
+            except ValueError:
+                cur = 0.0
+            r["original_mv"] = f"{ORIGINAL_SEED.get(r['code'], cur):.2f}"
+            changed = True
+    if changed:
+        with open(POSITIONS_CSV, "w", newline="", encoding="utf-8") as f:
+            w = _csv.DictWriter(f, fieldnames=POS_COLS, extrasaction="ignore")
+            w.writeheader()
+            for r in rows:
+                w.writerow({c: r.get(c, "") for c in POS_COLS})
+    out = []
+    for r in rows:
+        try:
+            mv = float(r["market_value"])
+        except (TypeError, ValueError):
+            continue
+        if mv > 0:
+            pnl = float(r["pnl_pct"]) if r.get("pnl_pct") not in (None, "") else 0.0
+            out.append((r["name"], r["code"], mv, pnl))
     return out
 # 009010 华夏兴阳一年持有: 2021-01-04 申购 → ~2022-01 满1年持有期 → 已解锁, 现可自由赎回。
 # 原"锁定"警告已移除(假约束)。若未来近12个月内有新增申购批次, 该批会重新锁1年, 届时再加回。

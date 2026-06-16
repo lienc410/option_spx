@@ -31,7 +31,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .page-meta { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2);margin-top:6px; }
 
 /* Account header strip */
-.acct-strip { display:grid;grid-template-columns:repeat(4,1fr);gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:18px; }
+.acct-strip { display:grid;grid-template-columns:repeat(3,1fr);gap:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:18px; }
 .acct-cell {}
 .acct-label { font-size:0.60rem;font-weight:700;text-transform:uppercase;letter-spacing:0.10em;color:var(--text-2);margin-bottom:4px; }
 .acct-value { font-family:var(--f-mono);font-size:1.05rem;color:var(--text); }
@@ -309,7 +309,7 @@ function render_fund_row(f, P, dataDate) {
   if (!f.ok) {
     return `<tr class="err-row">
       <td><div class="fund-name">${f.name}</div><div class="fund-code">${f.code}</div></td>
-      <td colspan="10">❌ 取数失败：${f.err || '未知错误'}</td>
+      <td colspan="11">❌ 取数失败：${f.err || '未知错误'}</td>
     </tr>`;
   }
   const cls = RULE_COLOR[f.rule] || 'ab-dim';
@@ -334,6 +334,7 @@ function render_fund_row(f, P, dataDate) {
     <td><span class="action-badge ${cls}">${action_short}</span>${veto}</td>
     <td ${color_cls(f.clip)}>${clip_disp}</td>
     <td ${color_cls(f.clip_amt)}>${clip_amt_disp}</td>
+    <td>${f.cum_reduced!=null && f.cum_reduced>0 ? '<span style="color:var(--green)">'+(f.cum_reduced*100).toFixed(0)+'%</span>' : '—'}</td>
     <td ${color_cls(f.dist_roll)}>${fmt_signed(f.dist_roll)}</td>
     <td ${color_cls(f.day_chg)}>${fmt_signed(f.day_chg)}</td>
     <td>${f.rsi != null ? f.rsi.toFixed(0) : '—'}</td>
@@ -341,7 +342,7 @@ function render_fund_row(f, P, dataDate) {
     <td ${color_cls(f.pnl_pct)}>${fmt_pct(f.pnl_pct)}</td>
   </tr>
   <tr class="fund-chart-row" id="chart-${f.code}">
-    <td class="fund-chart-cell" colspan="10">
+    <td class="fund-chart-cell" colspan="11">
       ${render_signal_panel(f, P)}
       <img alt="${f.name} 净值图" data-src="/api/fund-exit/chart/${f.code}" data-try="0"
            onerror="if((+this.dataset.try)<3){this.dataset.try=+this.dataset.try+1;const s=(this.dataset.src||this.src).split('?')[0];const me=this;setTimeout(()=>{me.src=s+'?r='+Date.now();},700);}else{this.replaceWith(Object.assign(document.createElement('p'),{className:'chart-err',textContent:'图表加载失败 — 收起再展开可重试'}));}">
@@ -374,6 +375,7 @@ function render_table(title, funds, P, dataDate) {
         <th>动作</th>
         <th>本周%</th>
         <th>本周额</th>
+        <th>累积减</th>
         <th>距滚高</th>
         <th>日涨跌</th>
         <th>RSI</th>
@@ -428,22 +430,32 @@ async function load(retry=0) {
       <div class="acct-cell">
         <div class="acct-label">总市值</div>
         <div class="acct-value">${fmt_cny(acc.total_mv)}</div>
-        <div class="acct-sub">本周建议卖出 ${fmt_cny(acc.suggested_total)}</div>
+        <div class="acct-sub">起始 ${fmt_cny(acc.original_total_mv)}</div>
       </div>
       <div class="acct-cell">
-        <div class="acct-label">加速池 <small style="font-weight:400;opacity:0.7">非上升 · ${fast.weeks ?? '—'}周清</small></div>
-        <div class="acct-value">${fmt_cny(fast.mv)}</div>
-        <div class="acct-sub">TWAP ${pct(fast.twap)}/只 · 截止 ${fast.deadline || '—'}</div>
+        <div class="acct-label">本周减仓目标</div>
+        <div class="acct-value" style="color:var(--gold)">${fmt_cny(acc.suggested_total)}</div>
+        <div class="acct-sub">本周总减仓 ${pct(acc.week_reduce_pct)}（占总市值）</div>
       </div>
       <div class="acct-cell">
-        <div class="acct-label">延长池 <small style="font-weight:400;opacity:0.7">上升① · ${slow.weeks ?? '—'}周慢清</small></div>
-        <div class="acct-value" style="color:var(--green)">${fmt_cny(slow.mv)}</div>
-        <div class="acct-sub">TWAP ${pct(slow.twap)}/只 · 截止 ${slow.deadline || '—'}</div>
+        <div class="acct-label">累积减仓</div>
+        <div class="acct-value" style="color:var(--green)">${pct(acc.cum_reduced_pct)}</div>
+        <div class="acct-sub">已清出原始仓位（份额口径）</div>
+      </div>
+      <div class="acct-cell">
+        <div class="acct-label">加速池 <small style="font-weight:400;opacity:0.7">非上升·${fast.weeks ?? '—'}周</small></div>
+        <div class="acct-value" style="font-size:0.95rem">${fmt_cny(fast.mv)}</div>
+        <div class="acct-sub">TWAP ${pct(fast.twap)}/只·截止${fast.deadline || '—'}</div>
+      </div>
+      <div class="acct-cell">
+        <div class="acct-label">延长池 <small style="font-weight:400;opacity:0.7">上升①·${slow.weeks ?? '—'}周</small></div>
+        <div class="acct-value" style="color:var(--green);font-size:0.95rem">${fmt_cny(slow.mv)}</div>
+        <div class="acct-sub">TWAP ${pct(slow.twap)}/只·截止${slow.deadline || '—'}</div>
       </div>
       <div class="acct-cell">
         <div class="acct-label">数据日</div>
         <div class="acct-value" style="font-size:0.80rem">${d.data_date || '—'}</div>
-        <div class="acct-sub">${freshAge}生成 · ${cad.op_freq || '每周一次'}</div>
+        <div class="acct-sub">${freshAge}生成·${cad.op_freq ? '每周一次' : ''}</div>
       </div>
       <div class="acct-regime">市场 <em style="font-style:normal;color:var(--text)">${d.market_regime || '—'}</em>（仅提示，非决策依据）</div>
     </div>`;
