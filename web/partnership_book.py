@@ -35,9 +35,15 @@ WORKBOOK_PATH = _REPO_ROOT / "research" / "book_management" / "Partnership_Share
 # The workbook is a native Google Sheet; we export it to xlsx and read the
 # cached computed values (export preserves them). Source of truth stays the live
 # Sheet — we only read, never write. Falls back to the local file on any failure.
-#   PARTNERSHIP_DRIVE_FILE_ID    — Sheet id (defaults to the PM's known file)
+#   PARTNERSHIP_DRIVE_FILE_ID    — explicit Sheet id override (skips name lookup)
 #   GOOGLE_SERVICE_ACCOUNT_JSON  — path to the SA key json; absent → local-only
-DEFAULT_DRIVE_FILE_ID = "1_RsGTprzu_5c56128n5AkJP4bIDbqF9OSmdef8CFqFU"
+# The PM's workflow: the ACTIVE workbook keeps the canonical name below; an
+# obsolete copy gets renamed "<name>_archive". So we resolve the file BY NAME at
+# runtime (newest exact-title match, archives excluded) instead of pinning an id
+# that silently goes stale on the next archive-swap. DEFAULT_DRIVE_FILE_ID is
+# only the last-resort fallback if the name lookup fails.
+DRIVE_FILE_NAME = "Partnership_Shares_v3_5"
+DEFAULT_DRIVE_FILE_ID = "1PnSE4G382PtcN1vEOUX9WIucPkhIeWRVPCUAztklcYU"
 DRIVE_EXPORT_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 
@@ -184,8 +190,36 @@ def _read_from_local(force: bool = False) -> dict[str, Any]:
 
 # ----------------------------- Google Drive source -----------------------------
 
-def _drive_file_id() -> str:
-    return os.getenv("PARTNERSHIP_DRIVE_FILE_ID", DEFAULT_DRIVE_FILE_ID)
+def _drive_file_id(service=None) -> str:
+    """Resolve the active workbook id.
+
+    Precedence: explicit env override → newest exact-title match on Drive
+    (excludes "*_archive" since that's a different title) → hardcoded fallback.
+    The name lookup is what makes archive-swaps transparent: the PM renames the
+    obsolete copy and the active one keeps DRIVE_FILE_NAME, so we always track it.
+    """
+    env = os.getenv("PARTNERSHIP_DRIVE_FILE_ID")
+    if env:
+        return env
+    if service is not None:
+        try:
+            safe_name = DRIVE_FILE_NAME.replace("'", "\\'")
+            resp = service.files().list(
+                q=(f"name = '{safe_name}' and "
+                   "mimeType = 'application/vnd.google-apps.spreadsheet' and "
+                   "trashed = false"),
+                orderBy="modifiedTime desc",
+                pageSize=1,
+                fields="files(id,name,modifiedTime)",
+                supportsAllDrives=True,
+            ).execute()
+            files = resp.get("files") or []
+            if files:
+                return files[0]["id"]
+            log.warning("partnership_book: no Drive file named %r, using fallback id", DRIVE_FILE_NAME)
+        except Exception:
+            log.warning("partnership_book: Drive name lookup failed, using fallback id", exc_info=True)
+    return DEFAULT_DRIVE_FILE_ID
 
 
 def _drive_sa_key_path() -> str | None:
@@ -226,7 +260,7 @@ def _read_from_drive(force: bool = False) -> dict[str, Any] | None:
     if service is None:
         return None
 
-    file_id = _drive_file_id()
+    file_id = _drive_file_id(service)
 
     # Cheap metadata check first: skip re-export if modifiedTime is unchanged.
     try:
@@ -238,7 +272,9 @@ def _read_from_drive(force: bool = False) -> dict[str, Any] | None:
         return None
 
     modified = meta.get("modifiedTime") or ""
-    key = ("drive", modified)
+    # Include file_id in the key so an archive-swap (new id) busts the cache even
+    # if modifiedTime happens to match.
+    key = ("drive", file_id, modified)
     if not force and _cache["key"] == key and _cache["payload"] is not None:
         return _cache["payload"]
 
