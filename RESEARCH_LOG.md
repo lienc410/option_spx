@@ -1,6 +1,6 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-07-03 (**Q084 KILLED same-day；现金核实 $61.4k，三道 cap 转绿；SPEC-113/115 paper trade 晚间启动真实运行**。Q084 P1+P2 $764/yr < 门槛，悲观情景负收益，vol 窗口错配。NORMAL×LOW 三格全覆盖（carve/kill/N/A）— `See: commit ac91cf6`, `task/q084_p1p2_verdict_2026-07-03.md`）
+Last Updated: 2026-07-03 (**Q084 KILLED + EXTERNAL READ PASS**；现金核实 $61.4k，三道 cap 转绿；SPEC-113/115 paper trade 晚间启动真实运行**。Q084 vol 错配根因经外审验证无误；NORMAL×LOW 三格全覆盖（SPEC-113 carve / Q084 kill CONFIRMED / 待观察）— `See: task/q084_external_read_2026-07-03.md`）
 
 ### R-20260607-01 — Q041 Alignment 18-Day Conclusion + Ops Transition
 

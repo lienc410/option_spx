@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-07-03 (**Q084 KILLED same-day；现金 $61.4k live，三道 cap 转绿；SPEC-113/115 晚间启动真实运行**。NORMAL×LOW 三格全覆盖（SPEC-113 carve / Q084 kill / N/A）。Q084 $764/yr << $1.5k 门槛，vol 窗口错配。Pending: 轻型外审确认 — `See: commit ac91cf6`, `task/q084_p1p2_verdict_2026-07-03.md`）
+Last Updated: 2026-07-03 (**Q084 KILLED + EXTERNAL READ PASS**；现金 $61.4k live（$49k margin），三道 cap 转绿；SPEC-113/115 晚间启动真实运行）。NORMAL×LOW 三格全覆盖（SPEC-113 carve / Q084 kill CONFIRMED / 待观察）。Vol 错配根因外审验证无误 — `See: task/q084_external_read_2026-07-03.md`）
 Owner: Planner or PM
 
 ## Current Phase

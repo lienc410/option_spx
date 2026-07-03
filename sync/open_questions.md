@@ -36,17 +36,20 @@
 
 ### Q084 — NORMAL×LOW×NEUTRAL Non-Directional Strategy
 
-- **状态**: **KILLED** (2026-07-03, same-day P1+P2)
-- **Verdict**: KILL — NORMAL×LOW×NEUTRAL maintains "待观察" status; thorough exclusion completed
+- **状态**: **KILLED + EXTERNAL READ PASS** (2026-07-03, same-day P1+P2 + lightweight audit)
+- **Verdict**: KILL CONFIRMED — NORMAL×LOW×NEUTRAL maintains "待观察" status; thorough exclusion completed with no false-negative risk
 - **P1 基础结果**: 33 trades (2003-2026, 2008 excluded), win 67%, net $764/yr **< gate B threshold $1,500/yr**
   - Vol expansion prior (45% probability 21-day) failed to monetize: only 8/33 trades capture expansion at exit
-  - Root cause: calendar holding window expires **before** vol arrives (structural mismatch)
+  - Root cause: calendar holding window expires **before** vol arrives (structural mismatch, economically sound)
 - **P2 稳健性**: Favorable case $1,378/yr (still below threshold); pessimistic case -$768/yr (win rate collapse to 52%)
-  - **All scenarios converge to kill** — no salvage path
-- **Gate assessment**: Gate B triggered (net PnL << threshold) ✓; Gate A/C not triggered
-- **Meta**: Pre-registered gates prevented P3-P5 sunk-cost cycle (faster kill saves research budget)
-- **Pending item**: ⚠️ External read required per feedback_kill_gate_external_read (kill false-negatives never self-surface). Decision: lightweight external read or document as "pending external read"? — **awaits PM decision**
-- **See**: commit ac91cf6, `task/q084_p1p2_verdict_2026-07-03.md`
+  - All scenarios converge to kill — no salvage path
+  - Term-structure risk (contango/inversion) quantified and covered in bracket
+- **External read (2026-07-03)**: 4 key facts CONFIRMED; red flags assessed; **no false-negative detected**
+  - Reviewer: Claude Agent (3-hour lightweight audit)
+  - Confidence: HIGH
+- **Meta**: Pre-registered gates prevented P3-P5 sunk-cost cycle; external read cost-effective (<$1.5k annualized target)
+- **Archive status**: NORMAL×LOW×NEUTRAL observation slot open (future data may trigger reentry if vol-calendar conditions materially change)
+- **See**: commit ac91cf6, `task/q084_p1p2_verdict_2026-07-03.md`, `task/q084_external_read_2026-07-03.md`
 
 ---
 
