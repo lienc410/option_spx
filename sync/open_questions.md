@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-07-03（**Q083 external review + 2021 focused eval COMPLETE；Q084 FRAMED**。2021 SUBSTANTIALLY SOLVED（87.3%→46%）。SPEC-079 失效确认。Q084 P0 + kill gates 预设无需第五轮外审。Q082 + Q083 收尾）
+最后更新：2026-07-03（**Q084 KILLED same-day；现金 $61.4k live；SPEC-113/115 晚间启动**。NORMAL×LOW 全覆盖（carve/kill）。Q084 $764/yr<gate B，pending 轻型外审确认）
 
 ---
 
@@ -36,22 +36,17 @@
 
 ### Q084 — NORMAL×LOW×NEUTRAL Non-Directional Strategy
 
-- **状态**: **framed** (Q084 FRAMED 2026-07-03, P1 awaits PM framing walkthrough)
-- **Result**: 182 blocked days in NORMAL×LOW×NEUTRAL stratum with zero SPEC-113 coverage
-- **P0 Characterization**:
-  - VIX median 18.64 (vs carve 16.3); fwd-21td vol expansion 45.1% (vs BULLISH 29.6%)
-  - Strategy prior: non-directional (IC/butterfly/RVT) + vega-positive
-  - Ceiling estimate: ~$2.9k/yr (before cash cap, friction)
-  - Phase plan: small-scale sizing (1-2 contracts paper per PM prior)
-- **Pre-registered Kill Gates** (prevent external review loops):
-  - Gate A: Layer-1 筛后 surviving days < 120 → DOCUMENT close (no P1-P4)
-  - Gate B: Pessimistic bracket net PnL < $1,500/yr → DOCUMENT close
-  - Gate C: 2008-subset 18 days > 50% vol-expansion regime → escalate external review
-- **Forward dependencies**:
-  - ⚠️ Cannot reuse SPEC-079 wind control (失效 on NORMAL stratum) → new design required
-  - ⚠️ Entry into CASH_OCCUPYING_STRATEGIES triggers SPEC-113 §6.2 → SPEC-111 concurrent re-audit
-- **Next**: PM framing walkthrough → P1 counterfactual simulation
-- **See**: `task/q084_framing_memo_2026-07-03.md`
+- **状态**: **KILLED** (2026-07-03, same-day P1+P2)
+- **Verdict**: KILL — NORMAL×LOW×NEUTRAL maintains "待观察" status; thorough exclusion completed
+- **P1 基础结果**: 33 trades (2003-2026, 2008 excluded), win 67%, net $764/yr **< gate B threshold $1,500/yr**
+  - Vol expansion prior (45% probability 21-day) failed to monetize: only 8/33 trades capture expansion at exit
+  - Root cause: calendar holding window expires **before** vol arrives (structural mismatch)
+- **P2 稳健性**: Favorable case $1,378/yr (still below threshold); pessimistic case -$768/yr (win rate collapse to 52%)
+  - **All scenarios converge to kill** — no salvage path
+- **Gate assessment**: Gate B triggered (net PnL << threshold) ✓; Gate A/C not triggered
+- **Meta**: Pre-registered gates prevented P3-P5 sunk-cost cycle (faster kill saves research budget)
+- **Pending item**: ⚠️ External read required per feedback_kill_gate_external_read (kill false-negatives never self-surface). Decision: lightweight external read or document as "pending external read"? — **awaits PM decision**
+- **See**: commit ac91cf6, `task/q084_p1p2_verdict_2026-07-03.md`
 
 ---
 

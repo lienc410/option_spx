@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-07-03 (**Q083 external review + 2021 focused eval COMPLETE；Q084 FRAMED**。SPEC-079 失效确认 + 2021 regime SUBSTANTIALLY SOLVED（87.3%→46%）。Q084 NORMAL×LOW×NEUTRAL 182 天资格审核，P0 + kill gates 预设（无需第五轮外审）。SPEC-113 标注 2008 caveat + cash≥$37k 前置 — `See: task/q083_fable_external_review_2026-07-03.md`, `task/q084_framing_memo_2026-07-03.md`）
+Last Updated: 2026-07-03 (**Q084 KILLED same-day；现金 $61.4k live，三道 cap 转绿；SPEC-113/115 晚间启动真实运行**。NORMAL×LOW 三格全覆盖（SPEC-113 carve / Q084 kill / N/A）。Q084 $764/yr << $1.5k 门槛，vol 窗口错配。Pending: 轻型外审确认 — `See: commit ac91cf6`, `task/q084_p1p2_verdict_2026-07-03.md`）
 Owner: Planner or PM
 
 ## Current Phase
@@ -34,8 +34,8 @@ Owner: Planner or PM
 
 _(currently empty)_
 
-**Next Research Priority**：
-- **Q084** — NORMAL×LOW×NEUTRAL non-directional strategy (182 blocked days). **FRAMED 2026-07-03** (`q084_framing_memo_2026-07-03.md`）。P0 characterization: VIX median 18.64, vol expansion 45.1%, ceiling ~$2.9k/yr, small-scale sizing. Pre-registered kill gates (Layer-1 筛后<120d → DOCUMENT; pessimistic bracket <$1,500/yr → DOCUMENT; 2008-subset>50% → external review). P1 counterfactual simulation awaits PM framing walkthrough. Forward dependency: SPEC-079 new wind-control design (reuse失效) + SPEC-111 concurrent re-audit when Q084 enters CASH_OCCUPYING_STRATEGIES — `See: task/q084_framing_memo_2026-07-03.md`
+**Recently Completed Research**:
+- **Q084** — NORMAL×LOW×NEUTRAL non-directional strategy (182 blocked days). **KILLED 2026-07-03** (P1+P2 same-day). Net $764/yr vs $1.5k threshold (gate B triggered). Root cause: vol expansion prior (45%) didn't monetize — calendar holding expires before vol arrives (only 8/33 trades capture expansion). Pessimistic scenario negative. Pre-registered gates prevented P3-P5 sunk-cost iteration. **Pending**: lightweight external read per feedback_kill_gate_external_read (false-negative risk) — decision awaits PM — `See: task/q084_p1p2_verdict_2026-07-03.md`
 
 **Future seeds**（PM-discretionary）：Q042 Stage 2/3 ramp / SPEC-105 Stage 2 active mode / HV Ladder re-promotion / Q042 Sleeve B（n > 3-5 trades）/ Q077 PARKED / SPEC-113 §6.2 second debit strategy trigger / VIX 18-20 复检（条件化，待更好 skew 数据）
 

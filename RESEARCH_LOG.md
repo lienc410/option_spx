@@ -1,6 +1,6 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-07-03 (**Q083 external review + 2021 focused evaluation COMPLETE；Q084 FRAMED**。Fable review 补算 + 2021 侧重评估验证 SPEC-079 失效 & SPEC-113 实效。2021 SUBSTANTIALLY SOLVED（87.3% → 46%）。Q084 NORMAL×LOW×NEUTRAL 立项（P0 framing + kill gates 预设）— `See: task/q083_fable_external_review_2026-07-03.md`, `task/q084_framing_memo_2026-07-03.md`）
+Last Updated: 2026-07-03 (**Q084 KILLED same-day；现金核实 $61.4k，三道 cap 转绿；SPEC-113/115 paper trade 晚间启动真实运行**。Q084 P1+P2 $764/yr < 门槛，悲观情景负收益，vol 窗口错配。NORMAL×LOW 三格全覆盖（carve/kill/N/A）— `See: commit ac91cf6`, `task/q084_p1p2_verdict_2026-07-03.md`）
 
 ### R-20260607-01 — Q041 Alignment 18-Day Conclusion + Ops Transition
 
@@ -3506,4 +3506,47 @@ Owner: Planner or PM
   - Triggers SPEC-111 concurrent cash-cap re-audit when entering CASH_OCCUPYING_STRATEGIES
 
 - **来源**: `task/q084_framing_memo_2026-07-03.md`
+
+
+### R-20260703-04 — Q084 P1+P2 Verdict: KILL (Same-Day Completion)
+
+- **Topic**: NORMAL×LOW×NEUTRAL non-directional strategy. P1 counterfactual simulation + P2 robustness completed same day due to small sample size (33 trades). Clean kill verdict.
+
+- **P1 基础结果**:
+  - 33 trades (2003-2026, 2008 excluded), win rate 67%, net $764/yr — **fails pre-registered threshold $1,500/yr** (gate B)
+  - Distribution: 8/33 trades capture vol expansion at exit (only 21% realization rate on prior 45% expansion probability)
+  - Root cause: calendar holding window expires **before** vol expansion arrives; structural mismatch between position decay and vol timing
+
+- **P2 稳健性（双向定价不确定性）**:
+  - Favorable-case scenario (all IV assumptions favor strategy): $1,378/yr — still below threshold
+  - Base case: $764/yr
+  - Pessimistic case: -$768/yr (win rate collapse to 52%)
+  - **All three converge to kill** — no scenario salvages trade
+
+- **Pre-registered Gate Assessment**:
+  - Gate B triggered: net PnL $764/yr << $1,500/yr threshold ✓
+  - Gate A (Layer-1 筛后 surviving < 120d): 182 days → not triggered
+  - Gate C (2008-subset > 50%): 0 days (2008 excluded) → not triggered
+
+- **Verdict**: **KILL** — NORMAL×LOW×NEUTRAL holds for future observation; thorough exclusion process completed.
+
+- **Meta insight**: Pre-registered gates prevented P3-P5 "sunk cost" iteration (QA paradigm: faster kills save research cycles).
+
+- **Pending item**: External read required per feedback_kill_gate_external_read (kill verdicts' false negatives never self-surface). Decision: lightweight external read or "pending external read" documentation? — up to PM.
+
+- **来源**: commit ac91cf6, `task/q084_p1p2_verdict_2026-07-03.md`
+
+---
+
+### 现金状态 & 治理启动 (2026-07-03 Broker Live)
+
+- **Schwab live 现金**: $61,415 (流动); ETrade: $0
+- **三道 cap 状态全绿**:
+  1. 硬底线 $30k: ✓ 余量 $31.4k
+  2. 60% cap $36,849: SPEC-113 BCD 中位 $22.2k ✓; SPEC-115 AMZN CSP $25.2k ✓; GOOGL CSP $36.6k **压线通过**（余量 $249）
+  3. floor mechanics: operational, SPEC-111 dual-gate active
+
+- **GOOGL CSP 敏感度警告**: 现金波动 ±$500 即触发 cap 约束 — 正常治理特性，非故障。
+
+- **即时影响**: SPEC-113（BCD carve）+ SPEC-115（paper T2）从晚间起按信号真实评估，不再是"装好未通电"状态。
 
