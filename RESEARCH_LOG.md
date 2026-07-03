@@ -1,6 +1,6 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-06-08 (**SPEC-115 Phase A DEPLOYED**。Q041 T2 GOOGL+AMZN CSP paper promote on air。SPEC-111 cash governance extended to CSP collateral。73 PASS / commit 446037e。3 launchd jobs active。6/9 EOD 首条真实 signal。Phase B Earnings IC waiting 1-week observation）
+Last Updated: 2026-07-03 (**Q083 external review COMPLETE**。Fable review 补算 26y 真实可交易度量 & 验收框架问题。PARTIAL SOLVE：现象对齐 +15%，历史最坏情景零改善，当前 operationally inert（现金 < floor）。Verdict 需显式 2008 型 layering 确认 — `See: task/q083_fable_external_review_2026-07-03.md`）
 
 ### R-20260607-01 — Q041 Alignment 18-Day Conclusion + Ops Transition
 
@@ -28,6 +28,45 @@ Last Updated: 2026-06-08 (**SPEC-115 Phase A DEPLOYED**。Q041 T2 GOOGL+AMZN CSP
 - **T+30 monitor**：2026-07-03 remote agent cash time-coverage check（46.4% target；>55% → Quant 重审；3连亏损 → 同上）
 - **Forward dependency**（SPEC-113 §6.2）：加第二个 debit 策略时必须回审 SPEC-111 floor 机制（sequential ladder 现为双保险之一）
 - **来源**：`task/SPEC-113_handoff.md`, `research/q083/`
+
+### R-20260703-01 — Q083 External Fable Review: Validation Framework vs Real Phenomenon (PARTIAL SOLVE)
+
+- **Topic**: Fable 外部 reviewer 补审 Q083 — 原始抱怨、研究验收度量、真实现象三角对齐
+- **Key finding（critical）**: 内部 15-phase G-review 没有用 PM 原始自诉（"spike 后 6-10 月不可交易"）的度量去验收 SPEC-113。所有 reviewer 继承了同一套研究框架（Sortino/net$），无人用 operationally 关心的度量（lockout 天数、可交易频率）反复对账。这正是 feedback_kill_gate_external_read 场景。
+
+- **真实现象重新计算**（26y 全量：research/q078/_signal_history_cache.csv, 6,639 交易日）：
+  1. **VIX spike 后到首次可交易**：29 个 episode，中位 ~2 个交易日（非 6-10 月）。但原因非 spike 短暂，而是 spike 期间 HIGH_VOL 策略（IC_HV/BPS_HV）照常开
+  2. **真正问题**：全年平均被 block 154 天/250，占 61.6%。spike 后 250d 这个数字不变
+  3. **SPEC-113 实际改善**：47.0% → 55.4% 可交易日（+562 天/26 年，上界）；blocked 密度 154→131（-15%）；p95 连续锁死段 24→17 日。但**不均匀**：29 个 episode 中 9 个零改善
+
+- **改善分布失衡**：
+  - 12/27 年完全零触发（carve VIX 15-18 范围未发生）
+  - 改善集中在 QE-decay 年（2010-12、2021、2025）
+  - 你抱怨的**历史最坏实例原封不动**：2008-09-04 → 2009-04-16（155 日锁死）——VIX 全程 ≥18（触不到 carve），且主体是 Layer-1 BEARISH veto（求生，not discretionary）
+
+- **当前状态 operationally inert**：
+  - 现金 $16,918 < $30k floor → SPEC-111 单独挡掉 carve
+  - 中位 BCD debit ≈ $22.2k 恰好 = $37k 基线下 cap；复原前"无触发"非证据
+
+- **Narrowing 不是过度拟合**：VIX 15-18 覆盖 55% 原始死天，有 P13 +8vp skew 书面理由。但 VIX 18-20（剩余 461 死天主体）建议标为"待更好 skew 复检"而非永久关闭
+
+- **结论（PARTIAL SOLVE）**：
+  1. ✅ 对真实现象有实质改善（+15%），但不均匀
+  2. ❌ 无法修复 2008 型 7 个月锁死（需要显式 Layer-1 vs discretionary 分层决策）
+  3. ⚠️ 验收框架问题严重于 SPEC-113 本身（内部 4 G-review 都没抓到）
+  4. ⚠️ 生产中不可见（现金 < floor）
+
+- **建议后续（边际价值顺序）**：
+  1. Lockout before/after 表 + 类型二分（decay 型 vs 2008 型）入 Q083 正式结尾文档
+  2. 向自己确认：2008 型锁死是否接受为"不修范围"
+  3. Q084 候选：NORMAL×LOW×NEUTRAL（182 死天，零覆盖）
+  4. VIX 18-20 复检条件化（待更好 skew 数据）
+
+- **Meta lesson**：外审价值 = 检测内部框架继承问题。这次 4 人 G-review 全部没有用"原始抱怨度量"验收，因为 reviewer pool 的隐性默认都是"量化研究框架"而非"operational readiness"。未来 SPEC + 2nd review 前必须显式捡起 PM 原始用词。
+
+- **Verdict**：SPEC-113 ship 不变，但需标注"实效取决于 cash ≥ $37k AND PM accepts 2008-scenario lockout as non-discretionary"。
+
+- **来源**：`task/q083_fable_external_review_2026-07-03.md`
 
 ### R-20260528-01 — Q078: BPS Ladder / Selector-Gated SPX Execution Cadence (CLOSED 2026-05-28)
 

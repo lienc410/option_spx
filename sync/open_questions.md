@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-06-08（**SPEC-115 Phase A DEPLOYED**。Q041 T2 GOOGL+AMZN CSP paper trade on air。SPEC-111 cash governance extended。73 PASS。6/9 EOD 首条真实 signal。Phase B waiting 1-week observation）
+最后更新：2026-07-03（**Q083 external review COMPLETE**。Fable 补审发现验收框架问题：实际 +15% 可交易日，但 2008 型锁死零改善，当前 operationally inert。PARTIAL SOLVE，需显式 2008 caveat + cash ≥ $37k 前置）
 
 ---
 
@@ -52,15 +52,19 @@
 
 ### Q083 — NORMAL×IV_LOW×BULLISH BCD Carve
 
-- **状态**：**resolved** (Q083 CLOSED — SPEC-113 DEPLOYED 2026-06-03)
-- **结论**：VIX∈[15,18) + NORMAL + BULL + IVP<40 → BCD（90DTE δ0.70 long + 45DTE δ0.30 short）；VIX≥18 仍 reduce_wait。3 withdrawals / 4 G-reviews / 15 phases
-- **根因**：NORMAL×BULL 有 67.5% 日子落在 IV_LOW 列（67.5% → reduce_wait）；VIX spike 后回落至 15-25 但 IVP 尚低 — 恰恰是 PM 想开仓却被堵死的典型状态
-- **Narrowing 依据**：VIX 18-20 + 悲观 skew（+8vp 短腿）mean +$150 → 不扩展；VIX 15-18 Sortino 0.860 安全
-- **Expected impact（today's scale）**：+$8,857/yr（QQQ opp cost deducted），+1.6 BCD/yr；cash floor 117 days/yr < $30k（+27d），PM ratified 警惕线
-- **5 new feedback memories**：post-withdrawal front-load robustness / cash-bound 报今天绝对数 / decision type governs significance standard / circular metric validation / stratum cutpoint overfit
-- **T+30 monitor**：2026-07-03 remote agent（46.4% cash time-coverage，>55% → Quant 重审）
-- **Forward dependency**（§6.2）：加第二个 debit 策略必须回审 SPEC-111 floor 机制
-- **来源**：`task/SPEC-113_handoff.md`, `research/q083/`
+- **状态**：**resolved with caveats** (Q083 CLOSED — SPEC-113 DEPLOYED 2026-06-03; **EXTERNAL REVIEW 2026-07-03** → PARTIAL SOLVE)
+- **原始抱怨**：VIX spike 后 6-10 月不可交易（误诊）
+- **真实现象**（26y 补算）：spike 后中位 2 个交易日锁死（因 HIGH_VOL 照常开）；**真正问题** = 全年平均被 block 61.6%（154/250 天）
+- **SPEC-113 实际效果**：47.0%→55.4% 可交易（+15%，但不均匀）；blocked 154→131 天（-15%）；p95 lockout 24→17 日。**但** 29 个 spike episode 中 9 个零改善；**历史最坏实例 2008-09-04→2009-04-16（155 日）完全不变**（VIX≥18 + Layer-1 veto）
+- **当前生产状态**：operationally inert（现金 $16.9k < $30k floor → SPEC-111 单独挡，carve fire rate = 0）
+- **验收框架问题**：内部 4 G-review 全用 Sortino/net$ 验收，无人用 PM 原始度量（lockout days）反复对账 → feedback_kill_gate_external_read case study
+- **建议后续**（边际价值）：
+  1. Lockout before/after 表 + 类型二分（decay 型 vs Layer-1 型）入 Q083 结尾文档
+  2. PM 显式确认：2008 型锁死是否为"不修范围"
+  3. Q084 候选：NORMAL×LOW×NEUTRAL（182 死天）
+  4. VIX 18-20 条件化复检（待更好 skew 数据）
+- **Verdict**：SPEC-113 ship 不变，但需标注 2008 scenario caveat（Layer-1 lockout 不修）+ 前置条件 cash ≥ $37k
+- **来源**：`task/SPEC-113_handoff.md`, `research/q083/`, **`task/q083_fable_external_review_2026-07-03.md`**
 
 ---
 
