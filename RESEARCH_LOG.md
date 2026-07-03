@@ -1,6 +1,6 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-07-03 (**Q083 external review COMPLETE**。Fable review 补算 26y 真实可交易度量 & 验收框架问题。PARTIAL SOLVE：现象对齐 +15%，历史最坏情景零改善，当前 operationally inert（现金 < floor）。Verdict 需显式 2008 型 layering 确认 — `See: task/q083_fable_external_review_2026-07-03.md`）
+Last Updated: 2026-07-03 (**Q083 external review + 2021 focused evaluation COMPLETE；Q084 FRAMED**。Fable review 补算 + 2021 侧重评估验证 SPEC-079 失效 & SPEC-113 实效。2021 SUBSTANTIALLY SOLVED（87.3% → 46%）。Q084 NORMAL×LOW×NEUTRAL 立项（P0 framing + kill gates 预设）— `See: task/q083_fable_external_review_2026-07-03.md`, `task/q084_framing_memo_2026-07-03.md`）
 
 ### R-20260607-01 — Q041 Alignment 18-Day Conclusion + Ops Transition
 
@@ -3441,4 +3441,69 @@ Owner: Planner or PM
 - **Next steps**: daily observation 6/9-6/15 → PM Phase B ratify → SPEC-115_phase_b.md full SPEC
 - **Rec**: proceed Phase A observation as planned; parallel prepare Phase B scope/decision points
 - **See**: `task/SPEC-115_phase_a.md`, `commit 446037e`, `research/q041/q041_selector.py`
+
+
+### R-20260703-02 — Q083 Focused Evaluation: 2021 Post-COVID Regime (SUBSTANTIALLY SOLVED)
+
+- **Topic**: 2021 年作为 26y 中 lockout 最严重的 decay-window（pre-fix 87.3% 锁死），SPEC-113 在该环境的真实效力评估
+- **Key finding（validation of concern）**: SPEC-079 comfortable-top filter 在 carve 内结构性失效
+  - Filter: risk_score=3 需三条全中，其中 VIX≤15（entry 1）
+  - Carve 定义: NORMAL（VIX∈[15,18)）
+  - Result: 562 个 carve 天中仅 2 天可能触发 filter → **精确失效**
+  - Implication: 上次外审"上界"其实是精确值（只剩 cash floor 未建模）
+
+- **2021 数据（26y 样本中最坏年度）**:
+  - Pre-fix: 220/252 days blocked（87.3%）> 2008（200d）, 2003（209d）——PM 体感完全成立
+  - Post-SPEC-113: 116 days blocked（-104d，全样本最大年度改善）
+  - p95 consecutive lockout: 62→15 days（-76%）
+  - Trading-level（P11 serial ladder）: 8 BCD trades, 6 wins, total +$18,895, median debit ~$19.9k
+  - SPEC-111 overlay ($37k baseline): 1/8 blocked（2021-12-23, $22.9k debit > cap）— coincidentally worst trade (-$4,465), but n=1 not evidence
+
+- **Timeline insight（未来预期节奏）**:
+  - Spike 年 (e.g., 2020): 0 carve days — carve activates ~12-14mo after spike (VIX decay into [15,18) + IVR floor)
+  - 2020 blocked only 42% (HV strategies carry year) → 间隙 → decay year carve takes over
+  - Next event expectation: spike year HV available → gap → decay year carve window
+
+- **Verdict shift**:
+  - PARTIAL SOLVE (overall 26y) **confirmed**
+  - 2021-focused: **SUBSTANTIALLY SOLVED** (87.3% → 46%, operationally meaningful)
+  - Implication: SPEC-113 most valuable in post-COVID-type decay windows with sustained elevated vol + low-IV regimes
+
+- **Actions taken (4 items completed)**:
+  1. ✅ Lockout validation table + acceptance memo: `q083_p16_lockout_acceptance_2026-07-03.md` + `q083_p16_lockout_metrics.py`
+  2. ✅ 2008 Layer-1 veto recorded as "no-fix scope" (P16 §4 + memory feedback_2008_layering_no_fix)
+  3. ✅ Q084 framed: `q084_framing_memo_2026-07-03.md`, P0 characterization (182 blocked days, VIX median 18.64, vol expansion 45.1%, ceiling ~$2.9k/yr); kill gates pre-registered
+  4. ✅ VIX 18-20 recheck registered as conditional (better skew data or sample expansion triggers, not scheduled)
+
+- **Architecture dependency discovered**:
+  - SPEC-079 failure on NORMAL stratum means Q084 cannot reuse filter; new design required
+  - Q084 entry into CASH_OCCUPYING_STRATEGIES triggers SPEC-113 §6.2 prerequisite: second cash-occupying strategy → must re-audit SPEC-111 concurrent assumptions
+
+- **来源**: `task/q083_fable_external_review_2026-07-03.md`, `task/q083_p16_lockout_acceptance_2026-07-03.md`, `task/q084_framing_memo_2026-07-03.md`
+
+---
+
+### R-20260703-03 — Q084: NORMAL×LOW×NEUTRAL Non-Directional Strategy (FRAMED)
+
+- **Topic**: Unexplored NORMAL×LOW stratum with zero SPEC-113 coverage (182 blocked days). Characterize neutrality-favorable regime and pre-register kill gates to avoid repeated external review cycles.
+
+- **P0 Framing** (`q084_framing_memo_2026-07-03.md`):
+  - **Stratum**: NORMAL × LOW_IV × NEUTRAL_TREND (3 separate 26y sub-strata = 182 days combined)
+  - **Vol signature**: VIX median 18.64 (vs carve 16.3), fwd-21td vol expansion 45.1% (vs BULLISH 29.6%)
+  - **Strategy prior**: Non-directional (IC/butterfly/RVT) + vega-positive structure
+  - **Ceiling estimate**: ~$2.9k/yr (before cash cap, friction)
+  - **Phase plan**: Small-scale sizing (1-2 contracts paper) per PM prior observation
+
+- **Pre-registered Kill Gates** (prevent external review bypass):
+  - Gate A: Layer-1 筛后 surviving days < 120 → DOCUMENT close (no P1-P4, direct DOCUMENT verdict)
+  - Gate B: Pessimistic bracket net PnL < $1,500/yr (2.5σ drawdown, dividend risk) → DOCUMENT close
+  - Gate C: 2008-subset 18 days exceed 50% of vol-expansion regime → escalate to external review (2008 Layer-1 concurrent check)
+
+- **Next phase**: P1 counterfactual simulation triggered post-PM framing walkthrough (waiting)
+
+- **Forward dependencies**:
+  - Blocks on SPEC-079 redesign for wind control (cannot reuse comfortable-top filter)
+  - Triggers SPEC-111 concurrent cash-cap re-audit when entering CASH_OCCUPYING_STRATEGIES
+
+- **来源**: `task/q084_framing_memo_2026-07-03.md`
 

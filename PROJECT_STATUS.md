@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-07-03 (**Q083 external review COMPLETE**。Fable 补审 26y 真实现象与验收框架。PARTIAL SOLVE：+15% 可交易日，历史最坏 2008 型零改善，当前 operationally inert（现金 < floor）。SPEC-113 ship 不变，需标注 2008-scenario caveat 与 cash ≥$37k 前置 — `See: task/q083_fable_external_review_2026-07-03.md`）
+Last Updated: 2026-07-03 (**Q083 external review + 2021 focused eval COMPLETE；Q084 FRAMED**。SPEC-079 失效确认 + 2021 regime SUBSTANTIALLY SOLVED（87.3%→46%）。Q084 NORMAL×LOW×NEUTRAL 182 天资格审核，P0 + kill gates 预设（无需第五轮外审）。SPEC-113 标注 2008 caveat + cash≥$37k 前置 — `See: task/q083_fable_external_review_2026-07-03.md`, `task/q084_framing_memo_2026-07-03.md`）
 Owner: Planner or PM
 
 ## Current Phase
@@ -32,7 +32,12 @@ Owner: Planner or PM
 
 - **SPEC-115 Phase A** — Q041 T2 GOOGL+AMZN CSP paper trade promote. **DONE + DEPLOYED 2026-06-08** (commit 446037e). 2 StrategyDescriptors (q041_t2_googl_csp, q041_t2_amzn_csp) + `strategy/q041_selector.py` T2 signal logic + SPEC-111 cash governance extension + `notify/q041_t2_paper_telegram.py` daily 16:50 ET signal push。GOOGL Δ0.20 DTE21 daily rolling / AMZN Δ0.25 DTE21；walk SPEC-111 double-cap (BP + cash)。73 PASS (new 23 + SPEC-111/113 patch)；3 launchd jobs active；明天 6/9 EOD 首条真实 signal。**Next: Phase B (T3 Earnings IC) full SPEC awaiting 1-week paper trade observation** — `See: task/SPEC-115_phase_a.md`
 
-**Future seeds**（PM-discretionary）：Q042 Stage 2/3 ramp / SPEC-105 Stage 2 active mode / HV Ladder re-promotion / Q042 Sleeve B（n > 3-5 trades）/ Q077 PARKED / SPEC-113 §6.2 second debit strategy trigger
+_(currently empty)_
+
+**Next Research Priority**：
+- **Q084** — NORMAL×LOW×NEUTRAL non-directional strategy (182 blocked days). **FRAMED 2026-07-03** (`q084_framing_memo_2026-07-03.md`）。P0 characterization: VIX median 18.64, vol expansion 45.1%, ceiling ~$2.9k/yr, small-scale sizing. Pre-registered kill gates (Layer-1 筛后<120d → DOCUMENT; pessimistic bracket <$1,500/yr → DOCUMENT; 2008-subset>50% → external review). P1 counterfactual simulation awaits PM framing walkthrough. Forward dependency: SPEC-079 new wind-control design (reuse失效) + SPEC-111 concurrent re-audit when Q084 enters CASH_OCCUPYING_STRATEGIES — `See: task/q084_framing_memo_2026-07-03.md`
+
+**Future seeds**（PM-discretionary）：Q042 Stage 2/3 ramp / SPEC-105 Stage 2 active mode / HV Ladder re-promotion / Q042 Sleeve B（n > 3-5 trades）/ Q077 PARKED / SPEC-113 §6.2 second debit strategy trigger / VIX 18-20 复检（条件化，待更好 skew 数据）
 
 **Low-priority backlog**（PM-discretionary，no time-lock）：
 - **SPEC-108.2**：V1b→V3 mutex 反向检查（5 行代码；Stage 2 前处理）

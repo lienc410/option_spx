@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-07-03（**Q083 external review COMPLETE**。Fable 补审发现验收框架问题：实际 +15% 可交易日，但 2008 型锁死零改善，当前 operationally inert。PARTIAL SOLVE，需显式 2008 caveat + cash ≥ $37k 前置）
+最后更新：2026-07-03（**Q083 external review + 2021 focused eval COMPLETE；Q084 FRAMED**。2021 SUBSTANTIALLY SOLVED（87.3%→46%）。SPEC-079 失效确认。Q084 P0 + kill gates 预设无需第五轮外审。Q082 + Q083 收尾）
 
 ---
 
@@ -33,6 +33,27 @@
 ---
 
 ## 策略设计待解决
+
+### Q084 — NORMAL×LOW×NEUTRAL Non-Directional Strategy
+
+- **状态**: **framed** (Q084 FRAMED 2026-07-03, P1 awaits PM framing walkthrough)
+- **Result**: 182 blocked days in NORMAL×LOW×NEUTRAL stratum with zero SPEC-113 coverage
+- **P0 Characterization**:
+  - VIX median 18.64 (vs carve 16.3); fwd-21td vol expansion 45.1% (vs BULLISH 29.6%)
+  - Strategy prior: non-directional (IC/butterfly/RVT) + vega-positive
+  - Ceiling estimate: ~$2.9k/yr (before cash cap, friction)
+  - Phase plan: small-scale sizing (1-2 contracts paper per PM prior)
+- **Pre-registered Kill Gates** (prevent external review loops):
+  - Gate A: Layer-1 筛后 surviving days < 120 → DOCUMENT close (no P1-P4)
+  - Gate B: Pessimistic bracket net PnL < $1,500/yr → DOCUMENT close
+  - Gate C: 2008-subset 18 days > 50% vol-expansion regime → escalate external review
+- **Forward dependencies**:
+  - ⚠️ Cannot reuse SPEC-079 wind control (失效 on NORMAL stratum) → new design required
+  - ⚠️ Entry into CASH_OCCUPYING_STRATEGIES triggers SPEC-113 §6.2 → SPEC-111 concurrent re-audit
+- **Next**: PM framing walkthrough → P1 counterfactual simulation
+- **See**: `task/q084_framing_memo_2026-07-03.md`
+
+---
 
 ### Q041 Paper Trade Promotion — Phase A T2+CSP
 
