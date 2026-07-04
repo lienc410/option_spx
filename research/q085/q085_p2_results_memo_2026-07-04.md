@@ -58,3 +58,37 @@ PM 指出逻辑矛盾："现状 anti-timing 已实证 → '无任何信号可改
 挑战者单笔质量较低（-$500/笔，t=-1.10 不显著）但**完全加性**（与现任日集不相交），年贡献 1.7× 现任 sleeve 全部产出；theta 缓冲驯服了杀死 S6-MES 的死亡时代（最差时代仍为正）；且 BPS 消耗 BP 而非稀缺现金（账户 cash-bound 非 BP-bound，per Q081）。
 
 **修正裁决**：Q085 存在一个 adoption-grade 候选 = **S2-BPS（被挡 NORMAL 超卖日加开 BPS，0.5x 起）**——恰好是对 2026-06 "无交易窗口/高买" 原始抱怨的直接修复。后续：per `feedback_post_withdrawal_proposals_front_load_robustness` 稳健性前置（悲观 skew bracket、engine 级管理规则、BP/cash 记账、cascade 路径）→ G-review packet → 外审 → SPEC。S6-MES 维持 FAIL；其余槽位裁决不变。
+
+---
+
+## P3 稳健性前置结果（2026-07-04 深夜）— **S2-BPS 撤回，P2d 翻转被再翻转**
+
+P2d 的 head-to-head 缺三样东西：engine 管理规则、交易成本、真实 skew。逐一补上后：
+
+| 挑战者情景 | 假设 | 净 $/yr | 每笔均值 |
+|---|---|---|---|
+| P2d 原版 | BS-flat @VIX、无成本、无止损 | +$4,142 | +$341 |
+| P3 BASE | + engine 规则 + $130/笔成本 | +$1,300 | +$201 |
+| **P3 CALIB** | **+ 真实链校准 skew** | **-$2,244** | **-$53** |
+| P3 PESS | 假设性悲观 skew | -$2,044 | -$41 |
+
+**杀死它的测量**（Q041 真实 Schwab SPX 链，23 天，恰为 NORMAL 环境）：δ0.30 短腿真实 IV = **VIX−2.0vp**、δ0.15 长腿 = VIX+1.0vp、ATM = VIX−4.3vp——**BS-flat @VIX 系统性高估卖权利金收入**（VIX 内嵌 skew/凸性溢价，远高于 ATM IV）。同一镜头下现任 BPS 的合成值也塌到 $263/yr（其实盘价值以真实成交为准，另当别论）。
+
+**S2-BPS 最终裁决：WITHDRAW**（稳健性前置阶段，未到 G-review 即撤回）。次要偏差已核（真实 delta 选 strike 约 +$30-50/笔、乐观成本 +$50/笔），合计不足以翻正。
+
+## Q085 最终图景（第三次也是最后一次修订）
+
+F3 超卖信号（1-5 天，+17~74bp underlying）**是真的**，但三条变现路径死于三个互不相同、机制清楚的原因：
+- **MES 期货**（S6）：死于 2014-21 零期望年代（业绩停机救不了 zero-mean chop）
+- **BPS**（S2）：死于真实 skew + 双腿摩擦（信号毛边际 ~36bp/5d 撑不起 ~$180/笔的真实摩擦）
+- **加仓**（S5-HV）：死于样本不足（p=0.10）
+
+**Verdict 回到 K2 型 DOCUMENT**，但档案价值大幅上升：这是"信号真实但在本账户成本结构下不可变现"的完整论证链，且每一步都可复现。
+
+## 溢出发现（超出 Q085，建议立项 Q086）
+
+**House 级方法学问题**：全部合成回测（Q082 BCD synth、Q083 carve、本研究）都用 sigma=VIX/100 flat 定价。真实测量显示该约定对卖权利金结构高估收入 ~2-4vp。**建议 Q086：用积累中的真实链数据重审 house 合成回测的定价偏差**（BCD 为 debit+delta 主导结构，敏感度需单独定量；SPEC-113 曾做过 skew bracket 但锚点同样是 VIX-flat）。
+
+## 遗留给 PM 的一个零成本选项
+
+BASE 与 CALIB 之争本质是"真实 credit 有多富"。paper 通道可以在挑战者信号日**记录真实报价**（不开仓、不改 gate），6-12 个月真实 credit 数据可将此问题从模型之争变为测量事实。
