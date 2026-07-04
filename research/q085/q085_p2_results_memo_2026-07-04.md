@@ -34,3 +34,27 @@
 - 外审确认盘（reviewer 额度重置后补）
 - P1b Tier-3 补跑 + 总账一次性封账（studentized + 单批 BH）
 - G-review packet（P1b 后，预注册项）
+
+---
+
+## 修订（2026-07-04 晚，PM 全盘 review 挑战后）— P2d 推翻部分裁决
+
+PM 指出逻辑矛盾："现状 anti-timing 已实证 → '无任何信号可改善现状'不可能成立"。自查确认两个错误：
+
+1. **基准错误**：事实层全部以"平均日"为基准 gate 槽位候选；执行类决策的正确基准是**现状的实际入场日**（per `feedback_decision_type_governs_significance_standard`）。S2 的 BPS 形态因此被错误塌缩进 S6，从未被模拟。
+2. **双重标准**：要求挑战者"最差七年时代 ≥$4k/yr"，而现任 BPS sleeve 自己全样本才 $2.4k/yr、从未被要求过最差时代为正。
+
+**P2d head-to-head**（同一 BPS 模拟器、同参数、同记账，30DTE δ0.30/0.15，21DTE 平仓）：
+
+| | 现任（放行 BPS 日） | 挑战者（被挡 NORMAL 超卖日） |
+|---|---|---|
+| 笔数/年 | 1.8 | 4.9 |
+| 胜率 | 81% | 67% |
+| 今日尺度净 $/yr | $2,436 | **$4,142** |
+| breach 率 | 12.5% | 11.5% |
+| CVaR10 | -$2,971 | **-$1,802** |
+| 最差七年时代每笔均值 | +$228 | **+$31（仍为正）** |
+
+挑战者单笔质量较低（-$500/笔，t=-1.10 不显著）但**完全加性**（与现任日集不相交），年贡献 1.7× 现任 sleeve 全部产出；theta 缓冲驯服了杀死 S6-MES 的死亡时代（最差时代仍为正）；且 BPS 消耗 BP 而非稀缺现金（账户 cash-bound 非 BP-bound，per Q081）。
+
+**修正裁决**：Q085 存在一个 adoption-grade 候选 = **S2-BPS（被挡 NORMAL 超卖日加开 BPS，0.5x 起）**——恰好是对 2026-06 "无交易窗口/高买" 原始抱怨的直接修复。后续：per `feedback_post_withdrawal_proposals_front_load_robustness` 稳健性前置（悲观 skew bracket、engine 级管理规则、BP/cash 记账、cascade 路径）→ G-review packet → 外审 → SPEC。S6-MES 维持 FAIL；其余槽位裁决不变。
