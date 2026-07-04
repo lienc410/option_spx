@@ -3586,3 +3586,24 @@ Owner: Planner or PM
 - **Verdict**: NOT RECOMMENDED（当前账户尺度和执行模式下）
 - **来源**: `task/q085_delta_hedge_assessment_2026-07-03.md`
 
+
+### R-20260703-07 — Q084 Formally Archived: Structural Mismatch Prevention (FINAL)
+
+- **Commit**: b035be3 (verdict file updated "pending external read" → CONFIRMED)
+- **Archive policy memo** (written into verdict document §5):
+  - **Root cause**: Structural mismatch (vol expansion signal arrives before exit, not after). **Not a parameter problem.**
+  - **Kill-proofing mechanism**: This proposal cannot be revived by parameter tweaks (leg length, exit DTE, bracket assumptions). If anyone re-proposes NORMAL×LOW×NEUTRAL in the future, must be:
+    1. Structurally different approach
+    2. Pre-registered kill gates
+    3. Full new audit cycle
+  - This prevents future "rescind the kill" attempts without rigor.
+- **Memory update**: feedback_q084_structural_mismatch_nontweakable (linked to kill-gate external review lesson)
+- **"Trading Window" research line closure**:
+  - Started: 2026-06-02 PM complaint (6-10 month lockout)
+  - Q083: 16 phases → SPEC-113 DEPLOYED
+  - Fable external review: framing/phenomenon alignment
+  - Q084: vol-calendar mismatch → KILLED
+  - **Result**: NORMAL×IV_LOW all 3 strata now have vetted destinations (carve/kill/N/A)
+  - **Current**: Cash $61.4k live (all cap gates green); SPEC-113 + SPEC-115 Phase A real ops tonight
+  - **Pending** (don't touch): Phase B handoff c398ec3; JPM T-3 ~7/9; VIX 18-20 conditional recheck
+
