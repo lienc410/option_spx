@@ -154,3 +154,41 @@ def perm_test_generic(cond, valid, strat_mask, outcome, rng, index,
     d2 = f[c & s2].mean() - f[s2].mean() if (c & s2).sum() >= 10 else np.nan
     sign_ok = bool(np.sign(d1) == np.sign(d2)) if not (np.isnan(d1) or np.isnan(d2)) else False
     return dict(n_on=n_on, mean_diff_bp=obs * 1e4, p=p, sign_consistent=sign_ok)
+
+
+def perm_test_studentized(cond, valid, strat_mask, outcome, rng, index,
+                          n_perm=N_PERM, min_shift=MIN_SHIFT, min_n=MIN_N,
+                          start=pd.Timestamp("2000-01-01")):
+    """Welch-studentized on-vs-off permutation test (Q085 external review fix:
+    raw mean-diff nulls under-price vol-selecting signals; studentize)."""
+    m = (valid & strat_mask & outcome.notna() & (index >= start)).to_numpy()
+    c = cond.fillna(False).astype(bool).to_numpy()
+    f = outcome.to_numpy()
+
+    def welch(sel_on, sel_off):
+        a, b = f[sel_on], f[sel_off]
+        va, vb = a.var(ddof=1), b.var(ddof=1)
+        se = np.sqrt(va / len(a) + vb / len(b))
+        return (a.mean() - b.mean()) / se if se > 0 else 0.0
+
+    on, off = c & m, ~c & m
+    n_on = int(on.sum())
+    if n_on < min_n or int(off.sum()) < min_n:
+        return None
+    t_obs = welch(on, off)
+    diff = f[on].mean() - f[off].mean()
+    ex = 0
+    for s in rng.integers(min_shift, len(c) - min_shift, size=n_perm):
+        cs = np.roll(c, s)
+        o1, o0 = cs & m, ~cs & m
+        if o1.sum() < min_n or o0.sum() < min_n:
+            continue
+        if abs(welch(o1, o0)) >= abs(t_obs):
+            ex += 1
+    p = (1 + ex) / (1 + n_perm)
+    idx = np.where(m)[0]; mid = idx[len(idx) // 2]
+    s1, s2 = m.copy(), m.copy(); s1[mid:] = False; s2[:mid] = False
+    d1 = f[c & s1].mean() - f[~c & s1].mean() if (c & s1).sum() >= 10 else np.nan
+    d2 = f[c & s2].mean() - f[~c & s2].mean() if (c & s2).sum() >= 10 else np.nan
+    sign_ok = bool(np.sign(d1) == np.sign(d2)) if not (np.isnan(d1) or np.isnan(d2)) else False
+    return dict(n_on=n_on, mean_diff_bp=diff * 1e4, t=t_obs, p=p, sign_consistent=sign_ok)
