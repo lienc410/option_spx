@@ -17,27 +17,39 @@
 
 ## 2. 硬纪律（全程有效，来自 house 档案）
 
-1. **多重检验控制**：全部检验先于数据锁定（本 memo §4-5 即预注册清单）；事实层用 Benjamini-Hochberg FDR **q=0.10** 全 battery 校正。清单之外临时起意的指标/切点一律无效（per `feedback_stratum_cutpoint_overfit`）。
+1. **多重检验控制**：全部检验先于数据锁定（本 memo §4-5 即预注册清单）；事实层用 Benjamini-Hochberg FDR **q=0.10** 全 battery（~43 信号 × 2 strata ≈ 86 tests）校正。清单之外临时起意的指标/切点一律无效（per `feedback_stratum_cutpoint_overfit`）。**追加生存条件（2026-07-03 修订）**：幸存信号必须在样本前后两半（Tier 1: 2000-2012 / 2013-2026；Tier 2/3: 自身跨度对半）**效应符号一致**，防单一时代拟合。
 2. **事实先于 PnL**（per `feedback_circular_metric_validation`）：条件分布事实不显著的信号不得进入 PnL 模拟。
 3. **双标准**（per `feedback_decision_type_governs_significance_standard`）：信号有无信息量 = Alpha 标准（vs 零显著，FDR 后）；槽位是否采纳 = Execution 标准（vs 现状显著优）。
 4. **Q082 P9 默认反驳在案**：任何"信号做否决门保护 forward window"的用法承担举证责任；strike 放置与离场管理不在该裁决覆盖范围（当年未测）。
 5. 其余照旧：2008 型 Layer-1 筛查、悲观 skew bracket 前置、今日尺度绝对值、exit-day unsmoothed 记账、boundary 类槽位 freq AND ROE 双门槛、kill verdict 外审。
 6. **频率边界**：全部信号在**日频收盘**数据上定义（含日频 OHLC）。不引入日内信号——SPEC-030 已结案（日内提前触发率 0%）。
 
-## 3. 数据需求（P1 前置）
+## 3. 数据需求（P1 前置，2026-07-03 已核实可得区间）
 
-- SPX 日频 **OHLC**（现有 cache 只有 close；K 线形态、摆动低点、支撑位需要 O/H/L）：yfinance ^GSPC 2000-2026，落盘 `data/q085_spx_ohlc_cache.json`
-- 量价族用 SPY 成交量为代理（SPX 指数无原生成交量），单独标注代理有效性风险（per `feedback_proxy_validity_must_match_conclusion`）
+- SPX 日频 **OHLC**：✅ 已落盘 `data/q085_spx_ohlc_cache.json`（6,814 行，1999-06 起含 200DMA 预热）
+- Tier 2 跨资产（yfinance 已核实）：^VIX3M 2006+ / ^VVIX 2007+ / XLU 1998+ / RSP 2003+ / HYG 2007+ / TLT·IEF 2002+ / DXY 全史 / GLD 2004+ / **^SKEW 1990+ 全史**
+- Tier 3 承诺采集：FOMC 会议日历 2000-2026（公开）；CFTC COT ES 净投机（免费 CSV）；AAII 情绪（免费）
+- 量价族用 SPY 成交量代理，代理有效性单独标注（per `feedback_proxy_validity_must_match_conclusion`）
 
-## 4. 预注册指标族（有限清单，含文献先验）
+## 4. 预注册指标族（**2026-07-03 修订版**——PM 指令：完备性自查，不得以工作量裁剪）
 
-| 族 | 指标（精确定义） | 文献先验 |
-|---|---|---|
-| **F1 慢频趋势** | (a) close vs 200DMA 二值；(b) 12-1 月时序动量符号 | **高**（Faber 2007；MOP 2012）。但检验目标是**对现有 ATR 趋势信号的增量**，不是 standalone |
-| **F2 价格结构** | (a) 63td/126td 滚动最低价距离（%）；(b) 摆动低点：局部 low 且左右各 5 bar 未破，取最近者为支撑位，算 close 距支撑 %；(c) dist_30d_high（已存在于 SPEC-079 特征） | **中**（择时弱；作为"跌到哪会停"的 strike 放置条件未被充分检验——本研究先验最高的用法） |
-| **F3 均值回归** | (a) RSI(14) <30/>70 二值；(b) close 距 20DMA 的 ATR 倍数 | 低-中（日频指数上不稳定） |
-| **F4 K 线形态** | 固定 3 个：看涨吞没、锤子线于 20td 低位、三日反转（低-低-高收） | **~零**（系统化文献无可复制记录）。作为对照组陪跑，预期死于事实层 |
-| **F5 量价** | SPY 量 20td z-score；equity put/call ratio（如可得） | 低（指数层面被 IV 张成，Q085 前讨论已判冗余先验），一次性检验 |
+**完备性确认方法**：对照三个来源系统枚举——(a) 学术异象文献的信号族分类（trend/momentum、reversal、seasonality、vol premium、positioning/sentiment、cross-asset）；(b) CTA/practitioner 标准工具箱；(c) 对冲基金系统化常用且在本项目数据预算内可得者。排除项仅允许两种理由：数据不可得（注明采购路径）或 house 已有结案裁决（SPEC-030 日内）。**工作量不是合法排除理由。** PM 可随时提名补充，提名信号在 P1 运行前并入预注册附录。
+
+**Tier 1 = 26y 全史可算；Tier 2 = 自身可得史 ≥15y；Tier 3 = 需数据采集（已承诺采集项标注）。**
+
+| 族 | 信号（预注册精确定义，n=43） | Tier | 文献先验 |
+|---|---|---|---|
+| **F1 慢频趋势/动量** (8) | 200DMA 上下；50/200 金叉状态；TSMOM 12-1m/3m/6m 符号；Donchian 55td 突破；ADX(14)>25；MACD(12,26,9) 柱符号 | 1 | **高**（Faber 07；MOP 12）。检验对现有 ATR 信号的**增量** |
+| **F2 价格结构** (6) | 距 63td/126td 滚动低点 %；摆动支撑距离（局部 low 左右 5 bar 未破）；距 252td 高点 %（George-Hwang 04）；前月高/低突破；隔夜 gap 方向×幅度 | 1 | **中**；strike 放置用途 = 全研究最高先验 |
+| **F3 短线均值回归** (6) | RSI(2)（Connors）；RSI(14)；IBS=(C-L)/(H-L)（指数上有记录）；Bollinger %B(20,2)；连续下跌天数 ≥3；5td 收益 z-score | 1 | 低-中；RSI(2)/IBS 在指数日频有可复制记录 |
+| **F4 K 线形态（对照组）** (3) | 看涨吞没；20td 低位锤子；三日反转 | 1 | **~零**，陪跑校准假发现率 |
+| **F5 波动率结构** (6) | **VRP 代理 = VIX − RV21**（卖权利金最核心的文献信号）；ATR(14) 百分位；VIX 5td Δ；SKEW 指数水平/Δ（1990+ 全史）；VIX/VIX3M 比（2006+）；VVIX 百分位（2007+） | 1/2 | **高**（VRP 文献充分）；与现有 IVR/IVP 门的**增量**是检验目标 |
+| **F6 跨资产 risk-on/off** (6) | XLU/SPY 63td 相对强度（1999+）；RSP/SPY 63td（2003+，兼作广度代理）；TLT 21td 动量（2002+）；HYG/IEF 63td（2007+）；DXY 63td 动量（全史）；GLD 63td 动量（2004+） | 1/2 | 中（defensive rotation / credit 有记录） |
+| **F7 日历/事件** (5) | 月末月初窗口（turn-of-month，有记录）；OpEx 周；FOMC 前 24h drift（Lucca-Moench 15，需 FOMC 日历——公开可得，承诺采集）；月份 dummy、星期 dummy（对照） | 1/3 | turn-of-month 与 FOMC drift 有记录 |
+| **F8 持仓/情绪** (3) | CFTC COT ES 净投机头寸百分位（2006+，免费 CSV，**承诺采集**）；AAII bull-bear spread（1987+，免费，**承诺采集**）；CBOE equity P/C ratio（可得性 P1 核实） | 3 | 中-低（慢频反向指标有记录） |
+| **F9 市场内部广度** (0 active) | %>200DMA、A-D line 等需付费源（Norgate 级）。当前用 RSP/SPY（F6）代理；**若 P1 幸存信号提示广度维度有价值，向 PM 提数据采购**——这是数据约束，非工作量裁剪 | 3 | 中 |
+
+**明示排除项（理由留档）**：日内/盘中信号（SPEC-030 结案，日内提前触发率 0%）；GEX/期权流（Schwab 链数据 2026 起，历史不足以检验）；付费广度数据（F9，采购路径已注明，条件性开启）。
 
 ## 5. 决策槽位（信号只对具体槽位负责）
 
@@ -63,3 +75,10 @@
 - **K1**：事实层后零幸存信号（FDR q=0.10）→ 研究线 DOCUMENT 收尾（"技术 overlay 无信息量"本身是有价值的档案，防未来重提）
 - **K2**：幸存信号存在但全部槽位 Execution 层不过 → DOCUMENT，信号记录为"有信息量但不可变现"
 - **K3**：任何单槽位悲观 bracket 净 <$2,000/yr → 该槽位关闭，不因"其他槽位过了"豁免
+
+---
+
+## 修订日志
+
+- **2026-07-03（PM 指令）**：§4 指标族由 5 族 ~14 信号扩充为 9 族 43 信号（Tier 1/2/3 按已核实数据可得性分层）；§2 追加 IS/OOS 符号一致性生存条件；§3 更新已核实数据区间与承诺采集项。PM 指令原文要点："不要因为怕工作量大而放弃扫描其他可能的信号"——与 `feedback_research_thoroughness` 一致，排除项仅限数据不可得或 house 结案裁决。
+- **2026-07-03**：Delta 对冲问题当日评估完毕，DOCUMENT 留档不立项（见 `q085_delta_hedge_assessment_2026-07-03.md`）：账本 52/48 方向/carry 分割，carry 半边 90% 胜率真实存在，但对冲版每占用美元回报降为 1/3-1/4 且运营不兼容；方向依赖的削减走结构路由 + S5 规模条件化。
