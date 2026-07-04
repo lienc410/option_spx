@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-07-03（**Q084 KILLED same-day；现金 $61.4k live；SPEC-113/115 晚间启动**。NORMAL×LOW 全覆盖（carve/kill）。Q084 $764/yr<gate B，pending 轻型外审确认）
+最后更新：2026-07-03（**Q085 整备完成；Q084 外审 PASS；两项问题归档**。信号族 43 个（9 族），Delta 对冲评估否决。Q085 P1 ready — 43 signal × 2 strata battery 待启动）
 
 ---
 
@@ -50,6 +50,28 @@
 - **Meta**: Pre-registered gates prevented P3-P5 sunk-cost cycle; external read cost-effective (<$1.5k annualized target)
 - **Archive status**: NORMAL×LOW×NEUTRAL observation slot open (future data may trigger reentry if vol-calendar conditions materially change)
 - **See**: commit ac91cf6, `task/q084_p1p2_verdict_2026-07-03.md`, `task/q084_external_read_2026-07-03.md`
+
+---
+
+## 研究进行中（In Progress）
+
+### Q085 — SPX Directional Signal Quality via Expanded Battery (PREP COMPLETE, P1 READY)
+
+- **状态**: **prep complete** (Q085 signal battery audit archived 2026-07-03; delta hedge assessment archived with NOT RECOMMENDED)
+- **P0 Scope**: Full signal factorization for SPX route (43 signals × 2 strata). Battery expanded from 5 to 9 families:
+  - F1-F4: Trend / Structure / Mean Reversion (expanded)
+  - **F5 Vol structure** (NEW): VRP proxy, SKEW, VIX term, VVIX — highest prior for sell-premium strategies
+  - **F6 Cross-asset risk-on/off** (NEW): XLU/SPY, HYG, TLT/DXY/GLD, RSP/SPY
+  - **F7 Calendar/events** (NEW): Month-end/start, FOMC drift, OpEx
+  - **F8 Positioning/sentiment** (NEW): CFTC COT, AAII (both free)
+- **P1 Readiness**: Battery complete, statistical fences (BH-FDR + sample-halves sign-concordance) pre-coded
+- **Delta hedge side-decision** (ARCHIVED): Analysis shows carry engine is real ($484-660/trade, 90-91% WR) but NOT RECOMMENDED under current account:
+  - Margin doubles ($22k → $40k) → ROI per dollar = 1/3-1/4 (cash-bound hard constraint)
+  - Daily delta rebalance incompatible with manual EOD execution model
+  - Cheaper alternatives exist (IC 29% coverage + Q085 S5 slot for 0.5x when signal weak)
+  - Reopen condition: cash scale ↑ or automation ⇒ reconsider
+- **Next**: **Awaits PM go-signal** for P1 battery run (23 signal × 2 strata × 26yr backtest)
+- **See**: `task/q085_signal_battery_2026-07-03.md`, `task/q085_delta_hedge_assessment_2026-07-03.md`
 
 ---
 

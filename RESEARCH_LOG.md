@@ -1,6 +1,6 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-07-03 (**Q084 KILLED + EXTERNAL READ PASS**；现金核实 $61.4k，三道 cap 转绿；SPEC-113/115 paper trade 晚间启动真实运行**。Q084 vol 错配根因经外审验证无误；NORMAL×LOW 三格全覆盖（SPEC-113 carve / Q084 kill CONFIRMED / 待观察）— `See: task/q084_external_read_2026-07-03.md`）
+Last Updated: 2026-07-03 (**两项问题归档完成；Q085 P1 启动阶段**；信号族扩充至 43 个（F1-F8）；Delta 对冲评估否决；现金 $61.4k live，三道 cap 转绿）。Q085 P1 即将跑完整 battery（43 信号 × 2 strata）— `See: commit a60a7ce`, `task/q085_signal_battery_2026-07-03.md`, `task/q085_delta_hedge_assessment_2026-07-03.md`）
 
 ### R-20260607-01 — Q041 Alignment 18-Day Conclusion + Ops Transition
 
@@ -3549,4 +3549,40 @@ Owner: Planner or PM
 - **GOOGL CSP 敏感度警告**: 现金波动 ±$500 即触发 cap 约束 — 正常治理特性，非故障。
 
 - **即时影响**: SPEC-113（BCD carve）+ SPEC-115（paper T2）从晚间起按信号真实评估，不再是"装好未通电"状态。
+
+
+### R-20260703-05 — Q085 Signal Battery Completeness Audit (ARCHIVED)
+
+- **Topic**: 系统性完备性核查——对照异象文献、CTA 工具箱、对冲基金常用信号，确保覆盖率。
+- **Method**: 逐类枚举，按数据可得性和先验评分。原清单不完备，发现了 4 个新族。
+- **Result**: 信号族扩充从原 5 族到 9 族，信号数从 ~30 增至 43 个。
+  - **F1-F4** (原有)：趋势/结构/均值回归，各自扩充（TSMOM 多周期、Donchian、RSI(2)、IBS、52wk 距离等）
+  - **F5 波动率结构** (新增，对卖权策略最重要)：VRP 代理（VIX − realized vol）、SKEW 指数（1990+ 全史）、VIX 期限结构、VVIX
+  - **F6 跨资产 risk-on/off** (新增)：XLU/SPY、HYG 信用利差、TLT/DXY/GLD、RSP/SPY 等权广度
+  - **F7 日历/事件** (新增)：月末月初、FOMC 会前漂移、OpEx 周
+  - **F8 持仓/情绪** (新增)：CFTC COT 净头寸、AAII 情绪（均免费）
+- **排除项**（理由留档）：日内信号（SPEC-030 已结）、GEX/期权流（数据不可得，采购路径注明，条件开启）
+- **统计防线加强**：BH-FDR 校正 + 新增"样本前后两半符号一致"生存条件（防单一时代拟合）
+- **Verdict**: Signal battery 现已完备。P1 可直接跑 43 信号 × 2 strata。未来可持续纳入新提名（P1 前并入）。
+- **来源**: `task/q085_signal_battery_2026-07-03.md`
+
+---
+
+### R-20260703-06 — Q085 Delta Hedge Assessment (VERDICT: NOT RECOMMENDED)
+
+- **Topic**: 是否对 BCD 合成交易 delta 对冲以降低方向依赖？有盈利空间吗？
+- **Data decomposition**: 219 笔 BCD 合成账本分解 → 52% 方向 / 48% carry
+- **Carry engine真实且稳定**：$484-660/trade，胜率 90-91%（margin > 3σ）
+- **答案（short）**：有盈利空间。但被两个数字否决，非理论问题。
+- **对冲成本分析**：
+  1. **保证金翻倍**：对冲 1 张 BCD = ~8 张 MES，追加 ~$18k → 占用 $22k → $40k（+82%）
+     - ROI per dollar 降为 1/3~1/4（cash-bound 硬约束指标）
+  2. **运营不兼容**：逐日 delta 再平衡 vs 收盘信号手动执行模式（工作流冲突）
+- **替代方案已列**（便宜得多）：
+  1. 中性态路由 IC（已在做，占 29%）
+  2. Q085 S5 槽位本身就是答案（方向差时自动 0.5x，非永不拿方向）
+  3. 未来极端 regime 尾部对冲（可独立评估）
+- **重开条件**：现金规模显著扩大 OR 引入自动化执行 → 两个否决前提消失 → 重评
+- **Verdict**: NOT RECOMMENDED（当前账户尺度和执行模式下）
+- **来源**: `task/q085_delta_hedge_assessment_2026-07-03.md`
 

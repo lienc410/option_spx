@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-07-03 (**Q084 KILLED + EXTERNAL READ PASS**；现金 $61.4k live（$49k margin），三道 cap 转绿；SPEC-113/115 晚间启动真实运行）。NORMAL×LOW 三格全覆盖（SPEC-113 carve / Q084 kill CONFIRMED / 待观察）。Vol 错配根因外审验证无误 — `See: task/q084_external_read_2026-07-03.md`）
+Last Updated: 2026-07-03 (**Q085 整备完成；两项问题归档**；信号族扩充 9 族 43 信号；Delta 对冲评估否决；现金 $61.4k live）。Q085 P1 即将启动全 battery（43 信号 × 2 strata），后续结果决定 Q086+ 路线 — `See: commit a60a7ce`, `task/q085_signal_battery_2026-07-03.md`）
 Owner: Planner or PM
 
 ## Current Phase
@@ -32,7 +32,7 @@ Owner: Planner or PM
 
 - **SPEC-115 Phase A** — Q041 T2 GOOGL+AMZN CSP paper trade promote. **DONE + DEPLOYED 2026-06-08** (commit 446037e). 2 StrategyDescriptors (q041_t2_googl_csp, q041_t2_amzn_csp) + `strategy/q041_selector.py` T2 signal logic + SPEC-111 cash governance extension + `notify/q041_t2_paper_telegram.py` daily 16:50 ET signal push。GOOGL Δ0.20 DTE21 daily rolling / AMZN Δ0.25 DTE21；walk SPEC-111 double-cap (BP + cash)。73 PASS (new 23 + SPEC-111/113 patch)；3 launchd jobs active；明天 6/9 EOD 首条真实 signal。**Next: Phase B (T3 Earnings IC) full SPEC awaiting 1-week paper trade observation** — `See: task/SPEC-115_phase_a.md`
 
-_(currently empty)_
+- **Q085 P1** — Full signal battery backtesting (43 signals × 2 strata). **PREP COMPLETE 2026-07-03** (signal battery audit: F1-F8 expanded from 5 to 9 families; delta hedge assessment archived with "NOT RECOMMENDED" verdict under current account scale). Ready to launch P1 → battery run → result-driven roadmap for Q086+. Delta hedge can reopen if cash scale or automation changes. **当前阶段**：等 PM 确认启动 P1 — `See: task/q085_signal_battery_2026-07-03.md`, `task/q085_delta_hedge_assessment_2026-07-03.md`
 
 **Recently Completed Research**:
 - **Q084** — NORMAL×LOW×NEUTRAL non-directional strategy (182 blocked days). **KILLED 2026-07-03** (P1+P2 same-day). Net $764/yr vs $1.5k threshold (gate B triggered). Root cause: vol expansion prior (45%) didn't monetize — calendar holding expires before vol arrives (only 8/33 trades capture expansion). Pessimistic scenario negative. Pre-registered gates prevented P3-P5 sunk-cost iteration. **Pending**: lightweight external read per feedback_kill_gate_external_read (false-negative risk) — decision awaits PM — `See: task/q084_p1p2_verdict_2026-07-03.md`
