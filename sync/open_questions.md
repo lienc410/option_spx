@@ -36,20 +36,20 @@
 
 ### Q084 — NORMAL×LOW×NEUTRAL Non-Directional Strategy
 
-- **状态**: **KILLED + EXTERNAL READ PASS** (2026-07-03, same-day P1+P2 + lightweight audit)
-- **Verdict**: KILL CONFIRMED — NORMAL×LOW×NEUTRAL maintains "待观察" status; thorough exclusion completed with no false-negative risk
+- **状态**: **CLOSED** (Q084 formally archived 2026-07-03; verdict CONFIRMED → file b035be3)
+- **Verdict**: **KILL CONFIRMED** — NORMAL×LOW×NEUTRAL 不进 future consideration。Thorough exclusion with no false-negative risk.
 - **P1 基础结果**: 33 trades (2003-2026, 2008 excluded), win 67%, net $764/yr **< gate B threshold $1,500/yr**
-  - Vol expansion prior (45% probability 21-day) failed to monetize: only 8/33 trades capture expansion at exit
-  - Root cause: calendar holding window expires **before** vol arrives (structural mismatch, economically sound)
-- **P2 稳健性**: Favorable case $1,378/yr (still below threshold); pessimistic case -$768/yr (win rate collapse to 52%)
+  - Vol expansion prior (45%) 没有兑现成钱：only 8/33 capture expansion at exit (21% 实现率)
+  - **Root cause: structural mismatch**（not a parameter problem）
+- **P2 稳健性**: FAV $1,378/yr (还是失败); PESS -$768/yr (win rate 52%)
   - All scenarios converge to kill — no salvage path
-  - Term-structure risk (contango/inversion) quantified and covered in bracket
-- **External read (2026-07-03)**: 4 key facts CONFIRMED; red flags assessed; **no false-negative detected**
-  - Reviewer: Claude Agent (3-hour lightweight audit)
-  - Confidence: HIGH
-- **Meta**: Pre-registered gates prevented P3-P5 sunk-cost cycle; external read cost-effective (<$1.5k annualized target)
-- **Archive status**: NORMAL×LOW×NEUTRAL observation slot open (future data may trigger reentry if vol-calendar conditions materially change)
-- **See**: commit ac91cf6, `task/q084_p1p2_verdict_2026-07-03.md`, `task/q084_external_read_2026-07-03.md`
+- **External read (2026-07-03)**: 4 facts CONFIRMED，red flags assessed，**NO FALSE-NEGATIVE**
+  - Key insight（外审 §5）：**"结构性错配，不是参数问题"** — 此提案未来不能靠调参数（改腿长/改出场 DTE/改 bracket）复活；如果有人重提这个格子，必须是全新结构 + 重新预注册
+  - 这样这份 kill verdict 才真正防得住未来的翻案冲动
+  - Reviewer: Claude Agent (3h); Confidence: HIGH
+- **Meta**: Pre-registered gates 防止 P3-P5 沉没成本循环；外审成本合理（< $1.5k 年度）
+- **Archive policy**: "NORMAL×LOW×NEUTRAL 待观察" 观察位保留（极端条件下可重新预注册全新方案，但必须走完整程序）
+- **See**: commit ac91cf6 + b035be3, `task/q084_p1p2_verdict_2026-07-03.md`, `task/q084_external_read_2026-07-03.md`
 
 ---
 
@@ -2129,3 +2129,29 @@
 | Q014 | 撤销 DIAGONAL Gate 1（`SPEC-049` ivp252 marginal zone） | Quant 已通过 Fast Path 在 `strategy/selector.py` 删除 Gate 1 分支；当前生产逻辑仅保留 Gate 2（`IV=HIGH`）及其余 LOW_VOL + BULLISH 有效规则 | 2026-04-15 |
 | Q016 | VIX recovery window dead zone（Dead Zone A 独立方向） | 条件 alpha 验证失败：recovery context 内 `NORMAL + HIGH + BULLISH` BPS 不显著，`SPEC-060 Change 3` 应保持 `REDUCE_WAIT`；后续研究并回 `Q015` / Dead Zone B | 2026-04-18 |
 | Q015 | BPS `NORMAL + BULLISH` IVP gate 窄幅放宽（`50 -> 55`） | OOS 验证通过后，Quant 已通过 Fast Path 将 `BPS_NNB_IVP_UPPER` 从 `50` 提高到 `55`；该窄变更已不是 open question，未来若继续研究更广泛 IVP / IC redesign，应作为新问题处理 | 2026-04-19 |
+
+---
+
+## 研究线闭环总结
+
+### "Trading Window" Research Complete Loop (2026-06-02 → 2026-07-03)
+
+**时间轴**：你的抱怨 (2026-06-02) → Q083 16 phases (2026-06-03~06-30) → SPEC-113 deployed (2026-06-03) → Fable external review (2026-07-03) → Q084 fast closure (same-day) → final archive (2026-07-03)
+
+**覆盖范围**：NORMAL×IV_LOW 三个趋势格全部有了经审慎程序的最终归宿
+| 格子 | 结论 | SPEC | 状态 |
+|------|------|------|------|
+| NORMAL×LOW×BULLISH | Carve to BCD (VIX 15-18) | SPEC-113 | ✅ DEPLOYED, T+30 monitoring active |
+| NORMAL×LOW×NEUTRAL | Kill (vol-calendar mismatch) | Q084 | ✅ CLOSED, no false-negative, structural fix required for future |
+| NORMAL×LOW×BEARISH | N/A (不应有 bull structure in bearish) | — | — |
+
+**关键洞察**（外审 → 架案）：
+- **SPEC-113 的有效条件**：cash ≥ $37k + 2008 型 Layer-1 lockout 是"不修范围"（非 discretionary）
+- **Q084 kill 的防护**："结构性错配，不是参数问题"。未来不能靠调参数复活；若有人重提，必须全新结构 + 重新预注册。这样这份 kill 才真正防得住翻案冲动。
+
+**当前状态**：现金 $61.4k live（三道 cap 转绿），SPEC-113 + SPEC-115 Phase A 晚间启动真实运行。
+
+**挂起项**（不需要现在动）：
+1. **SPEC-115 Phase B** (COST/JPM earnings IC paper) — 等 dev 实施，handoff 在 c398ec3
+2. **JPM 首个 T-3 触发** 预计 7/9（财报 7/14），将是首次全绿状态下的真实 paper signal
+3. **VIX 18-20 复检** 条件项（更好 skew 数据或样本扩大时触发）
