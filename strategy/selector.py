@@ -368,19 +368,29 @@ def _effective_iv_signal(iv: IVSnapshot) -> IVSignal:
     return IVSignal.NEUTRAL
 
 
-def is_aftermath(vix: VixSnapshot) -> bool:
+def is_aftermath(vix: VixSnapshot, params: "StrategyParams | None" = None) -> bool:
     """
     HIGH_VOL aftermath window:
     - trailing 10-day peak VIX >= 28
     - current VIX at least 5% off that peak
-    - current VIX remains below the EXTREME_VOL hard boundary (40)
+    - current VIX remains below the EXTREME_VOL boundary (params.extreme_vix)
+
+    SPEC-118.1: the EXTREME guard previously hardcoded 40.0 while the selector's
+    actual EXTREME boundary is params.extreme_vix (35.0) — two divergent
+    boundaries. Unified to the single source. Decision-path behavior is
+    bit-identical (selector only calls this inside the HIGH_VOL branch, which
+    already requires vix < extreme_vix, so the guard never bound there). The
+    only visible change is the /api/aftermath display endpoint: for
+    VIX ∈ [35, 40) it now reports inactive, matching what the selector
+    actually does.
     """
     peak = vix.vix_peak_10d
     if peak is None:
         return False
     if peak < AFTERMATH_PEAK_VIX_10D_MIN:
         return False
-    if vix.vix >= 40.0:
+    extreme = (params or DEFAULT_PARAMS).extreme_vix
+    if vix.vix >= extreme:
         return False
     return vix.vix <= peak * (1.0 - AFTERMATH_OFF_PEAK_PCT)
 

@@ -23,12 +23,24 @@ class StateAndApiTests(unittest.TestCase):
         trade_log_mod.TRADE_LOG_FILE = Path(self.tmpdir.name) / "trade_log.jsonl"
         server_mod._backtest_cache.clear()
         server_mod._signals_cache.clear()
+        # SPEC-118.2: governance no longer has a $200k constant fallback — it
+        # fails closed without a live or last-known basis. Seed a healthy
+        # last-known basis so /api/position/open works in the test env,
+        # mirroring production (a runtime snapshot always exists there).
+        import strategy.sleeve_governance as gov_mod
+        self._gov_mod = gov_mod
+        self.orig_runtime = gov_mod.RUNTIME_STATE_PATH
+        gov_mod.RUNTIME_STATE_PATH = Path(self.tmpdir.name) / "sleeve_governance_runtime.json"
+        gov_mod.RUNTIME_STATE_PATH.write_text(json.dumps(
+            {"basis_dollars": 1_240_000.0, "timestamp": "2026-01-01T00:00:00"}))
+        gov_mod._BASIS_DEGRADED_ALERTED.clear()
         self.client = app.test_client()
 
     def tearDown(self) -> None:
         state_mod.STATE_FILE = self.orig_state_file
         server_mod._RESULTS_DISK_CACHE = self.orig_results_cache
         trade_log_mod.TRADE_LOG_FILE = self.orig_trade_log_file
+        self._gov_mod.RUNTIME_STATE_PATH = self.orig_runtime
 
     def test_write_state_derives_strategy_key(self) -> None:
         state_mod.write_state("Bull Put Spread", "SPX")

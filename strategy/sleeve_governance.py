@@ -27,9 +27,47 @@ Q072_DAILY_FLAGS = Q072_DIR / "q072_p1_daily_flags.csv"
 Q072_PORTFOLIO_STATE = Q072_DIR / "q072_p4c0_portfolio_state.csv"
 Q072_ALLOCATOR_RESULTS = Q072_DIR / "q072_p4c4_allocator_results.csv"
 
-SPX_NLV = 100_000.0
-ES_NLV = 100_000.0
-COMBINED_NLV = SPX_NLV + ES_NLV
+# SPEC-118.2: the historical SPX_NLV/ES_NLV = 100k constants are GONE as a
+# basis fallback. When the live broker read degrades, governance now falls
+# back to the last successful basis persisted in sleeve_governance_runtime.json
+# (+ a stale-basis Telegram warning); with no last-known basis at all,
+# evaluate_candidate fails CLOSED with an explicit reason instead of silently
+# denominating caps against a fictitious $200k account.
+_BASIS_DEGRADED_ALERTED: dict[str, bool] = {}
+
+
+def _last_successful_basis() -> tuple[float | None, str | None]:
+    """(basis_dollars, timestamp) from the last non-degraded runtime snapshot."""
+    try:
+        d = json.loads(RUNTIME_STATE_PATH.read_text(encoding="utf-8"))
+        if d.get("basis_degraded"):
+            return None, None
+        b = float(d.get("basis_dollars") or 0.0)
+        if b > 0:
+            return b, d.get("timestamp")
+    except Exception:
+        pass
+    return None, None
+
+
+def _resolve_basis(state: dict) -> tuple[float | None, bool]:
+    """Basis for cap math: live value, else last-known (degraded=True), else None."""
+    live = _num(state.get("basis_dollars"))
+    if live and live > 0:
+        return live, False
+    last, ts = _last_successful_basis()
+    if last:
+        today = _et_now().date().isoformat()
+        if not _BASIS_DEGRADED_ALERTED.get(today):
+            _BASIS_DEGRADED_ALERTED[today] = True
+            _send_alert(
+                "⚠️ <b>Sleeve governance basis degraded</b>\n"
+                f"Live NLV read unavailable — using last successful basis "
+                f"<code>${last:,.0f}</code> (from {ts}). Cap math continues on "
+                f"stale denominator; investigate broker/summary layer."
+            )
+        return last, True
+    return None, True
 
 CAP_SPX_PM = 80.0
 CAP_ES_SPAN = 80.0
@@ -533,7 +571,7 @@ def portfolio_stress_overnight_gap(state: dict | None = None) -> dict:
     _SAFE: dict = {"mark_loss_pct_nlv": 0.0, "components": {}, "gate_pass": True, "source": "safe_fallback"}
     try:
         import logging as _log
-        nlv = _num((state or {}).get("basis_dollars")) or COMBINED_NLV
+        nlv = _resolve_basis(state or {})[0] or 0.0  # SPEC-118.2: 0 → stress gate returns safe-fallback
         market = (state or {}).get("market") or {}
         spx = _num(market.get("spx_close"))
         vix = _num(market.get("vix"))
@@ -628,7 +666,7 @@ def ladder_shadow_decision_payload(state: dict, *, commit: bool = False) -> dict
 
     mode = ladder_mode()
     pools = state.get("pools") or {}
-    nlv = _num(state.get("basis_dollars")) or COMBINED_NLV
+    nlv = _resolve_basis(state)[0] or 100_000.0  # SPEC-118.2: shadow-display denominator only (paper sizing math), never cap math
     current_bp = _num(pools.get("spx_pm_bp_pct")) or 0.0
     selector_verdict, selector_ts = _selector_verdict_for_ladder()
     today = _et_now().date()
@@ -750,13 +788,19 @@ def current_governance_state() -> dict:
         "combined_bp_pct": 0.0,
         "short_vol_bp_pct": 0.0,
     }
-    basis = (pools_default.get("nlv_basis") or 0.0) or COMBINED_NLV
+    # SPEC-118.2: live pool basis when available; else last-known (degraded).
+    _live_basis = pools_default.get("nlv_basis") or 0.0
+    if _live_basis > 0:
+        basis, _basis_degraded = _live_basis, False
+    else:
+        basis, _basis_degraded = _resolve_basis({})
 
     state_payload = {
         "timestamp": _iso_now(),
         "status": "available" if not errors else "partial",
         "errors": errors,
-        "basis_dollars": round(basis, 2),
+        "basis_dollars": round(basis, 2) if basis else None,
+        "basis_degraded": _basis_degraded,
         "pools": pools_default,
         "pools_by_view": pools_by_view,
         "caps": governance_caps(stress_active, second_leg, booster_active, cap_pct, cap_regime),
@@ -861,7 +905,7 @@ def ladder_v1b_shadow_decision_payload(state: dict, *, commit: bool = False) -> 
 
     mode = ladder_v1b_mode()
     pools = state.get("pools") or {}
-    nlv = _num(state.get("basis_dollars")) or COMBINED_NLV
+    nlv = _resolve_basis(state)[0] or 100_000.0  # SPEC-118.2: shadow-display denominator only (paper sizing math), never cap math
     current_bp = _num(pools.get("spx_pm_bp_pct")) or 0.0
     selector_verdict, selector_ts = _selector_verdict_for_ladder()
     today = _et_now().date()
@@ -1042,7 +1086,13 @@ def evaluate_candidate(candidate: dict, state: dict | None = None) -> Governance
     state = state or current_governance_state()
     pool = _candidate_pool(candidate)
     requested_bp = _candidate_requested_bp(candidate)
-    basis = _num(state.get("basis_dollars")) or COMBINED_NLV
+    basis, _basis_degraded = _resolve_basis(state)  # SPEC-118.2
+    if basis is None:
+        return GovernanceDecision(
+            False, "R0",
+            "basis_unavailable: live NLV read failed and no last-known basis on disk — failing closed",
+            candidate, state, requested_bp, 0.0, _iso_now(),
+        )
     requested_pct = requested_bp / basis * 100.0 if basis else 0.0
     pools = state.get("pools") or {}
     is_short = is_short_vol_candidate(candidate)

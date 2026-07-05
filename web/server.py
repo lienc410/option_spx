@@ -137,10 +137,39 @@ def _load_q019_flip_days() -> list[dict[str, object]]:
 
 _BACKTEST_ACCOUNT_SIZE = 500_000   # canonical account size for all frontend backtests
 
+_ALGO_HASH_CACHE: str | None = None
+
+
+def _algo_hash() -> str:
+    """SPEC-118.3: short git hash of the last commit touching algorithm dirs.
+
+    Mixed into every backtest cache key so an algorithm change auto-invalidates
+    the disk caches — previously only *parameter* changes invalidated them, and
+    code changes silently served stale results unless someone remembered the
+    manual three-cache refresh ritual (feedback_backtest_cache_refresh)."""
+    global _ALGO_HASH_CACHE
+    if _ALGO_HASH_CACHE is None:
+        try:
+            import subprocess
+            out = subprocess.run(
+                ["git", "log", "-1", "--format=%h", "--",
+                 "strategy/", "backtest/", "signals/"],
+                capture_output=True, text=True, timeout=10,
+                cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            )
+            _ALGO_HASH_CACHE = out.stdout.strip() or "nogit"
+        except Exception:
+            _ALGO_HASH_CACHE = "nogit"
+    return _ALGO_HASH_CACHE
+
+
 def _params_hash() -> str:
-    """Short hash of StrategyParams + account size — changes when either changes."""
+    """Short hash of StrategyParams + account size + algo git hash — changes
+    when parameters, account sizing, or any strategy/backtest/signals code
+    commit changes (SPEC-118.3)."""
     from strategy.selector import StrategyParams
-    payload = {**asdict(StrategyParams()), "_acct": _BACKTEST_ACCOUNT_SIZE}
+    payload = {**asdict(StrategyParams()), "_acct": _BACKTEST_ACCOUNT_SIZE,
+               "_algo": _algo_hash()}
     return _hash_payload(payload)
 
 
@@ -4001,7 +4030,7 @@ def api_es_backtest():
     mode       = flask_req.args.get("mode", "filtered")   # filtered | baseline | both
     start_date = flask_req.args.get("start", "2000-01-01")
     use_hybrid = flask_req.args.get("hybrid", "1") == "1"
-    cache_key  = f"{mode}:{start_date}:{use_hybrid}"
+    cache_key  = f"{mode}:{start_date}:{use_hybrid}:{_algo_hash()}"  # SPEC-118.3
 
     # Memory cache
     if cache_key in _ES_BT_CACHE:
@@ -4094,7 +4123,7 @@ def api_es_backtest():
 def api_es_backtest_hvlad():
     start_date = flask_req.args.get("start", "2000-01-01")
     end_date = flask_req.args.get("end")
-    cache_key = f"hvlad:{start_date}:{end_date or ''}"
+    cache_key = f"hvlad:{start_date}:{end_date or ''}:{_algo_hash()}"  # SPEC-118.3
 
     if cache_key in _ES_BT_CACHE:
         cached = _ES_BT_CACHE[cache_key]
@@ -4598,7 +4627,7 @@ def api_es_backtest_v2f():
     start_date = flask_req.args.get("start", "2000-01-01")
     end_date = flask_req.args.get("end")
     mode = flask_req.args.get("mode", "baseline")
-    cache_key = f"v2f:{mode}:{start_date}:{end_date or ''}"
+    cache_key = f"v2f:{mode}:{start_date}:{end_date or ''}:{_algo_hash()}"  # SPEC-118.3
 
     if cache_key in _ES_BT_CACHE:
         cached = _ES_BT_CACHE[cache_key]
@@ -4665,7 +4694,7 @@ def api_es_backtest_refresh():
     mode       = flask_req.args.get("mode", "both")
     start_date = flask_req.args.get("start", "2022-05-01")
     use_hybrid = flask_req.args.get("hybrid", "1") == "1"
-    cache_key  = f"{mode}:{start_date}:{int(use_hybrid)}"
+    cache_key  = f"{mode}:{start_date}:{int(use_hybrid)}:{_algo_hash()}"  # SPEC-118.3
     _ES_BT_CACHE.pop(cache_key, None)
     try:
         from research.strategies.ES_puts.backtest import run_phase1, run_phase1_hybrid
@@ -6184,7 +6213,7 @@ def api_signals_history():
     from backtest.engine import run_signals_only
 
     start = flask_req.args.get("start", "2000-01-01")
-    cache_key = f"signals__{start}"
+    cache_key = f"signals__{start}__{_algo_hash()}"  # SPEC-118.3
     cached = _signals_cache.get(cache_key)
     if cached and (time.time() - cached[0]) < _SIGNALS_CACHE_TTL:
         return jsonify(cached[1])
@@ -6264,7 +6293,7 @@ def api_backtest_stats():
         ("all", "2000-01-01"),
     ]
     for period, start in periods:
-        cache_key = f"stats_{start}"
+        cache_key = f"stats_{start}_{_algo_hash()}"  # SPEC-118.3
 
         # 1. Memory cache (hot path — same process, within TTL)
         mem = _backtest_cache.get(cache_key)

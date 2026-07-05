@@ -29,3 +29,15 @@ data/matrix_consistency_audit_*.csv
 research/book_management/
 # Broker statements (account PII)
 data/etrade_statements/
+
+# SPEC-118.4: backtest disk caches are runtime-regenerable (nightly refresh /
+# on-demand); tracking them caused a git-pull stash collision on every oldair
+# deploy. Cold-start regeneration: hit /api/backtest, /api/backtest/stats,
+# /api/es/backtest, /api/q041/backtest once.
+data/backtest_results_cache.json
+data/backtest_stats_cache.json
+data/es_backtest_cache.json
+data/q041_backtest_cache.json
+# SPEC-117.1 heartbeat marker (touched by the local backup pull; must survive
+# git stash --include-untracked during deploys)
+data/.last_backup_pull
