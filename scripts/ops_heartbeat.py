@@ -109,10 +109,14 @@ def _deferred_digest(now: datetime, path: Path | None = None) -> str | None:
         return None
     overdue: list[str] = []
     upcoming = conditional = 0
+    import re as _re
     for line in p.read_text(encoding="utf-8").splitlines():
         if not line.startswith("|") or line.startswith("| #") or set(line) <= {"|", "-", " "}:
             continue
-        cells = [c.strip() for c in line.strip("|").split("|")]
+        # split on UNESCAPED pipes only — item names may contain "\|"
+        # (e.g. "LOW_VOL\|NEUTRAL 格改路由")
+        cells = [c.strip().replace("\\|", "|")
+                 for c in _re.split(r"(?<!\\)\|", line.strip("|"))]
         if len(cells) < 6 or not cells[0].isdigit():
             continue
         item, deadline, owner = cells[1], cells[4], cells[5]

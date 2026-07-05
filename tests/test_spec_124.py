@@ -217,6 +217,14 @@ class TestDeferredMonthlyDigest(unittest.TestCase):
         self.assertIsNone(_deferred_digest(datetime(2026, 8, 10, 17, 30, tzinfo=ET), path=p))
         self.assertIsNone(_deferred_digest(datetime(2026, 8, 4, 17, 30, tzinfo=ET), path=p))
 
+    def test_escaped_pipe_in_item_name(self):
+        from scripts.ops_heartbeat import _deferred_digest
+        p = self._md(
+            "| 11 | LOW_VOL\\|NEUTRAL 格改路由 | BCD packet D3 | 2026-07-05 | 2026-06-30 | Quant | 排队 |\n")
+        digest = _deferred_digest(datetime(2026, 8, 3, 17, 30, tzinfo=ET), path=p)
+        self.assertIn("LOW_VOL|NEUTRAL 格改路由", digest)
+        self.assertIn("owner Quant", digest)   # columns not shifted by the \\|
+
     def test_real_ledger_parses(self):
         from scripts.ops_heartbeat import _deferred_digest
         digest = _deferred_digest(datetime(2026, 8, 3, 17, 30, tzinfo=ET))
