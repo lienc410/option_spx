@@ -198,8 +198,13 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     <h1>Stress Put <em>Ladder</em></h1>
     <div class="page-meta">
       ES High-Vol Sell Put Ladder · VIX ≥ 22 · paper/shadow observation
-      <span style="color:var(--text-muted);margin-left:8px">·</span>
+      <span style="color:var(--text-2);margin-left:8px">·</span>
       <a href="/es" style="color:var(--text-2);text-decoration:none;font-size:0.60rem;margin-left:4px" title="legacy single-slot /ES strategy (no longer trading)">Legacy /ES view →</a>
+    </div>
+    <!-- Q088 A5: validated-not-deployed disclosure -->
+    <div class="page-meta" style="color:var(--orange)">
+      Ladder config (5 slots × 3 contracts) is validated, <strong>not deployed</strong> —
+      live /ES trades the SPEC-061 single-lot rule; scale-up is PM-initiated only
     </div>
   </div>
 

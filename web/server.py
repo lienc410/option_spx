@@ -84,7 +84,26 @@ _signals_cache: dict[str, tuple[float, dict]] = {}
 _CACHE_TTL = 300  # 5 minutes
 _SIGNALS_CACHE_TTL = 3600  # 1 hour
 _STATS_SCHEMA_VERSION = "v3"  # bump: account_size 150k → 500k
+# Q088 A5 housekeeping: /ES per-contract SPAN margin drifts with the SPX level
+# and Schwab exposes no per-position futures-option margin via API (memory:
+# research_pm_bp_calculation) — so this stays a measured constant WITH an
+# as-of date and a staleness surface. When stale, the /es BP gate payload
+# carries a warning (PM sees it in the open-draft flow) instead of silently
+# gating on an outdated number. Refresh: read the actual BP effect of a 1-lot
+# /ES short put in TOS and update both values.
 _ES_BP_PER_CONTRACT = 20_529.0
+_ES_BP_PER_CONTRACT_AS_OF = "2026-05-08"   # last TOS measurement (SPEC-089 era)
+_ES_BP_STALE_AFTER_DAYS = 90
+
+def _es_bp_staleness_warning() -> str | None:
+    from datetime import date as _date
+    as_of = _date.fromisoformat(_ES_BP_PER_CONTRACT_AS_OF)
+    age = (datetime.now(_ET).date() - as_of).days
+    if age <= _ES_BP_STALE_AFTER_DAYS:
+        return None
+    return (f"es_bp_per_contract measured {age}d ago ({_ES_BP_PER_CONTRACT_AS_OF}); "
+            f"SPAN margin drifts with SPX — re-measure in TOS and update server.py")
+
 from strategy.es_params import DEFAULT_ES_PARAMS as _ES_PARAMS
 _ES_BP_LIMIT_FRACTION = _ES_PARAMS.bp_limit_fraction  # 0.20 — sourced from EsShortPutParams
 
@@ -5014,7 +5033,7 @@ def _live_es_bp_check() -> dict:
     limit_dollars = round(nlv * _ES_BP_LIMIT_FRACTION, 2)
     projected_bp = round(float(used_margin) + _ES_BP_PER_CONTRACT, 2)
     bp_ok = projected_bp <= limit_dollars
-    return {
+    out = {
         "ok": bp_ok,
         "reason": None if bp_ok else "Projected /ES BP would exceed NLV 20% cap",
         "nlv": round(float(nlv), 2),
@@ -5023,7 +5042,12 @@ def _live_es_bp_check() -> dict:
         "bp_limit": limit_dollars,
         "bp_check_passed": bp_ok,
         "es_bp_per_contract": _ES_BP_PER_CONTRACT,
+        "es_bp_as_of": _ES_BP_PER_CONTRACT_AS_OF,
     }
+    warn = _es_bp_staleness_warning()
+    if warn:
+        out["es_bp_staleness_warning"] = warn
+    return out
 
 
 @app.route("/api/position/open", methods=["POST"])
@@ -5043,7 +5067,10 @@ def api_position_open():
         return jsonify({"error": str(exc)}), 400
 
     timestamp = _now_et_iso()
-    trade_id = next_trade_id(strategy_key)
+    # SPEC-123 §4a: trade_id is allocated LATER, inside ID_ALLOC_LOCK together
+    # with the open-event append — allocating here (before the multi-second
+    # governance evaluation) is what produced the 2026-06-03 duplicate-id
+    # collision between two concurrent opens.
     actual_premium = body.get("actual_premium")
     model_premium = body.get("model_premium")
     premium_source = "actual"
@@ -5052,7 +5079,6 @@ def api_position_open():
         premium_source = "model"
 
     state_payload = {
-        "trade_id": trade_id,
         "short_strike": body.get("short_strike"),
         "long_strike": body.get("long_strike"),
         "expiry": body.get("expiry"),
@@ -5156,35 +5182,39 @@ def api_position_open():
         except Exception as exc:
             return jsonify({"error": f"SPEC-108 ladder unavailable: {exc}"}), 503
 
-    write_state(desc.name, body.get("underlying", desc.underlying), strategy_key=strategy_key, account=account, add_tranche=add_tranche, **state_payload)
-    if ladder_state_for_active is not None and ladder_decision_for_active and ladder_decision_for_active[0]:
-        try:
-            ladder_state_for_active.mark_entry(datetime.now(_ET).date(), ladder_decision_for_active[2], mode="active")
-        except Exception:
-            pass
-    append_event({
-        "id": trade_id,
-        "event": "open",
-        "timestamp": timestamp,
-        "strategy_key": strategy_key,
-        "strategy": desc.name,
-        "underlying": body.get("underlying", desc.underlying),
-        "short_strike": body.get("short_strike"),
-        "long_strike": body.get("long_strike"),
-        "expiry": body.get("expiry"),
-        "dte_at_entry": body.get("dte_at_entry"),
-        "contracts": body.get("contracts", 1),
-        "actual_premium": actual_premium,
-        "model_premium": model_premium,
-        "premium_source": premium_source,
-        "entry_spx": body.get("entry_spx"),
-        "entry_vix": body.get("entry_vix"),
-        "regime": body.get("regime"),
-        "iv_signal": body.get("iv_signal"),
-        "trend_signal": body.get("trend_signal"),
-        "paper_trade": paper_trade,
-        "note": body.get("note", ""),
-    })
+    from logs.trade_log_io import ID_ALLOC_LOCK
+    with ID_ALLOC_LOCK:
+        trade_id = next_trade_id(strategy_key)
+        state_payload["trade_id"] = trade_id
+        write_state(desc.name, body.get("underlying", desc.underlying), strategy_key=strategy_key, account=account, add_tranche=add_tranche, **state_payload)
+        if ladder_state_for_active is not None and ladder_decision_for_active and ladder_decision_for_active[0]:
+            try:
+                ladder_state_for_active.mark_entry(datetime.now(_ET).date(), ladder_decision_for_active[2], mode="active")
+            except Exception:
+                pass
+        append_event({
+            "id": trade_id,
+            "event": "open",
+            "timestamp": timestamp,
+            "strategy_key": strategy_key,
+            "strategy": desc.name,
+            "underlying": body.get("underlying", desc.underlying),
+            "short_strike": body.get("short_strike"),
+            "long_strike": body.get("long_strike"),
+            "expiry": body.get("expiry"),
+            "dte_at_entry": body.get("dte_at_entry"),
+            "contracts": body.get("contracts", 1),
+            "actual_premium": actual_premium,
+            "model_premium": model_premium,
+            "premium_source": premium_source,
+            "entry_spx": body.get("entry_spx"),
+            "entry_vix": body.get("entry_vix"),
+            "regime": body.get("regime"),
+            "iv_signal": body.get("iv_signal"),
+            "trend_signal": body.get("trend_signal"),
+            "paper_trade": paper_trade,
+            "note": body.get("note", ""),
+        })
 
     # Async Telegram push — mirrors bot /entered flow
     try:
@@ -5195,7 +5225,63 @@ def api_position_open():
     except Exception:
         pass
 
+    # SPEC-123 §3 — manual-open governance ADVISORY (informs, never blocks,
+    # no confirmation): over-cap / below-floor / cell-routed-to-wait (incl.
+    # SPEC-060-class dead cells) + D2 quote-gate状态. Runs in the background.
+    if not paper_trade:
+        threading.Thread(target=_manual_open_governance_advisory,
+                         args=(strategy_key, dict(body), trade_id), daemon=True).start()
+
     return jsonify({"ok": True, "trade_id": trade_id})
+
+
+def _manual_open_governance_advisory(strategy_key: str, body: dict, trade_id: str) -> None:
+    """SPEC-123 §3: informational Telegram after a manual open. Cell routing is
+    taken from the PRODUCTION selector (get_recommendation → _effective_iv_signal
+    inside — never reclassified here; that divergence step being skipped is what
+    produced three independent errors in one day, see task/SPEC-123.md §4)."""
+    notes: list[str] = []
+    try:
+        try:
+            from strategy.cash_budget_governance import (
+                CASH_FLOOR_USD, evaluate_cash_collateral_budget, get_current_liquid_cash,
+            )
+            cash = get_current_liquid_cash()
+            if cash.get("source") != "unavailable" and float(cash.get("total") or 0.0) < CASH_FLOOR_USD:
+                notes.append(f"现金 ${float(cash['total']):,.0f} < ${CASH_FLOOR_USD:,.0f} floor")
+            verdict = evaluate_cash_collateral_budget({
+                "strategy_key": strategy_key,
+                "contracts": body.get("contracts", 1),
+                "debit_usd": body.get("requested_bp_dollars") or body.get("bp_usage_dollars"),
+            })
+            if verdict and not verdict.get("accepted", True):
+                notes.append(f"cash 预算: {verdict.get('reason', 'exceeded')}")
+        except Exception:
+            pass
+
+        try:
+            from strategy.selector import get_recommendation
+            rec = get_recommendation(use_intraday=False)
+            routed = rec.strategy_key
+            regime_val = getattr(rec.vix_snapshot.regime, "value", str(rec.vix_snapshot.regime))
+            if routed == "reduce_wait":
+                notes.append("本单所在格当前路由为 wait（含 SPEC-060 类死格）")
+            elif routed != strategy_key:
+                notes.append(f"本单策略与当前格路由不符（路由={routed}）")
+            if strategy_key == "bull_call_diagonal" and regime_val == "LOW_VOL":
+                from strategy.bcd_governance import quote_gate_status
+                qg = quote_gate_status()
+                if not qg["unlocked"]:
+                    notes.append(f"D2 前置门未解锁（{qg['days']}/{qg['needed']} 天）— 本单触发即时复审（预注册条件）")
+        except Exception:
+            pass
+
+        if notes:
+            from notify.event_push import _send
+            _send("ℹ️ [治理提示·不拦截] 手动单 " + trade_id + " 在治理口径外：\n"
+                  + "\n".join(f"  · {n}" for n in notes))
+    except Exception:
+        pass
 
 
 @app.route("/api/position/open-draft")

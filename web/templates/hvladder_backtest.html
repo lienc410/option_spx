@@ -188,6 +188,13 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   <div class="page-hero">
     <h1>Stress Put Ladder <em>Backtest</em></h1>
     <div class="page-meta">V2f baseline vs VIX ≥ 22 gated ladder · Q071 P5 crisis review</div>
+    <!-- Q088 A5: the promoted ladder economics shown here (5 slots × 3 contracts)
+         are VALIDATED BUT NOT DEPLOYED — live /ES runs the SPEC-061 single-lot
+         rule (~1/15 of this concurrency). Scale-up is a PM-initiated option. -->
+    <div class="page-meta" style="color:var(--orange)">
+      Live /ES = SPEC-061 single-lot (1 contract, 1 slot) — the ladder economics on this
+      page are a validated, <strong>not deployed</strong> configuration (~15× live concurrency)
+    </div>
   </div>
 
   <div class="page-tabs">

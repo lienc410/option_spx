@@ -55,12 +55,14 @@ def _load_daily_frames() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     return vix_df, spx_df, vix3m_df
 
 
-def _effective_iv_signal(ivp: float) -> str:
-    if ivp > 70:
-        return SelectorIVSignal.HIGH.value
-    if ivp < 40:
-        return SelectorIVSignal.LOW.value
-    return SelectorIVSignal.NEUTRAL.value
+# SPEC-123 §4b: this script used to carry a local `_effective_iv_signal`
+# (IVP-only 70/40, NO IVR/IVP divergence step) — a second implementation of
+# the production classifier, the exact bug class that produced three
+# independent cell-classification errors on 2026-07-05. The snapshot now
+# gets the RAW IVR-based signal (signals.iv_rank._classify_iv_signal, same
+# as production snapshots) and the divergence override happens where it
+# always does: inside strategy.selector._effective_iv_signal downstream.
+from signals.iv_rank import _classify_iv_signal as _raw_iv_signal
 
 
 def _entry_recommendation(
@@ -141,7 +143,7 @@ def _entry_recommendation(
         vix=vix,
         iv_rank=ivr,
         iv_percentile=ivp,
-        iv_signal=SelectorIVSignal(_effective_iv_signal(ivp)),
+        iv_signal=_raw_iv_signal(ivr),
         iv_52w_high=float(iv_window.max()),
         iv_52w_low=float(iv_window.min()),
         ivp63=ivp63,

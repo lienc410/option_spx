@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -8,6 +9,15 @@ from zoneinfo import ZoneInfo
 
 _ET = ZoneInfo("America/New_York")
 TRADE_LOG_FILE = Path(__file__).resolve().parent / "trade_log.jsonl"
+
+# SPEC-123 §4a — trade-id allocation and the append of its open event must sit
+# in ONE critical section. Production incident 2026-06-03: two concurrent
+# /api/position/open requests both allocated 2026-06-03_bcd_001 (allocation
+# happened BEFORE the multi-second governance evaluation, append after) — two
+# distinct BCD positions shared one id, resolve_log() silently swallowed the
+# second open, and a later correction targeting _001 became ambiguous.
+# Endpoints hold this lock from next_trade_id() through append_event().
+ID_ALLOC_LOCK = threading.Lock()
 
 
 def _log_path() -> Path:
@@ -73,6 +83,10 @@ def resolve_log() -> list[dict]:
                 base_rolls[-1].update(fields)
 
         paper_trade = bool((base_open or {}).get("paper_trade", False))
+        # SPEC-123 §4a integrity flag: >1 open under one id means a historical
+        # id collision (see ID_ALLOC_LOCK note). The extra opens are NOT merged
+        # or dropped silently anymore — downstream consumers can see the flag.
+        open_events = [e for e in ordered if e.get("event") == "open"]
         resolved.append({
             "id": trade_id,
             "voided": voided,
@@ -82,6 +96,7 @@ def resolve_log() -> list[dict]:
             "rolls": base_rolls,
             "notes": notes,
             "corrections": corrections,
+            "duplicate_open_count": len(open_events) if len(open_events) > 1 else 0,
         })
 
     return sorted(resolved, key=lambda r: r["id"])

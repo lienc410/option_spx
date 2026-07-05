@@ -67,11 +67,20 @@ class TestSignalDayGate(ShadowBase):
         self.assertNotIn("select_strategy", src)
 
     def test_ac4_non_signal_day_zero_writes(self):
-        out = shadow.run("2026-07-06", _rec("bull_put_spread"),
+        # SPEC-123 §2 extended the recorder: LOW_VOL days record the quote-gate
+        # lane even without a signal, so AC-4's zero-write guarantee now applies
+        # to non-signal days OUTSIDE LOW_VOL.
+        out = shadow.run("2026-07-06", _rec("bull_put_spread", regime="NORMAL"),
                          _synthetic_calls(), 7480.0, 16.0)
         self.assertIsNone(out)
         self.assertFalse(shadow.SHADOW_OUT.exists())   # zero data writes
         self.assertTrue(shadow.RUN_MARKER.exists())    # heartbeat still alive
+
+    def test_spec123_lowvol_quote_gate_lane_records(self):
+        out = shadow.run("2026-07-06", _rec("bull_put_spread", regime="LOW_VOL"),
+                         _synthetic_calls(), 7480.0, 16.0)
+        self.assertEqual(out["lane"], "lowvol_quote_gate")
+        self.assertTrue(shadow.SHADOW_OUT.exists())
 
     def test_ac4_module_is_telegram_silent(self):
         # no sending machinery anywhere in the module (docstring may SAY

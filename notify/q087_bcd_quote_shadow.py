@@ -128,14 +128,22 @@ def run(today: str, rec, calls, spx: float | None, vix: float,
     RUN_MARKER.touch()  # heartbeat: job alive daily, incl. non-signal days
 
     strategy_key = getattr(rec, "strategy_key", None) if rec is not None else None
-    if strategy_key != "bull_call_diagonal":
+    regime = getattr(getattr(rec, "vix_snapshot", None), "regime", None) if rec is not None else None
+    regime = getattr(regime, "value", str(regime)) if regime is not None else None
+
+    # SPEC-123 §2 (D2 quote-gate): while in LOW_VOL, record quotes EVERY day —
+    # the gate needs >=10 LOW_VOL quote days before the first main-cell trade,
+    # including days when D1 halt or gates keep the selector on wait.
+    is_signal = strategy_key == "bull_call_diagonal"
+    if not is_signal and regime != "LOW_VOL":
         return None  # AC-4: non-signal day — zero shadow writes, zero pushes
 
     from notify.q085_s2bps_paper import _append_jsonl
 
-    regime = getattr(getattr(rec, "vix_snapshot", None), "regime", None)
-    regime = getattr(regime, "value", str(regime))
-    lane = "LOW_VOL|BULLISH" if regime == "LOW_VOL" else "SPEC-113_carve"
+    if is_signal:
+        lane = "LOW_VOL|BULLISH" if regime == "LOW_VOL" else "SPEC-113_carve"
+    else:
+        lane = "lowvol_quote_gate"
 
     row: dict = {"date": today, "lane": lane, "regime": regime,
                  "vix": round(float(vix), 2)}

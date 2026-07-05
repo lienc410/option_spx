@@ -93,13 +93,15 @@ class StrategyMatrixEndpointTests(unittest.TestCase):
         self.assertEqual(cell["payoff_type"], "DEBIT")
         self.assertFalse(cell["gated"])
 
-    def test_normal_low_bullish_is_gated_thin_premium(self):
-        """AC-106-8 — IV-axis-flips-meaning evidence."""
+    def test_normal_low_bullish_routes_bcd_carve(self):
+        """AC-106-8 originally pinned this cell to Reduce/Wait (thin premium).
+        SPEC-113 (ratified) carves VIX<18 to Bull Call Diagonal — the matrix
+        endpoint synthesizes this cell below 18, so the carve is the correct
+        verdict now. (Stale pin fixed in the SPEC-123 batch.)"""
         cell = next(c for c in self.data["cells"]
                     if c["cell_id"] == "NORMAL|LOW|BULLISH")
-        self.assertEqual(cell["selector_verdict"], "Reduce / Wait")
-        self.assertEqual(cell["payoff_type"], "WAIT")
-        self.assertIn("thin", cell["reason"].lower())
+        self.assertEqual(cell["selector_verdict"], "Bull Call Diagonal")
+        self.assertEqual(cell["payoff_type"], "DEBIT")
 
     def test_extreme_vol_routes_to_reduce_wait(self):
         """All 9 EXTREME_VOL cells must gate (vix ≥ extreme_vix threshold)."""

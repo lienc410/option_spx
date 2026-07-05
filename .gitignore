@@ -44,3 +44,5 @@ data/.last_backup_pull
 data/.last_l2_archive
 # SPEC-122 heartbeat marker (touched by the q085 job's BCD shadow step)
 data/.q087_bcd_shadow_ran
+# SPEC-123 heartbeat marker (BCD governance daily driver)
+data/.q087_bcd_gov_ran

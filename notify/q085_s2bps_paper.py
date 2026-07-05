@@ -428,6 +428,17 @@ def run(today: str | None = None, *, dry_run: bool = False) -> dict:
         log.exception("q087 bcd shadow failed")
         summary["bcd_shadow_error"] = str(exc)
 
+    # A3. SPEC-123 BCD governance daily driver: chain marks for open BCD
+    # positions, D1 gate evaluation (halt = routine review event), D2
+    # quote-gate unlock check. Fail-soft like the shadow.
+    try:
+        from strategy.bcd_governance import daily_update as bcd_gov_update
+        summary["bcd_governance"] = bcd_gov_update(today, calls=calls,
+                                                   regime=regime, dry_run=dry_run)
+    except Exception as exc:
+        log.exception("q087 bcd governance failed")
+        summary["bcd_governance_error"] = str(exc)
+
     # C. manage open positions
     closes = manage_open_positions(puts, today)
     summary["closes"] = closes

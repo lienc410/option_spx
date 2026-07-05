@@ -1497,7 +1497,49 @@ def get_recommendation(
     trend_snap = get_current_trend(spx_data, current_spx=current_spx)
 
     rec = select_strategy(vix_snap, iv_snap, trend_snap, params)
-    return _eval_overlay_f_live(rec, params)
+    rec = _eval_overlay_f_live(rec, params)
+    return _apply_bcd_governance_live(rec, vix_snap, iv_snap, trend_snap, params)
+
+
+def _apply_bcd_governance_live(rec: Recommendation, vix: VixSnapshot, iv: IVSnapshot,
+                               trend: TrendSnapshot,
+                               params: StrategyParams = DEFAULT_PARAMS) -> Recommendation:
+    """SPEC-123 — LIVE-ONLY wrapper (get_recommendation path; backtests call
+    select_strategy directly and never read governance state).
+
+    D1: while the BCD family is halted, BCD cells downgrade to REDUCE_WAIT
+    with the triggering gate in the rationale. NB the halt is a ROUTINE REVIEW
+    EVENT (P(6-trade sum<0 | edge real) ≈ 39-48%/window) — copy stays calm.
+    D2: while the LOW_VOL quote-gate is accumulating, BCD recs carry an
+    advisory tag; after unlock, the first-5-trades 1-lot advisory."""
+    if rec.strategy_key != "bull_call_diagonal":
+        return rec
+    try:
+        from strategy import bcd_governance as gov
+        halt = gov.is_halted()
+        if halt:
+            gates = ", ".join(g.get("gate", "?") for g in (halt.get("gates") or []))
+            return _reduce_wait(
+                f"BCD 家族 D1 治理暂停中（{halt.get('at')}，门：{gates}）——例行复核事件，"
+                f"恢复需 PM 显式复审（python -m strategy.bcd_governance --pm-clear）",
+                vix, iv, trend, macro_warn=False,
+                canonical_strategy=rec.strategy.value, params=params,
+            )
+        regime_val = getattr(vix.regime, "value", str(vix.regime))
+        if regime_val == "LOW_VOL":
+            qg = gov.quote_gate_status()
+            if not qg["unlocked"]:
+                rec.rationale += (f"　[D2 quote-gate: {qg['days']}/{qg['needed']} 天，"
+                                  f"未解锁前主格开仓将触发即时复审]")
+            else:
+                adv = gov.first5_advisory()
+                if adv:
+                    rec.rationale += f"　[D2 {adv}]"
+    except Exception:
+        # governance must never break the recommendation path
+        import logging
+        logging.getLogger("selector").exception("bcd governance wrapper failed")
+    return rec
 
 
 def get_es_recommendation(
