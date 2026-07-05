@@ -412,6 +412,7 @@ def run_settling_process(*, now_fn=_now_et, sleep_fn=time.sleep, send_telegram: 
             prev_vix=None,
             delta_vix=None,
             signal1=None,
+            signal1_captured_at=None,
             signal2=None,
             changed=None,
             note="non_trading_day",

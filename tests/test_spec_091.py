@@ -170,6 +170,23 @@ class Spec091Tests(unittest.TestCase):
             payload = settling_mod.read_settling_state()
         self.assertEqual(payload["status"], "unavailable")
 
+    def test_spec117_skipped_state_schema_complete(self) -> None:
+        """SPEC-117.2 regression guard: the skipped-branch constructor must supply
+        every SettlingState field (2026-07 outage: signal1_captured_at was added
+        as a required field but the skipped branch wasn't updated → nightly
+        TypeError). Assert the written state carries the full dataclass schema."""
+        import dataclasses
+        rc = settling_mod.run_settling_process(
+            now_fn=lambda: _dt(2026, 5, 9, 9, 30),   # Saturday → skipped branch
+            sleep_fn=lambda _s: None,
+            send_telegram=False,
+            verbose=False,
+        )
+        self.assertEqual(rc, 0)
+        state = json.loads(settling_mod.STATE_FILE.read_text(encoding="utf-8"))
+        for f in dataclasses.fields(settling_mod.SettlingState):
+            self.assertIn(f.name, state, f"skipped-state missing field {f.name}")
+
 
 if __name__ == "__main__":
     unittest.main()
