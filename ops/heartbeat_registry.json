@@ -34,6 +34,9 @@
     {"label": "com.spxstrat.ops_heartbeat",        "kind": "self",      "allow_exit": [0]},
     {"label": "LOCAL:com.spxstrat.local_backup_pull", "kind": "marker",
      "freshness": {"path": "data/.last_backup_pull", "rule": "daily_26h"},
-     "note": "SPEC-117.1 L1 backup runs on the local machine at 05:00; it touches this marker on oldair after each successful pull"}
+     "note": "SPEC-117.1 L1 backup runs on the local machine at 05:00; it touches this marker on oldair after each successful pull"},
+    {"label": "LOCAL:com.spxstrat.local_backup_pull.l2", "kind": "marker",
+     "freshness": {"path": "data/.last_l2_archive", "rule": "weekly_8d"},
+     "note": "F-1 follow-up: Sunday L2 iCloud archive touches this marker on success; an unmonitored backup branch is its own silent-failure class"}
   ]
 }

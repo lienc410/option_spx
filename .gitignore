@@ -38,6 +38,7 @@ data/backtest_results_cache.json
 data/backtest_stats_cache.json
 data/es_backtest_cache.json
 data/q041_backtest_cache.json
-# SPEC-117.1 heartbeat marker (touched by the local backup pull; must survive
+# SPEC-117.1 heartbeat markers (touched by the local backup pull; must survive
 # git stash --include-untracked during deploys)
 data/.last_backup_pull
+data/.last_l2_archive

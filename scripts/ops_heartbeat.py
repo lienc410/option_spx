@@ -79,6 +79,9 @@ def _check_freshness(spec: dict, now: datetime) -> str | None:
     if rule == "trading_day":
         if mtime.date() < now.date():
             return f"stale output {raw} (mtime {mtime:%m-%d %H:%M}, expected today)"
+    elif rule == "weekly_8d":  # Sunday jobs: one missed week + 1 day grace
+        if (now - mtime) > timedelta(days=8):
+            return f"stale output {raw} (mtime {mtime:%m-%d %H:%M}, >8d old)"
     else:  # daily_26h
         if (now - mtime) > timedelta(hours=26):
             return f"stale output {raw} (mtime {mtime:%m-%d %H:%M}, >26h old)"

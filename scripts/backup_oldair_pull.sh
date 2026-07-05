@@ -2,6 +2,11 @@
 # SPEC-117.1 — L1 daily pull backup of oldair's non-regenerable data.
 # Runs on the LOCAL machine (lienchen) via com.spxstrat.local_backup_pull.plist (05:00).
 #
+# INSTALL (F-1, task/SPEC-117_review_finding.md): launchd cannot read scripts
+# under ~/Documents (macOS TCC — exit 126), so the plist executes a copy at
+# ~/bin/backup_oldair_pull.sh. This repo file is the source of truth; after
+# editing, reinstall with:  cp scripts/backup_oldair_pull.sh ~/bin/
+#
 # Layers:
 #   L1 (this script, daily):  oldair data/ + secrets -> ~/backups/oldair/
 #   L2 (weekly, Sunday branch below): data-only tar.zst -> iCloud Drive
@@ -46,12 +51,21 @@ else
 fi
 
 # ── L2: weekly data-only archive to iCloud (Sundays) ─────────────────────────
+# On success we touch a SECOND marker on oldair so the heartbeat can assert L2
+# freshness separately (weekly_8d rule) — F-1 lesson: an unmonitored branch of
+# a backup script is its own silent-failure class. iCloud Drive is also
+# TCC-protected; if launchd is denied, this logs FAILED and the weekly marker
+# goes stale -> heartbeat alert, instead of failing silently.
+L2_MARKER="SPX_strat/data/.last_l2_archive"
 if [ "$(date +%u)" = "7" ] && [ "$fail" -eq 0 ]; then
   mkdir -p "$ICLOUD_DIR"
   wk="$ICLOUD_DIR/oldair-data-$(date +%Y%m%d).tar.gz"
-  tar czf "$wk" -C "$DEST" data >> "$LOG" 2>&1 \
-    && log "L2 weekly archive OK -> $wk" \
-    || log "L2 weekly archive FAILED"
+  if tar czf "$wk" -C "$DEST" data >> "$LOG" 2>&1; then
+    log "L2 weekly archive OK -> $wk"
+    ssh oldair "touch $L2_MARKER" >> "$LOG" 2>&1 || true
+  else
+    log "L2 weekly archive FAILED"
+  fi
   # retention: keep last 8 weekly archives
   ls -t "$ICLOUD_DIR"/oldair-data-*.tar.gz 2>/dev/null | tail -n +9 | xargs rm -f 2>/dev/null
 fi
