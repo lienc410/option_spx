@@ -83,38 +83,139 @@ def _read_jsonl(path: Path) -> list[dict]:
 
 # ── chain access ───────────────────────────────────────────────────────────────
 
-def load_today_chain(date_str: str):
-    """SPX puts with usable IV from the day's 16:30 snapshot; None if missing."""
+def _load_side(date_str: str, side: str):
     import pandas as pd
     p = CHAIN_DIR / date_str / "SPX.parquet"
     if not p.exists():
         return None
     df = pd.read_parquet(p)
-    puts = df[(df.option_type.str.upper() == "PUT") & df.iv.notna() & (df.iv > 1)]
-    return puts if len(puts) else None
+    rows = df[(df.option_type.str.upper() == side) & df.iv.notna() & (df.iv > 1)]
+    return rows if len(rows) else None
+
+
+def load_today_chain(date_str: str):
+    """SPX puts with usable IV from the day's 16:30 snapshot; None if missing."""
+    return _load_side(date_str, "PUT")
+
+
+def load_today_calls(date_str: str):
+    """SPEC-119: call side, feeds the skew-monitor extension only; None if missing."""
+    return _load_side(date_str, "CALL")
 
 
 # ── A. skew measurement ────────────────────────────────────────────────────────
 
-def measure_skew(puts, vix: float, date_str: str) -> dict:
-    """25-35 DTE |delta| 0.50/0.30/0.15 IV legs (mean of 3 nearest rows) + offsets vs VIX."""
+# SPEC-119 extension legs: call |delta| targets (BCD re-evaluation needs the
+# ITM 0.70 long leg and the OTM 0.30/0.16/0.08 short candidates) and the
+# 80-100 DTE far bucket for both sides. Field names must match
+# pricing.calibration._LEG_FIELDS.
+_PUT_LEGS = (("atm", 0.50), ("d30", 0.30), ("d15", 0.15))
+_CALL_LEGS = (("c70", 0.70), ("c30", 0.30), ("c16", 0.16), ("c08", 0.08))
+_FAR_DTE = (80, 100)
+# Extension legs only record when the chain actually reaches the target delta;
+# the far bucket is strike-limited (|Δ| ~0.33-0.67 at 90 DTE as of 2026-07),
+# without this guard c08/c16/d15 far legs would snap to the boundary row and
+# get recorded under the wrong delta label — poisoning calibration curves.
+_LEG_DELTA_TOL = 0.05
+# Mid-implied IV solver conventions. AC-3 finding (2026-07-05): the vendor
+# `iv` column runs 1-2.5vp BELOW the vol that reproduces the chain's own mid
+# under our pricer — offsets built from vendor iv can NOT price real credits.
+# Calibration therefore consumes the *_moff fields (solved from mid through
+# pricing.core under the conventions below); vendor *_off fields are kept for
+# continuity/diagnostics only.
+_MIV_R = 0.045
+_MIV_CONV = "r045_q0_act365"
+
+
+def _mid_implied_iv(rows, spx: float, *, is_call: bool) -> float | None:
+    """Mean mid-implied IV (vol points) over rows, each solved with its own
+    strike/mid/dte through pricing.core (T=dte/365, r=_MIV_R, q=0)."""
+    from pricing import core as _core
+    if "mid" not in rows.columns or "strike" not in rows.columns:
+        return None
+    vals = []
+    for _, rr in rows.iterrows():
+        mid = float(rr.mid)
+        if not math.isfinite(mid) or mid <= 0:
+            continue
+        iv = _core.implied_vol(mid, spx, float(rr.strike), float(rr.dte) / 365.0,
+                               _MIV_R, is_call=is_call)
+        if iv is not None:
+            vals.append(iv * 100.0)
+    return sum(vals) / len(vals) if vals else None
+
+
+def measure_skew(puts, vix: float, date_str: str, calls=None, spx: float | None = None) -> dict:
+    """25-35 DTE |delta| IV legs (mean of 3 nearest rows) + offsets vs VIX.
+
+    Near-bucket put legs are the original SPEC-116 fields and stay REQUIRED
+    (raise on failure). The SPEC-119 extension buckets — call legs and the
+    80-100 DTE far bucket — are fail-soft per bucket: a chain snapshot with
+    no far expiry (or no call side) just omits those fields for the day.
+
+    When `spx` (spot) is given, every recorded leg also gets *_miv / *_moff:
+    mid-implied IV solved through pricing.core (see _MIV_CONV) — the fields
+    pricing.calibration actually consumes. Vendor iv fields stay for
+    continuity but are NOT pricing-grade (AC-3 finding).
+    """
     p = puts[(puts.dte >= 25) & (puts.dte <= 35)].assign(ad=lambda x: x.delta.abs())
     if len(p) < 3:
         raise ValueError(f"q085 skew: only {len(p)} puts in 25-35 DTE window")
 
-    def leg(target: float) -> float:
-        return float(p.iloc[(p.ad - target).abs().argsort()[:3]].iv.mean())
+    def leg(chain, target: float) -> float:
+        return float(chain.iloc[(chain.ad - target).abs().argsort()[:3]].iv.mean())
 
     row = {
         "date": date_str,
         "vix": round(float(vix), 2),
-        "atm_iv": round(leg(0.50), 2),
-        "d30_iv": round(leg(0.30), 2),
-        "d15_iv": round(leg(0.15), 2),
+        "atm_iv": round(leg(p, 0.50), 2),
+        "d30_iv": round(leg(p, 0.30), 2),
+        "d15_iv": round(leg(p, 0.15), 2),
     }
     row["atm_off"] = round(row["atm_iv"] - row["vix"], 2)
     row["d30_off"] = round(row["d30_iv"] - row["vix"], 2)
     row["d15_off"] = round(row["d15_iv"] - row["vix"], 2)
+
+    def miv_fields(chain, target: float, name: str, suffix: str, is_call: bool) -> None:
+        if spx is None or spx <= 0:
+            return
+        rows3 = chain.iloc[(chain.ad - target).abs().argsort()[:3]]
+        miv = _mid_implied_iv(rows3, spx, is_call=is_call)
+        if miv is None or not math.isfinite(miv):
+            return
+        row[f"{name}_miv{suffix}"] = round(miv, 2)
+        row[f"{name}_moff{suffix}"] = round(miv - row["vix"], 2)
+
+    for name, target in _PUT_LEGS:
+        miv_fields(p, target, name, "", is_call=False)
+
+    for chain, legs, suffix, is_call in (
+        (puts, _PUT_LEGS, "_far", False),
+        (calls, _CALL_LEGS, "", True),
+        (calls, _CALL_LEGS, "_far", True),
+    ):
+        lo, hi = _FAR_DTE if suffix == "_far" else (25, 35)
+        if chain is None or not len(chain):
+            continue
+        b = chain[(chain.dte >= lo) & (chain.dte <= hi)]
+        if len(b) < 3:
+            log.info("q085 skew: bucket %s-%s DTE unavailable (%d rows) — skipping", lo, hi, len(b))
+            continue
+        b = b.assign(ad=lambda x: x.delta.abs())
+        for name, target in legs:
+            if float((b.ad - target).abs().min()) > _LEG_DELTA_TOL:
+                continue  # chain doesn't reach this delta — skip, don't mislabel
+            iv = leg(b, target)
+            if not math.isfinite(iv):
+                continue
+            row[f"{name}_iv{suffix}"] = round(iv, 2)
+            row[f"{name}_off{suffix}"] = round(iv - row["vix"], 2)
+            miv_fields(b, target, name, suffix, is_call=is_call)
+
+    if spx is not None and spx > 0 and any(k.endswith("_miv") or "_miv_" in k for k in row):
+        row["spx"] = round(float(spx), 2)
+        row["miv_conv"] = _MIV_CONV
+
     _append_jsonl(SKEW_OUT, row, "skew")
     return row
 
@@ -295,9 +396,20 @@ def run(today: str | None = None, *, dry_run: bool = False) -> dict:
     regime = getattr(rec.vix_snapshot.regime, "value", str(rec.vix_snapshot.regime))
     strategy_key = getattr(rec, "strategy_key", None)
 
-    # A. skew (unconditional)
+    # SPX spot for mid-implied IV legs (SPEC-119); the same series is reused
+    # by the signal check below. Fail-soft: skew still records vendor fields.
+    from signals.trend import fetch_spx_history
+    closes_series: list[float] = []
     try:
-        summary["skew"] = measure_skew(puts, vix, today)
+        closes_series = fetch_spx_history(period="2y")["close"].dropna().tolist()
+    except Exception:
+        log.exception("q085: SPX history fetch failed — miv legs skipped today")
+    spx_spot = closes_series[-1] if closes_series else None
+
+    # A. skew (unconditional; calls fail-soft — extension buckets only, SPEC-119)
+    try:
+        summary["skew"] = measure_skew(puts, vix, today,
+                                       calls=load_today_calls(today), spx=spx_spot)
     except Exception as exc:
         log.exception("q085 skew measurement failed")
         summary["skew_error"] = str(exc)
@@ -316,9 +428,10 @@ def run(today: str | None = None, *, dry_run: bool = False) -> dict:
                 f"hold {c['hold_days']}d{stop_tag}"
             )
 
-    # B. signal check + paper open
-    from signals.trend import fetch_spx_history
-    closes_series = fetch_spx_history(period="2y")["close"].dropna().tolist()
+    # B. signal check + paper open (closes_series fetched above; if that fetch
+    # failed, retry here so a transient error can't silently skip signal days)
+    if not closes_series:
+        closes_series = fetch_spx_history(period="2y")["close"].dropna().tolist()
     sig = signal_day(closes_series, vix, regime, strategy_key)
     summary["signal"] = sig
     if sig["signal"]:

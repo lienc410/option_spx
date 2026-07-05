@@ -65,12 +65,10 @@ def _skew_mult(m: float) -> float:
     return 1.0 + 1.5 * min(1.0 - m, 0.10)
 
 def _bs_call(S: float, K: float, T: float, sigma: float, r: float = 0.04) -> float:
-    from scipy.stats import norm
-    if T <= 0: return max(0.0, S - K)
-    if sigma <= 0: return max(0.0, S - K * np.exp(-r * T))
-    d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
-    d2 = d1 - sigma * np.sqrt(T)
-    return float(S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2))
+    # SPEC-119: delegates to the unified pricing core (same scipy CDF, same
+    # T-in-years / r=4% / q=0 conventions → bit-identical to the old inline copy).
+    from pricing import core as _core
+    return float(_core.call_price(S, K, T, sigma, r, q=0.0))
 
 def _price_spread(S: float, K_long: float, K_short: float, vix: float, dte: int) -> float:
     T = dte / 365.0

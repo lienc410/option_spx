@@ -42,6 +42,9 @@ from scipy.optimize import brentq
 from scipy.stats import norm
 
 REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO))
+
+from pricing import core as _pricing_core  # noqa: E402  (SPEC-119 unified pricing)
 DATA = REPO / "data"
 SNAPSHOT_DIR = DATA / "q041_massive_snapshot"
 DAILY_SNAPSHOT = DATA / "daily_snapshot.jsonl"
@@ -362,21 +365,20 @@ def load_chain_mark(snapshot_date: date, strike: float, expiry: date,
 
 
 # ── BS math (PUT + CALL) ─────────────────────────────────────────────────────
+# SPEC-119: prices delegate to pricing.core (explicit r AND q pass through —
+# this script is the only production caller using q != 0). The bs_greeks_*
+# functions below stay local this SPEC: core does not expose gamma/vega yet.
 
 def bs_put(S: float, K: float, T: float, r: float, q: float, sigma: float) -> float:
     if sigma <= 0 or T <= 0:
         return max(K - S, 0.0)
-    d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
-    d2 = d1 - sigma * math.sqrt(T)
-    return K * math.exp(-r * T) * norm.cdf(-d2) - S * math.exp(-q * T) * norm.cdf(-d1)
+    return float(_pricing_core.put_price(S, K, T, sigma, r, q=q))
 
 
 def bs_call(S: float, K: float, T: float, r: float, q: float, sigma: float) -> float:
     if sigma <= 0 or T <= 0:
         return max(S - K, 0.0)
-    d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
-    d2 = d1 - sigma * math.sqrt(T)
-    return S * math.exp(-q * T) * norm.cdf(d1) - K * math.exp(-r * T) * norm.cdf(d2)
+    return float(_pricing_core.call_price(S, K, T, sigma, r, q=q))
 
 
 def _bs_price(opt: str, S, K, T, r, q, sigma):

@@ -544,22 +544,15 @@ def _selector_verdict_for_ladder() -> tuple[dict, str]:
 
 
 def _bs_put(S: float, K: float, T: float, r: float, sigma: float) -> float:
-    """Black-Scholes European put price. Used by portfolio stress gate."""
+    """Black-Scholes European put price. Used by portfolio stress gate.
+
+    SPEC-119: delegates to pricing.core (scipy CDF, with the same
+    Abramowitz & Stegun fallback this function previously carried inline —
+    that fallback now lives once in the core). Signature preserved."""
     if T <= 0 or sigma <= 0:
         return max(0.0, K - S)
-    d1 = (math.log(max(S, 1e-10) / max(K, 1e-10)) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
-    d2 = d1 - sigma * math.sqrt(T)
-    try:
-        from scipy.stats import norm as _norm
-        return float(K * math.exp(-r * T) * _norm.cdf(-d2) - S * _norm.cdf(-d1))
-    except ImportError:
-        # Abramowitz & Stegun approximation for normal CDF
-        def _ncdf(x: float) -> float:
-            t = 1.0 / (1.0 + 0.2316419 * abs(x))
-            p = t * (0.319381530 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))))
-            pdf = math.exp(-0.5 * x * x) / math.sqrt(2.0 * math.pi)
-            return (1.0 - pdf * p) if x >= 0 else pdf * p
-        return float(K * math.exp(-r * T) * _ncdf(-d2) - S * _ncdf(-d1))
+    from pricing import core as _core
+    return float(_core.put_price(max(S, 1e-10), max(K, 1e-10), T, sigma, r, q=0.0))
 
 
 def portfolio_stress_overnight_gap(state: dict | None = None) -> dict:
