@@ -28,10 +28,15 @@ BASE_URL = "http://localhost:5050"
 # minutes on a cold cache since the 26y window grew — 180s timed out nightly,
 # silently leaving matrix win-rates stale (exit=1, no alerting).
 # SPEC-119 follow-up: algo-hash cache keys (SPEC-118.3) mean EVERY algorithm
-# commit forces a fully-cold recompute on the next refresh; worst observed
-# cold run on oldair is 438s (2026-07-05), so 420s still timed out. Sized to
-# worst observed + ~2x headroom.
-TIMEOUT  = 900   # seconds per request
+# commit forces a fully-cold recompute on the next refresh.
+# SPEC-124 follow-up: cold runs are trending up on the old Air (438s on
+# 2026-07-05 morning; >900s that evening when the rebuild raced a yahoo
+# history refresh). The server finishes server-side even when this client
+# times out (the disk cache still lands — verify with a warm re-hit), so a
+# timeout here is a REPORTING failure, not a data failure. Budget = worst
+# observed + headroom; if this keeps growing the real fix is hardware or an
+# incremental stats computation, not a bigger number here.
+TIMEOUT  = 1200  # seconds per request
 LOG      = Path("/Users/macbook/Library/Logs/spx-strat/refresh_backtest.log")
 
 
