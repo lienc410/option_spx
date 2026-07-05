@@ -68,20 +68,21 @@ class Spec121StopBoundaryTests(unittest.TestCase):
         import research.strategies.ES_puts.backtest as ES
         self.assertEqual(ES.V2F_STOP_MULT, 10.0)
 
-    def test_ungated_baselines_pinned_to_frozen_15x(self):
-        """SPEC-121 scope: canonical 10x applies to the promoted/gated paths
-        (proven bit-identical). The UNGATED research baselines (v2f baseline
-        mode, hvlad vix_min_entry=0 comparison column) are frozen attribution
-        artifacts — under 10x they are NOT bit-identical (29 / 17 stop exits
-        appear, SPEC-095's sig_rate>=0.80 acceptance collapses to 0), so the
-        runners pin them to their original 15x. This test reads the pin from
-        the source so a silent removal fails loudly."""
+    def test_one_number_everywhere_no_stop_pins(self):
+        """SPEC-121 final scope (PM 2026-07-05): canonical 10x everywhere,
+        INCLUDING the ungated research baselines — PM knowingly accepted the
+        baseline history rewrite (v2f baseline gains 29 stop exits and loses
+        bootstrap significance; hvlad ungated comparison column gains 17 —
+        see test_spec_095 for the retired pin). No code path may quietly
+        re-introduce a per-mode stop override."""
         import inspect
         import research.strategies.ES_puts.backtest as ES
-        src_v2f = inspect.getsource(ES.run_phase2_v2f)
-        self.assertIn('15.0 if mode == "baseline" else None', src_v2f)
-        src_hvlad = inspect.getsource(ES.run_phase2_hvlad)
-        self.assertIn("15.0 if (vix_min_entry or 0.0) <= 0.0 else None", src_hvlad)
+        for fn in (ES.run_phase2_v2f, ES.run_phase2_hvlad,
+                   ES._run_phase2_v2f_on_frame):
+            src = inspect.getsource(fn)
+            self.assertNotIn("stop_mult=", src.replace("V2F_STOP_MULT", ""),
+                             f"{fn.__name__} carries a stop override")
+            self.assertNotIn("15.0", src, f"{fn.__name__} pins a legacy stop")
 
     def test_ac5_spx_stop_mult_untouched(self):
         from strategy.selector import DEFAULT_PARAMS

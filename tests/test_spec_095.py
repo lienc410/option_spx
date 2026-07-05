@@ -23,7 +23,15 @@ class Spec095BacktestTests(unittest.TestCase):
         self.assertGreater(result.portfolio_metrics.get("ann_return", 0.0), 0.0)
         worst_trade_pct = min(t.pnl for t in result.trades) / 500_000.0
         self.assertGreaterEqual(worst_trade_pct, -0.15)
-        self.assertGreaterEqual(result.bootstrap.get("sig_rate", 0.0), 0.80)
+        # SPEC-121 (PM 2026-07-05): canonical 10x stop applies to this
+        # unfiltered baseline too. Under 10x, 29 stop exits crystallize and
+        # bootstrap significance collapses (observed sig_rate 0.0; it was
+        # 0.85 under the original 15x). The original >=0.80 acceptance pin is
+        # RETIRED with the PM-ratified history rewrite; this pin now guards
+        # against an accidental revert to 15x (which would read ~0.85).
+        self.assertLessEqual(result.bootstrap.get("sig_rate", 1.0), 0.50)
+        stop_exits = sum(1 for t in result.trades if "stop" in t.exit_reason.lower())
+        self.assertGreater(stop_exits, 0)   # 10x fires in the unfiltered baseline
         self.assertIn("stress_cluster_pct", result.stress_metrics)
 
 
