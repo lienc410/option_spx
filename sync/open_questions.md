@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-07-03（**Q085 整备完成；Q084 外审 PASS；两项问题归档**。信号族 43 个（9 族），Delta 对冲评估否决。Q085 P1 ready — 43 signal × 2 strata battery 待启动）
+最后更新：2026-07-04（**Q085 P1-P3+ 完整演进 + 自适应姿态正式 ratify**；43 → 7 → 3 赛道 → 分时代重排；SPEC-116 S2-BPS paper 已部署；SPEC-115 Phase B 已部署；治理产出：自适应哲学 + 证据等级制 + 3 方法学防护）
 
 ---
 
@@ -55,23 +55,27 @@
 
 ## 研究进行中（In Progress）
 
-### Q085 — SPX Directional Signal Quality via Expanded Battery (PREP COMPLETE, P1 READY)
+### Q085 — SPX Directional Signal Quality via Expanded Battery (P1-P3+ COMPLETE + GOVERNANCE MILESTONE)
 
-- **状态**: **prep complete** (Q085 signal battery audit archived 2026-07-03; delta hedge assessment archived with NOT RECOMMENDED)
-- **P0 Scope**: Full signal factorization for SPX route (43 signals × 2 strata). Battery expanded from 5 to 9 families:
-  - F1-F4: Trend / Structure / Mean Reversion (expanded)
-  - **F5 Vol structure** (NEW): VRP proxy, SKEW, VIX term, VVIX — highest prior for sell-premium strategies
-  - **F6 Cross-asset risk-on/off** (NEW): XLU/SPY, HYG, TLT/DXY/GLD, RSP/SPY
-  - **F7 Calendar/events** (NEW): Month-end/start, FOMC drift, OpEx
-  - **F8 Positioning/sentiment** (NEW): CFTC COT, AAII (both free)
-- **P1 Readiness**: Battery complete, statistical fences (BH-FDR + sample-halves sign-concordance) pre-coded
-- **Delta hedge side-decision** (ARCHIVED): Analysis shows carry engine is real ($484-660/trade, 90-91% WR) but NOT RECOMMENDED under current account:
-  - Margin doubles ($22k → $40k) → ROI per dollar = 1/3-1/4 (cash-bound hard constraint)
-  - Daily delta rebalance incompatible with manual EOD execution model
-  - Cheaper alternatives exist (IC 29% coverage + Q085 S5 slot for 0.5x when signal weak)
-  - Reopen condition: cash scale ↑ or automation ⇒ reconsider
-- **Next**: **Awaits PM go-signal** for P1 battery run (23 signal × 2 strata × 26yr backtest)
-- **See**: `task/q085_signal_battery_2026-07-03.md`, `task/q085_delta_hedge_assessment_2026-07-03.md`
+- **状态**: **P1-P3+ COMPLETE + ADAPTIVE STANCE RATIFIED** (2026-07-04)
+- **P1 Fact Layer**: 43 signals → 7 survive studentized swap test (21/31 cumulative effects eliminated). **Winner**: F3 short mean-reversion (RSI(2)/down3/IBS, +17~74bp). All others DEAD.
+- **External audit #1**: Swap test needs studentization, pooled-FDR is subsidy not penalty, market replication → all fixes in P2v2
+- **P2 Slot Layer**: S6-MES viable (semi) but dies 2014-21; S5-HV insignificant; S3 closed; IBS>0.8 exit signal found. S2-BPS full sample NEGATIVE, withdrawn.
+- **PM Challenge #1** ("all fail + existing anti-timing contradiction"): Exposed benchmark error (vs avg day ≠ vs entry day) + dual standard → **Status-quo bias #3, archived**
+- **P3 Robustness**: Real Schwab chain calibration (d0.30=VIX−2.0, d0.15=VIX+1.0, ATM=VIX−4.3) + cost → S2-BPS NEGATIVE. **Spillover**: BS-flat @ VIX overprice sell premium 2-4vp (Q086 candidate audit)
+- **PM Challenge #2 + Adaptive Stance Ratify**: "Failed eras ≠ today fails" → **stratified verdict** (MES 2024+ +$210/trade; BPS 2025+ +$1,014/trade vs pre-2024/25 zero/negative)
+  - PM ratified **adaptive stance philosophy**: income layer dynamic, survival layer static
+  - Future **kill verdicts era-stratified** (not monolithic across all epochs)
+- **External audit #2 (G-review)**: RATIFY-WITH-CONDITIONS; C1 blocking — tuition underestimated 5× (true: worst-era −$288, p5 −$8k). Downgrade rules (10,5) + hard stop-loss −$5k + 1-contract lock. Four-flip history archived.
+- **Concurrent SPEC deployments**: 
+  - **SPEC-116** (S2-BPS paper sleeve): real 16:50 ET skew monitor (first-day match calibration d30 −1.87 vs −2.0 hypothesis). Gate to live = ≥2 signal days + fresh CALIB + PM decision
+  - **SPEC-115 Phase B** live (JPM T-3 ~7/9)
+- **GOVERNANCE OUTPUTS** (most important):
+  1. Adaptive stance philosophy formalized (income dynamic, survival static)
+  2. Evidence hierarchy: backtests lose vote on deployed sleeves; live/paper only renews mandate (prevents flip loops)
+  3. Three method defenses enter default protocol: studentization / real-chain calibration / era-stratified verdicts
+- **Pending**: Q085 P1b (Tier-3 re-run + ledger close) / Q086-Q087 candidates / S2-BPS observation (~6 signals/yr) / VIX 18-20 conditional
+- **See**: Q085 complete memo, SPEC-116, SPEC-115_phase_b
 
 ---
 
