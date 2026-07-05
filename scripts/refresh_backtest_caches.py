@@ -25,10 +25,13 @@ from pathlib import Path
 
 BASE_URL = "http://localhost:5050"
 # SPEC-117.4: the stats endpoint (matrix win-rate cells, 3y+10y+all) takes
-# ~250s on a cold cache since the 26y window grew — 180s timed out nightly,
-# silently leaving matrix win-rates stale (exit=1, no alerting). Sized to
-# worst observed cold run + headroom.
-TIMEOUT  = 420   # seconds per request
+# minutes on a cold cache since the 26y window grew — 180s timed out nightly,
+# silently leaving matrix win-rates stale (exit=1, no alerting).
+# SPEC-119 follow-up: algo-hash cache keys (SPEC-118.3) mean EVERY algorithm
+# commit forces a fully-cold recompute on the next refresh; worst observed
+# cold run on oldair is 438s (2026-07-05), so 420s still timed out. Sized to
+# worst observed + ~2x headroom.
+TIMEOUT  = 900   # seconds per request
 LOG      = Path("/Users/macbook/Library/Logs/spx-strat/refresh_backtest.log")
 
 
