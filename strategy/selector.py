@@ -136,7 +136,13 @@ class StrategyParams:
     # NEVER set in production.
     force_strategy: str | None = None
     # BCD comfortable-top filter (SPEC-079)
-    bcd_comfort_filter_mode: str = "shadow"   # "disabled" | "shadow" | "active"
+    # SPEC-124 (Q088 T1, PM 2026-07-06): SPEC-079 comfort filter RETIRED.
+    # shadow → disabled is zero-behavior-change (shadow never blocked; A4 found
+    # zero detectable protective value, T1 concurred). Flipping the default
+    # also stops backtests from spraying data/bcd_filter_shadow.jsonl (74MB of
+    # 26y-replay pollution, archived 2026-07-06). Research can still opt in
+    # explicitly via params.
+    bcd_comfort_filter_mode: str = "disabled"   # "disabled" | "shadow" | "active"
     # BCD debit stop tightening (SPEC-080)
     bcd_stop_tightening_mode: str = "shadow"   # "disabled" | "shadow" | "active"
     # Overlay-F account-level IC_HV size-up (SPEC-075/076)

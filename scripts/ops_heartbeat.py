@@ -88,6 +88,58 @@ def _check_freshness(spec: dict, now: datetime) -> str | None:
     return None
 
 
+DEFERRED_MD = ROOT / "task" / "DEFERRED.md"
+
+
+def _is_first_monday(d: date) -> bool:
+    return d.weekday() == 0 and d.day <= 7
+
+
+def _deferred_digest(now: datetime, path: Path | None = None) -> str | None:
+    """SPEC-124 §4 — monthly exposure of the deferred-items ledger.
+
+    On the first Monday of each month, summarize task/DEFERRED.md: overdue
+    rows (复核期限 column parses as a date < today) pinned on top, plus counts
+    of upcoming/date-less (条件/事件挂起) rows. Returns None on other days or
+    when the ledger is missing/empty."""
+    if not _is_first_monday(now.date()):
+        return None
+    p = path or DEFERRED_MD
+    if not p.exists():
+        return None
+    overdue: list[str] = []
+    upcoming = conditional = 0
+    for line in p.read_text(encoding="utf-8").splitlines():
+        if not line.startswith("|") or line.startswith("| #") or set(line) <= {"|", "-", " "}:
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if len(cells) < 6 or not cells[0].isdigit():
+            continue
+        item, deadline, owner = cells[1], cells[4], cells[5]
+        m = None
+        for tok in deadline.replace("～", " ").replace("~", " ").split():
+            try:
+                m = date.fromisoformat(tok)
+                break
+            except ValueError:
+                continue
+        if m is None:
+            conditional += 1
+        elif m < now.date():
+            overdue.append(f"  ⏰ #{cells[0]} {item}（期限 {m.isoformat()}，owner {owner}）")
+        else:
+            upcoming += 1
+    if not (overdue or upcoming or conditional):
+        return None
+    head = f"📒 DEFERRED 台账月度摘要 {now:%Y-%m}（每月首个周一自动推送，SPEC-124）"
+    lines = [head]
+    if overdue:
+        lines.append(f"逾期未复核 {len(overdue)} 项（置顶）：")
+        lines.extend(overdue)
+    lines.append(f"在期 {upcoming} 项 · 条件/事件挂起 {conditional} 项 · 全文 task/DEFERRED.md")
+    return "\n".join(lines)
+
+
 def run(now: datetime | None = None, *, dry_run: bool = False) -> list[str]:
     now = now or datetime.now(ET)
     reg = json.loads(REGISTRY.read_text(encoding="utf-8"))
@@ -131,11 +183,17 @@ def run(now: datetime | None = None, *, dry_run: bool = False) -> list[str]:
     else:
         msg = f"✅ ops {n}/{n} green · {now:%m-%d %H:%M}"
 
+    digest = _deferred_digest(now)
+
     if dry_run:
         print(msg)
+        if digest:
+            print(digest)
     else:
         from notify.event_push import _send
         _send(msg)
+        if digest:
+            _send(digest)
         print(msg)
     return violations
 
