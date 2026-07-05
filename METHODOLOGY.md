@@ -50,7 +50,11 @@ Framing memo（预注册）→ Phase 执行 → G-review packet（task/）
 - **Thesis recentering**：phase 数据推翻原 framing 时，下一 phase 开头显式 reframe（Q081）
 - **Reviewer 按字面交付**：指定"加一栏/分布/分层"是 raw-data 要求，不得用摘要替代（Q081）
 - **Kill 档案带防翻案标签**：结构性失配（调参不能复活）与参数性失败分开记录（Q084）
-- **产物完备**：verdict 引用的每个数字必须有可执行 runner（results-only 存根三次前科：P2e/P3b/A3）
+- **产物完备（硬规则）**：可执行 runner 必须与 verdict memo **同一 commit** 提交——"先出结论、runner 事后补"已五次违规（P2e/P3b/A3/仲裁×2），每次都是外审抓的
+- **预注册基准按字面引用**：裁决引用的度量必须是预注册里点名的那个（natural vs mid 混引实例）——即使两者同裁决，混引也是违规
+- **生产函数单一化**：任何研究/监测侧对生产逻辑的重建（格分类、gate 判定、信号计算）必须 import 生产函数，禁止旁路重推——`_effective_iv_signal` 分歧重分类一天引发三处独立错误
+
+- **裸注记死信禁令**：审计发现"注记待决"必须当场二选一——开 SPEC，或入 `task/DEFERRED.md`（heartbeat 类机制周期性曝光）。2026-05-08 对齐审计的两个裸注记项全部复发（ES 止损两个月后被当新发现重审、ES sizing 失配至今），裸注记 = 没发现
 
 ## 5. 采纳与姿态规则
 
@@ -58,6 +62,8 @@ Framing memo（预注册）→ Phase 执行 → G-review packet（task/）
 - **边界**：自适应哲学只管 Layer-2 收入 edge；Layer-1 求生锁（2008 型/EXTREME）静态，PM 2026-07-03 单独确认
 - **已采纳 sleeve 的证据等级**：resume/加仓论证只认 live/paper 流水，历史回测失去投票权（Q085 外审 C5）
 - **Guard 分级**：行为中性重构 → bit-identical 断言；行为变更 → paper-first/外审；参数变更 → Track A 式审计 + PM ratify
+- **降级/停机规则四要件**（BCD packet v3 定型）：(a) **运行特性披露**——P(触发|策略为真) 必须算出并写进规则文案，否则触发时会被误读为告警进而拆牙齿；(b) 标记门为主（实现时机可被持仓裁量操纵）；(c) 滚动窗之外必须配**累计硬底**（滚动窗防不了慢性失血）；(d) 记账基准（mid/natural）显式指定
+- **手动交易边界（PM 2026-07-05 ratify）**：手动单完全自由，但治理口径外的手动单（超 cap/破底线/wait 格）Telegram 知情提示——提示不拦
 - **策略比较指标包**：marginal $/BP-day、worst trade、disaster window、CVaR 全套（Q073）
 
 ## 6. 角色与接口
@@ -74,7 +80,10 @@ Framing memo（预注册）→ Phase 执行 → G-review packet（task/）
 
 - **禁参数镜像文档**（STRATEGY_STATE 前科：4 处 drift 首审即现）；唯一例外 = 代码自动 dump + CI diff enforcement；审计工作表允许（dated snapshot + file:line 引用 + "真值在代码"声明）
 - 回测磁盘缓存失效必须绑定算法 git-hash（SPEC-118），改算法后主动提醒刷新
+- **约定契约进代码**：跨层数据（implied vol 口径、day-count、offsets 基准）必须携带 convention 标签且消费方断言匹配——T=252/365 错配教训：**文档记载的坑挡不住人，断言才行**（memory 早有记载仍被踩）
 - Memory → 本文档的晋升路径：重复出现 ≥2 次的教训编入本文档并加出处；本文档修订走 PM ratify
 
 ---
-*修订日志: v1.0-draft 2026-07-05 初稿（Q083-Q087 全部教训编纂）*
+*修订日志:*
+*v1.0-draft 2026-07-05 早 初稿（Q083-Q087 教训编纂）*
+*v1.1 2026-07-05 晚 并入当日六课：runner 同 commit 硬规则、预注册基准字面引用、生产函数单一化、裸注记死信禁令、降级规则四要件、约定契约进代码 + 手动单边界（PM ratify）*
