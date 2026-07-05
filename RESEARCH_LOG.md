@@ -1,6 +1,6 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-07-03 (**两项问题归档完成；Q085 P1 启动阶段**；信号族扩充至 43 个（F1-F8）；Delta 对冲评估否决；现金 $61.4k live，三道 cap 转绿）。Q085 P1 即将跑完整 battery（43 信号 × 2 strata）— `See: commit a60a7ce`, `task/q085_signal_battery_2026-07-03.md`, `task/q085_delta_hedge_assessment_2026-07-03.md`）
+Last Updated: 2026-07-04 (**Q085 P1-P3+ 完整演进 + 自适应姿态正式 ratify**；43 信号 → 7 幸存 → 3 赛道深潜 → 分时代重排；治理产出：自适应哲学划界 + 证据等级制度 + 3 个方法学防护；SPEC-116 S2-BPS paper sleeve 已部署；SPEC-115 Phase B 已部署）。Q085 P1b + Q086/Q087 候选挂起 — `See: Q085 complete memo`, `SPEC-116`, `SPEC-115_phase_b`）
 
 ### R-20260607-01 — Q041 Alignment 18-Day Conclusion + Ops Transition
 
@@ -3606,4 +3606,54 @@ Owner: Planner or PM
   - **Result**: NORMAL×IV_LOW all 3 strata now have vetted destinations (carve/kill/N/A)
   - **Current**: Cash $61.4k live (all cap gates green); SPEC-113 + SPEC-115 Phase A real ops tonight
   - **Pending** (don't touch): Phase B handoff c398ec3; JPM T-3 ~7/9; VIX 18-20 conditional recheck
+
+
+---
+
+### R-20260704-01 — Q085: Directional Signal Battery P1→P3+ Complete Evolution (MAJOR GOVERNANCE OUTCOMES)
+
+- **Topic**: 68.4% long directional account: does PM's signal overlay exist? 43-signal battery tested across 9 families.
+- **P1 Fact Layer**:
+  - PM quality audit: 28 candidates → 7 survive studentized swap test (21/31 cumulative effects eliminated)
+  - Winner: F3 short-side mean reversion only (RSI(2)/down3/IBS, 1-5 day horizon, +17~74bp)
+  - All others: D E A D (trends/structure/calendar/volume/cross-asset)
+  - Signal reversal: gold-cross logic +14bp but directionally opposite
+  - **External audit #1**: Swap test needs studentization (28→7), pooled-FDR is subsidy not penalty, corr market replicates → all fixed in P2v2
+- **P2 Slot Layer (S1-S6)**:
+  - S6-MES: semi-sample viable but dies in 2014-21 zero-alpha years
+  - S5-HV: insignificant
+  - S3: closed
+  - Mirror battery: IBS>0.8 exit signal (not entry)
+  - **PM challenge #1**: "All signals FAIL + existing anti-timing PROVEN contradiction" → exposed benchmark error (vs avg day ≠ vs your entry day) + dual standard (challenger bar > incumbent's) → **status-quo bias instance #3, archived**
+- **P3 Robustness Pre-flight**:
+  - Real Schwab SPX chain calibration (23d: d0.30=VIX−2.0vp / d0.15=VIX+1.0vp / ATM=VIX−4.3vp)
+  - Cost integration → S2-BPS full sample NEGATIVE, withdrawn
+  - **Spillover house-level finding**: BS-flat @ VIX systematically overprices selling premium 2-4vp (Q086 candidate: synthetic pricing audit)
+- **PM challenge #2 + Adaptive Stance Ratify**:
+  - "Failed eras ≠ today fails" → stratified presentation: MES 2024+ +$210/trade (t≈2.9); BPS 2025+ +$1,014/trade (strictest mouth)
+  - **PM ratified adaptive stance philosophy**: "No universal all-weather gate"; boundary = income layer floats, Layer-1 survival static; future **kill verdicts must be era-stratified**
+  - **External audit #2 (G-review)**: RATIFY-WITH-CONDITIONS; C1 blocking — tuition underestimated 5x (true: worst-era −$288, probe cost p5 −$8k, lag ~2y)
+- **Verdicts Recast**:
+  - Four-flip history archived; learnings downgrade rules to pre-registered (10,5) + hard cumulative stop-loss −$5k + 1-contract lock
+  - Resume/scale-up henceforth only on live/paper flow, not backtest
+- **Concurrent Spec Deployment**:
+  - **SPEC-116** (S2-BPS paper sleeve): pure-increment (selector/catalog bit-identical), live 16:50 ET skew monitor + dual-mouth lifecycle ledger. First-day skew match calibration (d30 −1.87 vs −2.0 hyp). Gate to live = ≥2 signal days real quotes + fresh CALIB + PM explicit decision → SPEC-116.1 waiting
+  - **SPEC-115 Phase B** deployed (02e1add); JPM T-3 ~7/9
+- **Governance Output (MOST IMPORTANT)**:
+  1. **Adaptive stance philosophy** formalized + bounded (income layer dynamic, survival layer static). Non-negotiable:
+     - Revenue-layer strategy allowed to adapt epoch-by-epoch
+     - Layer-1 hard floor (max loss, portfolio correlation) never migrates
+     - Future kill verdicts stratified by era; single monolithic kill only if universal across all epochs
+  2. **Evidence hierarchy established**: Backtests lose voting rights on *existing* deployed sleeves. **Live/paper flow alone renews mandate.** (Flip history: Q083 ratify → Q085 P1 fail → Q085 PM ratify drift → external audit veto → SPEC-116 deployment; now clear voting rules prevent 5th flip)
+  3. **Three reusable method defenses** now default protocol for all future research:
+     - Studentized swap inference (not raw percentiles)
+     - Real ticker chain calibration before cost-integration
+     - Era-stratified verdict presentation (not era-agnostic kills)
+- **Pending**:
+  - Q085 P1b (Tier-3 re-run + ledger close-out)
+  - Q087 full-ledger adaptive audit (PM-directed post-Q085 close; find "over-conservative for all-history robustness")
+  - Q086 pricing-bias audit candidate (BS-flat overpricing spillover)
+  - S2-BPS paper observation window (~6 signals/yr)
+  - VIX 18-20 conditional recheck (stays pending)
+- **来源**: Q085 complete PM memo (technical), SPEC-116, SPEC-115_phase_b, memory updates (studentization_trap, bs_flat_bias, adaptive_stance_boundary, status_quo_bias_exec, test_vector_cheatsheet)
 
