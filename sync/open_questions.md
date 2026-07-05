@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-07-04（**Q085 P1-P3+ 完整演进 + 自适应姿态正式 ratify**；43 → 7 → 3 赛道 → 分时代重排；SPEC-116 S2-BPS paper 已部署；SPEC-115 Phase B 已部署；治理产出：自适应哲学 + 证据等级制 + 3 方法学防护）
+最后更新：2026-07-04（**Q085 正式封账；Q087 框架就位**；P1b Tier-3 采集 + FOMC 意外线索；方法学遗产 8 条入档；Q087 审计框架："fail mode 现在存在吗"重审全账本）
 
 ---
 
@@ -2159,3 +2159,29 @@
 1. **SPEC-115 Phase B** (COST/JPM earnings IC paper) — 等 dev 实施，handoff 在 c398ec3
 2. **JPM 首个 T-3 触发** 预计 7/9（财报 7/14），将是首次全绿状态下的真实 paper signal
 3. **VIX 18-20 复检** 条件项（更好 skew 数据或样本扩大时触发）
+
+---
+
+### Q087 — Full-Ledger Adaptive Audit: Which Historical Rules Solve Real Threats vs 2000-2013 Dead Letters? (FRAMEWORK READY)
+
+- **状态**: **framework ready** (2026-07-04，PM direction awaited)
+- **Premise**: One year of production (SPEC-113/116 live, SPEC-115 paper) gives new ground truth. Which "safe" historical rules actually solve current problems vs protecting against 2000-2013 era failures that no longer exist?
+- **Core Question**: "Does the failure mode this rule prevents still exist in 2025-26 data, or only in 2000-2013 backtest?"
+- **Audit Scope** (5 items; PM to prioritize):
+  1. **IVP dual-window gates** (50/55/60 band width): Justify by current era or fear-hedging against 2007-09?
+  2. **HV-grid 0.5× discount**: Worst-case years (2020/22) over-allocated; best years under. Is margin still adequate?
+  3. **SPEC-079 comfort filter**: Lost to Q084 analysis (fails on NORMAL stratum). Why retained elsewhere? Historical vestige?
+  4. **BPS NNB narrow band** (IVP 50-60): Guard against real threat or 2011-era data fragility?
+  5. **All kill verdicts calendar** (Q084 first): Universal ("always bad") vs era-local ("bad in 2008, good in 2024")?
+- **Process**: 
+  1. Quant frames scope (problem statement + historical rationale per rule)
+  2. Fable audits framing (catches hidden assumptions)
+  3. Quant P1 data (stratified: pre-2013 / 2014-19 / 2020-26)
+  4. Fable spot-check P1 findings
+  5. PM ratifies (keep/loosen/tighten)
+  6. SPEC-117/118+ deploy upgrades
+- **Expected outcome**: 2-3 loosen (profit bleed identified), 1-2 tighten (new threats found), 1 unchanged
+- **Timeline**: framing (next session) → P1 (mid-August) → Fable audit (late August) → PM ratify (September) → SPEC rollout
+- **Bonus finding**: FOMC pre-meeting signal line (Q085 P1b unexpected find, n=53, +54/+130bp cross-market) stored in `data/q085_fomc_dates.csv` for future independent audit. Not slotted until reviewed.
+- **See**: Q087 framework (awaiting PM direction on scope priority)
+
