@@ -33,7 +33,13 @@ from strategy.q085_s2bps_signal import (
 )
 
 REPO = Path(__file__).resolve().parents[1]
-CACHE = REPO / "research" / "q078" / "_signal_history_cache.csv"
+# SPEC-122 小修3 post-mortem: the q078 cache is a ROUTING SOURCE that gets
+# regenerated with current selector code (external review condition) — its
+# strategy_key column legitimately changes as routing evolves (e.g. SPEC-113
+# re-routed 2025-12-16 to bull_call_diagonal, flipping that frozen vector's
+# overlap gate). The frozen vectors therefore pin their own immutable fixture:
+# the exact cache state they were ratified against (git f578933).
+CACHE = REPO / "tests" / "fixtures" / "spec116_frozen_signal_cache.csv"
 
 # Cache-verified positives (replaces handoff list; see module docstring)
 POSITIVE_DATES = [

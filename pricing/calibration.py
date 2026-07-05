@@ -55,6 +55,40 @@ class InsufficientCalibration(RuntimeError):
     """Raised when the skew monitor has too few rows for a trustworthy offset."""
 
 
+# Offset conventions. Offsets are measured by solving mid-implied IV at
+# T=dte/365 (r=0.045, q=0) — CONV_ACT365. A consumer pricing at T=dte/252
+# (the matrix engine) must first convert: same price impact requires
+# sigma_252 = sigma_365 * sqrt(252/365) (equal total variance sigma^2*T).
+# Q087 C4 post-mortem: this trap was documented in memory and still got hit
+# (all CALIB haircuts overstated 15-20%) — hence the tag + engine assertion.
+CONV_ACT365 = "r045_q0_act365"
+CONV_TD252 = "r045_q0_td252"
+_TD252_SCALE = (252.0 / 365.0) ** 0.5
+
+
+class OffsetCurves(dict):
+    """offsets[(TYPE, bucket)] -> [(abs_delta, offset_vp), ...] plus a
+    `convention` tag consumers can assert against."""
+
+    def __init__(self, data: dict, convention: str):
+        super().__init__(data)
+        self.convention = convention
+
+
+def to_trading_day_convention(offsets: "OffsetCurves") -> "OffsetCurves":
+    """Scale ACT/365-measured offsets for a T=dte/252 consumer (x sqrt(252/365)).
+    The VIX baseline itself is NOT scaled — feeding raw VIX/100 into dte/252
+    pricing is the engine's historical FLAT convention; only the calibration
+    delta on top must be made variance-equivalent."""
+    conv = getattr(offsets, "convention", None)
+    if conv == CONV_TD252:
+        return offsets
+    if conv != CONV_ACT365:
+        raise ValueError(f"cannot convert offsets with convention {conv!r}")
+    scaled = {k: [(d, o * _TD252_SCALE) for d, o in v] for k, v in offsets.items()}
+    return OffsetCurves(scaled, CONV_TD252)
+
+
 def _read_rows(p: Path) -> list[dict]:
     rows: list[dict] = []
     if p.exists():
@@ -92,7 +126,7 @@ def _offsets_from_rows(rows: list[dict], *, window_days: int, min_days: int) -> 
             f"skew monitor has {len(rows)} usable rows (< {min_days} per leg) — "
             f"CALIB unavailable; choose FLAT explicitly and keep collecting"
         )
-    return offsets
+    return OffsetCurves(offsets, CONV_ACT365)
 
 
 def load_offsets(path: Path | None = None, *, window_days: int = DEFAULT_WINDOW_DAYS,

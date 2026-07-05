@@ -167,12 +167,25 @@ def main(compare_only: bool = False) -> int:
     emit("bull_call_diagonal", "SPEC-113_carve[NORMAL|IV_LOW|BULLISH|VIX<18]",
          carve_masks, carve=True)
 
-    # Cell universe = union across ALL modes (external review item 6: a cell
-    # with zero FLAT force-entry trades but live routing — e.g. iron_condor_hv
-    # HIGH_VOL|LOW|NEUTRAL — must still get a row, not silently vanish).
+    # Cell universe = union across ALL modes ∪ the catalog's live routing map
+    # (external review item 6: a live-routed cell with zero force-entry trades
+    # in every mode — iron_condor_hv HIGH_VOL|LOW|NEUTRAL — must still get an
+    # n=0 row so the hole is visible, not silently vanish).
+    from strategy.catalog import CANONICAL_MATRIX
+    live_cells = []
+    for rg, iv_map in CANONICAL_MATRIX.items():
+        for iv, trend_map in iv_map.items():
+            for tr, sk in trend_map.items():
+                if isinstance(sk, dict):          # SPEC-113 VIX-split cell
+                    sks = set(sk.values())
+                else:
+                    sks = {sk}
+                for s in sks - {"reduce_wait"}:
+                    live_cells.append({"strategy_key": s, "regime": rg,
+                                       "iv_signal": iv, "trend": tr})
     cells = pd.concat(
         [t[["strategy_key", "regime", "iv_signal", "trend"]]
-         for t in trades_by_mode.values()]
+         for t in trades_by_mode.values()] + [pd.DataFrame(live_cells)]
     ).drop_duplicates().itertuples(index=False)
     for (sk, rg, iv, tr) in sorted(cells):
         masks = {m: t[(t.strategy_key == sk) & (t.regime == rg)

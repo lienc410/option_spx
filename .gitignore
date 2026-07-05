@@ -42,3 +42,5 @@ data/q041_backtest_cache.json
 # git stash --include-untracked during deploys)
 data/.last_backup_pull
 data/.last_l2_archive
+# SPEC-122 heartbeat marker (touched by the q085 job's BCD shadow step)
+data/.q087_bcd_shadow_ran

@@ -21,7 +21,10 @@ sys.path.insert(0, str(REPO))
 
 from backtest.engine import _build_legs, _entry_value, _make_leg_sigma_fn, run_backtest
 from backtest.engine import StrategyName
-from pricing.calibration import InsufficientCalibration, load_offsets_merged
+from pricing.calibration import (
+    CONV_ACT365, CONV_TD252, InsufficientCalibration, OffsetCurves,
+    load_offsets_merged, to_trading_day_convention,
+)
 from pricing.sigma import SigmaMode
 
 OFFSETS = {
@@ -30,6 +33,9 @@ OFFSETS = {
     ("CALL", "25-35"): [(0.08, -6.2), (0.30, -5.2), (0.70, -2.4)],
     ("CALL", "80-100"): [(0.30, -3.9), (0.70, -1.2)],
 }
+# engine-ready variant (T=dte/252 basis; here tagged directly for tests that
+# exercise the engine boundary — production callers convert from ACT/365)
+OFFSETS_TD = OffsetCurves(OFFSETS, CONV_TD252)
 
 
 class TestSigmaModeValidation(unittest.TestCase):
@@ -40,6 +46,25 @@ class TestSigmaModeValidation(unittest.TestCase):
 
     def test_flat_returns_no_resolver(self):
         self.assertIsNone(_make_leg_sigma_fn(SigmaMode.FLAT, 20.0, OFFSETS, 1.0))
+
+    def test_engine_asserts_offset_convention(self):
+        """Q087 C4: 365-basis (or untagged) offsets on the 252-basis engine
+        must raise — the documented trap is now impossible to hit silently."""
+        for bad in (OFFSETS,                                   # untagged dict
+                    OffsetCurves(OFFSETS, CONV_ACT365)):       # unconverted
+            with self.assertRaises(ValueError) as ctx:
+                run_backtest(start_date="2025-01-01", end_date="2025-03-01",
+                             sigma_mode="CALIB", sigma_offsets=bad)
+            self.assertIn("convention", str(ctx.exception))
+
+    def test_convention_conversion_scale(self):
+        act = OffsetCurves(OFFSETS, CONV_ACT365)
+        td = to_trading_day_convention(act)
+        self.assertEqual(td.convention, CONV_TD252)
+        scale = (252 / 365) ** 0.5
+        self.assertAlmostEqual(dict(td[("PUT", "25-35")])[0.30], -0.3 * scale)
+        # idempotent on already-converted curves
+        self.assertIs(to_trading_day_convention(td), td)
 
 
 class TestResolver(unittest.TestCase):
@@ -121,7 +146,7 @@ class TestEngineShortWindowParity(unittest.TestCase):
     def test_calib_changes_pricing_not_structure(self):
         flat = run_backtest(start_date="2024-06-01", end_date="2025-06-01")
         cal = run_backtest(start_date="2024-06-01", end_date="2025-06-01",
-                           sigma_mode="CALIB", sigma_offsets=OFFSETS)
+                           sigma_mode="CALIB", sigma_offsets=OFFSETS_TD)
         self.assertGreater(len(cal.trades), 0)
         self.assertNotEqual(
             [round(t.entry_credit, 6) for t in flat.trades[:5]],

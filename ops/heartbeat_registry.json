@@ -37,6 +37,9 @@
      "note": "SPEC-117.1 L1 backup runs on the local machine at 05:00; it touches this marker on oldair after each successful pull"},
     {"label": "LOCAL:com.spxstrat.local_backup_pull.l2", "kind": "marker",
      "freshness": {"path": "data/.last_l2_archive", "rule": "weekly_8d"},
-     "note": "F-1 follow-up: Sunday L2 iCloud archive touches this marker on success; an unmonitored backup branch is its own silent-failure class"}
+     "note": "F-1 follow-up: Sunday L2 iCloud archive touches this marker on success; an unmonitored backup branch is its own silent-failure class"},
+    {"label": "com.spxstrat.q085_s2bps.bcd_shadow", "kind": "marker",
+     "freshness": {"path": "data/.q087_bcd_shadow_ran", "rule": "trading_day"},
+     "note": "SPEC-122 BCD real-quote shadow runs inside the q085 16:50 job; it touches this marker EVERY run (the shadow JSONL itself only grows on BCD signal days, so it cannot carry a freshness rule)"}
   ]
 }

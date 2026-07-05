@@ -406,15 +406,27 @@ def run(today: str | None = None, *, dry_run: bool = False) -> dict:
         log.exception("q085: SPX history fetch failed — miv legs skipped today")
     spx_spot = closes_series[-1] if closes_series else None
 
+    calls = load_today_calls(today)
+
     # A. skew (unconditional; calls fail-soft — extension buckets only, SPEC-119)
     try:
-        summary["skew"] = measure_skew(puts, vix, today,
-                                       calls=load_today_calls(today), spx=spx_spot)
+        summary["skew"] = measure_skew(puts, vix, today, calls=calls, spx=spx_spot)
     except Exception as exc:
         log.exception("q085 skew measurement failed")
         summary["skew_error"] = str(exc)
         if not dry_run:
             _telegram_send(f"[S2-BPS PAPER] {today} skew 测量失败: {exc}")
+
+    # A2. SPEC-122 BCD real-quote shadow (pure recording, Telegram silent;
+    # reuses the SAME production rec — AC-1 forbids recomputing the signal).
+    # Fail-soft: a shadow error must never break the paper job.
+    try:
+        from notify.q087_bcd_quote_shadow import run as bcd_shadow_run
+        summary["bcd_shadow"] = bcd_shadow_run(today, rec, calls, spx_spot, vix,
+                                               dry_run=dry_run)
+    except Exception as exc:
+        log.exception("q087 bcd shadow failed")
+        summary["bcd_shadow_error"] = str(exc)
 
     # C. manage open positions
     closes = manage_open_positions(puts, today)

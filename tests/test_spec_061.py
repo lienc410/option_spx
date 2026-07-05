@@ -25,7 +25,7 @@ class Spec061SelectorTests(unittest.TestCase):
         self.assertEqual(rec.legs[0].option, "PUT")
         self.assertEqual(rec.legs[0].dte, 45)
         self.assertEqual(rec.legs[0].delta, 0.20)
-        self.assertIn("3× credit", rec.roll_rule)
+        self.assertIn("10× credit", rec.roll_rule)  # SPEC-121 canonical stop
 
     def test_ac3_non_bullish_trend_rejects_new_es_short_put(self) -> None:
         rec = select_es_short_put(
@@ -95,7 +95,7 @@ class Spec061ApiTests(unittest.TestCase):
         self.assertEqual(data["bp_preview"]["bp_target_pct"], 20.0)
         self.assertEqual(data["bp_gate"]["projected_bp"], 80529.0)
         self.assertEqual(data["short_strike"], 5200)
-        self.assertIn("3× credit", data["roll_rule"])
+        self.assertIn("10× credit", data["roll_rule"])  # SPEC-121 canonical stop
 
     @patch("web.server._is_market_hours", return_value=False)
     @patch("web.server._live_es_bp_check", return_value={

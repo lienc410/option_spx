@@ -798,6 +798,27 @@ def run_backtest(
         trades  : list of completed Trade objects
         metrics : summary statistics dict
     """
+    # SPEC-120: sigma mode is explicit; CALIB/PESS refuse to run without
+    # calibration curves (loud, never a silent FLAT fallback). Fail fast,
+    # before any data load.
+    _sigma_mode = sigma_mode if isinstance(sigma_mode, SigmaMode) else SigmaMode(str(sigma_mode).upper())
+    if _sigma_mode is not SigmaMode.FLAT:
+        if not sigma_offsets:
+            raise ValueError(f"sigma_mode={_sigma_mode.value} requires sigma_offsets "
+                             f"(pricing.calibration.load_offsets[_merged])")
+        # Q087 C4: this engine prices at T=dte/252; offsets are measured at
+        # T=dte/365. Consuming them unconverted overstated every CALIB haircut
+        # 15-20% — the trap was documented and still got hit, so the match is
+        # now asserted, not documented. Convert explicitly via
+        # pricing.calibration.to_trading_day_convention(offsets).
+        from pricing.calibration import CONV_TD252
+        conv = getattr(sigma_offsets, "convention", None)
+        if conv != CONV_TD252:
+            raise ValueError(
+                f"sigma_offsets convention {conv!r} does not match this engine's "
+                f"T=dte/252 pricing — pass pricing.calibration."
+                f"to_trading_day_convention(offsets) (expected {CONV_TD252!r})")
+
     # ── Load EOD data (always needed for rolling windows) ────────────
     vix_df = fetch_vix_history(period="max")
     spx_df = fetch_spx_history(period="max")
@@ -856,13 +877,6 @@ def run_backtest(
     spx_ma10_series = None
     if params.regime_stop_below_ma10:
         spx_ma10_series = full_spx["close"].rolling(10).mean()
-
-    # SPEC-120: sigma mode is explicit; CALIB/PESS refuse to run without
-    # calibration curves (loud, never a silent FLAT fallback).
-    _sigma_mode = sigma_mode if isinstance(sigma_mode, SigmaMode) else SigmaMode(str(sigma_mode).upper())
-    if _sigma_mode is not SigmaMode.FLAT and not sigma_offsets:
-        raise ValueError(f"sigma_mode={_sigma_mode.value} requires sigma_offsets "
-                         f"(pricing.calibration.load_offsets[_merged])")
 
     trades: list[Trade] = []
     signal_history: list[dict] = []

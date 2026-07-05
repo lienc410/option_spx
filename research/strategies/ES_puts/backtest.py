@@ -642,7 +642,9 @@ def _run_phase2_v2f_on_frame(
     cadence_mode: Literal["legacy", "relative"] = "legacy",
     vix_min_entry: float | None = None,
     apply_trend_gate: bool = False,
+    stop_mult: float | None = None,   # None -> V2F_STOP_MULT (canonical, SPEC-121)
 ) -> BacktestResult:
+    _stop_mult = V2F_STOP_MULT if stop_mult is None else stop_mult
     result = BacktestResult(phase=phase, mode=mode)
     exp_id = f"es_puts_p2_v2f_{mode}"
     equity = P2_INITIAL_EQUITY
@@ -736,7 +738,7 @@ def _run_phase2_v2f_on_frame(
                     entry_vix=vix,
                     contracts=n,
                     bp_used=n * _bp_per_contract(spx, k, prem),
-                    stop_premium=prem * V2F_STOP_MULT,
+                    stop_premium=prem * _stop_mult,
                     profit_premium=prem * V2F_PROFIT_TARGET,
                     prev_val=prem,
                 )
@@ -783,6 +785,11 @@ def run_phase2_hvlad(
     if end_date:
         sim = sim[sim.index <= pd.Timestamp(end_date)]
 
+    # SPEC-121 scope (same rule as run_phase2_v2f): the UNGATED comparison
+    # column (vix_min_entry<=0, the /es hvlad "baseline" display) is a frozen
+    # attribution artifact pinned to its original 15x stop — under 10x it is
+    # not bit-identical (17 stop exits appear). The gated ladder itself IS
+    # bit-identical under the canonical 10x (147 trades, 0 stops, verified).
     result = _run_phase2_v2f_on_frame(
         sim,
         full_spx,
@@ -792,6 +799,7 @@ def run_phase2_hvlad(
         phase="es_hv_ladder",
         vix_min_entry=vix_min_entry,
         apply_trend_gate=True,
+        stop_mult=15.0 if (vix_min_entry or 0.0) <= 0.0 else None,
     )
     active_days = sum(1 for row in result.daily_rows if getattr(row, "bp_used", 0.0) > 0)
     result.portfolio_metrics["active_days_pct"] = (
@@ -895,6 +903,13 @@ def run_phase2_v2f(
         sim = sim[sim.index <= pd.Timestamp(end_date)]
 
     phase = "phase2_v2f_m1" if enable_m1 else "phase2_v2f"
+    # SPEC-121 scope note: canonical stop 10x applies to the promoted/filtered
+    # path (proven bit-identical to the old 15x there — zero triggers in 26y).
+    # The unfiltered BASELINE is a frozen research comparison (SPEC-095
+    # acceptance artifact, pre-G6 attribution view): under 10x it is NOT
+    # bit-identical (5 -> 29 stop exits, bootstrap sig_rate 0.85 -> 0.0), so
+    # it stays pinned to its original 15x convention.
+    _mode_stop = 15.0 if mode == "baseline" else None
     result = _run_phase2_v2f_on_frame(
         sim,
         full_spx,
@@ -902,6 +917,7 @@ def run_phase2_v2f(
         verbose=verbose,
         enable_m1=enable_m1,
         phase=phase,
+        stop_mult=_mode_stop,
     )
 
     shocked_sim, shock_start, shock_end = _build_v2f_shocked_frame(sim)
@@ -913,6 +929,7 @@ def run_phase2_v2f(
         enable_m1=enable_m1,
         phase=phase,
         cadence_mode="relative",
+        stop_mult=_mode_stop,
     )
     result.stress_metrics = _extract_v2f_shock_outcomes(
         stressed,
