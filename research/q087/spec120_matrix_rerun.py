@@ -34,7 +34,7 @@ import pandas as pd
 
 from backtest.run_matrix_audit import run_matrix_audit
 from pricing import core
-from pricing.calibration import load_offsets_merged
+from pricing.calibration import load_offsets_merged, to_trading_day_convention
 from pricing.sigma import SigmaMode, sigma_for
 
 OUT = REPO / "research" / "q087"
@@ -124,8 +124,14 @@ def main(compare_only: bool = False) -> int:
             continue
         print(f"\n=== matrix 26y {mode} ===")
         rows: list = []
+        # Q087 C4: the matrix engine prices at T=dte/252 — offsets must be
+        # converted from their ACT/365 measurement basis (engine asserts).
+        # Post-C4 reruns therefore produce tconv-corrected CALIB/PESS numbers
+        # (matching spec120_trades_calib_tconv.csv), not the original 365-basis
+        # spec120_trades_calib.csv history.
         run_matrix_audit(save_csv=False, sigma_mode=mode,
-                         sigma_offsets=None if mode == "FLAT" else offsets,
+                         sigma_offsets=None if mode == "FLAT"
+                         else to_trading_day_convention(offsets),
                          pess_bracket_vp=PESS_BRACKET_VP,
                          collect_trade_rows=rows)
         t = pd.DataFrame(rows)
@@ -161,9 +167,14 @@ def main(compare_only: bool = False) -> int:
     emit("bull_call_diagonal", "SPEC-113_carve[NORMAL|IV_LOW|BULLISH|VIX<18]",
          carve_masks, carve=True)
 
-    cells = trades_by_mode["FLAT"].groupby(
-        ["strategy_key", "regime", "iv_signal", "trend"]).size().index
-    for (sk, rg, iv, tr) in cells:
+    # Cell universe = union across ALL modes (external review item 6: a cell
+    # with zero FLAT force-entry trades but live routing — e.g. iron_condor_hv
+    # HIGH_VOL|LOW|NEUTRAL — must still get a row, not silently vanish).
+    cells = pd.concat(
+        [t[["strategy_key", "regime", "iv_signal", "trend"]]
+         for t in trades_by_mode.values()]
+    ).drop_duplicates().itertuples(index=False)
+    for (sk, rg, iv, tr) in sorted(cells):
         masks = {m: t[(t.strategy_key == sk) & (t.regime == rg)
                       & (t.iv_signal == iv) & (t.trend == tr)]
                  for m, t in trades_by_mode.items()}
