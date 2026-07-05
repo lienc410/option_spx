@@ -1,6 +1,6 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-07-04 (**Q085 P1-P3+ 完整演进 + 自适应姿态正式 ratify**；43 信号 → 7 幸存 → 3 赛道深潜 → 分时代重排；治理产出：自适应哲学划界 + 证据等级制度 + 3 个方法学防护；SPEC-116 S2-BPS paper sleeve 已部署；SPEC-115 Phase B 已部署）。Q085 P1b + Q086/Q087 候选挂起 — `See: Q085 complete memo`, `SPEC-116`, `SPEC-115_phase_b`）
+Last Updated: 2026-07-04 (**Q085 正式封账 CLOSED**；P1b 收尾 Tier-3 采集 + 意外线索登记；最终槽位：S2-BPS paper / 超买镜像 / FOMC 待审；方法学遗产八条入档；Q087 框架确立——用"fail mode 现存否"重审全账本）。Q087 framing memo 下个会话起 — `See: commit fb827da`）
 
 ### R-20260607-01 — Q041 Alignment 18-Day Conclusion + Ops Transition
 
@@ -3656,4 +3656,74 @@ Owner: Planner or PM
   - S2-BPS paper observation window (~6 signals/yr)
   - VIX 18-20 conditional recheck (stays pending)
 - **来源**: Q085 complete PM memo (technical), SPEC-116, SPEC-115_phase_b, memory updates (studentization_trap, bs_flat_bias, adaptive_stance_boundary, status_quo_bias_exec, test_vector_cheatsheet)
+
+
+### R-20260704-02 — Q085 P1b Closure: Tier-3 Full Scripted Acquisition + Unexpected Signal Line (FORMALLY ARCHIVED)
+
+- **P1b Fact Layer — Data Collection** (全部脚本化，零手抄):
+  - **FOMC calendar**: Fed 官网逐年页面抓取 220 次会议公告日（2000-2026，含危机年临时会议）→ `data/q085_fomc_dates.csv`
+  - **CFTC COT**: ES 净投机持仓全史 1,382 周（contract 13874A 匹配跨 2022 改名）
+  - **CBOE equity P/C**: 数据流 2019-10 停更，只能跑 2006-2019 段（0 survivor）→ 运营上判死
+  - **AAII**: 会员墙 403 → 如实记录不可得
+
+- **Unexpected Finding — FOMC Signal Line**:
+  - Battery 最终 24 检验，2 个孤立幸存
+  - **Survivor**: FOMC 会前日 × NORMAL×BULLISH，后 5/21 天 +54/+130bp (n=53)
+  - **Replication check**: NDX/RUT/GDAXI 全部同号，p=0.0005
+  - **Caveats**: 53 个事件日三指数共享 → 循环性（外审新教的陷阱）；但有独立文献先验（Cieslak FOMC cycle）
+  - **Decision**: 注册为研究线索，**不给槽位** → 留给 Q087 或独立小研究
+
+- **Final Ledger & Slot Closure**:
+  - **Survivor slots**: F3 short mean reversion (7 格, 1-5 day) + mirror buy-signal IBS>0.8 (8 格)
+  - **New line**: FOMC pre-meeting effect (2 格, registered but pending audit)
+  - **Deployed**: S2-BPS 活在 SPEC-116 paper sleeve；其余全关
+  - **Zero revival path**: 已验框架不能通过参数调整复活，必须全新预注册
+
+- **Methodology Legacy (Eight Principles, Now Archived)**:
+  1. Studentized swap test (not raw percentiles)
+  2. Pooled-FDR is subsidy not penalty
+  3. Real-chain calibration before cost integration
+  4. Era-stratified verdict presentation (not monolithic kills)
+  5. Evidence hierarchy (backtests lose vote on deployed sleeves)
+  6. Bootstrap sign-concordance across market replicas (not pooled)
+  7. Circular metric validation prohibition (fact before counterfactual)
+  8. Leverage post-withdrawal robustness front-loading (compressed schedule = error source)
+
+- **Four-Flip History Full Record**:
+  - Flip 1: Early P1 method error → Fable caught swap-test need
+  - Flip 2: PM challenge on baseline → benchmark error exposed (dual standard)
+  - Flip 3: P3 calibration → full sample S2-BPS NEGATIVE
+  - Flip 4: G-review C1 blocking → tuition underestimate 5× → downgrade rules
+  - **Governance**: All flips & fixes public. Resume/scale **only on live/paper flow**, not backtest.
+
+- **Q085 Formally Closed** (commit fb827da)
+
+---
+
+### R-20260704-03 — Q087 Adaptive Audit Framework (PRE-FLIGHT)
+
+- **Premise**: One year of production (SPEC-113/116 live, SPEC-115 Phase A/B paper) has given us new ground truth. Which "safe" historical decisions were actually solving **2000-2013 dead-letter problems** vs real threats today?
+
+- **Audit Scope (PM-directed, Quant to frame)**:
+  1. **IVP dual-window gates** (SPEC-051+): Is 50/55/60 band width still justified? Or was it fear-hedging against 2007-2009 miss?
+  2. **HV-grid 0.5× discount** (SPEC-059): Worst-case years (2020/2022) over-allocated, best years under. Is margin of safety still adequate?
+  3. **SPEC-079 comfort filter** (Q084 confirmed: loses to NORMAL stratum). Why keep it elsewhere? Only historical vestige?
+  4. **BPS NNB narrow band** (IVP 50-60): Did this protect against something real, or just 2011-era data fragility?
+  5. **All kill verdicts calendar** (Q084 first): Which are universal ("always bad") vs era-local ("bad in 2008, okay in 2024")?
+
+- **Core Question per Item**: "The failure mode this rule prevents — does it still exist in 2025-26 data, or only in 2000-2013 backtest era?"
+
+- **Q087 Process**:
+  1. Quant drafts framing (problem statement + historical rationale for each rule)
+  2. Fable audits framing (catches hidden assumptions)
+  3. Quant runs P1 data (stratified by era: pre-2013, 2014-2019, 2020-2026)
+  4. Fable spot-checks P1 findings
+  5. PM ratifies: keep (margin still good) / loosen (over-conservative) / tighten (new threats found)
+  6. SPEC-117/118+ deploy upgrades or policy shifts
+
+- **Expected Outcome**: Likely 2-3 rules can loosen (profit bleed), 1-2 need tightening (new regime). Fable audit prevents status-quo bias in either direction.
+
+- **Timeline**: Framing next session → P1 mid-August → Fable audit late August → PM ratify September → SPEC rollout
+
+- **来源**: Q087 audit framework under PM direction; FOMC line stored in `data/q085_fomc_dates.csv` for future independent review
 
