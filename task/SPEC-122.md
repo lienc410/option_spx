@@ -17,3 +17,14 @@
 - AC-2 真实链集成冒烟（非 mock）：对 2026-07-02 快照构造 BCD 双腿并断言字段
 - AC-3 三模型 debit 与 pricing 库一致（同参断言）
 - AC-4 非信号日零写入零推送；AC-5 heartbeat 注册表新条目
+
+---
+
+## v2 预注册（外审 C3，2026-07-05）——采集前锁定，不得事后调整
+
+- **样本门**: ≥8 个 BCD 信号日真实报价（两 lane 合计）；**期限 2026-09-30**——届时不足 8 个则升级 PM 决定（延期 vs 判定信号频率本身即证据）
+- **判定量**: real natural debit vs 模型 debit 的中位相对误差，模型 = FLAT 与 CALIB_tconv（T-convention 修正版，见 spec120_trades_calib_tconv.csv 附带的 offsets 缩放）
+- **PASS-FLAT**（BCD 特许经营权模型无恙）: real 误差对 FLAT ≤ ±10% 且优于对 CALIB_tconv → BCD 家族维持，Q088 降级
+- **PASS-CALIB**（校准获证）: real 更接近 CALIB_tconv → 出 BCD 家族复审 packet（含 carve 处置与主格 Q088 提前），走外审 + PM
+- **中间带**: 两者误差差距 <5pp → 延长采集至 16 信号日再判
+- 附带记录: 每信号日同时落 vendor-iv 与 mid-implied，两套口径长期对照
