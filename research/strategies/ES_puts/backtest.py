@@ -73,7 +73,7 @@ V2F_ENTRY_FREQ     = 5
 V2F_MAX_SLOTS      = 5
 V2F_CLUSTER_THRESHOLD  = 4
 V2F_CLUSTER_ENTRY_FREQ = 10
-V2F_STOP_MULT      = 15.0
+V2F_STOP_MULT      = 10.0  # SPEC-121 canonical stop (Q087 A3): bit-identical to 15.0 over 26y (zero triggers)
 V2F_PROFIT_TARGET  = 0.10
 V2F_VIX_MIN_ENTRY  = 22.0
 

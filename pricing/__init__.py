@@ -25,4 +25,5 @@ from pricing.sigma import SigmaMode, sigma_for  # noqa: F401
 from pricing.calibration import (  # noqa: F401
     InsufficientCalibration,
     load_offsets,
+    load_offsets_merged,
 )

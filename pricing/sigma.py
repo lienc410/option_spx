@@ -71,17 +71,15 @@ def sigma_for(
     return max(sigma_vp + adverse_sign * bracket_vp, 1.0) / 100.0
 
 
-def _lookup_offset(offsets: dict, option_type: str, abs_delta: float, dte: int) -> float:
-    """Offset (vol points) for a leg. Buckets from calibration.load_offsets:
-    offsets[(type, dte_bucket)] = sorted list of (abs_delta, offset_vp).
-    Linear interpolation in |delta| inside the bucket; clamped at the edges."""
-    ot = option_type.upper()
-    bucket = "25-35" if dte <= 55 else "80-100"
-    key = (ot, bucket)
-    if key not in offsets:
-        raise ValueError(f"no calibration for {key} — extend the skew monitor "
-                         f"or fall back to FLAT explicitly")
-    pts = offsets[key]  # [(abs_delta, off_vp), ...] ascending by abs_delta
+# DTE bucket centers for cross-bucket interpolation (SPEC-120 §1.2): offsets
+# are measured at the 25-35 and 80-100 DTE windows; a leg's dte interpolates
+# linearly between the centers and clamps outside them.
+_NEAR_CENTER = 30
+_FAR_CENTER = 90
+
+
+def _curve_offset(pts: list, abs_delta: float) -> float:
+    """Linear interpolation in |delta| inside one bucket curve; edge-clamped."""
     if abs_delta <= pts[0][0]:
         return pts[0][1]
     if abs_delta >= pts[-1][0]:
@@ -91,3 +89,32 @@ def _lookup_offset(offsets: dict, option_type: str, abs_delta: float, dte: int) 
             w = (abs_delta - d0) / (d1 - d0)
             return o0 + w * (o1 - o0)
     return pts[-1][1]  # unreachable
+
+
+def _lookup_offset(offsets: dict, option_type: str, abs_delta: float, dte: int) -> float:
+    """Offset (vol points) for a leg. Buckets from calibration.load_offsets:
+    offsets[(type, dte_bucket)] = sorted list of (abs_delta, offset_vp).
+
+    |delta|: linear interpolation inside each bucket, edge-clamped.
+    DTE (SPEC-120): linear interpolation between the bucket centers (30, 90),
+    clamped outside; if only one bucket exists for the option type, it is
+    used for all DTEs (the far bucket is strike-limited in early monitor
+    data — refusing to price would push callers back to FLAT silently)."""
+    ot = option_type.upper()
+    near = offsets.get((ot, "25-35"))
+    far = offsets.get((ot, "80-100"))
+    if near is None and far is None:
+        raise ValueError(f"no calibration for {ot} — extend the skew monitor "
+                         f"or fall back to FLAT explicitly")
+    o_near = _curve_offset(near, abs_delta) if near else None
+    o_far = _curve_offset(far, abs_delta) if far else None
+    if o_near is None:
+        return o_far
+    if o_far is None:
+        return o_near
+    if dte <= _NEAR_CENTER:
+        return o_near
+    if dte >= _FAR_CENTER:
+        return o_far
+    w = (dte - _NEAR_CENTER) / (_FAR_CENTER - _NEAR_CENTER)
+    return o_near + w * (o_far - o_near)

@@ -47,6 +47,10 @@ from strategy.selector import (
 )
 from strategy.catalog import manual_entry_options, strategy_descriptor
 from strategy.es_params import DEFAULT_ES_PARAMS as _ES_P
+
+# SPEC-121: WARNING stays at a fixed 2× (early-intelligence line) — deliberately
+# NOT derived from stop_mult, which moved 3× → 10× (canonical A3 stop).
+ES_STOP_WARN_MULT = 2.0
 from strategy.state import (
     read_state, read_all_positions, write_state, close_position, roll_position, add_note,
 )
@@ -324,8 +328,8 @@ def _check_es_credit_stop() -> EsStopResult:
     if mark is None:
         return EsStopResult(level=EsStopLevel.NONE)
 
-    _trigger = _ES_P.stop_mult          # 3.0 — from EsShortPutParams
-    _warn    = _ES_P.stop_mult - 1.0    # 2.0 — warn one multiple before trigger
+    _trigger = _ES_P.stop_mult          # 10.0 — from EsShortPutParams (SPEC-121)
+    _warn    = ES_STOP_WARN_MULT        # 2.0 — fixed early-warning line, decoupled from trigger
 
     ratio = mark / entry_premium
     if ratio >= _trigger:
@@ -342,7 +346,7 @@ def _format_es_stop_alert(result: EsStopResult) -> str:
     mark     = result.current_mark or 0.0
     ratio    = result.ratio or 0.0
     _trigger = _ES_P.stop_mult
-    _warn    = _ES_P.stop_mult - 1.0
+    _warn    = ES_STOP_WARN_MULT
     if result.level == EsStopLevel.TRIGGER:
         return (
             f"🚨 <b>/ES Short Put — Credit Stop TRIGGERED [×{_trigger:.0f} mark]</b>\n"

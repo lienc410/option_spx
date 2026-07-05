@@ -127,9 +127,29 @@ class TestSigmaModes(unittest.TestCase):
         s = sigma_for(SigmaMode.CALIB, vix=20.0, option_type="PUT",
                       abs_delta=0.30, dte=90, offsets=self.OFFSETS)
         self.assertAlmostEqual(s, (20.0 - 1.8) / 100.0)   # 80-100 bucket
-        with self.assertRaises(ValueError):               # no CALL far curve
-            sigma_for(SigmaMode.CALIB, vix=20.0, option_type="CALL",
+        # SPEC-120: missing far curve falls back to the near curve (no raise);
+        # a type with NO curve at all still raises
+        s = sigma_for(SigmaMode.CALIB, vix=20.0, option_type="CALL",
                       abs_delta=0.30, dte=90, offsets=self.OFFSETS)
+        self.assertAlmostEqual(s, (20.0 - 3.6) / 100.0)   # near-curve fallback
+        with self.assertRaises(ValueError):
+            sigma_for(SigmaMode.CALIB, vix=20.0, option_type="CALL",
+                      abs_delta=0.30, dte=30,
+                      offsets={("PUT", "25-35"): [(0.3, -1.0), (0.5, -2.0)]})
+
+    def test_calib_dte_interpolation_between_buckets(self):
+        # SPEC-120: dte 60 is halfway between centers 30 and 90
+        s30 = sigma_for(SigmaMode.CALIB, vix=20.0, option_type="PUT",
+                        abs_delta=0.30, dte=30, offsets=self.OFFSETS)
+        s90 = sigma_for(SigmaMode.CALIB, vix=20.0, option_type="PUT",
+                        abs_delta=0.30, dte=90, offsets=self.OFFSETS)
+        s60 = sigma_for(SigmaMode.CALIB, vix=20.0, option_type="PUT",
+                        abs_delta=0.30, dte=60, offsets=self.OFFSETS)
+        self.assertAlmostEqual(s60, (s30 + s90) / 2)
+        # clamped outside the centers
+        s120 = sigma_for(SigmaMode.CALIB, vix=20.0, option_type="PUT",
+                         abs_delta=0.30, dte=120, offsets=self.OFFSETS)
+        self.assertAlmostEqual(s120, s90)
 
     def test_calib_floor(self):
         s = sigma_for(SigmaMode.CALIB, vix=4.0, option_type="PUT",

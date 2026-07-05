@@ -63,14 +63,15 @@ class Spec086Tests(unittest.TestCase):
 
     @patch("schwab.client.get_account_positions")
     @patch("notify.telegram_bot.read_state")
-    def test_ac1_trigger_when_mark_reaches_3x(self, mock_read_state, mock_positions) -> None:
+    def test_ac1_trigger_when_mark_reaches_stop_mult(self, mock_read_state, mock_positions) -> None:
+        # SPEC-121: canonical trigger moved 3x -> 10x (mark 106.0 / 10.5 = 10.1x)
         mock_read_state.return_value = _es_state(actual_premium=10.5)
-        mock_positions.return_value = _positions_payload(32.8)
+        mock_positions.return_value = _positions_payload(106.0)
 
         result = bot_mod._check_es_credit_stop()
 
         self.assertEqual(result.level, bot_mod.EsStopLevel.TRIGGER)
-        self.assertAlmostEqual(result.ratio, 32.8 / 10.5)
+        self.assertAlmostEqual(result.ratio, 106.0 / 10.5)
         self.assertIn("Credit Stop TRIGGERED", bot_mod._format_es_stop_alert(result))
 
     @patch("notify.telegram_bot.is_market_open", return_value=True)
@@ -90,8 +91,9 @@ class Spec086Tests(unittest.TestCase):
         mock_positions,
         _mock_open,
     ) -> None:
+        # SPEC-121: 21.2 = 2.02x (warning), 106.0 = 10.1x (trigger)
         mock_read_state.return_value = _es_state(actual_premium=10.5)
-        mock_positions.side_effect = [_positions_payload(21.2), _positions_payload(32.8)]
+        mock_positions.side_effect = [_positions_payload(21.2), _positions_payload(106.0)]
         bot = AsyncMock()
 
         asyncio.run(bot_mod.intraday_monitor(bot, "chat"))

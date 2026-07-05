@@ -17,7 +17,13 @@ import pandas as pd
 from backtest.engine import DEFAULT_PARAMS, run_backtest
 from strategy.catalog import STRATEGIES_BY_KEY, strategy_key as catalog_key
 
-STRATEGY_KEYS = [k for k in STRATEGIES_BY_KEY if k != "reduce_wait"]
+# Matrix scope: SPX / ES strategies only. Single-name paper sleeves (SPEC-115
+# q041_t2/t3, GOOGL/AMZN/COST/JPM) are chain-based and have no forced-entry
+# legs in the selector — they are not matrix cells.
+STRATEGY_KEYS = [
+    k for k, d in STRATEGIES_BY_KEY.items()
+    if k != "reduce_wait" and d.underlying in ("SPX", "/ES")
+]
 MIN_CELL_N = 5
 
 
@@ -25,11 +31,29 @@ def _cell_label(regime: str, iv_signal: str, trend: str) -> str:
     return f"{regime}|{iv_signal}|{trend}"
 
 
+def _worst_7y_net(grp: pd.DataFrame) -> float:
+    """Worst rolling 7-year net PnL by entry year (the disaster-window metric
+    from the strategy-metrics pack). Windows [y, y+6] over the sample span."""
+    yr = grp.groupby("entry_year")["pnl"].sum()
+    if yr.empty:
+        return 0.0
+    y0, y1 = int(yr.index.min()), int(yr.index.max())
+    worst = None
+    for start in range(y0, max(y0, y1 - 6) + 1):
+        net = float(yr[(yr.index >= start) & (yr.index <= start + 6)].sum())
+        worst = net if worst is None else min(worst, net)
+    return worst if worst is not None else 0.0
+
+
 def run_matrix_audit(
     strategy_keys: list[str] | None = None,
     start_date: str = "2000-01-01",
     end_date: str | None = None,
     save_csv: bool = True,
+    sigma_mode: str = "FLAT",              # SPEC-120: FLAT | CALIB | PESS
+    sigma_offsets: dict | None = None,
+    pess_bracket_vp: float = 1.0,
+    collect_trade_rows: list | None = None,  # SPEC-120: append trade-level dicts
 ) -> pd.DataFrame:
     keys = strategy_keys or STRATEGY_KEYS
     all_rows: list[dict] = []
@@ -41,6 +65,9 @@ def run_matrix_audit(
             end_date=end_date,
             params=forced_params,
             verbose=False,
+            sigma_mode=sigma_mode,
+            sigma_offsets=sigma_offsets,
+            pess_bracket_vp=pess_bracket_vp,
         )
 
         sig_by_date: dict[str, dict] = {row["date"]: row for row in result.signals}
@@ -53,13 +80,23 @@ def run_matrix_audit(
             entry = pd.Timestamp(trade.entry_date)
             exit_ = pd.Timestamp(trade.exit_date) if trade.exit_date else entry
             trade_rows.append({
+                "strategy_key": strategy_key,
                 "regime": sig.get("regime", "UNKNOWN"),
                 "iv_signal": sig.get("iv_signal", "UNKNOWN"),
                 "trend": sig.get("trend", "UNKNOWN"),
+                "entry_date": trade.entry_date,
+                "exit_date": trade.exit_date,
+                "entry_year": entry.year,
+                "entry_vix": trade.entry_vix,
+                "exit_reason": trade.exit_reason,
+                "entry_credit": trade.entry_credit,
+                "contracts": trade.contracts,
                 "pnl": trade.exit_pnl,
                 "hold_days": max((exit_ - entry).days, 1),
             })
 
+        if collect_trade_rows is not None:
+            collect_trade_rows.extend(trade_rows)
         if not trade_rows:
             continue
 
@@ -79,6 +116,8 @@ def run_matrix_audit(
                 else:
                     consec = 0
 
+            g2020 = grp[grp["entry_year"] >= 2020]
+            g2024 = grp[grp["entry_year"] >= 2024]
             all_rows.append({
                 "strategy_key": strategy_key,
                 "cell": _cell_label(regime, iv_sig, trend),
@@ -92,6 +131,13 @@ def run_matrix_audit(
                 "max_consec_loss": max_consec,
                 "avg_hold_days": round(grp["hold_days"].mean(), 1),
                 "low_n_flag": n < MIN_CELL_N,
+                # SPEC-120 era columns
+                "net_pnl": round(float(grp["pnl"].sum()), 0),
+                "worst7y_net": round(_worst_7y_net(grp), 0),
+                "n_2020p": len(g2020),
+                "net_2020p": round(float(g2020["pnl"].sum()), 0),
+                "n_2024p": len(g2024),
+                "net_2024p": round(float(g2024["pnl"].sum()), 0),
             })
 
     result_df = pd.DataFrame(all_rows)

@@ -172,7 +172,9 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   position: absolute; top: -3px; width: 1px; height: 12px;
   background: var(--text-muted); opacity: 0.4;
 }
-.stop-bar-ticks { display: flex; justify-content: space-between; margin-top: 4px; }
+.stop-bar-ticks { display: flex; justify-content: space-between; margin-top: 4px; position: relative; }
+/* SPEC-121: warn label pinned to the 2×/10× (20%) tick position */
+.stop-bar-tick-label.warn-at-20 { position: absolute; left: 20%; transform: translateX(-50%); }
 .stop-bar-tick-label { font-family: var(--f-mono); font-size: 0.58rem; color: var(--text-2); }
 
 .pos-none { font-family: var(--f-ui); font-size: 0.72rem; color: var(--text-2); font-style: italic; }
@@ -487,9 +489,9 @@ async function loadPosition() {
     const ratioCls = level === 'TRIGGER' ? 'crit' : level === 'WARNING' ? 'warn' : 'ok';
     const dteCls   = (pos.dte != null && pos.dte <= 7) ? 'warn' : '';
 
-    // Build ratio progress bar (0x to 3x, stop at 3x)
+    // Build ratio progress bar (0x to 10x, stop at 10x — SPEC-121 canonical stop)
     const ratio    = pos.ratio ?? 0;
-    const barPct   = Math.min((ratio / 3.0) * 100, 100).toFixed(1);
+    const barPct   = Math.min((ratio / 10.0) * 100, 100).toFixed(1);
     const barCls   = level === 'TRIGGER' ? 'crit' : level === 'WARNING' ? 'warn' : 'ok';
 
     posBody.innerHTML = `
@@ -506,16 +508,16 @@ async function loadPosition() {
       <div class="stop-bar-wrap">
         <div class="stop-bar-label">
           <span>Credit Stop Distance</span>
-          <span style="font-family:var(--f-mono);font-size:0.65rem">${pos.ratio != null ? Number(pos.ratio).toFixed(2) + '× / 3.0× trigger' : '—'}</span>
+          <span style="font-family:var(--f-mono);font-size:0.65rem">${pos.ratio != null ? Number(pos.ratio).toFixed(2) + '× / 10.0× trigger' : '—'}</span>
         </div>
         <div class="stop-bar-track">
           <div class="stop-bar-fill ${barCls}" style="width:${barPct}%"></div>
-          <div class="stop-bar-tick" style="left:${(2/3*100).toFixed(1)}%"></div>
+          <div class="stop-bar-tick" style="left:${(2/10*100).toFixed(1)}%"></div>
         </div>
         <div class="stop-bar-ticks">
           <span class="stop-bar-tick-label">0×</span>
-          <span class="stop-bar-tick-label" style="color:var(--orange)">2× warn</span>
-          <span class="stop-bar-tick-label" style="color:var(--red)">3× trigger</span>
+          <span class="stop-bar-tick-label warn-at-20" style="color:var(--orange)">2× warn</span>
+          <span class="stop-bar-tick-label" style="color:var(--red)">10× trigger</span>
         </div>
       </div>`;
   } catch (_) {
@@ -661,7 +663,7 @@ async function openEsModal(kind) {
         <div class="modal-field">
           <label class="modal-label">Exit Reason</label>
           <select id="es-exit-reason" class="modal-select">
-            <option value="credit_stop">Credit stop (3×)</option>
+            <option value="credit_stop">Credit stop (10×)</option>
             <option value="50pct_profit">50% profit</option>
             <option value="roll_21dte">Roll at 21 DTE</option>
             <option value="manual">Manual</option>

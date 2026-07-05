@@ -57,6 +57,7 @@ from backtest.portfolio import DailyPortfolioRow, PortfolioTracker
 from backtest.pricer import (
     call_price, put_price, call_delta, put_delta, find_strike_for_delta,
 )
+from pricing.sigma import SigmaMode, sigma_for
 from backtest.registry import config_hash, generate_experiment_id
 from backtest.shock_engine import LegSnapshot, PositionSnapshot, run_shock_check
 from strategy.catalog import strategy_key as catalog_key
@@ -200,23 +201,60 @@ class BacktestResult:
         yield self.signals
 
 
-def _entry_value(legs, spx, sigma):
+def _make_leg_sigma_fn(mode: SigmaMode, vix: float, offsets: "dict | None",
+                       bracket_vp: float):
+    """SPEC-120 — per-leg sigma resolver for CALIB/PESS matrix scenarios.
+
+    Returns None in FLAT mode: callers then keep the historical single-sigma
+    code path untouched (bit-identical, AC-1). Otherwise returns
+    fn(spx, action, is_call, strike, dte) -> sigma, with fn.for_target(...)
+    for strike selection where only the TARGET delta is known.
+
+    Skew position of an existing leg is keyed by its |delta| computed under
+    FLAT sigma — self-consistent with how offset curves are indexed and free
+    of fixed-point iteration. PESS applies the SPEC-120 static bracket
+    literally: short legs -bracket_vp, long legs +bracket_vp, entry and exit
+    alike (a skew-uncertainty band, not a per-side pnl-adverse flip)."""
+    if mode is SigmaMode.FLAT:
+        return None
+    flat = vix / 100.0
+
+    def for_target(target: float, is_call: bool, dte: int, action: int) -> float:
+        kw = dict(vix=vix, option_type="CALL" if is_call else "PUT",
+                  abs_delta=float(target), dte=int(dte), offsets=offsets)
+        if mode is SigmaMode.CALIB:
+            return sigma_for(SigmaMode.CALIB, **kw)
+        return sigma_for(SigmaMode.PESS, adverse_sign=(-1 if action < 0 else +1),
+                         bracket_vp=bracket_vp, **kw)
+
+    def for_leg(spx: float, action: int, is_call: bool, strike: float, dte: int) -> float:
+        ad = abs(call_delta(spx, strike, dte, flat)) if is_call \
+            else abs(put_delta(spx, strike, dte, flat))
+        return for_target(ad, is_call, dte, action)
+
+    for_leg.for_target = for_target
+    return for_leg
+
+
+def _entry_value(legs, spx, sigma, leg_sigma_fn=None):
     """Compute net premium for a set of legs at entry. Positive = debit, negative = credit.
     Each leg is priced at its own DTE (stored in the leg tuple), so diagonal strategies
     with different DTEs per leg are priced correctly."""
     total = 0.0
     for action, is_call, strike, dte, qty in legs:
-        price = call_price(spx, strike, dte, sigma) if is_call else put_price(spx, strike, dte, sigma)
+        s = sigma if leg_sigma_fn is None else leg_sigma_fn(spx, action, is_call, strike, dte)
+        price = call_price(spx, strike, dte, s) if is_call else put_price(spx, strike, dte, s)
         total += action * price * qty
     return total
 
 
-def _current_value(legs, spx, sigma, days_held):
+def _current_value(legs, spx, sigma, days_held, leg_sigma_fn=None):
     """Compute current net value of position. Positive = debit side, negative = credit side."""
     total = 0.0
     for action, is_call, strike, dte_start, qty in legs:
         dte_now = max(dte_start - days_held, 1)
-        price = call_price(spx, strike, dte_now, sigma) if is_call else put_price(spx, strike, dte_now, sigma)
+        s = sigma if leg_sigma_fn is None else leg_sigma_fn(spx, action, is_call, strike, dte_now)
+        price = call_price(spx, strike, dte_now, s) if is_call else put_price(spx, strike, dte_now, s)
         total += action * price * qty
     return total
 
@@ -244,9 +282,10 @@ def _position_total_bp(position: Position, account_size: float) -> float:
     return _position_contracts(position, account_size) * position.bp_per_contract
 
 
-def _position_unrealized_pnl(position: Position, spx: float, sigma: float, account_size: float) -> float:
+def _position_unrealized_pnl(position: Position, spx: float, sigma: float, account_size: float,
+                             leg_sigma_fn=None) -> float:
     contracts = _position_contracts(position, account_size)
-    current_val = _current_value(position.legs, spx, sigma, position.days_held)
+    current_val = _current_value(position.legs, spx, sigma, position.days_held, leg_sigma_fn)
     return (current_val - position.entry_value) * contracts * 100
 
 
@@ -283,8 +322,9 @@ def _close_position(
     sigma: float,
     account_size: float,
     exit_reason: str,
+    leg_sigma_fn=None,
 ) -> Trade:
-    current_val = _current_value(position.legs, spx, sigma, position.days_held)
+    current_val = _current_value(position.legs, spx, sigma, position.days_held, leg_sigma_fn)
     pnl = current_val - position.entry_value
     contracts = _position_contracts(position, account_size)
     total_bp = contracts * position.bp_per_contract
@@ -318,8 +358,9 @@ def _virtual_open_at_end_trade(
     spx: float,
     sigma: float,
     account_size: float,
+    leg_sigma_fn=None,
 ) -> Trade:
-    current_val = _current_value(position.legs, spx, sigma, position.days_held)
+    current_val = _current_value(position.legs, spx, sigma, position.days_held, leg_sigma_fn)
     pnl = current_val - position.entry_value
     contracts = _position_contracts(position, account_size)
     total_bp = contracts * position.bp_per_contract
@@ -361,19 +402,28 @@ def _build_legs(
     spx:      float,
     sigma:    float,
     params:   StrategyParams = DEFAULT_PARAMS,
+    sigma_fn=None,
 ) -> tuple[list, int]:
     """
     Build leg tuples for a given strategy at the current SPX level.
     Returns (legs, dte_of_short_leg).
     Each leg: (action +1/-1, is_call bool, strike float, dte int, qty int)
+
+    sigma_fn (SPEC-120): when set (CALIB/PESS), each strike is found under the
+    per-leg sigma for its TARGET delta — sigma_fn is _make_leg_sigma_fn(...)
+    .for_target. None keeps the historical flat-sigma selection (bit-identical).
     """
     strategy = rec_or_strategy.strategy if isinstance(rec_or_strategy, Recommendation) else rec_or_strategy
+
+    def _k(dte: int, target: float, is_call: bool, action: int) -> float:
+        s = sigma if sigma_fn is None else sigma_fn(target, is_call, dte, action)
+        return find_strike_for_delta(spx, dte, s, target, is_call=is_call)
 
     if strategy == StrategyName.BULL_CALL_DIAGONAL:
         short_dte  = 45
         long_dte   = 90
-        short_k    = find_strike_for_delta(spx, short_dte, sigma, 0.30, is_call=True)
-        long_k     = find_strike_for_delta(spx, long_dte,  sigma, 0.70, is_call=True)
+        short_k    = _k(short_dte, 0.30, True, -1)
+        long_k     = _k(long_dte, 0.70, True, +1)
         return [
             (+1, True, long_k,  long_dte,  1),
             (-1, True, short_k, short_dte, 1),
@@ -385,18 +435,18 @@ def _build_legs(
             for leg in rec_or_strategy.legs:
                 is_call = leg.option == "CALL"
                 action = -1 if leg.action == "SELL" else 1
-                strike = find_strike_for_delta(spx, leg.dte, sigma, leg.delta, is_call=is_call)
+                strike = _k(leg.dte, leg.delta, is_call, action)
                 out.append((action, is_call, strike, leg.dte, 1))
             call_short, call_long = out[0][2], out[1][2]
             put_short, put_long = out[2][2], out[3][2]
             dte = out[0][3]
         else:
             dte = 45
-            call_short = find_strike_for_delta(spx, dte, sigma, 0.16, is_call=True)
-            put_short  = find_strike_for_delta(spx, dte, sigma, 0.16, is_call=False)
+            call_short = _k(dte, 0.16, True, -1)
+            put_short  = _k(dte, 0.16, False, -1)
             # SPEC-070 v2: long legs are delta-based (δ0.08) to match selector intent.
-            call_long  = find_strike_for_delta(spx, dte, sigma, 0.08, is_call=True)
-            put_long   = find_strike_for_delta(spx, dte, sigma, 0.08, is_call=False)
+            call_long  = _k(dte, 0.08, True, +1)
+            put_long   = _k(dte, 0.08, False, +1)
             out = [
                 (-1, True,  call_short, dte, 1),
                 (+1, True,  call_long,  dte, 1),
@@ -413,8 +463,8 @@ def _build_legs(
 
     if strategy == StrategyName.BULL_PUT_SPREAD:
         dte      = params.normal_dte
-        short_k  = find_strike_for_delta(spx, dte, sigma, params.normal_delta, is_call=False)
-        long_k   = find_strike_for_delta(spx, dte, sigma, params.normal_delta * 0.5, is_call=False)
+        short_k  = _k(dte, params.normal_delta, False, -1)
+        long_k   = _k(dte, params.normal_delta * 0.5, False, +1)
         return [
             (-1, False, short_k, dte, 1),
             (+1, False, long_k,  dte, 1),
@@ -422,8 +472,8 @@ def _build_legs(
 
     if strategy == StrategyName.BULL_PUT_SPREAD_HV:
         dte      = params.high_vol_dte
-        short_k  = find_strike_for_delta(spx, dte, sigma, params.high_vol_delta, is_call=False)
-        long_k   = find_strike_for_delta(spx, dte, sigma, params.high_vol_delta * 0.5, is_call=False)
+        short_k  = _k(dte, params.high_vol_delta, False, -1)
+        long_k   = _k(dte, params.high_vol_delta * 0.5, False, +1)
         return [
             (-1, False, short_k, dte, 1),
             (+1, False, long_k,  dte, 1),
@@ -431,8 +481,8 @@ def _build_legs(
 
     if strategy == StrategyName.BEAR_CALL_SPREAD_HV:
         dte      = 45
-        short_k  = find_strike_for_delta(spx, dte, sigma, 0.20, is_call=True)
-        long_k   = find_strike_for_delta(spx, dte, sigma, 0.10, is_call=True)
+        short_k  = _k(dte, 0.20, True, -1)
+        long_k   = _k(dte, 0.10, True, +1)
         return [
             (-1, True, short_k, dte, 1),
             (+1, True, long_k,  dte, 1),
@@ -440,8 +490,8 @@ def _build_legs(
 
     if strategy == StrategyName.BULL_CALL_SPREAD:
         dte    = 21
-        long_k = find_strike_for_delta(spx, dte, sigma, 0.50, is_call=True)
-        short_k = find_strike_for_delta(spx, dte, sigma, 0.25, is_call=True)
+        long_k = _k(dte, 0.50, True, +1)
+        short_k = _k(dte, 0.25, True, -1)
         return [
             (+1, True, long_k,  dte, 1),
             (-1, True, short_k, dte, 1),
@@ -449,8 +499,8 @@ def _build_legs(
 
     if strategy == StrategyName.BEAR_PUT_SPREAD:
         dte    = 21
-        long_k = find_strike_for_delta(spx, dte, sigma, 0.50, is_call=False)
-        short_k = find_strike_for_delta(spx, dte, sigma, 0.25, is_call=False)
+        long_k = _k(dte, 0.50, False, +1)
+        short_k = _k(dte, 0.25, False, -1)
         return [
             (+1, False, long_k,  dte, 1),
             (-1, False, short_k, dte, 1),
@@ -458,8 +508,8 @@ def _build_legs(
 
     if strategy == StrategyName.BEAR_CALL_SPREAD:
         dte    = 21
-        short_k = find_strike_for_delta(spx, dte, sigma, 0.40, is_call=True)
-        long_k  = find_strike_for_delta(spx, dte, sigma, 0.20, is_call=True)
+        short_k = _k(dte, 0.40, True, -1)
+        long_k  = _k(dte, 0.20, True, +1)
         return [
             (-1, True, short_k, dte, 1),
             (+1, True, long_k,  dte, 1),
@@ -731,6 +781,9 @@ def run_backtest(
     interval:     str   = "1d",        # "1d" or "1h" — affects current VIX/SPX only
     params:       StrategyParams = DEFAULT_PARAMS,
     collect_shock_reports: bool = False,
+    sigma_mode:   "str | SigmaMode" = SigmaMode.FLAT,   # SPEC-120
+    sigma_offsets: dict | None = None,                  # pricing.calibration curves
+    pess_bracket_vp: float = 1.0,                       # PESS static bracket (vp)
 ) -> BacktestResult:
     """
     Walk-forward backtest from start_date to end_date (defaults to today).
@@ -804,6 +857,13 @@ def run_backtest(
     if params.regime_stop_below_ma10:
         spx_ma10_series = full_spx["close"].rolling(10).mean()
 
+    # SPEC-120: sigma mode is explicit; CALIB/PESS refuse to run without
+    # calibration curves (loud, never a silent FLAT fallback).
+    _sigma_mode = sigma_mode if isinstance(sigma_mode, SigmaMode) else SigmaMode(str(sigma_mode).upper())
+    if _sigma_mode is not SigmaMode.FLAT and not sigma_offsets:
+        raise ValueError(f"sigma_mode={_sigma_mode.value} requires sigma_offsets "
+                         f"(pricing.calibration.load_offsets[_merged])")
+
     trades: list[Trade] = []
     signal_history: list[dict] = []
     shock_reports: list[dict] = []
@@ -832,6 +892,8 @@ def run_backtest(
         vix3m = None if pd.isna(row.get("vix3m", np.nan)) else float(row["vix3m"])
 
         sigma = vix / 100.0          # annualised vol
+        # SPEC-120: per-leg sigma resolver (None in FLAT — historical path)
+        leg_fn = _make_leg_sigma_fn(_sigma_mode, vix, sigma_offsets, pess_bracket_vp)
 
         # ── Compute signals (no lookahead: use data up to today) ─────
         date_key   = pd.Timestamp(date)
@@ -951,7 +1013,7 @@ def run_backtest(
         # ── Manage open positions ────────────────────────────────────
         for position in list(positions):
             position.days_held += 1
-            current_val  = _current_value(position.legs, spx, sigma, position.days_held)
+            current_val  = _current_value(position.legs, spx, sigma, position.days_held, leg_fn)
             # P&L = current_val - entry_value
             # Credit trade: entry_value=-500, current_val=-250 → pnl=+250 (profit) ✓
             # Debit  trade: entry_value=+500, current_val=+700 → pnl=+200 (profit) ✓
@@ -1036,6 +1098,7 @@ def run_backtest(
                     sigma=sigma,
                     account_size=account_size,
                     exit_reason=exit_reason,
+                    leg_sigma_fn=leg_fn,
                 )
                 realized_pnl_today += t.exit_pnl
                 trades.append(t)
@@ -1110,6 +1173,7 @@ def run_backtest(
                     sigma=sigma,
                     account_size=account_size,
                     exit_reason=trim_reason,
+                    leg_sigma_fn=leg_fn,
                 )
                 realized_pnl_today += trade.exit_pnl
                 trades.append(trade)
@@ -1149,9 +1213,10 @@ def run_backtest(
                 and not _sg_block
                 and not _spell_block
                 and _used_bp + (_new_bp_target * overlay_factor) <= _ceiling):
-            legs, short_dte = _build_legs(rec, spx, sigma, params)
+            legs, short_dte = _build_legs(rec, spx, sigma, params,
+                                          sigma_fn=None if leg_fn is None else leg_fn.for_target)
             if legs:
-                ev = _entry_value(legs, spx, sigma)
+                ev = _entry_value(legs, spx, sigma, leg_fn)
                 size_mult = params.high_vol_size if rec.strategy in (
                     StrategyName.BULL_PUT_SPREAD_HV,
                     StrategyName.BEAR_CALL_SPREAD_HV,
@@ -1210,7 +1275,7 @@ def run_backtest(
                         hv_spell_trade_count[rec_key] = hv_spell_trade_count.get(rec_key, 0) + 1
 
         open_marks = {
-            _position_id(position): _position_unrealized_pnl(position, spx, sigma, account_size)
+            _position_id(position): _position_unrealized_pnl(position, spx, sigma, account_size, leg_fn)
             for position in positions
         }
         used_bp_usd = sum(_position_total_bp(position, account_size) for position in positions)
@@ -1227,14 +1292,17 @@ def run_backtest(
         )
 
     # Per SPEC-069: synthesize virtual trade rows for positions still open at end.
+    _end_vix = float(df["vix"].iloc[-1])
+    _end_leg_fn = _make_leg_sigma_fn(_sigma_mode, _end_vix, sigma_offsets, pess_bracket_vp)
     for position in positions:
         trades.append(
             _virtual_open_at_end_trade(
                 position=position,
                 date=df.index[-1],
                 spx=float(df["spx"].iloc[-1]),
-                sigma=float(df["vix"].iloc[-1]) / 100.0,
+                sigma=_end_vix / 100.0,
                 account_size=account_size,
+                leg_sigma_fn=_end_leg_fn,
             )
         )
 

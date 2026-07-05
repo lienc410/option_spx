@@ -245,7 +245,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
       <div>
         <h1>/ES Short Put <em>Backtest</em></h1>
         <div class="page-hero-meta">
-          <span>45 DTE · Δ0.20 · 3× credit stop · single slot</span>
+          <span>45 DTE · Δ0.20 · 10× credit stop · single slot</span>
           <span>·</span>
           <span><span class="dot dot-orange"></span> Trend Filter ON</span>
           <span><span class="dot dot-blue"></span> No Filter</span>
@@ -588,7 +588,7 @@ function renderMetrics(s, label, color) {
       <div class="metric-card">
         <div class="metric-label">Stop Rate</div>
         <div class="metric-value ${s.stop_rate_pct>20?'down':'warn'}">${stop}</div>
-        <div class="metric-sub">3× credit stop</div>
+        <div class="metric-sub">10× credit stop</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Profit Target</div>
@@ -718,7 +718,7 @@ function renderV2fPanel(v0Summary, v2fPayload) {
         <li>Single-trade worst: <strong>${fmtPctFrac(metrics?.stress_worst_single_pct_nlv, 2) || '—'}</strong> NLV</li>
         <li>Cluster loss (5 concurrent positions): <strong>${fmtPctFrac(metrics?.stress_cluster_pct, 1) || '—'}</strong> of equity</li>
       </ul>
-      STOP_MULT=15 triggers on sudden gaps but cannot prevent full-premium loss on open contracts.
+      STOP_MULT=10 (SPEC-121 canonical) triggers on sudden gaps but cannot prevent full-premium loss on open contracts.
       Paper trading is mandatory before any live execution.<br>
       <strong>M1 cluster throttle active in current backtest variant.</strong>
     </div>`;
@@ -938,7 +938,7 @@ async function _renderBacktestResult(data, start) {
           <div class="discipline-key">Exit</div>
           <div class="discipline-val">
             <strong>Profit target</strong>: close when mark ≤ <code>10%</code> of entry premium (= 90% profit captured)。
-            <strong>Stop loss</strong>: close when mark ≥ <code>3×</code> entry premium (= 2× credit loss) — Telegram bot trigger SPEC-086。
+            <strong>Stop loss</strong>: close when mark ≥ <code>10×</code> entry premium (= 9× credit loss; 2× mark raises an early warning) — Telegram bot trigger SPEC-086。
             <strong>Force close</strong>: gamma exposure too high at <code>DTE ≤ 5</code>。
           </div>
         </div>

@@ -21,10 +21,13 @@ class EsShortPutParams:
     n_contracts:    int   = 1     # fixed 1-contract cap (SPEC-061 single-slot rule)
 
     # ── Exit rules ─────────────────────────────────────────────────────────
-    stop_mult:      float = 3.0   # stop when mark ≥ N× entry premium
-    #   mark = 3× entry → cost to close = 3× received → loss = 2× credit
-    #   Bot trigger: ratio = mark/entry ≥ 3.0  (SPEC-086, telegram_bot.py)
-    #   Display label: "3× credit stop" = mark reaches 3× the original premium
+    stop_mult:      float = 10.0  # stop when mark ≥ N× entry premium
+    #   SPEC-121 (Q087 A3, PM ratified 2026-07-05): canonical stop = 10×,
+    #   one number across monitor / backtest / display. 26y backtest is
+    #   bit-identical to the old research 15× (zero triggers either way);
+    #   10× is the disaster fail-safe (abnormal mark / gap scenarios).
+    #   Bot trigger: ratio = mark/entry ≥ 10.0 (SPEC-086, telegram_bot.py);
+    #   the 2× WARNING is fixed and independent (early intelligence layer).
 
     profit_target:  float = 0.10  # close when mark ≤ N× entry premium (= 90% profit captured)
     gamma_dte:      int   = 5     # force-close if DTE ≤ this at daily check

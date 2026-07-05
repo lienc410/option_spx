@@ -153,7 +153,8 @@ def _algo_hash() -> str:
             import subprocess
             out = subprocess.run(
                 ["git", "log", "-1", "--format=%h", "--",
-                 "strategy/", "backtest/", "signals/"],
+                 "strategy/", "backtest/", "signals/", "pricing/",
+                 "research/strategies/"],
                 capture_output=True, text=True, timeout=10,
                 cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
             )
@@ -3100,7 +3101,7 @@ def _es_trade_summary_metrics(result) -> dict:
 def _default_v2f_caveats() -> list[str]:
     return [
         "BS-flat synthetic data; OTM put premium may be understated ~2-3% (skew).",
-        "STOP_MULT=15 triggered rarely in 26y research; live trigger frequency remains unvalidated.",
+        "STOP_MULT=10 (SPEC-121 canonical) triggered rarely in 26y research; live trigger frequency remains unvalidated.",
         "Bootstrap significance is alive-but-borderline edge, not production-grade alpha proof.",
         "BSH / dynamic leverage interaction with V2f remains untested; Phase 3/4 results still belong to V0.",
         "M1 1987 stress worst single remains slightly beyond the original -15% veto threshold.",
