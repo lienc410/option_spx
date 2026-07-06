@@ -1,6 +1,6 @@
 # RESEARCH_LOG
 
-Last Updated: 2026-07-04 (**Q085 正式封账 CLOSED**；P1b 收尾 Tier-3 采集 + 意外线索登记；最终槽位：S2-BPS paper / 超买镜像 / FOMC 待审；方法学遗产八条入档；Q087 框架确立——用"fail mode 现存否"重审全账本）。Q087 framing memo 下个会话起 — `See: commit fb827da`）
+Last Updated: 2026-07-06 (**Q087 全系统优化完结（五 Track）+ Q088 T1 修订考古 + SPEC 117-124 交付**；定价库统一 / 止血批 / 工程快赢 / 方法学宪法 ratify / BCD 家族校准；ES 止损 3×→10× / CALIB 折减误差 15-20% → 主 BCD $26.8k；裸注记死禁令 + Yahoo 数据 vendor / 4 项 catalog 漂移抓获；8 SPEC 全部部署验证）。四条证据流自动积累中；JPM T-3 7/9、moff 核对 7/17、DEFERRED 月度 8/3 — `See: SPEC-117~124`）
 
 ### R-20260607-01 — Q041 Alignment 18-Day Conclusion + Ops Transition
 
@@ -3726,4 +3726,69 @@ Owner: Planner or PM
 - **Timeline**: Framing next session → P1 mid-August → Fable audit late August → PM ratify September → SPEC rollout
 
 - **来源**: Q087 audit framework under PM direction; FOMC line stored in `data/q085_fomc_dates.csv` for future independent review
+
+
+---
+
+### R-20260705-01 — Q087 Full-System Optimization Program Complete (Five Tracks: A-E) + Q088 T1 Archeological Audit (MAJOR GOVERNANCE & SPEC DELIVERY)
+
+- **Charter + P0**: PM directive "全面优化迭代 under Fable model". Five-track division of labor. P0 triage board: quant parameter checklist (4 red flag + 2 anomaly) + dev four-checklist → checkpoint #1 ratify recommendation
+
+- **Track A — Historical Rule Audit** (5 items, era-stratified):
+  - **A1 IVP dual-window**: MAINTAINED; external audit correction: SPEC-060 dead slots were documented active decisions, not undiscovered. No era change in current regime.
+  - **A2 HV-grid 0.5× discount**: DEFER-CLOSED; −0.35σ noise threshold, not evidence.
+  - **A3 ES stop-loss mismatch**: **FIXED (SPEC-121)**. Backtest 15× vs live 3× never validated. PnL −34% + CVaR degradation. PM ratified 10× (Q071 P4 verified within grid). Root: sizing formula had mismatched convention.
+  - **A4 SPEC-079 comfort filter**: **RETIRED (SPEC-124)**. Zero protective value; Q084 proved failure. Production removal validated.
+  - **A5 BPS NNB narrow band**: ES sizing "live 2× aggressive" alert rescinded — actually 1/15 conservative. Ladder pre-registered as PM-initiated option.
+
+- **Track B — Unified Pricing Library (SPEC-119)** + Vendor-IV Alignment (SPEC-120):
+  - **SPEC-119**: FLAT/CALIB/PESS three-mode unified lib, 5 callsites bit-identical migration
+  - **Vendor-IV gap**: vendor_iv vs mid_implied differ 1–2.5vp. *_moff field redesigned. 30-day backfill (not forward accumulation).
+  - **SPEC-120 Matrix 26y rerun**: T-convention mismatch fixed (365-calendar offset hitting 252-calendar engine). CALIB fold reduction was inflated 15–20%; **corrected main BCD slot $26.8k (was $5.4k)** — 5x magnitude error.
+  - **Grid ordering instability** (48% slots): registered Q088 investigation.
+
+- **Track C/D — Engineering Batches** (SPEC-117 stop-gap + SPEC-118 quick-win):
+  - **SPEC-117 (stop-gap)**: Chains triple backup + recovery drills; settling code regression fix; heartbeat monitoring 25 tasks (was 21, only 1 had failure alert, 3 silently failed). All 25 now instrumented.
+  - **SPEC-118 (quick-win)**: Aftermath 35/40 unification; NLV=100k fallback removed; backtest cache git-hash + key (algorithm changes no longer orphan old caches). Cache now git-versioned.
+  - **Backup TCC fix**: launchd ~/Documents permissions issue resolved.
+
+- **Track E — METHODOLOGY.md v1.1 RATIFIED** (Seven-chapter governance constitution):
+  - Ch 1-7: Statistical protocol default stack / pricing data protocol / verdict standard / adaptive four-piece / role interfaces / doc discipline + six lessons from Q085-Q088
+  - Now canonical reference for all future research defaults
+
+- **BCD Family Review (post SPEC-120)**:
+  - **SPEC-122 Arbitration**: PM insight "chains already recorded" → existing backfill expedited. n=10 signal days (behavioral cache 10/10 verified) PASS-CALIB. FLAT underestimated BCD true debit ~10.6%; calibrated value confirmed. Residual −3.8% directionally adverse.
+  - **Ledger truth**: 5 BPS realized (+$5,972 mean); 5 BCD all unrealized (3 carve-slot 6/3 + 2 SPEC-060 dead-slot 6/5 manual). Manual trading completely bypassed SPEC-111 (opened $38k+ debit when $16.9k<floor).
+  - **PM ratify 07-05**: D1 carve maintained + downgrade gates + cumulative hard floor −$15k; D2 main-slot maintained + pre-gate (LOW_VOL reentry ≥10 days reporting + ±1vp review). Manual single shown but not blocked. **First BCD realized flow = pre-registered review trigger → SPEC-123 governance package**.
+
+- **Q088 T1 Historical Audit** (Naked-note resurrection):
+  - **Gold mine**: 5/8 overlap-audit "naked note" items **all re-surfaced** (ES stop-loss re-discovered, sizing mismatch survived 2 months). **Naked-note resurrection prohibition** now formalized.
+  - **ES sizing reconciliation**: "live 2× aggressive" alert rescinded (actually 1/15 conservative; ladder pre-registered as PM option).
+  - **Shadow regiment**: 6 items archived; SPEC-079 production never blocked → formal retirement SPEC-124.
+  - **Aftermath health**: 440 unlock days; era-relevant; riding ic_hv attribution.
+  - **BP/NLV convergence**: Confirmed.
+  - **制度落地**: DEFERRED.md 18-item ledger + monthly auto-heartbeat. Assertion batch caught 4 real catalog drifts on day-1 (50% vs 60%). Root: Yahoo silent historical revision (418→415 trades) → input data vendoring proposal #17. Old Air capacity signal #18 (trigger-based).
+
+- **T2 Kickoff**:
+  - Quantitative evidence-strength table: 10 Type-B skeleton slots (IC/HV franchise audit robust)
+  - 26y matrix live realized = only 5 trades → shadow/paper evidence is sole systematic mechanism for evidence escalation
+  - T2 quantitative portion pre-registered condition-gated
+
+- **Eight SPEC Delivery (all validated for deployment)**:
+  - SPEC-117 (stop-gap instrumentation)
+  - SPEC-118 (quick-win engineering)
+  - SPEC-119 (unified pricing library)
+  - SPEC-120 (26y matrix rerun + convention fix)
+  - SPEC-121 (ES stop-loss 10× from 3×)
+  - SPEC-122 (BCD CALIB arbitration)
+  - SPEC-123 (governance package post-BCD-realized)
+  - SPEC-124 (SPEC-079 retirement)
+
+- **Operating & Event Calendar**:
+  - Four evidence streams auto-accumulating: skew monitor / S2-BPS paper / BCD shadow (7/6 start) / DEFERRED monthly
+  - Heartbeat 25/25 all-green
+  - Events: Weekly four-confirm / JPM T-3 (7/7-9) / moff reconcile (7/17) / BCD maturity review (7-8 months) / DEFERRED monthly (8/3) / tconv full rerun
+  - T2 formal rating TBD after event window
+
+- **来源**: Q087 charter + five-track delivery + SPEC-117~124 + METHODOLOGY.md v1.1 + DEFERRED.md + Q088 T1 audit
 
