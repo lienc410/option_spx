@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-07-06 (**Q087 全系统优化完结（五 Track 审计/定价/工程/方法学）+ Q088 T1 修订考古 + 8 SPEC 交付（117-124）**；ES 止损 3×→10×、CALIB 折减误差 15-20%、主 BCD $26.8k、BCD family 家族校准、裸注记死禁令、心跳 25/25 绿、证据流自动积累）。JPM T-3（7/9）/ moff 7/17 / DEFERRED 8/3 事件日历；PM 待 Q087 五项优先级指示 — `See: SPEC-117~124`）
+Last Updated: 2026-07-06 (**Q087 全系统优化完结（五 Track）+ Q088 T1 考古 + SPEC 117-125 交付完毕**；ES 止损 10×、CALIB 主 BCD $26.8k、裸注记死禁令、心跳 25/25、SPEC-125 前端三方审核修复 P1 真 bug 6 项 + P2 一致性 7 项 + P3 决策注入、oldair 部署 6a2252c 全 200、缓存 5/5 重建绿）。JPM T-3（7/9）/ moff 7/17 / DEFERRED 8/3；PM Q087 优先级待指示 — `See: SPEC-117~125`）
 Owner: Planner or PM
 
 ## Current Phase

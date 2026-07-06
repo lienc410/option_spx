@@ -3824,3 +3824,50 @@ Owner: Planner or PM
 - **Key Memory**: [[feedback_post_withdrawal_proposals_front_load_robustness]] — post-withdrawal robustness front-loading (Q083/085/088 lessons)
 - **来源**: Planner 2026-07-06 formal response to T2 acceleration proposal
 
+
+---
+
+### R-20260706-02 — SPEC-125 Complete: Frontend Three-Party Review Fix Batch (P1 Real Bugs + P2 Consistency + P3 Decisions)
+
+- **Deployment**: commit 6a2252c, pushed + deployed oldair 2026-07-06 00:04
+- **Charter**: Close out frontend review findings from PM/Designer/Quant; six months of accumulated UX debt + DESIGN.md covenant violations; catch **real bugs hiding under style issues**
+
+- **P1 Real Bugs (6 items)** — fourth mirror discovered:
+  1. **C1 Position-card profit target source**: Was frontend constant (0.50/0.60), now served by `/api/position profit_target` field (engine params, live 0.6 validated). Deeper discovery: debit max-profit calculation used wrong base (50% × BS-est, should be 60% × entry premium like credit). Both parts fixed; debit max-profit preserved as display context.
+  2. **C2 exit_reason fossil**: Label "50pct_profit" never followed SPEC-077 rule shift to 0.60; renamed to "profit_target". `run_event_study` accepts both labels; historical CSV keeps legacy (migration note in engine.py). ES ledger's own close_reason vocab untouched (out of scope).
+  3. **D1 PAPER badge impersonation**: SPX orange→gray; performance .tag→.tag-obs (muted); contract count moved out of badge
+  4. **D2 matrix caveat visibility**: Dark italic English line → orange notice card + Chinese + Quant-verified phrasing ("canonical routing non-realtime")
+  5. **D4 habitual muted-abuse**: Five content regions + margin scale + chart axes + 3 misc items, `--text-muted` → `--text-2`; CI grep with whitelist now enforces (zero violations currently)
+  6. **D7 es_backtest hero closure**: Tabs no longer nested inside hero
+
+- **P2 Consistency (7 items)**:
+  - C3 footer alignment (5 typos fixed)
+  - C4 three-party pricing disclosure source aligned
+  - D3 hvladder_backtest discipline + Frequency field; "3× credit stop" corrected to "10×" per SPEC-121; SPX/hvlad pages both now have full metric cards
+  - D5 WAIT→NO ENTRY + DESIGN.md signal-outcome states table
+  - D6 nav single-source (_nav.html include, 22 template migration, 13 canonical slots, RESEARCH indicator removed)
+  - D8 ES lifecycle per Quant truth (removed Legacy/archived labels, badge Secondary→Research, title serif)
+  - D10 Q042 page titles ("Drawdown Overlay" uniform)
+
+- **P3 Decisions Injected**:
+  - D9 ten button labels (Chinese→English); funds/partnership/etrade_reauth exemptions in DESIGN.md Language Rules
+  - C6 "intentional non-display" decision recorded in DESIGN.md Decisions Log
+  - Six new Decisions Log entries total (nav vocab / terms table / exemptions / C6 / title scales)
+
+- **AC & Regression**:
+  - tests/test_spec_125.py 19/19 PASS: C1 integration (payload == engine params) + frontend literal prohibition + muted CI grep + badge vocab regression + nav single-source + D7 structure + text assertions
+  - **Baseline failures 12→11** (net improvement); nav single-source fix also closed SPEC-087 remnant (spec_087_five_nav_links)
+  - Two tests pinning ratified changes (087 nav source assertion, 102 archived text): aligned to truth
+  - AC-6 post-commit green
+
+- **Deployment Verification**:
+  - oldair @6a2252c: 9 routes all 200 (nav include full-site render correct), profit_target payload live (0.6 confirmed)
+  - Cache rebuild: 5/5 complete (SPX stats/results-3y/results-5y/Q041 CSP/ES short-put all green)
+  - engine exit_reason label change synced with new cache (purely display-level, per-trade economics unchanged, verified)
+
+- **Residual**:
+  - Design subagent visual recheck: PM-triggered paid work, available on request
+  - No open items; SPEC-125 fully closed
+
+- **来源**: Commit 6a2252c, three-party review cycle Q2 2026, AC tests 19/19, oldair deploy + cache 5/5
+
