@@ -221,20 +221,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 
 <nav class="nav">
   <span class="nav-brand">SPX <em>Strategy</em></span>
-  <div class="nav-links">
-    <a href="/"                  class="nav-link">Portfolio</a>
-    <a href="/spx"               class="nav-link">SPX</a>
-    <a href="/es"                class="nav-link active">/ES</a>
-    <a href="/q042"               class="nav-link">DD Overlay</a>
-    <a href="/aftermath"          class="nav-link">Aftermath</a>
-    <a href="/hvladder"          class="nav-link" style="opacity:0.65" title="Research-only — 0% production allocation (SPEC-104)">Stress Put Ladder <sup style="font-size:0.55em;color:var(--orange);letter-spacing:0.05em;margin-left:2px">RESEARCH</sup></a>
-    <a href="/q041"               class="nav-link">Sleeves</a>
-    <a href="/portfolio-backtest" class="nav-link">Port BT</a>
-    <a href="/performance"       class="nav-link">Performance</a>
-    <a href="/journal" class="nav-link">Journal</a>
-    <a href="/margin"            class="nav-link">Margin</a>
-    <a href="/funds"              class="nav-link">Funds</a>
-  </div>
+  {% set nav_active = 'es' %}{% include "_nav.html" %}
   <div class="nav-right" id="nav-date">—</div>
 </nav>
 
@@ -253,12 +240,12 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
       </div>
       <a href="/es" style="font-family:var(--f-ui);font-size:0.65rem;color:var(--text-2);text-decoration:none;border:1px solid var(--border-2);border-radius:9999px;padding:3px 10px;margin-top:6px;white-space:nowrap">← /ES Strategy</a>
     </div>
-  
+  </div><!-- SPEC-125 D7: hero closes BEFORE page-tabs (tabs were nested inside, inheriting hero margin) -->
+
   <div class="page-tabs">
     <a href="/es"          class="page-tab">Strategy</a>
     <a href="/es-backtest" class="page-tab active">Backtest</a>
   </div>
-</div>
 
   <div class="controls">
     <span class="ctrl-label">Start</span>
@@ -739,7 +726,7 @@ function renderV2fPanel(v0Summary, v2fPayload) {
 function renderHvLadderPanel(hvPayload) {
   return `
     <div class="caveat-banner">
-      <h3>Stress Put Ladder [archived tab]</h3>
+      <h3>Stress Put Ladder — moved to dedicated pages</h3>
       <ul>
         <li>Stress Put Ladder has moved to a dedicated live page and research page.</li>
         <li>This archive tab is retained for old bookmarks and PM review continuity.</li>
@@ -872,7 +859,7 @@ async function _renderBacktestResult(data, start) {
     <div class="es-window-scale">
       <span id="es-window-min">—</span>
       <span id="es-window-max">—</span>
-      <button onclick="if(_esPriceChart)_esPriceChart.resetZoom()" style="font-family:var(--f-mono);font-size:0.60rem;padding:2px 9px;border-radius:4px;border:1px solid var(--border-2);background:none;color:var(--text-2);cursor:pointer" title="Reset drag-zoom">↩ 全局</button>
+      <button onclick="if(_esPriceChart)_esPriceChart.resetZoom()" style="font-family:var(--f-mono);font-size:0.60rem;padding:2px 9px;border-radius:4px;border:1px solid var(--border-2);background:none;color:var(--text-2);cursor:pointer" title="Reset drag-zoom">↩ Reset</button>
     </div>
     <div class="equity-legend">
       <span><span class="eq-arrow" style="color:var(--green)">▲</span> Open — profit</span>
@@ -892,7 +879,7 @@ async function _renderBacktestResult(data, start) {
       </div>
       <canvas id="equity-chart" class="chart-canvas" height="180"></canvas>
       <div style="text-align:right;margin-top:6px">
-        <button onclick="if(chartInstance)chartInstance.resetZoom()" style="font-family:var(--f-mono);font-size:0.60rem;padding:2px 9px;border-radius:4px;border:1px solid var(--border-2);background:none;color:var(--text-2);cursor:pointer" title="Reset drag-zoom">↩ 全局</button>
+        <button onclick="if(chartInstance)chartInstance.resetZoom()" style="font-family:var(--f-mono);font-size:0.60rem;padding:2px 9px;border-radius:4px;border:1px solid var(--border-2);background:none;color:var(--text-2);cursor:pointer" title="Reset drag-zoom">↩ Reset</button>
       </div>
     </div>`;
 
@@ -910,7 +897,7 @@ async function _renderBacktestResult(data, start) {
     <div class="tab-strip">
       <button class="tab-btn active" data-es-tab-btn="v0" onclick="setEsResearchTab('v0')">V0</button>
       <button class="tab-btn" data-es-tab-btn="v2f" onclick="setEsResearchTab('v2f')">V2f</button>
-      <button class="tab-btn" data-es-tab-btn="hvlad" onclick="setEsResearchTab('hvlad')">Stress Put Ladder [archived]</button>
+      <button class="tab-btn" data-es-tab-btn="hvlad" onclick="setEsResearchTab('hvlad')">Stress Put Ladder → moved</button>
     </div>
     <div id="es-tab-v0" class="tab-panel active">
       ${v0Content}

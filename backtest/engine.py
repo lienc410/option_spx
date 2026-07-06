@@ -114,7 +114,9 @@ class Trade:
                                 #   may mis-interpret the value as dollar-credit. Future cleanup
                                 #   (separate task): rename JSON key or add parallel dollar-credit field.
     exit_pnl:     float = 0.0   # final P&L total in USD (positive = profit, all contracts)
-    exit_reason:  str = ""      # "50pct_profit" | "stop_loss" | "expiry" | "roll_21dte" | "roll_up"
+    exit_reason:  str = ""      # "profit_target" | "stop_loss" | "expiry" | "roll_21dte" | "roll_up"
+                                # (legacy label "50pct_profit" ≡ "profit_target" in
+                                #  historical CSVs/caches — SPEC-125 C2 migration note)
     entry_reason: str = ""
     dte_at_entry: int = 0
     dte_at_exit:  int = 0
@@ -1042,7 +1044,13 @@ def run_backtest(
             if abs(position.entry_value) > 0:
                 pnl_ratio = pnl / abs(position.entry_value)
                 if pnl_ratio >= params.profit_target and position.days_held >= params.min_hold_days:
-                    exit_reason = "50pct_profit"
+                    # SPEC-125 C2: label was the fossil "50pct_profit" (the
+                    # rule moved to params.profit_target=0.60 in SPEC-077 but
+                    # the string never followed). Historical trade CSVs /
+                    # cached results carry the legacy label — consumers must
+                    # treat "50pct_profit" and "profit_target" as the SAME
+                    # exit rule (see backtest/run_event_study.py).
+                    exit_reason = "profit_target"
                 elif is_credit and pnl_ratio <= -params.stop_mult:   # credit trade stop
                     exit_reason = "stop_loss"
                 elif not is_credit:

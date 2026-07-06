@@ -147,10 +147,15 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .card-structure { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
 .leg-chip { font-family: var(--f-mono); font-size: 0.65rem; color: var(--text-2); background: var(--surface-hi); border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px; }
 .leg-chip.leg-sell { border-color: var(--theme-lit-074); color: var(--red); }
-.rule-row { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; border-bottom: 1px solid var(--border); }
-.rule-row:last-child { border-bottom: none; }
-.rule-key { font-family: var(--f-ui); font-size: 0.60rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); min-width: 90px; padding-top: 1px; }
-.rule-val { font-family: var(--f-ui); font-size: 0.68rem; color: var(--text-2); flex: 1; }
+/* SPEC-125 D3: canonical Trading Discipline classes (DESIGN.md: copy the
+   canonical CSS block, do not invent variants) */
+.discipline-card { background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:18px 22px; }
+.discipline-row { display:flex;gap:18px;padding:10px 0;border-bottom:1px solid var(--border); }
+.discipline-row:last-of-type { border-bottom:none;padding-bottom:4px; }
+.discipline-key { flex:0 0 100px;font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2);text-transform:uppercase;letter-spacing:0.08em;padding-top:2px; }
+.discipline-val { flex:1;font-family:var(--f-ui);font-size:0.72rem;color:var(--text-2);line-height:1.6; }
+.discipline-val strong { color:var(--text);font-weight:500; }
+.discipline-val code { font-family:var(--f-mono);font-size:0.68rem;background:var(--surface-hi);padding:1px 5px;border-radius:3px;color:var(--text); }
 
 /* ── Misc ── */
 .empty-state { padding: 20px; text-align: center; color: var(--text-muted); font-style: italic; font-size: 0.76rem; }
@@ -168,19 +173,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 <body>
 <nav class="nav">
   <span class="nav-brand">SPX <em>Strategy</em></span>
-  <div class="nav-links">
-    <a href="/"                   class="nav-link">Portfolio</a>
-    <a href="/spx"                class="nav-link">SPX</a>
-    <a href="/q042"               class="nav-link">DD Overlay</a>
-    <a href="/aftermath"          class="nav-link">Aftermath</a>
-    <a href="/hvladder"           class="nav-link active" title="Research-only — 0% production allocation (SPEC-104)">Stress Put Ladder <sup style="font-size:0.55em;color:var(--orange);letter-spacing:0.05em;margin-left:2px">RESEARCH</sup></a>
-    <a href="/q041"               class="nav-link">Sleeves</a>
-    <a href="/portfolio-backtest" class="nav-link">Port BT</a>
-    <a href="/performance"        class="nav-link">Performance</a>
-    <a href="/journal" class="nav-link">Journal</a>
-    <a href="/margin"             class="nav-link">Margin</a>
-    <a href="/funds"              class="nav-link">Funds</a>
-  </div>
+  {% set nav_active = 'hvladder' %}{% include "_nav.html" %}
   <div class="nav-right" id="nav-date">—</div>
 </nav>
 
@@ -249,7 +242,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
         <button class="ctrl-btn active" data-window="all">All</button>
       </div>
       <span class="ctrl-spacer"></span>
-      <button class="reset-btn" id="chart-reset">↩ 全局</button>
+      <button class="reset-btn" id="chart-reset">↩ Reset</button>
     </div>
     <canvas id="spx-chart" height="90"></canvas>
   </div>
@@ -267,31 +260,33 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   <!-- ③ Trading Discipline (required per DESIGN.md) -->
   <div class="discipline-section">
     <div class="discipline-title">Trading Discipline</div>
-    <div class="spec-card">
-      <div class="card-structure">
+    <div class="discipline-card">
+      <div class="card-structure" style="margin-bottom:10px">
         <span class="leg-chip leg-sell">SELL PUT · 49d · Δ0.20</span>
       </div>
-      <div>
-        <div class="rule-row">
-          <span class="rule-key">Entry</span>
-          <span class="rule-val">Each slot independently targets <strong style="color:var(--text)">49 DTE / δ0.20</strong> on its own signal date — strike BSM-fitted to δ0.20 at entry SPX level. Slots share no expiry; the ladder structure arises from time-staggered entries (min <strong style="color:var(--text)">5 TD</strong> apart).</span>
-        </div>
-        <div class="rule-row">
-          <span class="rule-key">Size</span>
-          <span class="rule-val">Up to <strong style="color:var(--text)">5 concurrent slots</strong>; 1 contract per slot; cadence ≥ 5 TD (10 TD when slots ≥ 4); SPAN ≤ <strong style="color:var(--text)">30% NLV</strong> cap</span>
-        </div>
-        <div class="rule-row">
-          <span class="rule-key">Roll / Stop</span>
-          <span class="rule-val">Close at <strong style="color:var(--text)">21 DTE</strong>; profit at <strong style="color:var(--text)">90% of credit</strong> (mark ≤ 10% of entry); stop at <strong style="color:var(--text)">3× credit</strong></span>
-        </div>
-        <div class="rule-row">
-          <span class="rule-key">Max Risk</span>
-          <span class="rule-val">Undefined downside (/ES naked put); entry gated by <strong style="color:var(--orange)">VIX ≥ 22</strong> + trend <code style="font-family:var(--f-mono);font-size:0.65rem;background:var(--surface-hi);padding:1px 5px;border-radius:3px">BULLISH</code> + SPAN ≤ 30% NLV</span>
-        </div>
+      <div class="discipline-row">
+        <div class="discipline-key">Entry</div>
+        <div class="discipline-val">Each slot independently targets <strong>49 DTE / δ0.20</strong> on its own signal date — strike BSM-fitted to δ0.20 at entry SPX level; entry gated by <strong>VIX ≥ <code>22</code></strong> + trend <code>BULLISH</code>. Slots share no expiry; the ladder arises from time-staggered entries.</div>
+      </div>
+      <div class="discipline-row">
+        <div class="discipline-key">Exit</div>
+        <div class="discipline-val">Close at <strong>21 DTE</strong>; profit at <strong>90% of credit</strong> (mark ≤ <code>10%</code> of entry); stop at <strong>10× credit</strong> (SPEC-121 canonical; 2× mark raises an early warning)</div>
+      </div>
+      <div class="discipline-row">
+        <div class="discipline-key">Sizing</div>
+        <div class="discipline-val">1 contract per slot; up to <strong>5 concurrent slots</strong>; SPAN ≤ <strong>30% NLV</strong> cap</div>
+      </div>
+      <div class="discipline-row">
+        <div class="discipline-key">Risk</div>
+        <div class="discipline-val">Undefined downside (/ES naked put); SPAN ≤ <code>30%</code> NLV portfolio cap; VIX ≥ <code>22</code> regime guard; validated-not-deployed at ladder scale (live = SPEC-061 single-lot)</div>
+      </div>
+      <div class="discipline-row">
+        <div class="discipline-key">Frequency</div>
+        <div class="discipline-val">Entry cadence ≥ <strong>5 TD</strong> between slots; throttled to <strong>10 TD</strong> when ≥ 4 slots active; no entries below the VIX gate (blackout in calm regimes)</div>
       </div>
       <div class="discipline-footnote">
-        Source: research/q071/q071_engine.py (V2F_ENTRY_DTE=49, TARGET_DELTA=0.20, V2F_MAX_SLOTS=5, V2F_PROFIT_TARGET=0.10) ·
-        SPEC-101 entry/exit rules · SPEC-102 frontend
+        Source: research/strategies/ES_puts/backtest.py (V2F_ENTRY_DTE=49, TARGET_DELTA=0.20, V2F_MAX_SLOTS=5, V2F_PROFIT_TARGET=0.10, V2F_STOP_MULT=10) ·
+        SPEC-101 entry/exit rules · SPEC-121 canonical stop · SPEC-102 frontend
       </div>
     </div>
   </div>
@@ -312,13 +307,21 @@ function colorCls(n, higherIsBetter = true) {
 }
 
 function renderMetrics(m) {
+  // SPEC-125 D3/D9: Win Rate / Avg P&L / Total P&L are mandatory template
+  // cards (DESIGN.md) — values from the API metrics (fail-soft '—' until the
+  // disk cache carries the new fields)
+  const fmtDollar = (n) => typeof n === 'number'
+    ? (n >= 0 ? '+' : '−') + '$' + Math.abs(Math.round(n)).toLocaleString() : '—';
   const cards = [
+    { k: 'Trades',         v: m.n_trades ?? '—',               cls: '' },
+    { k: 'Win Rate',       v: fmtPct(m.win_rate, 1),           cls: colorCls((m.win_rate ?? 0.5) - 0.5) },
+    { k: 'Avg P&L',        v: fmtDollar(m.avg_pnl),            cls: colorCls(m.avg_pnl) },
+    { k: 'Total P&L',      v: fmtDollar(m.total_pnl),          cls: colorCls(m.total_pnl) },
     { k: 'Ann ROE (HV)',   v: fmtPct(m.ann_roe_geometric, 2), cls: colorCls(m.ann_roe_geometric) },
     { k: 'Sharpe',         v: fmt(m.sharpe, 2),                cls: colorCls(m.sharpe) },
     { k: 'Max Drawdown',   v: fmtPct(m.max_dd, 2),             cls: colorCls(m.max_dd, false) },
     { k: 'Worst Trade',    v: fmtPct(m.worst_trade_pct_nlv, 2), cls: colorCls(m.worst_trade_pct_nlv, false) },
     { k: 'Active Days',    v: fmtPct(m.active_days_pct, 1),    cls: '' },
-    { k: 'Trades',         v: m.n_trades ?? '—',               cls: '' },
     { k: 'Bootstrap Sig',  v: fmtPct(m.bootstrap_sig_rate, 0), cls: colorCls(m.bootstrap_sig_rate) },
   ];
   document.getElementById('metrics-row').innerHTML = cards.map(c =>

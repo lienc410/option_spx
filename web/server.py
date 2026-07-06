@@ -3109,6 +3109,9 @@ def _es_trade_summary_metrics(result) -> dict:
         "max_dd": portfolio.get("max_drawdown"),
         "worst_trade_pct_nlv": (worst_trade / initial_equity) if trades else 0.0,
         "win_rate": (wins / len(trades)) if trades else 0.0,
+        # SPEC-125 D3/D9: mandatory backtest-template cards
+        "avg_pnl": (sum(t.pnl for t in trades) / len(trades)) if trades else 0.0,
+        "total_pnl": sum(t.pnl for t in trades),
         "active_days_pct": portfolio.get("active_days_pct"),
         "bootstrap_sig_rate": bootstrap.get("sig_rate"),
         "bootstrap_ci_lo": bootstrap.get("ci_lo"),
@@ -4869,6 +4872,11 @@ def api_position():
                         _sw_cache[ck] = {"visible": False}
             position_lives[tid] = _sw_cache[ck]
 
+    # SPEC-125 C1: profit target is served from the engine parameter — the
+    # frontend must never carry its own 0.50/0.60 constant (fourth mirror).
+    # The ratio applies to |entry premium| for credit AND debit alike
+    # (engine.py pnl_ratio >= params.profit_target).
+    from strategy.selector import DEFAULT_PARAMS as _dp
     return jsonify({
         "open": True,
         **state,
@@ -4876,6 +4884,7 @@ def api_position():
         "schwab_live": live,
         "etrade_live": etrade_live,
         "position_lives": position_lives,
+        "profit_target": _dp.profit_target,
     })
 
 

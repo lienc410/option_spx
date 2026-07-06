@@ -64,19 +64,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 
 <nav class="nav">
   <span class="nav-brand">SPX <em>Strategy</em></span>
-  <div class="nav-links">
-    <a href="/"                   class="nav-link">Portfolio</a>
-    <a href="/spx"                class="nav-link">SPX</a>
-    <a href="/q042"               class="nav-link">DD Overlay</a>
-    <a href="/aftermath"          class="nav-link active">Aftermath</a>
-    <a href="/hvladder"           class="nav-link" style="opacity:0.65" title="Research-only — 0% production allocation (SPEC-104)">Stress Put Ladder <sup style="font-size:0.55em;color:var(--orange);letter-spacing:0.05em;margin-left:2px">RESEARCH</sup></a>
-    <a href="/q041"               class="nav-link">Sleeves</a>
-    <a href="/portfolio-backtest" class="nav-link">Port BT</a>
-    <a href="/performance"        class="nav-link">Performance</a>
-    <a href="/journal" class="nav-link">Journal</a>
-    <a href="/margin"             class="nav-link">Margin</a>
-    <a href="/funds"              class="nav-link">Funds</a>
-  </div>
+  {% set nav_active = 'aftermath' %}{% include "_nav.html" %}
   <div class="nav-right" id="nav-date">—</div>
 </nav>
 

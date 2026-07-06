@@ -129,6 +129,14 @@ tr:last-child td { border-bottom: none; }
   font-size: 0.64rem; font-weight: 700; letter-spacing: 0.06em;
   border: 1px solid var(--gold-border); background: var(--gold-bg); color: var(--gold);
 }
+/* SPEC-125 D1: PAPER tier = muted badge-obs semantics (gold .tag reads as
+   LIVE/REVIEW; a paper trade must not visually impersonate live) */
+.tag-obs {
+  display: inline-block; padding: 2px 8px; border-radius: 999px;
+  font-size: 0.60rem; font-weight: 500; letter-spacing: 0.10em;
+  text-transform: uppercase;
+  border: 1px solid var(--gray-border); background: var(--gray-bg); color: var(--text-2);
+}
 .kv { display: flex; justify-content: space-between; gap: 10px; font-size: 0.75rem; color: var(--text-2); margin-top: 6px; }
 .kv strong { color: var(--text); font-family: var(--f-mono); font-weight: 600; }
 .error-box {
@@ -151,19 +159,7 @@ tr:last-child td { border-bottom: none; }
 <body>
 <nav class="nav">
   <span class="nav-brand">SPX <em>Strategy</em></span>
-  <div class="nav-links">
-    <a href="/" class="nav-link">Portfolio</a>
-    <a href="/spx" class="nav-link">SPX</a>
-    <a href="/q042"               class="nav-link">DD Overlay</a>
-    <a href="/aftermath"          class="nav-link">Aftermath</a>
-    <a href="/hvladder"           class="nav-link" style="opacity:0.65" title="Research-only — 0% production allocation (SPEC-104)">Stress Put Ladder <sup style="font-size:0.55em;color:var(--orange);letter-spacing:0.05em;margin-left:2px">RESEARCH</sup></a>
-    <a href="/q041"               class="nav-link">Sleeves</a>
-    <a href="/portfolio-backtest" class="nav-link">Port BT</a>
-    <a href="/performance" class="nav-link active">Performance</a>
-    <a href="/journal" class="nav-link">Journal</a>
-    <a href="/margin" class="nav-link">Margin</a>
-    <a href="/funds"              class="nav-link">Funds</a>
-  </div>
+  {% set nav_active = 'performance' %}{% include "_nav.html" %}
   <div class="nav-right" id="nav-date">—</div>
 </nav>
 
@@ -351,10 +347,10 @@ function renderOpenPositions(rows, schwabVisible) {
     article.innerHTML = `
       <div class="open-hd">
         <div>
-          <div class="open-name">${strategyName(row.strategy_key, row.strategy)}${row.paper_trade ? ' <span class="tag">PAPER</span>' : ''}</div>
+          <div class="open-name">${strategyName(row.strategy_key, row.strategy)}${row.paper_trade ? ' <span class="tag-obs">PAPER</span>' : ''}</div>
           <div class="muted mono" style="margin-top:4px;">${row.id || '—'}</div>
         </div>
-        <span class="tag">${row.contracts || 0}x</span>
+        <span style="font-family:var(--f-mono);font-size:0.72rem;color:var(--text-2)">${row.contracts || 0}x</span>
       </div>
       <div class="kv"><span>Opened</span><strong>${row.opened_at || '—'}</strong></div>
       <div class="kv"><span>Entry Premium</span><strong>${row.entry_premium == null ? '—' : fixed(row.entry_premium)}</strong></div>

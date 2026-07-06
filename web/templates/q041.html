@@ -161,19 +161,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 
 <nav class="nav">
   <span class="nav-brand">SPX <em>Strategy</em></span>
-  <div class="nav-links">
-    <a href="/"                   class="nav-link">Portfolio</a>
-    <a href="/spx"                class="nav-link">SPX</a>
-    <a href="/q042"               class="nav-link">DD Overlay</a>
-    <a href="/aftermath"          class="nav-link">Aftermath</a>
-    <a href="/hvladder"           class="nav-link" style="opacity:0.65" title="Research-only — 0% production allocation (SPEC-104)">Stress Put Ladder <sup style="font-size:0.55em;color:var(--orange);letter-spacing:0.05em;margin-left:2px">RESEARCH</sup></a>
-    <a href="/q041"               class="nav-link">Sleeves</a>
-    <a href="/portfolio-backtest" class="nav-link">Port BT</a>
-    <a href="/performance"        class="nav-link">Performance</a>
-    <a href="/journal" class="nav-link">Journal</a>
-    <a href="/margin"             class="nav-link">Margin</a>
-    <a href="/funds"              class="nav-link">Funds</a>
-  </div>
+  {% set nav_active = 'q041' %}{% include "_nav.html" %}
   <div class="nav-right" id="nav-date">—</div>
 </nav>
 
@@ -294,7 +282,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
         </tbody>
       </table>
 
-      <button class="expand-btn" onclick="toggleStressDetail(this)">展开 +10 / +20 详情 ▾</button>
+      <button class="expand-btn" onclick="toggleStressDetail(this)">Expand +10/+20 detail ▾</button>
       <div class="stress-detail" id="stress-detail">
         <div style="font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2);margin-bottom:6px;margin-top:10px">T1 SPX（entry VIX=19, spot=5400, strike=5150）</div>
         <table class="stress-table" style="margin-bottom:12px">
@@ -340,7 +328,7 @@ document.getElementById('nav-date').textContent =
 function toggleStressDetail(btn) {
   const d = document.getElementById('stress-detail');
   d.classList.toggle('open');
-  btn.textContent = d.classList.contains('open') ? '收起 ▴' : '展开 +10 / +20 详情 ▾';
+  btn.textContent = d.classList.contains('open') ? 'Collapse ▴' : 'Expand +10/+20 detail ▾';
 }
 
 const COLORS = { SPX:'var(--text-soft)', GOOGL:'var(--blue)', AMZN:'var(--green)', COST:'var(--text-soft)', JPM:'var(--text-soft)' };

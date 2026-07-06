@@ -16,7 +16,9 @@ class Spec102HvLadderFrontendTests(unittest.TestCase):
         self.assertEqual(archive.status_code, 200)
         self.assertIn(b"paper/shadow", live.data)
         self.assertIn(b"Crisis Windows", backtest.data)
-        self.assertIn(b"Stress Put Ladder [archived]", archive.data)
+        # SPEC-125 D8: "[archived]" wording removed — the strategy is active
+        # (SPEC-061 single-lot); only the embedded TAB moved to dedicated pages
+        self.assertIn("Stress Put Ladder → moved".encode(), archive.data)
         self.assertIn(b"/hvladder_backtest", archive.data)
 
     def test_hvladder_apis_shape(self):

@@ -811,19 +811,7 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
 
 <nav class="nav">
   <span class="nav-brand">SPX <em>Strategy</em></span>
-  <div class="nav-links">
-    <a href="/" class="nav-link">Portfolio</a>
-    <a href="/spx" class="nav-link active">SPX</a>
-    <a href="/q042"               class="nav-link">DD Overlay</a>
-    <a href="/aftermath"          class="nav-link">Aftermath</a>
-    <a href="/hvladder"           class="nav-link" style="opacity:0.65" title="Research-only — 0% production allocation (SPEC-104)">Stress Put Ladder <sup style="font-size:0.55em;color:var(--orange);letter-spacing:0.05em;margin-left:2px">RESEARCH</sup></a>
-    <a href="/q041"               class="nav-link">Sleeves</a>
-    <a href="/portfolio-backtest" class="nav-link">Port BT</a>
-    <a href="/performance" class="nav-link">Performance</a>
-    <a href="/journal" class="nav-link">Journal</a>
-    <a href="/margin" class="nav-link">Margin</a>
-    <a href="/funds"              class="nav-link">Funds</a>
-  </div>
+  {% set nav_active = 'spx' %}{% include "_nav.html" %}
   <div class="nav-right" id="nav-date">—</div>
 </nav>
 
@@ -1037,6 +1025,13 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
         <div class="m-value" id="m-sharpe">—</div>
         <div class="m-sub" id="m-sub-sharpe">annualized</div>
       </div>
+      <!-- SPEC-125 D9: 7th mandatory card (DESIGN.md backtest template);
+           value = server metrics.annualized_roe (SPEC-078 source of truth) -->
+      <div class="m-card" id="m-card-roe">
+        <div class="m-label" id="m-label-roe">Annualized ROE</div>
+        <div class="m-value" id="m-roe">—</div>
+        <div class="m-sub" id="m-sub-roe">on $500k baseline</div>
+      </div>
     </div>
 
     <div class="research-view-bar">
@@ -1101,7 +1096,7 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
         <div class="spx-window-scale">
           <span id="spx-window-min">—</span>
           <span id="spx-window-max">—</span>
-          <button onclick="if(spxChart)spxChart.resetZoom()" style="font-family:var(--f-mono);font-size:0.60rem;padding:2px 9px;border-radius:4px;border:1px solid var(--border-2);background:none;color:var(--text-2);cursor:pointer" title="Reset drag-zoom">↩ 全局</button>
+          <button onclick="if(spxChart)spxChart.resetZoom()" style="font-family:var(--f-mono);font-size:0.60rem;padding:2px 9px;border-radius:4px;border:1px solid var(--border-2);background:none;color:var(--text-2);cursor:pointer" title="Reset drag-zoom">↩ Reset</button>
         </div>
       </div>
       <div class="spx-band-note" id="spx-band-note">Background bands are off. Pick a signal overlay to color the timeline by that signal only.</div>
@@ -1121,7 +1116,7 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
       <div class="chart-wrap">
         <canvas id="equity-chart"></canvas>
         <div style="text-align:right;margin-top:6px">
-          <button onclick="if(equityChart)equityChart.resetZoom()" style="font-family:var(--f-mono);font-size:0.60rem;padding:2px 9px;border-radius:4px;border:1px solid var(--border-2);background:none;color:var(--text-2);cursor:pointer" title="Reset drag-zoom">↩ 全局</button>
+          <button onclick="if(equityChart)equityChart.resetZoom()" style="font-family:var(--f-mono);font-size:0.60rem;padding:2px 9px;border-radius:4px;border:1px solid var(--border-2);background:none;color:var(--text-2);cursor:pointer" title="Reset drag-zoom">↩ Reset</button>
         </div>
       </div>
       <div class="equity-legend">
@@ -1228,7 +1223,8 @@ table.cmp-tbl { width: 100%; border-collapse: collapse; }
 
     <div class="precision-note">
       <div class="legend-note">Aftermath broken-wing IC follows <a href="/task/SPEC-071.md" target="_blank" rel="noopener noreferrer">SPEC-071 addendum</a> (LC δ0.04 / LP δ0.08).</div>
-      Precision B — Black-Scholes simulation, no bid/ask spread or slippage. Actual results may differ.
+      <!-- SPEC-125 C4: tri-party ratified disclosure copy (PM 过目) — do not reword -->
+      Precision B — Black-Scholes（sigma=VIX 平坦）。该口径经真实链校准证实高估 credit 结构收入（Q087 B1/SPEC-120）；校准口径重跑见 research/q087。No bid/ask spread or slippage. Actual results may differ.
     </div>
 
     <!-- Trading Discipline -->
@@ -2245,6 +2241,12 @@ function applyMetricCards(metrics, trades, mode = 'production') {
 
   document.getElementById('m-card-dd').classList.toggle('hidden', isResearch);
   document.getElementById('m-card-sharpe').classList.toggle('hidden', isResearch);
+  // SPEC-125 D9: dedicated Annualized ROE card (same server value as the
+  // m-sub-pnl line; research views show the implied-subset figure)
+  const roeEl = document.getElementById('m-roe');
+  roeEl.textContent = fmtPctSigned(impliedRoe);
+  roeEl.className = 'm-value ' + pnlClass(impliedRoe);
+  setText('m-sub-roe', isResearch ? 'research subset · $500k baseline' : 'on $500k baseline');
 
   if (!isResearch) {
     const ddEl = document.getElementById('m-dd');
@@ -2519,7 +2521,7 @@ function renderResults(data) {
 
   if (equityChart) { equityChart.destroy(); equityChart = null; }
 
-  Chart.defaults.color = 'var(--text-muted)';
+  Chart.defaults.color = 'var(--text-2)';  // SPEC-125: axis ticks are PM-readable numbers
   Chart.defaults.borderColor = 'var(--border)';
 
   const ctx = document.getElementById('equity-chart').getContext('2d');

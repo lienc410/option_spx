@@ -1085,20 +1085,7 @@ body {
 
 <nav class="nav">
   <span class="nav-brand">SPX <em>Strategy</em></span>
-  <div class="nav-links">
-    <a href="/" class="nav-link active">Portfolio</a>
-    <a href="/spx" class="nav-link">SPX</a>
-    <a href="/q042"               class="nav-link">DD Overlay</a>
-    <a href="/aftermath"          class="nav-link">Aftermath</a>
-    <a href="/hvladder"           class="nav-link" style="opacity:0.65" title="Research-only — 0% production allocation (SPEC-104)">Stress Put Ladder <sup style="font-size:0.55em;color:var(--orange);letter-spacing:0.05em;margin-left:2px">RESEARCH</sup></a>
-    <a href="/q041"               class="nav-link">Sleeves</a>
-    <a href="/portfolio-backtest" class="nav-link">Port BT</a>
-    <a href="/performance" class="nav-link">Performance</a>
-    <a href="/journal" class="nav-link">Journal</a>
-    <a href="/margin" class="nav-link">Margin</a>
-    <a href="/funds"              class="nav-link">Funds</a>
-    <a href="/partnership"        class="nav-link">Book</a>
-  </div>
+  {% set nav_active = 'portfolio' %}{% include "_nav.html" %}
   <div class="nav-right"><span id="nav-date">—</span></div>
 </nav>
 
@@ -1127,7 +1114,7 @@ body {
         <span class="card-name card-name-primary">SPX</span>
         <span class="card-subtitle" id="subtitle-spx">—</span>
       </div>
-      <span class="state-badge badge-wait" id="badge-spx">WAIT</span>
+      <span class="state-badge badge-wait" id="badge-spx">NO ENTRY</span>
     </div>
     <div class="card-signals" id="signals-spx"></div>
     <div class="card-rationale-primary" id="rationale-spx"></div>
@@ -1155,7 +1142,7 @@ body {
         </a>
         <span class="state-badge badge-hold" style="font-size:0.55rem;padding:2px 7px">/ES · Research</span>
       </div>
-      <span class="state-badge badge-wait" id="badge-es">WAIT</span>
+      <span class="state-badge badge-wait" id="badge-es">NO ENTRY</span>
     </div>
     <div class="es-card-body">
       <span id="es-ladder-status">Loading…</span>
@@ -1169,7 +1156,7 @@ body {
         <span class="card-name card-name-tertiary">Sleeves</span>
         <span class="badge-obs">Observation</span>
       </div>
-      <span class="state-badge badge-wait" id="badge-q041">WAIT</span>
+      <span class="state-badge badge-wait" id="badge-q041">NO ENTRY</span>
     </div>
     <div class="sleeve-list" id="sleeves-q041">
       <div class="pos-none">Loading…</div>
@@ -1185,7 +1172,7 @@ body {
         </a>
         <span class="badge-obs">Paper</span>
       </div>
-      <span class="state-badge badge-wait" id="badge-q042">WAIT</span>
+      <span class="state-badge badge-wait" id="badge-q042">NO ENTRY</span>
     </div>
     <div id="q042-signals" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-family:var(--f-mono);font-size:0.68rem;padding:4px 0 10px 0;border-bottom:1px solid var(--border)">
       <span class="pos-none">Loading…</span>
@@ -1600,11 +1587,11 @@ function spxBadge(data) {
 }
 function q041Badge(data) {
   const all = [...(data.sleeve_candidates || []), ...(data.review_only || [])];
-  if (all.length === 0) return { cls: 'badge-wait', label: 'WAIT' };
+  if (all.length === 0) return { cls: 'badge-wait', label: 'NO ENTRY' };
   const statuses = all.map(c => String(c.candidate_status || '').toLowerCase());
   if (statuses.some(s => s === 'watching')) return { cls: 'badge-review', label: 'REVIEW' };
   if (statuses.every(s => s === 'review_only')) return { cls: 'badge-readonly', label: 'READ ONLY' };
-  return { cls: 'badge-wait', label: 'WAIT' };
+  return { cls: 'badge-wait', label: 'NO ENTRY' };
 }
 
 function shortRecLabel(sig) {
@@ -1708,6 +1695,12 @@ async function loadSpx() {
         }
         // Per-account position rows (supports multi-account e.g. Schwab + E-Trade)
         const allPositions = (pos.positions && pos.positions.length > 0) ? pos.positions : [pos];
+        // SPEC-125 C1: profit target comes from the API (engine params) —
+        // no frontend constant. Ratio applies to |entry premium| for credit
+        // AND debit alike (engine pnl_ratio convention).
+        const profitTarget = Number(pos.profit_target);
+        const profitTargetPct = Number.isFinite(profitTarget)
+          ? Math.round(profitTarget * 100) + '%' : '—';
         const spreadMark  = live.visible ? live.mark : null;
         const etradeMark  = etradeLive.visible ? etradeLive.mark : null;
         // Combined P&L: use positionLives[trade_id] first, then broker-level fallback
@@ -1746,20 +1739,15 @@ async function loadSpx() {
             const cls     = acctPnl >= 0 ? 'var(--green)' : 'var(--red)';
             pnlHtml = `<span style="font-family:var(--f-mono);font-size:0.68rem;color:${cls}">${acctPnl >= 0 ? '+' : ''}$${acctPnl.toFixed(0)}</span>`;
           }
-          if (entryPrem) {
-            // Profit target = X% of max_profit.
-            //   credit (BPS / IC): max = credit_received, target = 60%
-            //   debit  (BCD):      max = vertical (width − |debit|) for
-            //     same-expiry verticals; BS-estimated diagonal max for
-            //     positions where long_expiry > short_expiry. Target = 50%.
+          if (entryPrem && Number.isFinite(profitTarget)) {
+            // SPEC-125 C1: target = profit_target × |entry premium| for credit
+            // AND debit (engine pnl_ratio convention — the old frontend math
+            // used 50% × BS-estimated max profit for debit, wrong percent AND
+            // wrong base). Debit still shows the theoretical max for context.
             const isDebit = entryPrem < 0;
-            const maxProfitPerShare = isDebit
-              ? _diagonalMaxProfitPerShare(p)
-              : Math.abs(entryPrem);
-            const maxTotal = maxProfitPerShare * n * 100;
-            const tgt = maxTotal * (isDebit ? 0.50 : 0.60);
+            const tgt = Math.abs(entryPrem) * n * 100 * profitTarget;
             const maxStr = isDebit
-              ? ` <span style="color:var(--text-2)">(max $${Math.round(maxTotal).toLocaleString()})</span>`
+              ? ` <span style="color:var(--text-2)">(max $${Math.round(_diagonalMaxProfitPerShare(p) * n * 100).toLocaleString()})</span>`
               : '';
             tgtHtml = `<span style="font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2)">tgt +$${Math.round(tgt).toLocaleString()}${maxStr}</span>`;
           }
@@ -1779,7 +1767,7 @@ async function loadSpx() {
         const totalContracts = allPositions.reduce((s, p) => s + (Number(p.contracts) || 0), 0);
         const fmtPos = (v, mult) => v != null ? ((v * mult) >= 0 ? '+' : '') + (v * mult).toFixed(0) : null;
         const liveStatusNote = !live.visible
-          ? `<div style="font-family:var(--f-mono);font-size:0.67rem;color:var(--text-muted)">暂无报价（盘后 / 未找到合约）</div>`
+          ? `<div style="font-family:var(--f-mono);font-size:0.67rem;color:var(--text-2)">暂无报价（盘后 / 未找到合约）</div>`
           : `<div style="font-family:var(--f-mono);font-size:0.68rem;color:var(--text);display:flex;flex-wrap:wrap;gap:8px 16px">
               <span><strong>Δ</strong> ${fmt(live.delta)}</span>
               <span><strong>Γ</strong> ${fmt(live.gamma, 3)}</span>
@@ -1808,12 +1796,12 @@ async function loadSpx() {
           const prem  = Number(p.actual_premium || p.model_premium) || 0;
           return sum + Math.max(0, (width - prem) * n * 100);
         }, 0);
-        // Max Profit (theoretical) + Tgt Profit (50% recommended).
-        //   credit:   max = credit_received,                 target = 60% × max
-        //   debit:    max = vertical or BS-estimated diagonal max (long
-        //             leg's residual extrinsic at short expiry),
-        //             target = 50% × max  (per catalog 'close at 50% profit')
+        // Max Profit (theoretical) + Tgt Profit.
+        // SPEC-125 C1: target = profit_target (API, engine params) × |entry
+        // premium| for credit AND debit alike. Max profit stays informational
+        // for debit structures (BS-estimated diagonal max).
         let totalMaxProfit = 0;
+        let totalPremBase = 0;
         let isDebitAll = false;
         for (const p of allPositions) {
           const prem = Number(p.actual_premium || p.model_premium) || 0;
@@ -1824,15 +1812,16 @@ async function loadSpx() {
             ? _diagonalMaxProfitPerShare(p)
             : Math.abs(prem);
           totalMaxProfit += maxPerShare * ct * 100;
+          totalPremBase += Math.abs(prem) * ct * 100;
         }
-        const tgtPctAll = isDebitAll ? 0.50 : 0.60;
-        const tgtProfitAll = totalMaxProfit > 0 ? totalMaxProfit * tgtPctAll : null;
+        const tgtProfitAll = (totalPremBase > 0 && Number.isFinite(profitTarget))
+          ? totalPremBase * profitTarget : null;
         // Captured%: pnl / tgt_profit; only shown when pnl >= 0
         const posWithMark = allPositions.filter(p => _markFor(p) != null);
         const partial = posWithMark.length < allPositions.length ? '~' : '';
         let tgtHtml = '', maxProfitHtml = '', capturedHtml = '', maxRiskHtml = '';
         if (tgtProfitAll != null) {
-          tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Profit ${isDebitAll ? '(50%)' : '(60%)'}</div><div class="pos-value profit">+$${Math.round(tgtProfitAll).toLocaleString()}</div></div>`;
+          tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Profit (${profitTargetPct})</div><div class="pos-value profit">+$${Math.round(tgtProfitAll).toLocaleString()}</div></div>`;
         }
         if (isDebitAll && totalMaxProfit > 0) {
           maxProfitHtml = `<div class="pos-item"><div class="pos-label">Max Profit</div><div class="pos-value" style="color:var(--text-2)">+$${Math.round(totalMaxProfit).toLocaleString()}</div></div>`;
@@ -1951,15 +1940,15 @@ async function loadNLVChange() {
   try {
     const d = await _getJson('/api/portfolio/nlv-change');
     if (d.status === 'no_history') {
-      el.innerHTML = `<span style="color:var(--text-muted)">NLV history pending — first snapshot at 16:30 ET</span>`;
+      el.innerHTML = `<span style="color:var(--text-2)">NLV history pending — first snapshot at 16:30 ET</span>`;
       return;
     }
     if (d.status === 'first_day') {
-      el.innerHTML = `<span style="color:var(--text-muted)">NLV</span> <span style="color:var(--text)">${fmtDollars(d.today_nlv)}</span> <span style="color:var(--text-muted)">· baseline set</span>`;
+      el.innerHTML = `<span style="color:var(--text-2)">NLV</span> <span style="color:var(--text)">${fmtDollars(d.today_nlv)}</span> <span style="color:var(--text-2)">· baseline set</span>`;
       return;
     }
     if (d.status !== 'available') {
-      el.innerHTML = `<span style="color:var(--text-muted)">NLV change unavailable</span>`;
+      el.innerHTML = `<span style="color:var(--text-2)">NLV change unavailable</span>`;
       return;
     }
     const up = (d.change_dollars ?? 0) >= 0;
@@ -1984,7 +1973,7 @@ async function loadNLVChange() {
       ` <span style="color:var(--text-2);font-size:0.92em">vs ${d.prev_date}</span>` +
       mtd + ytd;
   } catch (e) {
-    el.innerHTML = `<span style="color:var(--text-muted)">NLV unavailable</span>`;
+    el.innerHTML = `<span style="color:var(--text-2)">NLV unavailable</span>`;
   }
 }
 
@@ -2015,14 +2004,14 @@ async function loadStressPutLadder() {
     }
     el.innerHTML = `${slotsTxt} &nbsp; ${vixTxt} &nbsp; ${stateTxt}`;
 
-    // Card-level badge: SIGNAL / HOLD / WAIT
+    // Card-level badge: SIGNAL / HOLD / NO ENTRY (SPEC-125 D5 vocab)
     const slots = d.active_slots ?? 0;
     if (d.signal_live) {
       applyBadge('badge-es', { cls: 'badge-open', label: 'SIGNAL' });
     } else if (slots > 0) {
       applyBadge('badge-es', { cls: 'badge-hold', label: `HOLD ${slots}/${d.max_slots ?? 5}` });
     } else {
-      applyBadge('badge-es', { cls: 'badge-wait', label: 'WAIT' });
+      applyBadge('badge-es', { cls: 'badge-wait', label: 'NO ENTRY' });
     }
   } catch (e) {
     el.innerHTML = `<span class="pos-none">${e.message}</span>`;
@@ -2139,7 +2128,7 @@ async function loadQ042() {
       else if (sl === 'B' && s?.in_watching)
         stateBadge = `<span class="state-badge badge-warning" style="font-size:0.52rem;padding:2px 6px">WATCHING</span>`;
       else
-        stateBadge = `<span class="state-badge badge-wait" style="font-size:0.52rem;padding:2px 6px">WAIT</span>`;
+        stateBadge = `<span class="state-badge badge-wait" style="font-size:0.52rem;padding:2px 6px">NO ENTRY</span>`;
 
       let posInfo = '';
       if (pos) {

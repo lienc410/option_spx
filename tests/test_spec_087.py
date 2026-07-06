@@ -176,7 +176,8 @@ class Spec087RouteTests(unittest.TestCase):
         """spx.html must contain all nav links."""
         res = self.client.get("/spx")
         html = res.data.decode()
-        for label in ("Portfolio", "SPX", "/ES", "Q041", "Port BT"):
+        # SPEC-125 D6: canonical nav labels (Q041 page label -> "Sleeves")
+        for label in ("Portfolio", "SPX", "/ES", "Sleeves", "Port BT"):
             self.assertIn(label, html,
                 f"spx.html nav missing: {label}")
 
@@ -184,7 +185,7 @@ class Spec087RouteTests(unittest.TestCase):
         """portfolio_home.html must contain all nav links."""
         res = self.client.get("/")
         html = res.data.decode()
-        for label in ("Portfolio", "SPX", "/ES", "Q041", "Port BT"):
+        for label in ("Portfolio", "SPX", "/ES", "Sleeves", "Port BT"):
             self.assertIn(label, html,
                 f"portfolio_home.html nav missing: {label}")
 
@@ -192,13 +193,15 @@ class Spec087RouteTests(unittest.TestCase):
         """/spx nav must mark SPX as active."""
         res = self.client.get("/spx")
         html = res.data.decode()
-        self.assertIn('href="/spx" class="nav-link active"', html)
+        import re
+        self.assertRegex(html, r'href="/spx"\s+class="nav-link active"')
 
     def test_portfolio_home_has_active_portfolio_link(self) -> None:
         """portfolio_home.html nav must mark Portfolio as active."""
         res = self.client.get("/")
         html = res.data.decode()
-        self.assertIn('href="/" class="nav-link active"', html)
+        import re
+        self.assertRegex(html, r'href="/"\s+class="nav-link active"')
 
     def test_portfolio_home_contains_todays_actions_zone(self) -> None:
         """portfolio_home.html must include the Today's Actions section."""

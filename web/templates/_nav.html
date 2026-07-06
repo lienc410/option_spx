@@ -1,0 +1,20 @@
+{# SPEC-125 D6 — single-source nav (DESIGN.md §Navigation).
+   Usage:  {% set nav_active = 'spx' %}{% include "_nav.html" %}
+   inside <nav class="nav"> … </nav> of each page (pages keep their own
+   nav-brand / nav-right).  Canonical set + labels are formalized in
+   DESIGN.md Decisions Log 2026-07-06; no tier indicators on nav items. #}
+<div class="nav-links">
+  <a href="/"                   class="nav-link{% if nav_active == 'portfolio'   %} active{% endif %}">Portfolio</a>
+  <a href="/spx"                class="nav-link{% if nav_active == 'spx'         %} active{% endif %}">SPX</a>
+  <a href="/es"                 class="nav-link{% if nav_active == 'es'          %} active{% endif %}">/ES</a>
+  <a href="/q042"               class="nav-link{% if nav_active == 'q042'        %} active{% endif %}">DD Overlay</a>
+  <a href="/aftermath"          class="nav-link{% if nav_active == 'aftermath'   %} active{% endif %}">Aftermath</a>
+  <a href="/hvladder"           class="nav-link{% if nav_active == 'hvladder'    %} active{% endif %}">Stress Put Ladder</a>
+  <a href="/q041"               class="nav-link{% if nav_active == 'q041'        %} active{% endif %}">Sleeves</a>
+  <a href="/portfolio-backtest" class="nav-link{% if nav_active == 'portbt'      %} active{% endif %}">Port BT</a>
+  <a href="/performance"        class="nav-link{% if nav_active == 'performance' %} active{% endif %}">Performance</a>
+  <a href="/journal"            class="nav-link{% if nav_active == 'journal'     %} active{% endif %}">Journal</a>
+  <a href="/margin"             class="nav-link{% if nav_active == 'margin'      %} active{% endif %}">Margin</a>
+  <a href="/funds"              class="nav-link{% if nav_active == 'funds'       %} active{% endif %}">Funds</a>
+  <a href="/partnership"        class="nav-link{% if nav_active == 'partnership' %} active{% endif %}">Book</a>
+</div>

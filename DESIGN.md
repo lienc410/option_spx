@@ -54,6 +54,12 @@ This mixes an English imperative clause ("Daily selector tick decides entry") wi
 
 **Badge text is always English**, even inside an otherwise Chinese-language card. Badges are semantic tokens, not prose.
 
+**Personal-tool page exemption (SPEC-125 D9, PM default):** `funds.html`,
+`partnership.html`, `etrade_reauth.html` are Chinese-domain personal tools —
+buttons/h1/badge-content may be Chinese there (e.g. 「＋ 记录减仓」「基金 清仓信号」).
+The exemption is page-scoped; general strategy/backtest pages stay English-chrome.
+Within an exempted page, don't MIX: pick one language per control group.
+
 **Scale (base 14px):**
 - 2xs: 0.60rem (8.4px) — micro labels, badge text
 - xs:  0.68rem (9.5px) — mono data values, secondary labels
@@ -123,6 +129,24 @@ Used in the Portfolio Command Center "Today's Actions" zone and per-strategy car
 | REVIEW | `--gold-bg` + `--gold-border` | Paper trade / observe-only sleeve; requires manual review |
 
 Action state badges use `--f-ui` 0.60rem, 500 weight, uppercase, letter-spacing 0.10em.
+
+**Signal-outcome states (SPEC-125 D5 addendum).** Monitor/2nd-signal panels
+carry domain states that are NOT daily action states. These are the legal
+ones; anything else must map into the seven action states above or be added
+here first:
+
+| State | Domain | Style |
+|---|---|---|
+| SIGNAL | ES ladder card: entry signal live today | `badge-open` |
+| ARMED / WATCHING | Settled-VIX / intraday monitor phases | `badge-warning` |
+| WAITING | Settled-VIX signal-2 pending window | `badge-readonly` |
+| SKIPPED / CHANGED / CONFIRMED / TIMEOUT | Settled-VIX signal-2 outcomes | gray family |
+| CALM | intraday monitor: no spike/stop condition | gray family |
+| READ ONLY | Q041 review-only sleeves | `badge-readonly` |
+| DEFERRED | deferred research surfaces (DEFERRED.md ledger) | `badge-obs` |
+
+`WAIT` is NOT in the vocabulary — "no valid setup today" is `NO ENTRY`
+(unified sitewide in SPEC-125).
 
 ## Strategy Tier Badge Vocabulary
 
@@ -304,15 +328,21 @@ produces visibly wrong rhythm in side-by-side comparison.
 
 ## Navigation (multi-page)
 
-Nav links for the multi-page portfolio architecture:
+**Single source (SPEC-125 D6):** the nav is rendered ONLY by
+`web/templates/_nav.html` (`{% set nav_active = '<key>' %}{% include "_nav.html" %}`).
+Pages must not carry inline `nav-links` blocks. Canonical set and labels:
 
 ```
-Portfolio  |  SPX  |  /ES  |  Drawdown Overlay  |  Settled VIX  |  Q041  |  Backtest  |  Port BT  |  Performance  |  Margin
+Portfolio | SPX | /ES | DD Overlay | Aftermath | Stress Put Ladder | Sleeves | Port BT | Performance | Journal | Margin | Funds | Book
 ```
 
-Display name `Drawdown Overlay` replaces the old `Q042` label; route stays `/q042`. `Q041 T1 Archive` is reachable from the `/q041` page via inline retired-tier link, not a top-level nav item.
+Label decisions (2026-07-06): `DD Overlay` (nav-width form of display name
+"Drawdown Overlay" — page h1 uses the full name; route stays `/q042`);
+`Sleeves` = the Q041 T2/T3 iteration page; `Book` = partnership ledger.
+`Q041 T1 Archive` stays an inline retired-tier link on `/q041`, not a nav item.
 
-- Active page: `--gold` text + `--gold-bg` background
+- Active page: `--gold` text + `--gold-bg` background (ES family pages may use
+  their orange accent for the active state — family accent exception)
 - Hover: `--text` + `--surface-hi`
 - Non-active: `--text-2`
 - Strategy-tier indicator: no indicator on nav items (color comes from page content)
@@ -336,3 +366,8 @@ Display name `Drawdown Overlay` replaces the old `Q042` label; route stays `/q04
 | 2026-05-10 | Backtest Page Template formalized in DESIGN.md (Phase 6) | Cross-strategy comparability requires identical structure: metric cards + SPX overlay + Trading Discipline. Was implicit; making it explicit avoids future drift |
 | 2026-05-10 | Language rule clarified with domain-jargon exemption (Phase 6 audit) | Strict per-element-one-language flagged false positives on Chinese prose with embedded tickers/Greek/margin terms. Banned only sentence-level prose switches |
 | 2026-05-10 | All SPX/ES family pages migrated to `.page-tab` class | Two parallel systems (`.strat-tab` inline-styled vs `.page-tab` CSS class) existed across the site; normalized to the cleaner class-based approach. matrix.html got a tab strip for the first time |
+| 2026-07-06 | Nav single-sourced to `_nav.html`; labels `DD Overlay`/`Sleeves`/`Book` formalized | 12 hand-copied navs had drifted into different sets (SPEC-125 D6); short labels win on nav width, page h1 carries full display names |
+| 2026-07-06 | Signal-outcome states added as a second badge vocabulary section | ≥10 out-of-vocab badges had accumulated (SPEC-125 D5); monitor/2nd-signal domain states are legal but enumerated — `WAIT` folded into `NO ENTRY` |
+| 2026-07-06 | funds/partnership/etrade_reauth exempted from English-chrome rule | Personal-tool pages in Chinese domain (SPEC-125 D9, PM default exemption) |
+| 2026-07-06 | Evidence streams (S2-BPS paper, BCD shadow, skew monitor) deliberately have NO display surface | SPEC-125 C6: they are background data feeds for research arbitration; PM reads the jsonl / monthly digest when needed. A dashboard surface would invite daily micro-reading of pre-registered experiments |
+| 2026-07-06 | Page-title scale: two tiers — Portfolio hero 2.1rem, all other pages 1.7rem, always `--f-display` | Six drifting sizes found (SPEC-125/S3); normalize opportunistically when touching a page |

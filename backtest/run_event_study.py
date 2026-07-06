@@ -46,7 +46,9 @@ def run_event_study(
             "entry_date": entry,
             "exit_date": exit_date,
             "pnl": trade.exit_pnl,
-            "hit_target": trade.exit_reason == "50pct_profit",
+            # SPEC-125 C2: new label "profit_target"; legacy "50pct_profit"
+            # persists in historical CSVs — same rule, both count
+            "hit_target": trade.exit_reason in ("profit_target", "50pct_profit"),
             "strategy_key": strategy_key,
             "regime": sig.get("regime", ""),
             "trend": sig.get("trend", ""),
