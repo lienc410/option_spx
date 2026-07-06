@@ -2218,11 +2218,13 @@
      - Yahoo silent historical revision: 418→415 trades (~0.7% data mutation)
      - DEFERRED.md 18-item auto-heartbeat caught 4 real catalog drifts on day-1 (50% vs 60% config mismatch)
      - Root: input-vendor data vendoring proposal #17; auto-heartbeat now deployed
-- **T2 Quantitative Evidence Strength Table** (Skeleton Spec Framework):
+- **T2 Quantitative Evidence Strength Table** (Skeleton Spec Framework — **PREREGISTERED, NO EARLY EVAL**):
   - **Scope**: 10 Type-B skeleton slots (IC/HV franchise audit, IC/other cross-asset, BPS rebalance, calendar, breadth, correlation)
   - **Method**: Quantify IC strength per slot via: real traded days / paper signal days / backtest calibration / shadow-to-live lift factor
   - **Mechanism**: 26y matrix only ~5 trades → shadow/paper evidence is **sole systematic mechanism** for evidence escalation (no backtest vote on deployed)
   - **Gating**: Per-slot decision to upgrade via shadow→paper→live requires meeting quantitative strength threshold (TBD per reviewers, expected 50+ shadow signals)
+  - **Framework Locked**: SPEC-122 pass/fail criteria / BCD downgrade rules (4-gate) / D2 pre-gate (≥10d + ±1vp) / T2 quantitative unlock — **all fixed before data arrived**
+  - **Discipline Note** (Planner 2026-07-06): Early assessment proposal rejected per METHODOLOGY.md §5 + [[feedback_post_withdrawal_proposals_front_load_robustness]]. Only legal triggers: preregistered checkpoint expiry OR live/paper event. See `task/q088_t2_planner_correction_2026-07-06.md`
 - **Operating Artifacts**:
   - DEFERRED.md 18-item monthly auto-ledger; caught 4 drifts on day-1
   - Four evidence streams auto-accumulating (skew / S2-BPS / BCD shadow / DEFERRED)
