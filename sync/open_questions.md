@@ -2162,26 +2162,81 @@
 
 ---
 
-### Q087 — Full-Ledger Adaptive Audit: Which Historical Rules Solve Real Threats vs 2000-2013 Dead Letters? (FRAMEWORK READY)
+### Q087 — Full-Ledger Adaptive Audit: Which Historical Rules Solve Real Threats vs 2000-2013 Dead Letters? (COMPLETED 5 TRACKS + METHODOLOGY RATIFIED)
 
-- **状态**: **framework ready** (2026-07-04，PM direction awaited)
-- **Premise**: One year of production (SPEC-113/116 live, SPEC-115 paper) gives new ground truth. Which "safe" historical rules actually solve current problems vs protecting against 2000-2013 era failures that no longer exist?
-- **Core Question**: "Does the failure mode this rule prevents still exist in 2025-26 data, or only in 2000-2013 backtest?"
-- **Audit Scope** (5 items; PM to prioritize):
-  1. **IVP dual-window gates** (50/55/60 band width): Justify by current era or fear-hedging against 2007-09?
-  2. **HV-grid 0.5× discount**: Worst-case years (2020/22) over-allocated; best years under. Is margin still adequate?
-  3. **SPEC-079 comfort filter**: Lost to Q084 analysis (fails on NORMAL stratum). Why retained elsewhere? Historical vestige?
-  4. **BPS NNB narrow band** (IVP 50-60): Guard against real threat or 2011-era data fragility?
-  5. **All kill verdicts calendar** (Q084 first): Universal ("always bad") vs era-local ("bad in 2008, good in 2024")?
-- **Process**: 
-  1. Quant frames scope (problem statement + historical rationale per rule)
-  2. Fable audits framing (catches hidden assumptions)
-  3. Quant P1 data (stratified: pre-2013 / 2014-19 / 2020-26)
-  4. Fable spot-check P1 findings
-  5. PM ratifies (keep/loosen/tighten)
-  6. SPEC-117/118+ deploy upgrades
-- **Expected outcome**: 2-3 loosen (profit bleed identified), 1-2 tighten (new threats found), 1 unchanged
-- **Timeline**: framing (next session) → P1 (mid-August) → Fable audit (late August) → PM ratify (September) → SPEC rollout
+- **状态**: **COMPLETED** (2026-07-05~06，五 Track 全部完结 + METHODOLOGY.md v1.1 ratified + 8 SPEC 交付 117-124)
+- **Five-Track Execution**:
+  1. **Track A (Historical Rule Audit, era-stratified)**:
+     - A1 **IVP dual-window MAINTAINED** (active decision, not undiscovered)
+     - A2 **HV-grid 0.5× DEFER-CLOSED** (−0.35σ noise, below threshold)
+     - A3 **ES stop-loss FIXED** (SPEC-121: backtest 15× vs live 3× hidden bug, −34% PnL, corrected to 10×)
+     - A4 **SPEC-079 RETIRED** (SPEC-124: zero protective value, Q084-proven failure)
+     - A5 **BPS NNB ES sizing "2× aggressive" rescinded** (actually 1/15 conservative)
+  2. **Track B (Unified Pricing + Vendor-IV Alignment)**:
+     - SPEC-119: FLAT/CALIB/PESS three-mode library (5 callsites bit-identical)
+     - SPEC-120: T-convention fix (365→252) + vendor-IV gap 1-2.5vp → **main BCD $5.4k→$26.8k** (15-20% fold reduction was inflated)
+     - Grid ordering instability 48% registered Q088
+  3. **Track C/D (Engineering + Ops)**:
+     - SPEC-117 (heartbeat 25/25 green, was 21 silent + 3 hidden failures)
+     - SPEC-118 (aftermath unify, NLV fallback removal, backtest cache git-versioning)
+     - Backup TCC fix (launchd ~/Documents permissions)
+  4. **Track E (Methodology Ratification)**:
+     - METHODOLOGY.md v1.1 Seven-chapter governance constitution (statistical protocol / pricing protocol / verdict standards / adaptive four-tier / role interfaces / documentation discipline)
+     - 8 Q085-Q088 lessons + 2 new feedback memories
+- **BCD Family Arbitration (SPEC-122)**: PM ratified carve maintained + double-gate + hard floor −$15k; FLAT underestimated true debit 10.6%, corrected
+- **Q088 T1 Archaeological Audit** (Naked-note resurrection):
+  - 5/8 naked-note overlap items **all re-surfaced** (ES stop-loss re-discovered, sizing mismatch survived 2 months)
+  - Death sentence prohibition formalized
+  - Yahoo vendor silent revision (418→415 trades) → input data vendoring proposal #17
+  - 4 catalog drifts caught on day-1; system-auto heartbeat deployed
+- **Operating Calendar**:
+  - 4 evidence streams auto-accumulating (skew monitor / S2-BPS paper / BCD shadow / DEFERRED monthly)
+  - Events: JPM T-3 (7/9) / moff reconcile (7/17) / DEFERRED monthly (8/3)
+  - Heartbeat 25/25 all-green
+- **Eight SPEC Delivery** (all deployed/verified): SPEC-117, SPEC-118, SPEC-119, SPEC-120, SPEC-121, SPEC-122, SPEC-123, SPEC-124
 - **Bonus finding**: FOMC pre-meeting signal line (Q085 P1b unexpected find, n=53, +54/+130bp cross-market) stored in `data/q085_fomc_dates.csv` for future independent audit. Not slotted until reviewed.
-- **See**: Q087 framework (awaiting PM direction on scope priority)
+- **Next**: PM direction on Q087 five-item audit priorities (IVP/HV/SPEC-079/BPS/kill-verdicts) for P1 framing memo
+- **See**: R-20260705-01, SPEC-117~124, METHODOLOGY.md v1.1
+
+
+---
+
+### Q088 — Historical Governance Audit & Quantitative Evidence Strength Table (T1 ARCHAEOLOGY COMPLETE, T2 KICKOFF)
+
+- **状态**: **T1 (Gold Mine) COMPLETE** (2026-07-05~06，naked-note resurrection + death sentence + vendor audit + DEFERRED heartbeat). **T2 Kickoff** (quantitative evidence-strength table for 10 B-grade skeleton slots, shadow/paper evidence only upgrade mechanism)
+- **T1 Archaeology Findings** (最重要的三件事):
+  1. **Naked-note resurrection (5 items overlap)**:
+     - ES stop-loss: 3× real vs 15× backtest（−34% PnL）— **re-discovered via Q087 Track A, fixed SPEC-121**
+     - Sizing mismatch: "live 2× aggressive" alert survived 2 months despite being false(1/15 conservative) — rescinded
+     - BCD governance: manual trades completely bypassed SPEC-111（5 BPS realized +$5,972 avg, 5 BCD unrealized, $38k+ debit when $16.9k < floor）
+     - Shadow military: 6 items verified, SPEC-079 retired
+     - Aftermath health: 440 unlock days, era-relevant, IC_HV attribution confirmed
+  2. **制度落地** (Formal Death Sentence):
+     - Naked-note (裸注记) violation now formalized as **DEATH SENTENCE**: Any prior "known issue" resurfacing past first discovery = automatic governance review + manual-trades log reauth requirement (SPEC-123)
+     - Prevents 2+ month survival of known misses
+  3. **Vendor Audit Discovered**:
+     - Yahoo silent historical revision: 418→415 trades (~0.7% data mutation)
+     - DEFERRED.md 18-item auto-heartbeat caught 4 real catalog drifts on day-1 (50% vs 60% config mismatch)
+     - Root: input-vendor data vendoring proposal #17; auto-heartbeat now deployed
+- **T2 Quantitative Evidence Strength Table** (Skeleton Spec Framework):
+  - **Scope**: 10 Type-B skeleton slots (IC/HV franchise audit, IC/other cross-asset, BPS rebalance, calendar, breadth, correlation)
+  - **Method**: Quantify IC strength per slot via: real traded days / paper signal days / backtest calibration / shadow-to-live lift factor
+  - **Mechanism**: 26y matrix only ~5 trades → shadow/paper evidence is **sole systematic mechanism** for evidence escalation (no backtest vote on deployed)
+  - **Gating**: Per-slot decision to upgrade via shadow→paper→live requires meeting quantitative strength threshold (TBD per reviewers, expected 50+ shadow signals)
+- **Operating Artifacts**:
+  - DEFERRED.md 18-item monthly auto-ledger; caught 4 drifts on day-1
+  - Four evidence streams auto-accumulating (skew / S2-BPS / BCD shadow / DEFERRED)
+  - Heartbeat 25/25 green; launchd TCC backup read fix deployed
+  - BCD shadow (6/6 verified) 7-day lifecycle ledger live
+  - SPEC-079 production retirement (SPEC-124) verified
+- **T2 Formal Rating** (TBD after event window):
+  - JPM T-3 (7/7-9) first full-green governance test with real earnings IC paper
+  - moff reconcile (7/17) vendor data cross-check
+  - DEFERRED monthly (8/3) heartbeat check-in
+  - Final T2 rating decision after event window closes
+- **关键副产品**:
+  - Q085 framework + Q087 five-track execution pattern becomes reference methodology for future system audits
+  - METHODOLOGY.md v1.1 enshrines 8 lessons (studentization / pooled-FDR / market replication / era-stratification / evidence hierarchy / bootstrap sign-concordance / circular-metric ban / post-withdrawal front-loading)
+  - Naked-note death sentence prevents future 2+ month knowledge carry-through
+- **See**: Q087 Track A-E completion (SPEC-117~124), DEFERRED.md, METHODOLOGY.md v1.1, R-20260705-01, shadow military record, BCD 7-day ledger
 
