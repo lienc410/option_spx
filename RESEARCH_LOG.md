@@ -3792,3 +3792,35 @@ Owner: Planner or PM
 
 - **来源**: Q087 charter + five-track delivery + SPEC-117~124 + METHODOLOGY.md v1.1 + DEFERRED.md + Q088 T1 audit
 
+
+---
+
+### R-20260706-01 — Q088 T2 Framework Lock-In + Planner Discipline Correction
+
+- **Issue**: Claude Code proposed "early assessment via accumulated data" (BCD shadow + S2-BPS paper initial eval) to accelerate T2 score and upgrade decisions
+- **Planner Correction** (task/q088_t2_planner_correction_2026-07-06.md):
+  - **Data Map Errors** (three-part):
+    1. `bcd_filter_shadow.jsonl` ≠ BCD trades; it's retired SPEC-079 filter risk log (no PnL), 2325 lines = Q087 26y backtest replay (year 2000 start), deleted from prod 2026-07-06
+    2. True BCD stream = `q087_bcd_quote_shadow.jsonl` (SPEC-122); prod status = 0 lines (no BCD signals since deploy)
+    3. skew monitor prod file = 1 line (7/3, old schema); 30-line SPEC-120 dataset = backfill (not production accumulation); S2-BPS paper ledger = 0 lines (normal ~6/yr frequency)
+  
+  - **Preregistration Discipline Violation**:
+    - Evaluation framework already locked in (SPEC-122 pass/fail criteria, BCD downgrade rules, D2 pre-gate, T2 quantitative unlock conditions — all pre-data)
+    - "Help write new framework" = designing goalposts after seeing early data
+    - Violates METHODOLOGY.md §5 + [[feedback_post_withdrawal_proposals_front_load_robustness]]
+    - Only legal upgrade triggers: preregistered checkpoint expiry OR live/paper event (e.g., BCD 7-8 month maturity)
+  
+  - **Real Calendar** (replaces "expedited" agenda):
+    | Checkpoint | Type | Date | Driver |
+    |---|---|---|---|
+    | moff forward vs backfill align | calendar | 7/17 | SPEC-120 check |
+    | BCD first realized flow | event | ~7-8 month | position maturity |
+    | SPEC-122 arbitration renewal | data-driven | ≥8 signals OR 9/30 | preregistered |
+    | D2 pre-gate | regime-driven | LOW_VOL return + 10d prices | strategy condition |
+    | DEFERRED monthly | calendar | 8/3+ | system heartbeat |
+    | T2 formal rating | calendar | TBD (tconv rerun queue) | annual process |
+
+- **Principle Statement**: "Framework already in place, goalposts already set, data on its way — only correct action now is to let calendar and events trigger us, not reach for data"
+- **Key Memory**: [[feedback_post_withdrawal_proposals_front_load_robustness]] — post-withdrawal robustness front-loading (Q083/085/088 lessons)
+- **来源**: Planner 2026-07-06 formal response to T2 acceleration proposal
+
