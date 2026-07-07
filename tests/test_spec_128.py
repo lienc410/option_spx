@@ -174,8 +174,12 @@ class TestMigrationParity(unittest.TestCase):
             capture_output=True, text=True, timeout=300)
         self.assertEqual(res.returncode, 0, res.stdout[-2000:] + res.stderr[-500:])
         self.assertIn("parity: ALL FIELDS MATCH", res.stdout)
-        self.assertIn("-> OK", res.stdout)
+        self.assertIn("AUM (oracle-matched)", res.stdout)
+        self.assertIn("MIGRATED", res.stdout)
         self.assertTrue(MIGRATED.exists())
+        # natively-recorded rows must survive re-migration (7/7 incident)
+        if "preserving" in res.stdout:
+            self.assertIn("re-appended", res.stdout)
 
 
 class TestApiAndFallback(unittest.TestCase):

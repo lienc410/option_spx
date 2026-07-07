@@ -430,11 +430,24 @@ function renderReconBar(b) {
 }
 
 function renderEntryBar() {
+  const recent = (BOOK && BOOK.recent_entries) || [];
+  const recentHtml = recent.length ? `
+    <details style="margin-bottom:14px">
+      <summary style="font-family:var(--f-ui);font-size:0.68rem;color:var(--text-2);cursor:pointer">最近录入（${recent.length} 条，可撤销）</summary>
+      <div style="background:var(--surface);border:1px solid var(--border-2);border-radius:9px;padding:8px 12px;margin-top:6px">
+        ${recent.map(r => `<div style="display:flex;gap:10px;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);font-family:var(--f-mono);font-size:0.66rem">
+          <span style="color:var(--text-2)">${r.recorded_at.slice(0,16).replace('T',' ')}</span>
+          <span style="flex:1">${r.summary}</span>
+          <button class="refresh-btn" style="font-size:0.6rem" onclick="voidEntry('${r.file}','${r.id}')">撤销</button>
+        </div>`).join('')}
+      </div>
+    </details>` : '';
   return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
     <button class="refresh-btn" onclick="showBookForm('snapshot')">＋ 记快照（对账日）</button>
     <button class="refresh-btn" onclick="showBookForm('flow')">＋ 记资金流</button>
     <button class="refresh-btn" onclick="showBookForm('mark')" title="CXZ 6842 / Lien PM 并入前个人业绩序列——2026-06 并入后已冻结，仅历史补录用">＋ 补录个人市值（并入前）</button>
   </div>
+  ${recentHtml}
   <div id="book-form-slot"></div>`;
 }
 
@@ -519,6 +532,18 @@ function showBookForm(kind) {
   document.getElementById('book-form-slot').innerHTML =
     `<div style="background:var(--surface);border:1px solid var(--border-2);border-radius:9px;padding:12px 14px;margin-bottom:14px;font-size:0.72rem;line-height:2.2">${bookForms()[kind]}
      <div id="bf-msg" style="font-family:var(--f-mono);font-size:0.68rem;margin-top:4px"></div></div>`;
+}
+
+async function voidEntry(file, id) {
+  const note = prompt('撤销原因（留痕）：', '录入错误');
+  if (note === null) return;
+  const res = await fetch('/api/partnership/book/void', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ file, target_id: id, note })
+  });
+  const d = await res.json();
+  if (!res.ok) { alert('撤销失败: ' + (d.error || res.status)); return; }
+  load();
 }
 
 async function submitBook(kind) {

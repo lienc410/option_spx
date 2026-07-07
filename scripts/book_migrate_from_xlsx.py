@@ -22,7 +22,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-XLSX = ROOT / "research" / "book_management" / "Partnership_Shares_v3.5.xlsx"
+import os
+# Source workbook: prefer BOOK_XLSX env/argv (e.g. a FRESH export of the live
+# Sheet) — 2026-07-06 lesson: the local copy was 5 weeks stale and the first
+# migration missed a 6/26 contribution. Always migrate from a fresh export.
+XLSX = Path(os.environ.get("BOOK_XLSX") or
+            ROOT / "research" / "book_management" / "Partnership_Shares_v3.5.xlsx")
 OUT = ROOT / "data" / "book"
 
 CONFIG = {
@@ -232,8 +237,27 @@ def parity(native: dict, oracle: dict) -> list[str]:
 
 def main() -> int:
     assert XLSX.exists(), f"workbook missing: {XLSX}"
+    print(f"source workbook: {XLSX}")
+
+    # preserve rows recorded through the native UI (they carry recorded_at) —
+    # re-extraction rewrites the migrated base, then these are re-appended
+    preserved: dict[str, list[str]] = {}
+    for f in OUT.glob("*.jsonl"):
+        keep = [l for l in f.read_text(encoding="utf-8").splitlines()
+                if l.strip() and '"recorded_at"' in l]
+        if keep:
+            preserved[f.name] = keep
+            print(f"  preserving {len(keep)} native rows in {f.name}")
+
     print("extracting inputs from workbook…")
     extract()
+
+    def _reappend():
+        for fname, lines in preserved.items():
+            with (OUT / fname).open("a", encoding="utf-8") as f:
+                f.write("\n".join(lines) + "\n")
+            print(f"  re-appended {len(lines)} native rows to {fname}")
+        preserved.clear()
 
     print("running parity gate (native engine vs workbook cached values)…")
     from web.book_engine import compute_book
@@ -248,25 +272,30 @@ def main() -> int:
         print(f"\nPARITY FAIL — {len(errs)} mismatches (no .migrated marker):")
         for e in errs[:40]:
             print("  ✗", e)
+        _reappend()   # never strand natively-recorded rows on a failed gate
         return 1
     print("parity: ALL FIELDS MATCH (tolerances $0.01 / 0.01pp / 0.05pp)")
 
+    # AUM equality with the oracle is already asserted field-by-field in
+    # parity(); the v3.5 §9 constants were only valid for the first migration
+    # (2026-07-06 lesson: a FRESH sheet has newer snapshots and the hardcoded
+    # anchors go stale). Print for human eyeball instead of hard-gating.
     a = native["aum"]
-    anchors_ok = (abs(a["total"] - ANCHORS["aum_total"]) < 0.01
-                  and abs(a["schwab"]["value"] - ANCHORS["sw_value"]) < 0.01
-                  and abs(a["etrade"]["value"] - ANCHORS["et_value"]) < 0.01)
-    print(f"anchors (v3.5 §9): AUM={a['total']:,.2f} SW={a['schwab']['value']:,.2f} "
-          f"ET={a['etrade']['value']:,.2f} -> {'OK' if anchors_ok else 'MISMATCH'}")
-    if not anchors_ok:
-        return 1
+    print(f"AUM (oracle-matched): total={a['total']:,.2f} "
+          f"SW={a['schwab']['value']:,.2f} ET={a['etrade']['value']:,.2f}")
 
     if not native.get("recon_all_green"):
         print("recon checks not all green:")
         for c in native["recon_checks"]:
             if not c["ok"]:
                 print("  ✗", c["name"], c["detail"])
+        _reappend()
         return 1
     print(f"recon checks: {len(native['recon_checks'])}/{len(native['recon_checks'])} green")
+
+    # re-append preserved native rows AFTER the parity gate (parity must be
+    # judged against the workbook-equivalent state)
+    _reappend()
 
     digest = hashlib.sha256(json.dumps(
         {k: oracle[k] for k in ("members", "total", "aum")},

@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import json
 import logging
+import math
+import threading
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -59,7 +61,7 @@ def _read_events(path: Path) -> list[dict]:
 
 def _data_key(data_dir: Path) -> tuple:
     files = sorted(data_dir.glob("*.json*"))
-    return tuple((f.name, f.stat().st_mtime) for f in files)
+    return (str(data_dir),) + tuple((f.name, f.stat().st_mtime) for f in files)
 
 
 # ── pool engine (§3.2 / §3.3) ─────────────────────────────────────────────────
@@ -72,12 +74,20 @@ def _pool_engine(snapshots: list[dict], flows: list[dict], partners: list[str]) 
     share_pct, simple_return, irr, yearly_pnl: {year: $}} and periods carry
     {date, year, opening_total, net_flow, pnl, pool_return, nav}.
     """
-    snaps = sorted((s for s in snapshots if s.get("event", "snapshot") == "snapshot"),
-                   key=lambda s: s["date"])
+    # last-write-wins per DATE: re-recording an (unclosed) snapshot date is
+    # the natural correction flow, and a double-submit cannot create a
+    # phantom period. Events are already in append order.
+    by_date: dict[str, dict] = {}
+    for s in snapshots:
+        if s.get("event", "snapshot") == "snapshot":
+            by_date[str(s["date"])[:10]] = s
+    snaps = sorted(by_date.values(), key=lambda s: str(s["date"]))
     if not snaps:
         return {"periods": [], "members": {}, "nav_unit": NAV_BASE,
-                "total_value": 0.0, "last_date": None}
+                "total_value": 0.0, "last_date": None, "yearly_pnl": {},
+                "quarantined": [], "orphan_flows": [], "pending_flows": []}
 
+    quarantined: list[dict] = []
     bal = {p: 0.0 for p in partners}
     contrib = {p: 0.0 for p in partners}
     distrib = {p: 0.0 for p in partners}
@@ -106,9 +116,14 @@ def _pool_engine(snapshots: list[dict], flows: list[dict], partners: list[str]) 
         for f in flows_by_snap.get(d, []):
             if str(f.get("counts", "")).lower() != "yes":
                 continue
-            p = f["partner"]
-            if p not in bal:      # unknown partner = config error, loud
-                raise ValueError(f"book: flow partner {p!r} not in config partners")
+            p = f.get("partner")
+            if p not in bal:
+                # A typo'd partner must NOT crash the whole book — quarantine
+                # the row and surface it as a recon red (writes are validated,
+                # this guards historical/hand-edited data)
+                quarantined.append({"id": f.get("id"), "partner": p,
+                                    "snapshot_date": d, "amount": f.get("amount")})
+                continue
             amt = float(f["amount"])
             if str(f.get("type", "")).lower() == "contribution":
                 net[p] += amt
@@ -147,6 +162,23 @@ def _pool_engine(snapshots: list[dict], flows: list[dict], partners: list[str]) 
                         "closed": bool(snap.get("closed"))})
         prev_total = total
 
+    snap_dates = {str(s["date"])[:10] for s in snaps}
+    last_snap = periods[-1]["date"]
+    orphans, pending = [], []
+    for f in flows:
+        if f.get("event", "flow") != "flow":
+            continue
+        if str(f.get("counts", "")).lower() != "yes":
+            continue
+        sd = str(f.get("snapshot_date"))[:10]
+        if sd in snap_dates:
+            continue
+        # future-dated = pending the next reconciliation snapshot (fine);
+        # past-dated orphan = silently excluded capital -> P&L poison (RED)
+        (pending if sd > last_snap else orphans).append(
+            {"id": f.get("id"), "snapshot_date": sd, "partner": f.get("partner"),
+             "amount": f.get("amount")})
+
     last_date = date.fromisoformat(periods[-1]["date"])
     members = {}
     for p in partners:
@@ -166,7 +198,8 @@ def _pool_engine(snapshots: list[dict], flows: list[dict], partners: list[str]) 
         }
     return {"periods": periods, "members": members, "nav_unit": nav,
             "total_value": prev_total, "last_date": periods[-1]["date"],
-            "yearly_pnl": yearly_pnl}
+            "yearly_pnl": yearly_pnl, "quarantined": quarantined,
+            "orphan_flows": orphans, "pending_flows": pending}
 
 
 def _xirr(flows: list[tuple[date, float]]) -> float | None:
@@ -243,6 +276,8 @@ def _twr_since(years: list[dict], since: str) -> float | None:
 # ── recon checks (§SW_Reconciliation, six automated) ─────────────────────────
 
 def _recon_checks(pool: dict, sub_pending: dict[str, float]) -> list[dict]:
+    """Automated integrity checks (v3.5 SW_Reconciliation §, extended):
+    the six workbook checks + quarantine/orphan guards from this engine."""
     checks = []
     members = pool["members"]
     total = pool["total_value"]
@@ -255,17 +290,10 @@ def _recon_checks(pool: dict, sub_pending: dict[str, float]) -> list[dict]:
     checks.append({"name": "shares_sum_100",
                    "ok": abs(share_sum - 1.0) < 1e-6 or total < 1e-9,
                    "detail": f"Σshare {share_sum:.6f}"})
-    alloc_ok = all(
-        abs(sum(pool["yearly_pnl"].get(per["year"], {}).values()
-                ) - sum(p2["pnl"] for p2 in [per])) >= -1  # structural; per-period below
-        for per in pool["periods"])
-    per_alloc_ok = True
-    for per in pool["periods"]:
-        pass  # per-period allocation is exact by construction; assert cum instead
     pnl_sum = sum(m["pnl"] for m in members.values())
     period_pnl_sum = sum(p["pnl"] for p in pool["periods"])
     checks.append({"name": "pnl_allocation_complete",
-                   "ok": abs(pnl_sum - period_pnl_sum) < 0.01 and alloc_ok and per_alloc_ok,
+                   "ok": abs(pnl_sum - period_pnl_sum) < 0.01,
                    "detail": f"Σmember pnl {pnl_sum:,.2f} vs Σperiod pnl {period_pnl_sum:,.2f}"})
     neg = [p for p, m in members.items() if m["balance"] < -0.01]
     checks.append({"name": "no_negative_balances", "ok": not neg,
@@ -277,6 +305,16 @@ def _recon_checks(pool: dict, sub_pending: dict[str, float]) -> list[dict]:
     neg_sub = {k: v for k, v in sub_pending.items() if v < -0.01}
     checks.append({"name": "subaccounts_nonnegative", "ok": not neg_sub,
                    "detail": f"pending {sub_pending} (negative: {neg_sub or '—'})"})
+    q = pool.get("quarantined", [])
+    checks.append({"name": "no_unknown_partners", "ok": not q,
+                   "detail": ("—" if not q else
+                              f"{len(q)} 笔 Counts=Yes 流水的合伙人不在名单: "
+                              + ", ".join(f"{r['partner']!r}({r['id']})" for r in q))})
+    o = pool.get("orphan_flows", [])
+    checks.append({"name": "no_orphaned_flows", "ok": not o,
+                   "detail": ("—" if not o else
+                              f"{len(o)} 笔 Counts=Yes 流水的快照期不存在（已被计算排除，盈亏失真）: "
+                              + ", ".join(f"{r['snapshot_date']}({r['id']})" for r in o))})
     return checks
 
 
@@ -434,7 +472,8 @@ def compute_book(data_dir: Path | None = None, force: bool = False) -> dict[str,
         _read_events(data_dir / "sw_cashledger.jsonl"), cfg.get("subaccounts", []))
     recon_checks = _recon_checks(sw, sub_pending) + [
         {**c, "name": f"et_{c['name']}"}
-        for c in _recon_checks(et, {})[:5]]   # ET has no subaccounts
+        for c in _recon_checks(et, {})
+        if c["name"] != "subaccounts_nonnegative"]   # ET has no subaccounts
 
     guarantees = []
     for g in cfg.get("guarantees", []):
@@ -464,10 +503,25 @@ def compute_book(data_dir: Path | None = None, force: bool = False) -> dict[str,
         "instruments": _instruments,
     }
 
+    # recent entries (void UI): last 12 rows across ledgers, newest first
+    recent = []
+    for fkey, fname in (("sw_snapshots", "sw_snapshots.jsonl"),
+                        ("et_snapshots", "et_snapshots.jsonl"),
+                        ("sw_flows", "sw_cashledger.jsonl"),
+                        ("et_flows", "et_cashledger.jsonl"),
+                        ("cxz", "cxz_etrade.jsonl"), ("lien", "lien_etrade.jsonl")):
+        for r in _read_events(data_dir / fname):
+            if r.get("recorded_at"):      # only UI-recorded rows are voidable here
+                recent.append({"file": fkey, "id": r["id"],
+                               "recorded_at": r["recorded_at"],
+                               "summary": _row_summary(fkey, r)})
+    recent.sort(key=lambda r: r["recorded_at"], reverse=True)
+
     payload = {
         "available": True,
         "source": "native",
         "form_options": form_options,
+        "recent_entries": recent[:12],
         "source_detail": f"native engine · data/book ({len(sw['periods'])} SW + {len(et['periods'])} ET periods)",
         "members": members,
         "total": total,
@@ -493,6 +547,16 @@ def compute_book(data_dir: Path | None = None, force: bool = False) -> dict[str,
     return payload
 
 
+def _row_summary(fkey: str, r: dict) -> str:
+    if "snapshots" in fkey:
+        return f"快照 {r.get('date')} = ${r.get('total'):,.2f}"
+    if "flows" in fkey:
+        return (f"{r.get('snapshot_date')} {r.get('partner') or '—'} "
+                f"{r.get('from')}→{r.get('to')} ${r.get('amount'):,.2f} "
+                f"[{r.get('counts')}/{r.get('type') or '—'}]")
+    return f"{r.get('event')} {r.get('month') or r.get('period')} {r.get('value', '')}"
+
+
 def _balance_at(data_dir: Path, cfg: dict, partner: str, upto_date: str) -> float | None:
     """Partner's SW balance as of a snapshot date — focused replay of the pool
     truncated at that date (inputs are tiny; replay is cheap and exact)."""
@@ -510,14 +574,21 @@ def _balance_at(data_dir: Path, cfg: dict, partner: str, upto_date: str) -> floa
 
 # ── write API (append-only; SPEC-128 §4) ─────────────────────────────────────
 
+_WRITE_LOCK = threading.Lock()   # single-user tool, but waitress is threaded
+
+
 def _next_id(prefix: str) -> str:
     return f"{prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
 
 
 def _append(path: Path, row: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
+    for k, v in row.items():
+        if isinstance(v, float) and not math.isfinite(v):
+            raise ValueError(f"book: non-finite {k}={v} refused (strict-JSON)")
+    with _WRITE_LOCK:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
 
 
 _POOL_FILES = {"sw": ("sw_snapshots.jsonl", "sw_cashledger.jsonl"),
@@ -525,10 +596,21 @@ _POOL_FILES = {"sw": ("sw_snapshots.jsonl", "sw_cashledger.jsonl"),
 _SERIES_FILES = {"cxz": "cxz_etrade.jsonl", "lien": "lien_etrade.jsonl"}
 
 
-def _closed_dates(data_dir: Path, pool: str) -> set[str]:
+def _last_closed_date(data_dir: Path, pool: str) -> str | None:
     snaps = _read_events(data_dir / _POOL_FILES[pool][0])
-    return {str(s["date"])[:10] for s in snaps
-            if s.get("event", "snapshot") == "snapshot" and s.get("closed")}
+    closed = [str(s["date"])[:10] for s in snaps
+              if s.get("event", "snapshot") == "snapshot" and s.get("closed")]
+    return max(closed) if closed else None
+
+
+def _assert_period_open(data_dir: Path, pool: str, date_str: str) -> None:
+    """Period-lock (v3.5 §8): reconciled history is immutable. Any write dated
+    at or BEFORE the last closed snapshot would silently re-segment locked
+    periods and change historical P&L — refuse."""
+    last = _last_closed_date(data_dir, pool)
+    if last is not None and date_str <= last:
+        raise ClosedPeriodError(
+            f"{date_str} 在已关账期内（最后关账 {last}）——历史更正请用新分录，不改锁定期")
 
 
 class ClosedPeriodError(ValueError):
@@ -540,8 +622,14 @@ def record_snapshot(pool: str, date_str: str, total: float, note: str = "",
     data_dir = data_dir or DATA_DIR
     if pool not in _POOL_FILES:
         raise ValueError(f"unknown pool {pool!r}")
-    if date_str in _closed_dates(data_dir, pool):
-        raise ClosedPeriodError(f"snapshot {date_str} is closed (period-lock)")
+    total = float(total)
+    if not math.isfinite(total) or total < 0:
+        raise ValueError(f"snapshot total must be a finite non-negative number, got {total}")
+    try:
+        date.fromisoformat(date_str)
+    except ValueError:
+        raise ValueError(f"invalid date {date_str!r}")
+    _assert_period_open(data_dir, pool, date_str)
     row = {"id": _next_id(f"{pool}snap"), "event": "snapshot", "date": date_str,
            "total": float(total), "note": note, "closed": False,
            "recorded_at": datetime.now().isoformat(timespec="seconds")}
@@ -554,14 +642,37 @@ def record_flow(pool: str, payload: dict, data_dir: Path | None = None) -> dict:
     if pool not in _POOL_FILES:
         raise ValueError(f"unknown pool {pool!r}")
     snap_date = str(payload["snapshot_date"])[:10]
-    if snap_date in _closed_dates(data_dir, pool):
-        raise ClosedPeriodError(f"snapshot period {snap_date} is closed (period-lock)")
+    try:
+        date.fromisoformat(snap_date)
+    except ValueError:
+        raise ValueError(f"invalid snapshot_date {snap_date!r}")
+    _assert_period_open(data_dir, pool, snap_date)
     counts = str(payload.get("counts", "")).strip().capitalize()
     ftype = str(payload.get("type", "")).strip().capitalize()
     if counts not in ("Yes", "No"):
         raise ValueError("counts must be Yes/No")
     if counts == "Yes" and ftype not in ("Contribution", "Distribution"):
         raise ValueError("type must be Contribution/Distribution when counts=Yes")
+    amount = float(payload["amount"])
+    if not math.isfinite(amount) or amount <= 0:
+        raise ValueError(f"amount must be positive (ledger convention: 金额恒正，方向由 Type 决定), got {amount}")
+    if counts == "Yes":
+        cfg_path = data_dir / "config.json"
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8")) if cfg_path.exists() else {}
+        allowed = cfg.get(f"{pool}_partners", [])
+        if allowed and payload.get("partner") not in allowed:
+            raise ValueError(
+                f"partner {payload.get('partner')!r} 不在 {pool.upper()} 合伙人名单 {allowed}"
+                "（Counts=Yes 必须归属到已知合伙人）")
+        # 快照期不存在时提示（未来期 = 待对账，合法；不匹配任何已有快照且早于
+        # 最后快照 = 会被引擎排除 -> 直接拒绝，防孤儿）
+        snaps = _read_events(data_dir / _POOL_FILES[pool][0])
+        snap_dates = {str(s["date"])[:10] for s in snaps
+                      if s.get("event", "snapshot") == "snapshot"}
+        if snap_dates and snap_date not in snap_dates and snap_date <= max(snap_dates):
+            raise ValueError(
+                f"快照期 {snap_date} 不存在（已有快照最晚 {max(snap_dates)}）——"
+                "Counts=Yes 流水必须归属已有快照期或未来对账期，否则会被计算排除")
     row = {"id": _next_id(f"{pool}flow"), "event": "flow",
            "snapshot_date": snap_date,
            "bank_date": str(payload.get("bank_date") or snap_date)[:10],
