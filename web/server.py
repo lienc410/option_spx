@@ -24,6 +24,19 @@ from zoneinfo import ZoneInfo
 from flask import Flask, Response, abort, jsonify, redirect, render_template, send_from_directory
 from flask import request as flask_req
 
+# Deterministic .env load at process start (explicit repo path, not CWD).
+# Incident 2026-07-06: the web process only got .env variables as a SIDE
+# EFFECT of the first schwab/etrade module import (their auth modules call
+# load_dotenv()). After a restart, hitting /api/partnership/book before any
+# Schwab endpoint meant GOOGLE_SERVICE_ACCOUNT_JSON was absent → the Book
+# page reported "账本文件未找到"; the same window silently skipped web-process
+# Telegram pushes (TELEGRAM_BOT_TOKEN unset). Load once, up front.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+except Exception:
+    pass
+
 _ET = ZoneInfo("America/New_York")
 
 def _is_market_hours() -> bool:
