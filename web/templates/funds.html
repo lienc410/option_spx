@@ -481,9 +481,9 @@ async function load(retry=0) {
 
   const P = d.params || {};
   const tablesHtml =
-    render_table('🟡 信号减仓（rule 3/4/5 · 加速6周TWAP + 弱倾斜前置 · 按本周% 降序）', reducible, P, d.data_date) +
+    render_table('🟡 信号减仓（rule 7/8/3/4/5 · 快池TWAP地板25% + 弱倾斜前置；⑦回前高=减50% · 按本周% 降序）', reducible, P, d.data_date) +
     render_table('🟢 上升趋势 · 延长慢清（rule 1 · 慢速TWAP，让赢家多跑）', strong, P, d.data_date) +
-    render_table('🔵 加速·仅走TWAP（rule 2深套 / 6观察 / 0数据不足 · 无前置）', other, P, d.data_date);
+    render_table('🔵 快池·仅走TWAP（rule 2深套 / 6观察 / 0数据不足 · 无前置）', other, P, d.data_date);
 
   const disclaimer = d.disclaimer
     ? `<p class="disclaimer">⚠️ ${d.disclaimer}</p>` : '';
