@@ -1212,7 +1212,7 @@ function renderPosition(p) {
     // block — PM has final discretion).
     actions.innerHTML = canOpen
       ? `<button class="action-btn primary" onclick="openTradeModal('open')">+ Open Position</button>`
-      : `<button class="action-btn primary" onclick="openTradeModal('open')" title="Outside SPEC-107 scheduled window — proceed with caution">+ Open Position</button>
+      : `<button class="action-btn primary" onclick="openTradeModal('open')" title="Outside the scheduled intraday-governance window (SPEC-107) — proceed with caution">+ Open Position</button>
          <span class="modal-hint" style="margin-left:10px;color:var(--text-2);font-size:0.66rem">(off-schedule · next scheduled ${nextText})</span>`;
     return;
   }

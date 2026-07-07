@@ -474,3 +474,14 @@ html {
 button, select, input, textarea, optgroup {
   font-family: inherit;
 }
+
+/* Provenance tag — spec/rule IDs never lead a UI label (DESIGN.md 2026-07-06).
+   Function-first display name, then this muted suffix keeps the paper trail. */
+.spec-ref {
+  font-family: var(--f-mono);
+  font-size: 0.52rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+  text-transform: none;
+}
