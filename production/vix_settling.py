@@ -153,18 +153,14 @@ def _telegram_creds() -> tuple[str, str]:
 
 
 def _send_telegram_message(text: str, log: logging.Logger) -> bool:
-    token, chat_id = _telegram_creds()
-    if not token or not chat_id:
-        log.warning("telegram credentials missing; skip send")
-        return False
+    # SPEC-126: through the gateway. Settling is the SPX morning 2nd-signal —
+    # its pushes advise entry decisions (ACTION 关于新开仓).
     try:
-        res = requests.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            data={"chat_id": chat_id, "text": text},
-            timeout=TELEGRAM_TIMEOUT,
-        )
-        res.raise_for_status()
-        return True
+        import sys as _sys
+        from pathlib import Path as _P
+        _sys.path.insert(0, str(_P(__file__).resolve().parents[1]))
+        from notify.gateway import push as gw_push
+        return gw_push("ACTION", "新开仓", "Settled VIX 2nd signal", text)
     except Exception:
         log.exception("telegram send failed")
         return False

@@ -5286,9 +5286,9 @@ def _manual_open_governance_advisory(strategy_key: str, body: dict, trade_id: st
             pass
 
         if notes:
-            from notify.event_push import _send
-            _send("ℹ️ [治理提示·不拦截] 手动单 " + trade_id + " 在治理口径外：\n"
-                  + "\n".join(f"  · {n}" for n in notes))
+            from notify.gateway import push as gw_push
+            gw_push("FYI", f"持仓 {trade_id}", "治理提示（不拦截）",
+                    "本单在治理口径外：\n" + "\n".join(f"  · {n}" for n in notes))
     except Exception:
         pass
 

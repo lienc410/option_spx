@@ -30,7 +30,11 @@ from strategy.q041_t3_selector import (  # noqa: E402
     _safe_filename,
 )
 from strategy.sleeve_governance import evaluate_candidate  # noqa: E402
-from notify.event_push import _send as _telegram_send  # noqa: E402
+from notify.gateway import push as _gw_push  # noqa: E402
+
+
+def _telegram_send(msg: str) -> bool:
+    return _gw_push("ACTION", "系统状态", "", msg)
 
 try:
     from dotenv import load_dotenv

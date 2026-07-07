@@ -167,10 +167,11 @@ def _append_jsonl(path: Path, payload: dict) -> None:
 
 
 def _telegram_alert(text: str) -> bool:
+    # SPEC-126: hard-exit bypasses ring as ALERT; other decisions ACTION.
     try:
-        from notify.event_push import _send
-
-        return bool(_send(text))
+        from notify.gateway import push as gw_push
+        cat = "ALERT" if ("🚨" in text or "Hard Exit" in text) else "ACTION"
+        return bool(gw_push(cat, "系统状态", "", text))
     except Exception:
         return False
 

@@ -26,7 +26,11 @@ if str(REPO_ROOT) not in sys.path:
 
 from strategy.q041_selector import select_t2_csp  # noqa: E402
 from strategy.sleeve_governance import evaluate_candidate  # noqa: E402
-from notify.event_push import _send as _telegram_send  # noqa: E402
+from notify.gateway import push as _gw_push  # noqa: E402
+
+
+def _telegram_send(msg: str) -> bool:
+    return _gw_push("FYI", "系统状态", "", msg)
 
 try:
     from dotenv import load_dotenv

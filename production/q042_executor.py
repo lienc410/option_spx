@@ -94,19 +94,18 @@ def _telegram_creds() -> tuple[str, str]:
     return os.getenv("TELEGRAM_BOT_TOKEN", "").strip(), os.getenv("TELEGRAM_CHAT_ID", "").strip()
 
 
-def _send_telegram(text: str, log: logging.Logger) -> bool:
-    token, chat_id = _telegram_creds()
-    if not token or not chat_id:
-        log.warning("telegram credentials missing; skip")
-        return False
+def _send_telegram(text: str, log: logging.Logger, *, sleeve: str = "?") -> bool:
+    # SPEC-126: trigger alerts are event-driven ACTION pushes through the
+    # gateway (dedupe: one per sleeve per day); routine evaluations never
+    # push — the 15:55 digest carries overlay state.
     try:
-        res = requests.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            data={"chat_id": chat_id, "text": text},
-            timeout=TELEGRAM_TIMEOUT,
-        )
-        res.raise_for_status()
-        return True
+        import sys as _sys
+        from pathlib import Path as _P
+        _sys.path.insert(0, str(_P(__file__).resolve().parents[1]))
+        from notify.gateway import push as gw_push
+        from datetime import date as _date
+        return gw_push("ACTION", "新开仓", "Q042 Drawdown Overlay 触发", text,
+                       dedupe_key=f"q042_trigger_{sleeve}_{_date.today().isoformat()}")
     except Exception:
         log.exception("telegram send failed")
         return False
@@ -237,7 +236,7 @@ def run_eod_evaluation(
                     ddath_at_signal=ddath, ath_at_signal=ath, vix_at_signal=vix,
                     spx_close=spx_close,
                 )
-                sent = _send_telegram(_format_alert(spec), log)
+                sent = _send_telegram(_format_alert(spec), log, sleeve=spec.sleeve_id)
                 if sent or not dry_run:
                     _write_pending_record(spec)
                 fired.append(spec)
@@ -255,7 +254,7 @@ def run_eod_evaluation(
                     ddath_at_signal=ddath, ath_at_signal=ath, vix_at_signal=vix,
                     spx_close=spx_close,
                 )
-                sent = _send_telegram(_format_alert(spec), log)
+                sent = _send_telegram(_format_alert(spec), log, sleeve=spec.sleeve_id)
                 if sent or not dry_run:
                     _write_pending_record(spec)
                 fired.append(spec)

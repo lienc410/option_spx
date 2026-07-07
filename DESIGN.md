@@ -148,6 +148,22 @@ here first:
 `WAIT` is NOT in the vocabulary — "no valid setup today" is `NO ENTRY`
 (unified sitewide in SPEC-125).
 
+## Push Vocabulary (SPEC-126)
+
+Telegram pushes go through `notify/gateway.py` exclusively. Contract:
+
+| Field | Rule |
+|---|---|
+| category | 🔴 `ALERT` needs PM action now / 🟡 `ACTION` suggested action / 🔵 `STATE` position state / ⚪ `FYI` routine. Missing/unknown → raise |
+| about 首行 | `关于新开仓` / `关于持仓 <标识>` / `系统状态` — every message self-identifies its object (kills HOLD-vs-NO ENTRY ambiguity) |
+| state words | New-entry verdict pushes use Action State Vocabulary words — `NO ENTRY`, never `WAIT`/观望/free text. Strategy name may follow in parentheses |
+| quiet levels | FYI/STATE default `disable_notification` (no bell); ALERT/ACTION ring |
+| dedupe | `dedupe_key` sends once per ET day; only a category UPGRADE re-sends. Clearing messages (`clears=`) only follow a key that fired today, quietly |
+
+Daily mail budget (PM-ratified): 晨报 1 (09:35) + 收盘前 digest 1 (15:55) +
+event-driven ALERT/ACTION only. Routine governance/overlay evaluations fold
+into the digest; paper/shadow stays event-driven and silent.
+
 ## Strategy Tier Badge Vocabulary
 
 Distinct from Action State Vocabulary. Action states change daily (HOLD → CLOSE → WAIT). Tier badges describe the **lifecycle stage** of a strategy and rarely change. Both can appear on the same card (action state in header right, tier badge inline next to strategy name).
@@ -371,3 +387,4 @@ Label decisions (2026-07-06): `DD Overlay` (nav-width form of display name
 | 2026-07-06 | funds/partnership/etrade_reauth exempted from English-chrome rule | Personal-tool pages in Chinese domain (SPEC-125 D9, PM default exemption) |
 | 2026-07-06 | Evidence streams (S2-BPS paper, BCD shadow, skew monitor) deliberately have NO display surface | SPEC-125 C6: they are background data feeds for research arbitration; PM reads the jsonl / monthly digest when needed. A dashboard surface would invite daily micro-reading of pre-registered experiments |
 | 2026-07-06 | Page-title scale: two tiers — Portfolio hero 2.1rem, all other pages 1.7rem, always `--f-display` | Six drifting sizes found (SPEC-125/S3); normalize opportunistically when touching a page |
+| 2026-07-06 | Unified notification gateway (SPEC-126): 4-category contract + mandatory about 首行 + 15:55 pre-close digest replaces 15:30/16:03/16:15 scheduled pushes | 8 direct-send sites had no classification/dedupe/quiet levels; PM received contradictory-looking HOLD-vs-WAIT messages and 3 overlapping late-day pushes |

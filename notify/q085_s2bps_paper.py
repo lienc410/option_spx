@@ -34,7 +34,12 @@ except Exception:
     pass
 
 from strategy.q085_s2bps_signal import signal_day  # noqa: E402
-from notify.event_push import _send as _telegram_send  # noqa: E402
+# SPEC-126: all sends go through the gateway (category/about contract)
+from notify.gateway import push as _gw_push  # noqa: E402
+
+
+def _telegram_send(msg: str, *, category: str = "FYI", about: str = "系统状态") -> bool:
+    return _gw_push(category, about, "", msg, dedupe_key=None)
 
 log = logging.getLogger("q085_s2bps")
 ET = ZoneInfo("America/New_York")
@@ -436,7 +441,7 @@ def run(today: str | None = None, *, dry_run: bool = False) -> dict:
         msg = f"[S2-BPS PAPER] {today} missing_chain — skew/管理跳过（SPEC-114 sanity 会另行报警）"
         log.warning(msg)
         if not dry_run:
-            _telegram_send(msg)
+            _telegram_send(msg, category="ACTION")
         summary["missing_chain"] = True
         return summary
 
@@ -475,7 +480,7 @@ def run(today: str | None = None, *, dry_run: bool = False) -> dict:
         log.exception("q085 skew measurement failed")
         summary["skew_error"] = str(exc)
         if not dry_run:
-            _telegram_send(f"[S2-BPS PAPER] {today} skew 测量失败: {exc}")
+            _telegram_send(f"[S2-BPS PAPER] {today} skew 测量失败: {exc}", category="ACTION")
 
     # A2. SPEC-122 BCD real-quote shadow (pure recording, Telegram silent;
     # reuses the SAME production rec — AC-1 forbids recomputing the signal).

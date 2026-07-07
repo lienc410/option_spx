@@ -211,10 +211,12 @@ def run(now: datetime | None = None, *, dry_run: bool = False) -> list[str]:
         if digest:
             print(digest)
     else:
-        from notify.event_push import _send
-        _send(msg)
+        from notify.gateway import push as gw_push
+        # SPEC-126: violations need attention (ACTION, rings); the daily green
+        # line and the monthly DEFERRED digest are FYI (silent).
+        gw_push("ACTION" if violations else "FYI", "系统状态", "", msg)
         if digest:
-            _send(digest)
+            gw_push("FYI", "系统状态", "", digest)
         print(msg)
     return violations
 

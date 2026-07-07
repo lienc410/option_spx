@@ -363,12 +363,14 @@ def daily_update(today: str, calls=None, regime: str | None = None,
     ran_marker.parent.mkdir(parents=True, exist_ok=True)
     ran_marker.touch()
 
-    def push(msg: str) -> None:
+    def push(msg: str, category: str = "ACTION") -> None:
+        # SPEC-126: halt / pre-registered review = ACTION (PM 复审动作)，
+        # quote-gate unlock = FYI (静默)。about 固定 系统状态。
         summary.setdefault("pushes", []).append(msg)
         if not dry_run:
             try:
-                from notify.event_push import _send
-                _send(msg)
+                from notify.gateway import push as gw_push
+                gw_push(category, "系统状态", "", msg)
             except Exception:
                 log.exception("bcd governance push failed")
 
@@ -406,7 +408,7 @@ def daily_update(today: str, calls=None, regime: str | None = None,
     try:
         msg = check_quote_gate_unlock(today)
         if msg:
-            push(msg)
+            push(msg, category="FYI")
         summary["quote_gate"] = quote_gate_status()
     except Exception as exc:
         log.exception("bcd quote gate check failed")

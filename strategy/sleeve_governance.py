@@ -1162,10 +1162,10 @@ def log_decision(decision: GovernanceDecision, path: Path | None = None) -> dict
 
 
 def _send_alert(text: str) -> bool:
+    # SPEC-126: sleeve governance blocks/overrides need PM awareness (ACTION)
     try:
-        from notify.event_push import _send
-
-        return _send(text)
+        from notify.gateway import push as gw_push
+        return gw_push("ACTION", "系统状态", "", text)
     except Exception:
         return False
 

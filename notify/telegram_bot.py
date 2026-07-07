@@ -844,7 +844,9 @@ async def _maybe_send_etrade_token_alert(bot: Bot, chat_id: str) -> None:
     state = load_alert_state()
     if not state.get("invalid") or state.get("alert_sent"):
         return
-    await _safe_send(bot, chat_id, _format_etrade_reauth_message())
+    from notify.gateway import apush
+    await apush(bot, chat_id, "ACTION", "系统状态", "E-Trade 需要重新授权",
+                _format_etrade_reauth_message(), dedupe_key="etrade_reauth")
     mark_token_alert_sent()
 
 
@@ -860,6 +862,21 @@ async def scheduled_etrade_token_renewal(bot: Bot, chat_id: str) -> None:
         await _maybe_send_etrade_token_alert(bot, chat_id)
     except Exception:
         log.exception("scheduled_etrade_token_renewal: failed to send alert")
+
+
+def _classify_intraday(msg: str) -> tuple[str, str, str | None]:
+    """SPEC-126 transitional: (category, about, clears_key) from message text."""
+    about = "持仓 /ES Short Put" if "/ES Short Put" in msg else "系统状态"
+    if "TRIGGERED" in msg or "🚨" in msg:
+        return "ALERT", about, None
+    if "Stop Watch" in msg:
+        # dedupe-free (repeat watches escalate by design) but keyed for clears
+        return "ACTION", about, None
+    if "cleared" in msg or "✅" in msg:
+        return "STATE", about, None
+    if "⚠" in msg or "mismatch" in msg or "profit target" in msg.lower():
+        return "ACTION", about, None
+    return "STATE", about, None
 
 
 async def intraday_monitor(bot: Bot, chat_id: str) -> None:
@@ -977,7 +994,14 @@ async def intraday_monitor(bot: Bot, chat_id: str) -> None:
 
     for msg in msgs:
         try:
-            await _safe_send(bot, chat_id, msg)
+            # SPEC-126 transitional classification: constructors still build
+            # plain strings; the signature map below routes them until each
+            # site passes categories natively. TRIGGER/spike = ALERT (rings),
+            # watch/mismatch/profit-target = ACTION, cleared = STATE (quiet,
+            # follows today's alert via `clears`).
+            from notify.gateway import apush
+            cat, about, clears = _classify_intraday(msg)
+            await apush(bot, chat_id, cat, about, "", msg, clears=clears)
         except Exception:
             log.exception("intraday_monitor: failed to send message")
     try:
@@ -1436,7 +1460,13 @@ async def scheduled_push(bot: Bot, chat_id: str) -> None:
     try:
         rec = get_recommendation(use_intraday=True)
         _safe_append_recommendation_event(rec=rec, source="scheduled_push", mode="intraday")
-        await _safe_send(bot, chat_id, _format_recommendation(rec))
+        # SPEC-126: morning plan = ACTION 关于新开仓 (rings); vocabulary note —
+        # a Reduce/Wait rec is titled NO ENTRY (DESIGN.md push vocabulary)
+        from notify.gateway import apush
+        _title = ("NO ENTRY" if rec.strategy_key == "reduce_wait"
+                  else f"OPEN 候选 · {rec.strategy}")
+        await apush(bot, chat_id, "ACTION", "新开仓", f"晨报 · {_title}",
+                    _format_recommendation(rec), dedupe_key="morning_push")
         _morning_snapshot = {
             "strategy_key": rec.strategy_key,
             "position_action": rec.position_action,
@@ -1532,13 +1562,17 @@ async def scheduled_ladder_shadow_push(bot: Bot, chat_id: str) -> None:
         # V3 shadow alert
         payload = state.get("ladder_shadow_payload") or {}
         if payload.get("shadow_log_written") and payload.get("would_enter") and payload.get("ladder_mode") == "shadow":
-            await _safe_send(bot, chat_id, _format_ladder_shadow_message(payload))
+            from notify.gateway import apush
+            await apush(bot, chat_id, "FYI", "系统状态", "Ladder shadow 记录",
+                        _format_ladder_shadow_message(payload))
             log.info("SPEC-108 ladder shadow alert sent.")
 
         # SPEC-108.1 R2: V1b shadow alert
         v1b_payload = state.get("ladder_v1b_shadow_payload") or {}
         if v1b_payload.get("shadow_log_written") and v1b_payload.get("would_enter") and v1b_payload.get("ladder_v1b_mode") == "shadow":
-            await _safe_send(bot, chat_id, _format_ladder_v1b_shadow_message(v1b_payload))
+            from notify.gateway import apush
+            await apush(bot, chat_id, "FYI", "系统状态", "V1b ladder shadow 记录",
+                        _format_ladder_v1b_shadow_message(v1b_payload))
             log.info("SPEC-108.1 V1b ladder shadow alert sent.")
 
         if not payload.get("shadow_log_written") and not v1b_payload.get("shadow_log_written"):
@@ -1576,6 +1610,107 @@ async def scheduled_eod_push(bot: Bot, chat_id: str) -> None:
         log.info("EOD snapshot sent.")
     except Exception:
         log.exception("EOD push failed")
+
+
+# ── SPEC-126: 15:55 pre-close digest ──────────────────────────────────────────
+# Merges the retired 15:30 governance / 16:03 snapshot / 16:15 overlay
+# scheduled pushes into ONE PM-ratified daily mail. Structure: 今日新仓裁决 /
+# 持仓动作清单 / 治理状态一行 / 异常区 (omitted when empty).
+
+def build_preclose_digest() -> tuple[str, str, str]:
+    """Returns (category, title, body). Category is ACTION when anything is
+    actionable today, else FYI (quiet)."""
+    lines: list[str] = []
+    actionable = False
+
+    # 1. 今日新仓裁决 — DESIGN.md push vocabulary: NO ENTRY, never WAIT
+    try:
+        rec = get_recommendation(use_intraday=True)
+        if rec.strategy_key == "reduce_wait":
+            verdict = f"NO ENTRY（{_h(rec.canonical_strategy or 'Reduce / Wait')}）"
+        else:
+            verdict = f"OPEN 候选 · {_h(rec.strategy)}"
+            actionable = True
+        lines.append(f"<b>今日新仓裁决</b>：{verdict}")
+    except Exception as exc:
+        lines.append(f"<b>今日新仓裁决</b>：获取失败（{_h(exc)}）")
+
+    # 2. 持仓动作清单
+    try:
+        from strategy.state import read_all_positions
+        pos = (read_all_positions() or {}).get("positions", [])
+        if pos:
+            for p in pos:
+                dte = ""
+                if p.get("expiry"):
+                    try:
+                        d = (datetime.strptime(p["expiry"], "%Y-%m-%d").date()
+                             - datetime.now(ET).date()).days
+                        dte = f" · {d}d"
+                        if d <= 7:
+                            actionable = True
+                    except ValueError:
+                        pass
+                lines.append(f"  · 持仓 {_h(p.get('trade_id', '?'))}"
+                             f"（{_h(p.get('strategy_key', '?'))}{dte}）")
+        else:
+            lines.append("  · 无持仓")
+    except Exception:
+        lines.append("  · 持仓读取失败")
+
+    # 3. 治理状态一行
+    gov_bits: list[str] = []
+    try:
+        from strategy.bcd_governance import is_halted, quote_gate_status
+        halt = is_halted()
+        gov_bits.append("BCD: halted（待 PM 复审）" if halt else "BCD: normal")
+        qg = quote_gate_status()
+        if not qg["unlocked"]:
+            gov_bits.append(f"quote-gate {qg['days']}/{qg['needed']}")
+        if halt:
+            actionable = True
+    except Exception:
+        gov_bits.append("治理状态读取失败")
+    lines.append("<b>治理</b>：" + " · ".join(gov_bits))
+
+    # 4. 异常区 — omitted entirely when clean
+    anomalies: list[str] = []
+    try:
+        stats_path = Path(__file__).resolve().parents[1] / "logs" / "push_stats.json"
+        if stats_path.exists():
+            d = json.loads(stats_path.read_text()).get(
+                datetime.now(ET).date().isoformat(), {})
+            if int(d.get("failed", 0)):
+                anomalies.append(f"推送 {d['failed']} 条两次发送均失败")
+    except Exception:
+        pass
+    try:
+        st = read_state()
+        if st and st.get("requires_reauth"):
+            anomalies.append("Schwab 需要重新授权")
+    except Exception:
+        pass
+    if anomalies:
+        lines.append("<b>异常</b>：\n" + "\n".join(f"  ⚠ {_h(a)}" for a in anomalies))
+        actionable = True
+
+    return ("ACTION" if actionable else "FYI",
+            f"收盘前 digest · {datetime.now(ET):%m-%d %H:%M}",
+            "\n".join(lines))
+
+
+async def scheduled_preclose_digest(bot: Bot, chat_id: str) -> None:
+    if not is_trading_day():
+        log.info("Not a trading day — skipping pre-close digest.")
+        return
+    try:
+        from notify.gateway import apush
+        category, title, body = build_preclose_digest()
+        await apush(bot, chat_id, category, "系统状态", title, body,
+                    dedupe_key="preclose_digest")
+        log.info("Pre-close digest sent (%s).", category)
+    except Exception:
+        log.exception("pre-close digest failed")
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
@@ -1627,12 +1762,18 @@ def main() -> None:
             name="Daily recommendation push",
         )
 
+        # SPEC-126 时段重构 (PM 2026-07-06): the 16:03 EOD snapshot and the
+        # 10:30/15:30 SPEC-107 governance pushes are RETIRED as standalone
+        # mails — their content folds into the single 15:55 pre-close digest.
+        # Governance/overlay routine decisions no longer push individually;
+        # state CHANGES still push event-driven (ALERT/ACTION) from their own
+        # modules. Functions kept for /commands and reuse.
         scheduler.add_job(
-            scheduled_eod_push,
-            CronTrigger(day_of_week="mon-fri", hour=16, minute=3, timezone=ET),
+            scheduled_preclose_digest,
+            CronTrigger(day_of_week="mon-fri", hour=15, minute=55, timezone=ET),
             args=[application.bot, chat_id],
-            id="eod_push",
-            name="EOD signal snapshot push",
+            id="preclose_digest",
+            name="SPEC-126 pre-close digest 15:55",
         )
 
         scheduler.add_job(
@@ -1642,15 +1783,6 @@ def main() -> None:
             id="spec108_ladder_shadow",
             name="SPEC-108 ladder shadow alert",
         )
-
-        for hour, minute in ((10, 30), (15, 30)):
-            scheduler.add_job(
-                scheduled_intraday_governance_push,
-                CronTrigger(day_of_week="mon-fri", hour=hour, minute=minute, timezone=ET),
-                args=[application.bot, chat_id],
-                id=f"spec107_governance_{hour:02d}{minute:02d}",
-                name=f"SPEC-107 governance decision {hour:02d}:{minute:02d}",
-            )
 
         # 09:30 ET: reset intraday state for the new session
         scheduler.add_job(

@@ -50,22 +50,28 @@ def _record_push(outcome: str) -> None:
         log.exception("event_push: stats record failed")
 
 
-def _send(text: str) -> bool:
+def _send(text: str, *, disable_notification: bool = False) -> bool:
     """H-4 (2026-07-06 incident): the 16:50 governance push contained a raw
     '< 0' comparison, Telegram's HTML parser returned 400, and the message
     vanished with only a log line — no retry, no fallback, no operator
     visibility. Today it was an FYI; on a credit-stop TRIGGER day it would
     be an incident. Policy now: try HTML; on ANY non-200 retry once as PLAIN
-    TEXT (delivery beats formatting); count every outcome for the heartbeat."""
+    TEXT (delivery beats formatting); count every outcome for the heartbeat.
+
+    SPEC-126: transport ONLY — new callers go through notify.gateway.push
+    (category/about contract, dedupe, quiet levels)."""
     token   = os.getenv("TELEGRAM_BOT_TOKEN", "")
     chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
     if not token or not chat_id:
         log.debug("event_push: TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set — skipping")
         return False
+    payload = {"chat_id": chat_id, "text": text}
+    if disable_notification:
+        payload["disable_notification"] = True
     try:
         r = requests.post(
             _TELEGRAM_API.format(token=token),
-            json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"},
+            json={**payload, "parse_mode": "HTML"},
             timeout=8,
         )
         if r.status_code == 200:
@@ -75,7 +81,7 @@ def _send(text: str) -> bool:
                     r.status_code, r.text[:200])
         r2 = requests.post(
             _TELEGRAM_API.format(token=token),
-            json={"chat_id": chat_id, "text": text},
+            json=payload,
             timeout=8,
         )
         if r2.status_code == 200:
@@ -111,18 +117,23 @@ def notify_close(state: dict, note: Optional[str] = None) -> None:
     opened_at  = state.get("opened_at", "?")
     note_line  = f"\nNote: <i>{_h(note)}</i>" if note else ""
 
-    _send(
-        f"✅ <b>Position closed</b> <i>(via web)</i>\n"
+    # SPEC-126: PM-initiated action confirmations are STATE (quiet)
+    from notify.gateway import push as _gw
+    tid = state.get("trade_id", "?")
+    _gw("STATE", f"持仓 {tid}", "Position closed (via web)",
         f"Strategy: <b>{_h(strategy)}</b> on <code>{_h(underlying)}</code>\n"
-        f"Opened: <code>{_h(opened_at)}</code>{note_line}"
-    )
+        f"Opened: <code>{_h(opened_at)}</code>{note_line}")
 
-    # Post-close re-entry scan — same as bot's /closed flow
+    # Post-close re-entry scan — same as bot's /closed flow. A fresh OPEN
+    # candidate is actionable; NO ENTRY is quiet FYI.
     try:
         from strategy.selector import get_recommendation
         from notify.telegram_bot import _format_recommendation, is_market_open
         rec = get_recommendation(use_intraday=is_market_open())
-        _send("🔄 <b>Re-entry scan</b> — fresh recommendation:\n\n" + _format_recommendation(rec))
+        cat = "FYI" if rec.strategy_key == "reduce_wait" else "ACTION"
+        title = ("Re-entry scan · NO ENTRY" if rec.strategy_key == "reduce_wait"
+                 else f"Re-entry scan · OPEN 候选 {rec.strategy}")
+        _gw(cat, "新开仓", title, _format_recommendation(rec))
     except Exception:
         log.exception("event_push.notify_close: re-entry scan failed (non-fatal)")
 
@@ -140,10 +151,10 @@ def notify_open(state: dict) -> None:
     premium    = state.get("actual_premium") or state.get("model_premium") or "?"
 
     strikes = f"{short_k}/{long_k}" if long_k else str(short_k or "?")
-    _send(
-        f"🟢 <b>Position opened</b> <i>(via web)</i>\n"
+    from notify.gateway import push as _gw
+    tid = state.get("trade_id", "?")
+    _gw("STATE", f"持仓 {tid}", "Position opened (via web)",
         f"Strategy: <b>{_h(strategy)}</b> on <code>{_h(underlying)}</code>\n"
         f"Strikes: <code>{_h(strikes)}</code>  ·  Contracts: <code>{_h(contracts)}</code>  ·  "
         f"Expiry: <code>{_h(expiry)}</code>\n"
-        f"Entry premium: <code>{_h(premium)}</code>"
-    )
+        f"Entry premium: <code>{_h(premium)}</code>")

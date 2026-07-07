@@ -112,11 +112,21 @@ class TelegramBotSpec041Tests(unittest.TestCase):
         bot = AsyncMock()
 
         import asyncio
+        import tempfile
+        from pathlib import Path
+        import notify.gateway as gw
 
-        asyncio.run(bot_mod.scheduled_push(bot, "chat"))
-        self.assertEqual(bot_mod._morning_snapshot["strategy_key"], morning_rec.strategy_key)
-        asyncio.run(bot_mod.scheduled_eod_push(bot, "chat"))
+        # SPEC-126: the morning push goes through the gateway (dedupe state
+        # must be test-isolated, never the repo's data/.push_dedupe.json)
+        with patch.object(gw, "DEDUPE_PATH",
+                          Path(tempfile.mkdtemp()) / "dedupe.json"):
+            asyncio.run(bot_mod.scheduled_push(bot, "chat"))
+            self.assertEqual(bot_mod._morning_snapshot["strategy_key"], morning_rec.strategy_key)
+            asyncio.run(bot_mod.scheduled_eod_push(bot, "chat"))
         self.assertEqual(bot.send_message.await_count, 2)
+        # gateway contract on the morning mail: category+about first line
+        first_text = bot.send_message.await_args_list[0].kwargs["text"]
+        self.assertTrue(first_text.startswith("🟡 [ACTION] 关于新开仓"), first_text)
         sent_text = bot.send_message.await_args_list[-1].kwargs["text"]
         self.assertIn("🌙 <b>EOD Signal Snapshot", sent_text)
         self.assertIn("Term struct", sent_text)
