@@ -105,6 +105,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .tl-r2 { background:var(--red); }
 .tl-r3, .tl-r4, .tl-r5 { background:var(--gold); }
 .tl-r6, .tl-r0 { background:var(--border-3); }
+.tl-r7 { background:var(--gold-pale,var(--gold)); }
 .tl-legend { font-size:0.58rem;color:var(--text-2);margin-top:5px; }
 .tl-legend .tl-cell { height:9px;width:9px;border-radius:50%; }
 .gate-on  { color:var(--gold); }
@@ -215,7 +216,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 </div>
 
 <script>
-const RULE_COLOR = { 1:'ab-green', 2:'ab-red', 3:'ab-gold', 4:'ab-gold', 5:'ab-gold', 6:'ab-dim', 0:'ab-dim' };
+const RULE_COLOR = { 1:'ab-green', 7:'ab-gold', 2:'ab-red', 3:'ab-gold', 4:'ab-gold', 5:'ab-gold', 6:'ab-dim', 0:'ab-dim' };
 
 function fmt_cny(v) {
   if (v == null) return '—';
@@ -254,14 +255,22 @@ function render_signal_panel(f, P) {
   const W=[];
   const lv=(label, level)=>{ if(level!=null && f.latest!=null)
     W.push(`<div class="sig-watch-line">📍 ${label} <b>${level.toFixed(4)}</b> (${fmt_signed(level/f.latest-1)})</div>`); };
+  const recBand = (P.recovery && P.recovery.band) || 0.03;
+  const recClip = (P.recovery && P.recovery.clip) || 0.5;
   if (f.ma20!=null) {
-    if (f.rule===1) lv('跌破 → 退出上升·转加速清(6周)', f.ma20*(1-band));
-    else if (f.trend==='下降') {
-      lv('站上 → 退出下降·停额外', f.ma20*(1-band));
-      if (!deepHit && f.roll_high!=null) lv('失守 → 转②深套·停额外', f.roll_high*(1-DEEP));
+    if (f.rule===7) {
+      lv(`跌出前高带(−${(recBand*100).toFixed(0)}%) → 回归常规信号`, f.roll_high*(1-recBand));
+    } else if (f.rule===1) {
+      lv('跌破 → 退出上升·转加速清', f.ma20*(1-band));
     } else {
-      lv('站上 → 转上升·纯持有', f.ma20*(1+band));
-      if (!trailHit && f.trail_trigger!=null) lv('跌破 → ④追踪带·加额外', f.trail_trigger);
+      if (f.roll_high!=null) lv(`反弹至 → ⑦回前高·减${(recClip*100).toFixed(0)}%`, f.roll_high*(1-recBand));
+      if (f.trend==='下降') {
+        lv('站上 → 退出下降·停额外', f.ma20*(1-band));
+        if (!deepHit && f.roll_high!=null) lv('失守 → 转②深套·停额外', f.roll_high*(1-DEEP));
+      } else {
+        lv('站上 → 转上升·慢清', f.ma20*(1+band));
+        if (!trailHit && f.trail_trigger!=null) lv('跌破 → ④追踪带·加额外', f.trail_trigger);
+      }
     }
   }
 
@@ -275,7 +284,7 @@ function render_signal_panel(f, P) {
   const tlHtml = hist.length ? `<div class="sig-timeline">
       <div class="sig-tl-label">信号历史 · 近 ${hist.length} 交易日（左旧→右新）</div>
       ${hist.map(h=>`<span class="tl-cell tl-r${h.rule}" title="${h.date} ${h.rule_name||''}${h.day_chg!=null?' · 日'+fmt_signed(h.day_chg):''}"></span>`).join('')}
-      <div class="tl-legend"><span class="tl-cell tl-r1"></span>持有 &nbsp;<span class="tl-cell tl-r3"></span>减仓(③④⑤) &nbsp;<span class="tl-cell tl-r2"></span>深套 &nbsp;<span class="tl-cell tl-r6"></span>观察</div>
+      <div class="tl-legend"><span class="tl-cell tl-r1"></span>持有 &nbsp;<span class="tl-cell tl-r3"></span>减仓(③④⑤) &nbsp;<span class="tl-cell tl-r7"></span>回前高 &nbsp;<span class="tl-cell tl-r2"></span>深套 &nbsp;<span class="tl-cell tl-r6"></span>观察</div>
     </div>` : '';
 
   return `<div class="sig-panel">
@@ -462,7 +471,7 @@ async function load(retry=0) {
     </div>`;
 
   const funds = d.funds || [];
-  const reducible = funds.filter(f => f.ok && [3,4,5].includes(f.rule)).sort((a,b)=>b.clip-a.clip);
+  const reducible = funds.filter(f => f.ok && [7,3,4,5].includes(f.rule)).sort((a,b)=>b.clip-a.clip);
   const strong    = funds.filter(f => f.ok && f.rule === 1);
   const other     = funds.filter(f => !f.ok || [2,6,0].includes(f.rule));
 
@@ -483,7 +492,7 @@ async function load(retry=0) {
 let LAST = null;
 let SIG_HIST = {};
 let SECTORS = null;
-const RULE_LABEL = {1:'①上升',2:'②深套',3:'③确认下降',4:'④破带',5:'⑤破MA20',6:'⑥观察',0:'数据不足'};
+const RULE_LABEL = {1:'①上升',7:'⑦回前高',2:'②深套',3:'③确认下降',4:'④破带',5:'⑤破MA20',6:'⑥观察',0:'数据不足'};
 
 function openRec() {
   if (!LAST || !LAST.funds) { return; }

@@ -62,11 +62,21 @@ OUTDIR = Path(__file__).resolve().parent
 #   · 强势①(上升趋势)纯持有，base=extra=0（PM 接受 ~60% 惰性，破势后才入清仓钟）。
 DEEP = 0.15               # 深套界：距滚动高 ≤ -DEEP（A6：深套/追踪统一用滚动高）
 RSI_OVERSOLD = 30         # 超卖否决阈
-DEADLINE_FAST = date(2026, 7, 16)   # 可减持(非上升)仓 ~6 周清空（加速）
+DEADLINE_FAST = date(2026, 7, 16)   # 可减持(非上升)仓加速清空的节奏锚点
 DEADLINE_SLOW = date(2026, 8, 31)   # 上升趋势仓 延长清仓（慢速 TWAP，给赢家更多时间）
+# ── 2026-07-06 PM: deadline 软化 + 回前高减仓 ─────────────────────
+# 软化: fast 池周数下限 SOFT_FLOOR_WEEKS → 过期不悬崖到 100%/周, 维持 1/4=25%/周持续出清,
+#       给"回前高"反弹留窗口(前高=数个交易日前的滚动高, 锚新鲜)。
+# 回前高(⑦, 优先于①): 距滚动高回到 -REC_BAND 内 且 近 REC_LOOKBACK 日内曾破势(非上升)
+#       → 减 REC_CLIP/周, 反弹到哪卖到哪; 即使反弹强到重回上升也不转慢池(否则反弹越强越不卖)。
+#       持续上升从未破势者(真赢家)不触发, 仍走延长慢清。
+SOFT_FLOOR_WEEKS = 4
+REC_BAND = 0.03
+REC_CLIP = 0.50
+REC_LOOKBACK = 15
 LEAN_SLOPE = 4.0          # 弱倾斜斜率：回撤 12.5% → lean 触顶
 LEAN_MAX = 0.50           # 弱势最多比 TWAP 快 50%
-NO_LEAN_RULES = {1, 2, 6, 0}   # ①持有/②深套不砸底/⑥观察/⓪数据不足：不前置，只走 base TWAP
+NO_LEAN_RULES = {1, 2, 6, 0, 7}   # ①慢清/②深套不砸底/⑥观察/⓪数据不足/⑦回前高(已是大额)：不前置
 
 # 5.4 追踪止盈带：连续随基金自身波动缩放 trail = clip(1σ·√30d, 5%, 14%)
 TRAIL_Z = 1.0
@@ -145,6 +155,7 @@ LOCKED = {}
 
 ACTION_TEXT = {
     1: "①上升趋势：延长慢清(慢速TWAP)，让赢家多跑",
+    7: "⑦回前高：反弹至前高附近，减仓兑现(清仓窗口)",
     2: "②深套：不加码砸底，仅走周 TWAP 逐步出",
     3: "③确认下降趋势：周 TWAP + 弱倾斜前置",
     4: "④震荡·破追踪带：周 TWAP + 弱倾斜前置",
@@ -303,8 +314,17 @@ def signal_at(nav, weeks_fast, weeks_slow) -> dict:
     day_chg = float(nav.iloc[-1] / nav.iloc[-2] - 1) if n >= 2 else float("nan")
     trend = _trend_label(latest, ma20, ma60)
     oversold = (rsi_v == rsi_v and rsi_v < RSI_OVERSOLD)
-    # 规则引擎（优先级）；深套用 dist_roll（统一滚动高，A6）
-    if trend == "上升":
+    # ⑦回前高前置条件: 近 REC_LOOKBACK 日内曾非上升(破过势)。持续上升的真赢家不触发。
+    ma20s = nav.rolling(MA_SHORT).mean()
+    ma60s = nav.rolling(MA_LONG).mean()
+    recent_break = any(
+        _trend_label(float(nav.iloc[i]), float(ma20s.iloc[i]), float(ma60s.iloc[i])) != "上升"
+        for i in range(max(0, n - REC_LOOKBACK), n)
+    )
+    # 规则引擎（优先级）；深套/回前高用 dist_roll（统一滚动高，A6）
+    if dist_roll == dist_roll and dist_roll >= -REC_BAND and recent_break:
+        rule = 7   # 回前高：反弹至前高附近就卖，优先于①（防反弹强→重回上升→反而转慢池）
+    elif trend == "上升":
         rule = 1
     elif trend == "下降" and dist_roll <= -DEEP:
         rule = 2
@@ -319,8 +339,11 @@ def signal_at(nav, weeks_fast, weeks_slow) -> dict:
     else:
         rule = 6
     # 周频截止日 TWAP：base = 1/剩余周数；extra = 弱倾斜前置（超卖只挡 extra）
-    # 上升趋势①用慢速(延长 deadline)，其余用快速(6周)；都按周频 TWAP 清
-    base = min(1.0, 1.0 / (weeks_slow if rule == 1 else weeks_fast))
+    # ①用慢速(延长 deadline)；⑦回前高固定大额；其余用快速(软化下限见 weeks_fast 调用侧)
+    if rule == 7:
+        base = REC_CLIP
+    else:
+        base = min(1.0, 1.0 / (weeks_slow if rule == 1 else weeks_fast))
     depth = max(0.0, -dist_roll) if dist_roll == dist_roll else 0.0
     lean = 0.0 if rule in NO_LEAN_RULES else min(LEAN_SLOPE * depth, LEAN_MAX)
     extra_vetoed = oversold and lean > 0
@@ -365,7 +388,7 @@ def analyze(name, code, mv, pnl_pct, weeks_fast, weeks_slow) -> FundResult:
 def main():
     # 周频截止日 TWAP：按真实今日到 deadline 的剩余周数定步
     today = datetime.now().date()
-    weeks_fast = weeks_remaining_at(today, DEADLINE_FAST)
+    weeks_fast = max(weeks_remaining_at(today, DEADLINE_FAST), SOFT_FLOOR_WEEKS)  # 软化: 不悬崖到 100%/周
     weeks_slow = weeks_remaining_at(today, DEADLINE_SLOW)
     twap_fast = min(1.0, 1.0 / weeks_fast)
     twap_slow = min(1.0, 1.0 / weeks_slow)
@@ -571,7 +594,8 @@ def write_json(results, path, regime, data_date, cad):
         "params": {"DEEP": DEEP, "rsi_oversold": RSI_OVERSOLD,
                    "trail_formula": f"clip({TRAIL_Z}σ·√{TRAIL_HORIZON_D}d, {TRAIL_FLOOR}, {TRAIL_CAP})",
                    "trend_band": TREND_BAND,
-                   "model": "clip = base(周频TWAP: 上升①用慢速延长 deadline, 其余用快速6周) + extra(弱倾斜前置, 可被RSI<{}否决)".format(RSI_OVERSOLD),
+                   "model": "clip = base(周频TWAP: ①慢速延长/⑦回前高固定{:.0%}/其余快速·软化下限{}周) + extra(弱倾斜前置, 可被RSI<{}否决)".format(REC_CLIP, SOFT_FLOOR_WEEKS, RSI_OVERSOLD),
+                   "recovery": {"band": REC_BAND, "clip": REC_CLIP, "lookback": REC_LOOKBACK},
                    "lean": f"min({LEAN_SLOPE}×回撤, {LEAN_MAX})×base"},
         "account": {
             "total_mv": _num(total_mv),
@@ -589,7 +613,7 @@ def write_json(results, path, regime, data_date, cad):
     os.replace(tmp, path)
 
 
-_RULE_NAME = {1: "①上升持有", 2: "②深套", 3: "③确认下降", 4: "④破追踪带",
+_RULE_NAME = {1: "①上升持有", 7: "⑦回前高", 2: "②深套", 3: "③确认下降", 4: "④破追踪带",
               5: "⑤破MA20", 6: "⑥观察", 0: "数据不足"}
 
 
@@ -652,7 +676,8 @@ def backfill_signal_log(days=60):
         for i in range(start, n):
             d = dates.iloc[i].strftime("%Y-%m-%d")
             d_i = dates.iloc[i].date()
-            s = signal_at(nav.iloc[:i + 1], weeks_remaining_at(d_i, DEADLINE_FAST),
+            s = signal_at(nav.iloc[:i + 1],
+                          max(weeks_remaining_at(d_i, DEADLINE_FAST), SOFT_FLOOR_WEEKS),
                           weeks_remaining_at(d_i, DEADLINE_SLOW))
             merged[(d, code)] = {
                 "date": d, "code": code, "name": name,
