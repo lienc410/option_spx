@@ -275,6 +275,11 @@ def _send_collector_alert_telegram(symbol: str, log: logging.Logger) -> None:
     """Push Telegram alert when an index symbol's chain fails all retries."""
     import os as _os
     import requests as _req
+    # SPEC-130 host guard — 遗留直连 sender 也必须 deny-by-default
+    from notify.event_push import push_enabled
+    if not push_enabled():
+        log.info("collector alert suppressed: SPX_PUSH_ENABLE != 1 (SPEC-130)")
+        return
     token = _os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
     chat_id = _os.getenv("TELEGRAM_CHAT_ID", "").strip()
     if not token or not chat_id:

@@ -182,6 +182,11 @@ def _telegram_creds() -> tuple[str, str]:
 
 
 def _send_telegram(text: str, log: logging.Logger) -> bool:
+    # SPEC-130 host guard — 遗留直连 sender 也必须 deny-by-default
+    from notify.event_push import push_enabled
+    if not push_enabled():
+        log.info("chain sanity alert suppressed: SPX_PUSH_ENABLE != 1 (SPEC-130)")
+        return False
     token, chat_id = _telegram_creds()
     if not token or not chat_id:
         log.warning("telegram credentials missing; skip send")

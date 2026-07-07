@@ -2,47 +2,75 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key>
-  <string>com.spxstrat.q041_chain_sanity</string>
-
-  <key>ProgramArguments</key>
-  <array>
-    <string>/Users/macbook/SPX_strat/venv/bin/python</string>
-    <string>-m</string>
-    <string>research.q041.daily_chain_sanity</string>
-  </array>
-
-  <key>WorkingDirectory</key>
-  <string>/Users/macbook/SPX_strat</string>
-
-  <!-- 16:45 ET Mon-Fri: 5 separate dicts (launchd requires one per weekday) -->
-  <key>StartCalendarInterval</key>
-  <array>
-    <dict><key>Hour</key><integer>16</integer><key>Minute</key><integer>45</integer><key>Weekday</key><integer>1</integer></dict>
-    <dict><key>Hour</key><integer>16</integer><key>Minute</key><integer>45</integer><key>Weekday</key><integer>2</integer></dict>
-    <dict><key>Hour</key><integer>16</integer><key>Minute</key><integer>45</integer><key>Weekday</key><integer>3</integer></dict>
-    <dict><key>Hour</key><integer>16</integer><key>Minute</key><integer>45</integer><key>Weekday</key><integer>4</integer></dict>
-    <dict><key>Hour</key><integer>16</integer><key>Minute</key><integer>45</integer><key>Weekday</key><integer>5</integer></dict>
-  </array>
-
-  <key>RunAtLoad</key>
-  <false/>
-
-  <key>KeepAlive</key>
-  <false/>
-
-  <key>StandardOutPath</key>
-  <string>/Users/macbook/SPX_strat/logs/q041_chain_sanity.out.log</string>
-
-  <key>StandardErrorPath</key>
-  <string>/Users/macbook/SPX_strat/logs/q041_chain_sanity.err.log</string>
-
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>PATH</key>
-    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
-    <key>HOME</key>
-    <string>/Users/macbook</string>
-  </dict>
+	<key>Label</key>
+	<string>com.spxstrat.q041_chain_sanity</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/macbook/SPX_strat/venv/bin/python</string>
+		<string>-m</string>
+		<string>research.q041.daily_chain_sanity</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/macbook/SPX_strat</string>
+	<key>StartCalendarInterval</key>
+	<array>
+		<dict>
+			<key>Hour</key>
+			<integer>16</integer>
+			<key>Minute</key>
+			<integer>45</integer>
+			<key>Weekday</key>
+			<integer>1</integer>
+		</dict>
+		<dict>
+			<key>Hour</key>
+			<integer>16</integer>
+			<key>Minute</key>
+			<integer>45</integer>
+			<key>Weekday</key>
+			<integer>2</integer>
+		</dict>
+		<dict>
+			<key>Hour</key>
+			<integer>16</integer>
+			<key>Minute</key>
+			<integer>45</integer>
+			<key>Weekday</key>
+			<integer>3</integer>
+		</dict>
+		<dict>
+			<key>Hour</key>
+			<integer>16</integer>
+			<key>Minute</key>
+			<integer>45</integer>
+			<key>Weekday</key>
+			<integer>4</integer>
+		</dict>
+		<dict>
+			<key>Hour</key>
+			<integer>16</integer>
+			<key>Minute</key>
+			<integer>45</integer>
+			<key>Weekday</key>
+			<integer>5</integer>
+		</dict>
+	</array>
+	<key>RunAtLoad</key>
+	<false/>
+	<key>KeepAlive</key>
+	<false/>
+	<key>StandardOutPath</key>
+	<string>/Users/macbook/SPX_strat/logs/q041_chain_sanity.out.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/macbook/SPX_strat/logs/q041_chain_sanity.err.log</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<key>HOME</key>
+		<string>/Users/macbook</string>
+		<key>SPX_PUSH_ENABLE</key>
+		<string>1</string>
+	</dict>
 </dict>
 </plist>

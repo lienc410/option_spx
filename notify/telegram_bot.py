@@ -811,9 +811,17 @@ async def _safe_send(bot: Bot, chat_id: str, text: str, **kwargs) -> bool:
     Try HTML; on BadRequest (parse failure) resend as plain text — delivery
     beats formatting. Outcomes feed logs/push_stats.json via event_push so the
     heartbeat surfaces failures. Interactive command replies keep their direct
-    reply_* calls (a user watching the chat sees those fail)."""
+    reply_* calls (a user watching the chat sees those fail).
+
+    SPEC-130: host guard first — same deny-by-default as event_push._send.
+    Unattended bot sends only fire on hosts whose launchd plist declares
+    SPX_PUSH_ENABLE=1 (oldair production); everywhere else they go dark."""
     from telegram.error import BadRequest
-    from notify.event_push import _record_push
+    from notify.event_push import PUSH_ENABLE_ENV, _record_push, push_enabled
+    if not push_enabled():
+        log.info("telegram_bot: %s != 1 — unattended send suppressed "
+                 "(SPEC-130 host guard)", PUSH_ENABLE_ENV)
+        return False
     try:
         await bot.send_message(chat_id=chat_id, text=text,
                                parse_mode=ParseMode.HTML, **kwargs)

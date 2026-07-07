@@ -26,6 +26,25 @@ _TELEGRAM_API = "https://api.telegram.org/bot{token}/sendMessage"
 
 PUSH_STATS = Path(__file__).resolve().parents[1] / "logs" / "push_stats.json"
 
+# SPEC-130 — 主机 guard 环境变量。仅 oldair 生产 launchd plists 设置为 "1"；
+# 其它任何机器（dev 机、CI、误跑的脚本）deny-by-default 哑火。
+PUSH_ENABLE_ENV = "SPX_PUSH_ENABLE"
+
+
+def push_enabled() -> bool:
+    """SPEC-130 (INCIDENT 2026-07-07) — host guard, deny-by-default.
+
+    事故：dev 机 pytest 全量跑经未 mock 的传输层把 ~187+68 条测试夹具推送真
+    发给了 PM（本机 .env 真 token + 运行时 env 读取）。"测试触碰生产资源"
+    第二实例（#1 = ghost ledger rows, 47648fa）——按二次浮面规则升级为结构
+    性修复：凭证在位不再意味着可以发送；只有显式声明为生产推送主机的进程
+    （launchd plist 设 SPX_PUSH_ENABLE=1）才允许触达 Telegram。
+
+    防线独立于任何 .env 止血措施（AC-4）：token 完整在位时本函数仍拦住一切
+    非生产主机的发送。所有 telegram HTTP 出口（event_push._send、
+    telegram_bot._safe_send、遗留直连 sender）都必须先过这里。"""
+    return os.getenv(PUSH_ENABLE_ENV, "") == "1"
+
 
 def _record_push(outcome: str) -> None:
     """H-4: per-day send counters {date: {sent, fallback, failed}} — surfaced
@@ -59,7 +78,16 @@ def _send(text: str, *, disable_notification: bool = False) -> bool:
     TEXT (delivery beats formatting); count every outcome for the heartbeat.
 
     SPEC-126: transport ONLY — new callers go through notify.gateway.push
-    (category/about contract, dedupe, quiet levels)."""
+    (category/about contract, dedupe, quiet levels).
+
+    SPEC-130: host guard FIRST — non-production hosts return False with zero
+    HTTP and zero stats writes (stats live behind the guard so push_stats
+    stays a clean production-delivery ledger)."""
+    if not push_enabled():
+        log.info("event_push: %s != 1 — push suppressed (SPEC-130 host guard, "
+                 "deny-by-default; only oldair production plists enable it)",
+                 PUSH_ENABLE_ENV)
+        return False
     token   = os.getenv("TELEGRAM_BOT_TOKEN", "")
     chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
     if not token or not chat_id:

@@ -40,6 +40,12 @@ def _telegram_creds() -> tuple[str, str]:
 
 def _send_telegram(text: str) -> bool:
     import requests
+    # SPEC-130 host guard — 遗留直连 sender 也必须 deny-by-default
+    # （长期应迁移到 notify.gateway；guard 先封口）
+    from notify.event_push import push_enabled
+    if not push_enabled():
+        log.info("etrade_status_notify: SPX_PUSH_ENABLE != 1 — send suppressed (SPEC-130)")
+        return False
     token, chat_id = _telegram_creds()
     if not token or not chat_id:
         log.warning("TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set — cannot send notification")
