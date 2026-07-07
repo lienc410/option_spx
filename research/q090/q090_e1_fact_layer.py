@@ -137,6 +137,31 @@ def volume_ratio(volume: pd.Series) -> pd.Series:
     return volume / volume.rolling(20).mean()
 
 
+def s2_flag(close: pd.Series, volume: pd.Series, consecutive: int = 2,
+            threshold: float = 0.85) -> pd.Series:
+    """S2 缩量上涨日 — E1 菜单构造原文（up-day streak & vol_ratio < th）。
+    SPEC-132.1 成交量副窗格着色与研究菜单共用本函数（winner = d2_v85）。"""
+    vr = volume_ratio(volume)
+    up1 = close > close.shift(1)
+    upm = up1 if consecutive == 1 else (up1 & up1.shift(1).fillna(False))
+    return (upm & (vr < threshold)).fillna(False)
+
+
+def trendline_anchors_at(t: int, hi_idx: np.ndarray, hi_vals: np.ndarray,
+                         n_highs: int, k: int = K, look: int = LOOK) -> list[int] | None:
+    """Descriptive companion (SPEC-132.1 chart) — trendline_state_at 所用的
+    锚点 swing-high 下标序列（严格递减成立时返回，否则 None）；选取逻辑与
+    谓词逐字一致。flag 本身仍由 trendline_state_at 判定。"""
+    usable = hi_idx[(hi_idx + k <= t) & (hi_idx >= t - look)]
+    if len(usable) < n_highs:
+        return None
+    last = usable[-n_highs:]
+    v = hi_vals[last]
+    if not all(v[j] > v[j + 1] for j in range(len(v) - 1)):
+        return None
+    return [int(i) for i in last]
+
+
 def build_signal_menu(df: pd.DataFrame, k: int = K, look: int = LOOK) -> dict[str, pd.Series]:
     """The full pre-registered E1 cutpoint menu over an OHLCV frame."""
     hi = df["high"].to_numpy()
@@ -145,9 +170,6 @@ def build_signal_menu(df: pd.DataFrame, k: int = K, look: int = LOOK) -> dict[st
     swing_hi, swing_lo = find_swing_pivots(hi, lo, k=k)
     hi_idx = np.where(swing_hi)[0]
     lo_idx = np.where(swing_lo)[0]
-    vol_ratio = volume_ratio(df["volume"])
-    up1 = df["close"] > df["close"].shift(1)
-    up2 = up1 & up1.shift(1).fillna(False)
 
     sigs: dict[str, pd.Series] = {}
     for band in (0.003, 0.005):
@@ -156,9 +178,10 @@ def build_signal_menu(df: pd.DataFrame, k: int = K, look: int = LOOK) -> dict[st
                 tag = f"b{int(band*1e3)}_t{touches}_p{int(prox*1e3)}"
                 sigs[f"S1r_{tag}"] = cluster_flag(hi_idx, hi, cl, df.index, band, touches, prox, "r", k=k, look=look)
                 sigs[f"S1s_{tag}"] = cluster_flag(lo_idx, lo, cl, df.index, band, touches, prox, "s", k=k, look=look)
-    for d_tag, upm in (("d1", up1), ("d2", up2)):
+    for d_tag, consecutive in (("d1", 1), ("d2", 2)):
         for th in (0.85, 0.95):
-            sigs[f"S2_{d_tag}_v{int(th*100)}"] = (upm & (vol_ratio < th)).fillna(False)
+            sigs[f"S2_{d_tag}_v{int(th*100)}"] = s2_flag(df["close"], df["volume"],
+                                                         consecutive=consecutive, threshold=th)
     for nh in (2, 3):
         for prox in (0.005, 0.01):
             sigs[f"S4_n{nh}_p{int(prox*1e3)}"] = trendline_flag(hi_idx, hi, cl, df.index, nh, prox, k=k, look=look)
