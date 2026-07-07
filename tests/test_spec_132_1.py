@@ -208,16 +208,30 @@ class NoCdnTests(unittest.TestCase):
         self.assertIn("Lightweight Charts", head)
         self.assertTrue((ROOT / "web" / "static" / "lightweight-charts.LICENSE").exists())
 
-    def test_template_has_zero_external_script_srcs(self) -> None:
-        """AC 零 CDN/外域：spx.html 所有 <script src> 一律走本地 static。"""
-        srcs = re.findall(r'<script[^>]+src="([^"]+)"', SPX_HTML)
-        self.assertGreater(len(srcs), 0)
-        for s in srcs:
-            self.assertIn("url_for('static'", s,
-                          f"external script src forbidden: {s}")
-        for cdn in ("unpkg.com", "jsdelivr", "cdnjs", "skypack", "esm.sh",
-                    "cdn.tradingview", "lightweight-charts@"):
-            self.assertNotIn(cdn, SPX_HTML)
+    def test_chartjs_trio_vendored_with_licenses(self) -> None:
+        """SPEC-134: Chart.js 三件套按 pinned 版本 vendor + LICENSE 随附。"""
+        vendor = ROOT / "web" / "static" / "vendor"
+        for f in ("chart-4.4.0.umd.min.js",
+                  "chartjs-plugin-zoom-2.0.1.min.js",
+                  "chartjs-adapter-date-fns-3.0.0.bundle.min.js",
+                  "chart.js.LICENSE", "chartjs-plugin-zoom.LICENSE",
+                  "chartjs-adapter-date-fns.LICENSE"):
+            self.assertTrue((vendor / f).exists(), f"missing vendored file: {f}")
+
+    def test_all_templates_zero_external_script_srcs(self) -> None:
+        """SPEC-134（升级 132.1 断言为全模板范围）：所有模板的 <script src>
+        一律走本地 static；任何模板出现 CDN token 即 fail。"""
+        templates = sorted((ROOT / "web" / "templates").glob("*.html"))
+        self.assertGreater(len(templates), 10)
+        for tpl in templates:
+            text = tpl.read_text(encoding="utf-8")
+            for s in re.findall(r'<script[^>]+src="([^"]+)"', text):
+                self.assertIn("url_for('static'", s,
+                              f"{tpl.name}: external script src forbidden: {s}")
+            for cdn in ("unpkg.com", "jsdelivr", "cdnjs", "skypack", "esm.sh",
+                        "cdn.tradingview", "lightweight-charts@", "chart.js@",
+                        "chartjs-plugin-zoom@", "chartjs-adapter-date-fns@"):
+                self.assertNotIn(cdn, text, f"{tpl.name}: CDN token {cdn}")
 
 
 class UiWiringTests(unittest.TestCase):
