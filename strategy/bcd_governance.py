@@ -82,6 +82,14 @@ def pm_clear(note: str) -> None:
 
 
 # ── ledger readers ────────────────────────────────────────────────────────────
+#
+# SPEC-127 §1 记账衔接（状态机注释，防歧义）：D1 “最近 6 笔实现”（G1）的计数
+# 单位 = cycle 实现事件。每次 roll 的短腿平仓是一个真实决策点，atomic roll 流程
+# 会向 closed_trades.jsonl 追加一行 cycle 行（cycle_event=True, close_reason=
+# "roll", realized_pnl = roll 净 credit×100×contracts）——该行与整仓平仓行一样
+# 进入 _realized_rows()，参与 G1/G2/G4 求和。mark 类门天然兼容：roll 后
+# record_daily_marks 只标记新结构（entry + value），已入袋的 roll 收入由 cycle
+# 行承载，家族求和（realized + marked）保持恒等，不重复计。
 
 def _realized_rows() -> list[dict]:
     rows = []
@@ -138,8 +146,12 @@ def record_daily_marks(calls, date_str: str) -> list[dict]:
             contracts = float(o.get("contracts") or 1)
         except (TypeError, ValueError):
             continue
+        # SPEC-127 §2: after a roll the CURRENT short leg lives in the last
+        # roll event's new_short — the open event keeps the original short.
+        from strategy.campaign import current_short_leg
+        cur_short = current_short_leg(pos)
         lng = _leg_quote(calls, o.get("long_expiry") or o.get("expiry"), o.get("long_strike"))
-        sht = _leg_quote(calls, o.get("expiry"), o.get("short_strike"))
+        sht = _leg_quote(calls, cur_short.get("expiry"), cur_short.get("strike"))
         if lng is None or sht is None:
             out.append({"date": date_str, "trade_id": pos["id"], "error": "legs_not_in_chain"})
             continue
@@ -354,6 +366,119 @@ def first5_advisory() -> str | None:
     return f"解锁后首 {FIRST_TRADES_ONE_LOT} 笔 1 张锁定（当前 {k}/{FIRST_TRADES_ONE_LOT}）"
 
 
+# ── SPEC-127 §4 — H-5 短腿动作引擎（21-DTE + collapse 双触发） ────────────────
+#
+# H-5 根因：BCD catalog 写明 “Close the entire position when the short leg
+# reaches 21 DTE”，但动作从未接进任何 daily 驱动——生产仓位曾 11 DTE 仍 HOLD。
+# 本引擎每日（16:50 q085 job 内）对每个 open BCD 仓位评估两个机械触发：
+#   1. 短腿 ≤ 21 DTE
+#   2. 短腿残值 ≤ 15% 该短腿入场权利金（collapse buyback，Q089 幸存项，
+#      PM ratify 2026-07-06；仓位状态触发非择时——roll 即同时平旧开新，
+#      不留等待裁量）
+# 触发 → gateway ACTION “CLOSE 或 ROLL”，附链上建议新短腿（45 DTE |Δ|0.30，
+# 与 SPEC-122 shadow 同款腿）。roll 后短腿 expiry 更新 → DTE 时钟按新短腿重置，
+# dedupe key 随 expiry 变化自动重新武装。
+
+SHORT_ACTION_DTE = 21
+COLLAPSE_RESIDUAL_FRAC = 0.15
+
+
+def _suggest_new_short(calls) -> dict | None:
+    """链上建议新短腿：45 DTE |Δ|0.30（复用 SPEC-122 shadow 的选腿器）。"""
+    if calls is None or not len(calls):
+        return None
+    try:
+        from notify.q087_bcd_quote_shadow import (
+            SHORT_DELTA_TARGET, SHORT_DTE_TARGET, _pick_leg)
+        row = _pick_leg(calls, SHORT_DTE_TARGET, SHORT_DELTA_TARGET)
+        if row is None:
+            return None
+        return {
+            "strike": float(row.strike),
+            "expiry": str(row.expiry),
+            "dte": int(row.dte),
+            "delta": round(float(row.delta), 3),
+            "bid": float(row.bid),
+            "mid": float(row.mid),
+        }
+    except Exception:
+        log.exception("bcd new-short suggestion failed")
+        return None
+
+
+def evaluate_short_leg_actions(today: str, calls=None) -> list[dict]:
+    """Returns one action dict per triggered open BCD position (empty =
+    nothing to do). Pure evaluation — pushing happens in daily_update."""
+    from strategy.campaign import current_short_leg
+
+    actions: list[dict] = []
+    suggestion = None
+    for pos in open_bcd_positions():
+        cur = current_short_leg(pos)
+        expiry = cur.get("expiry")
+        if not expiry:
+            continue
+        try:
+            short_dte = (date.fromisoformat(str(expiry)[:10])
+                         - date.fromisoformat(today)).days
+        except ValueError:
+            continue
+        triggers: list[str] = []
+        if short_dte <= SHORT_ACTION_DTE:
+            triggers.append(f"短腿 {short_dte} DTE ≤ {SHORT_ACTION_DTE}")
+        residual = None
+        entry_credit = cur.get("entry_price")
+        if calls is not None and len(calls) and cur.get("strike") is not None:
+            q = _leg_quote(calls, expiry, cur["strike"])
+            if q is not None:
+                residual = float(q.mid)
+        if (residual is not None and entry_credit
+                and residual <= COLLAPSE_RESIDUAL_FRAC * float(entry_credit)):
+            triggers.append(
+                f"短腿残值 {residual:.2f} ≤ {COLLAPSE_RESIDUAL_FRAC:.0%} × 入场权利金 "
+                f"{float(entry_credit):.2f}（collapse buyback）")
+        if not triggers:
+            continue
+        if suggestion is None:
+            suggestion = _suggest_new_short(calls)
+        actions.append({
+            "trade_id": pos["id"],
+            "short_strike": cur.get("strike"),
+            "short_expiry": expiry,
+            "short_dte": short_dte,
+            "residual_mid": residual,
+            "short_entry_price": entry_credit,
+            "triggers": triggers,
+            "suggested_new_short": suggestion,
+        })
+    return actions
+
+
+def _fmt_strike(v) -> str:
+    try:
+        return f"{float(v):g}"
+    except (TypeError, ValueError):
+        return "?"
+
+
+def _action_message(a: dict) -> str:
+    lines = [
+        f"短腿 C{_fmt_strike(a['short_strike'])} exp {a['short_expiry']}（{a['short_dte']} DTE）",
+        "触发: " + "；".join(a["triggers"]),
+        "机械规则动作: CLOSE 或 ROLL（二选一，今日执行）",
+    ]
+    s = a.get("suggested_new_short")
+    if s:
+        lines.append(
+            f"建议新短腿（45 DTE |Δ|0.30 同 shadow 款）: C{_fmt_strike(s['strike'])} "
+            f"exp {s['expiry']}（{s['dte']} DTE, Δ{s['delta']:+.2f}, "
+            f"bid {s['bid']:.2f} / mid {s['mid']:.2f}）")
+    else:
+        lines.append("建议新短腿: 链上数据不可用，按 45 DTE |Δ|0.30 手动选腿")
+    lines.append("Roll 登记: /spx 持仓卡 Roll 按钮；roll 后 21-DTE 时钟按新短腿重置")
+    return "\n".join(lines)
+
+
 # ── daily driver (runs inside the q085 16:50 job) ─────────────────────────────
 
 def daily_update(today: str, calls=None, regime: str | None = None,
@@ -363,14 +488,16 @@ def daily_update(today: str, calls=None, regime: str | None = None,
     ran_marker.parent.mkdir(parents=True, exist_ok=True)
     ran_marker.touch()
 
-    def push(msg: str, category: str = "ACTION") -> None:
+    def push(msg: str, category: str = "ACTION", *, about: str = "系统状态",
+             title: str = "", dedupe_key: str | None = None) -> None:
         # SPEC-126: halt / pre-registered review = ACTION (PM 复审动作)，
-        # quote-gate unlock = FYI (静默)。about 固定 系统状态。
+        # quote-gate unlock = FYI (静默)。治理类 about 固定 系统状态；
+        # SPEC-127 §4 短腿动作 about = 持仓 <trade_id>。
         summary.setdefault("pushes", []).append(msg)
         if not dry_run:
             try:
                 from notify.gateway import push as gw_push
-                gw_push(category, "系统状态", "", msg)
+                gw_push(category, about, title, msg, dedupe_key=dedupe_key)
             except Exception:
                 log.exception("bcd governance push failed")
 
@@ -381,13 +508,27 @@ def daily_update(today: str, calls=None, regime: str | None = None,
         log.exception("bcd marks failed")
         summary["marks_error"] = str(exc)
 
+    # 1.5 SPEC-127 §4 (H-5) — 短腿 21-DTE / collapse 双触发 → CLOSE 或 ROLL
+    try:
+        actions = evaluate_short_leg_actions(today, calls)
+        summary["short_leg_actions"] = actions
+        for a in actions:
+            push(_action_message(a), category="ACTION",
+                 about=f"持仓 {a['trade_id']}",
+                 title="BCD 短腿到期管理 — CLOSE 或 ROLL",
+                 dedupe_key=f"bcd_short_action:{a['trade_id']}:{a['short_expiry']}")
+    except Exception as exc:
+        log.exception("bcd short-leg action evaluation failed")
+        summary["short_leg_actions_error"] = str(exc)
+
     # 2. first-realized-close trigger (pre-registered review)
     st = read_state()
     n_realized = len(_realized_rows())
     if n_realized > int(st.get("realized_seen", 0)):
         st["realized_seen"] = n_realized
         _write_state(st)
-        push(f"[BCD 治理] 预注册复审触发：BCD 平仓落 ledger（累计 {n_realized} 笔实现）。"
+        push(f"[BCD 治理] 预注册复审触发：BCD 实现事件落 ledger（累计 {n_realized} 笔——"
+             "SPEC-127 口径：整仓平仓与 roll 短腿周期各计一笔）。"
              "请 PM+Quant 按 D1 预注册流程复审。")
 
     # 3. D1 gates
