@@ -1629,7 +1629,8 @@ def build_preclose_digest() -> tuple[str, str, str]:
         if rec.strategy_key == "reduce_wait":
             verdict = f"NO ENTRY（{_h(rec.canonical_strategy or 'Reduce / Wait')}）"
         else:
-            verdict = f"OPEN 候选 · {_h(rec.strategy)}"
+            _sname = getattr(rec.strategy, "value", str(rec.strategy))
+            verdict = f"OPEN 候选 · {_h(_sname)}"
             actionable = True
         lines.append(f"<b>今日新仓裁决</b>：{verdict}")
     except Exception as exc:
@@ -1651,8 +1652,9 @@ def build_preclose_digest() -> tuple[str, str, str]:
                             actionable = True
                     except ValueError:
                         pass
+                _sk = p.get("strategy_key") or p.get("strategy") or "?"
                 lines.append(f"  · 持仓 {_h(p.get('trade_id', '?'))}"
-                             f"（{_h(p.get('strategy_key', '?'))}{dte}）")
+                             f"（{_h(_sk)}{dte}）")
         else:
             lines.append("  · 无持仓")
     except Exception:
