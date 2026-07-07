@@ -19,3 +19,7 @@
 ## H-4 推送发送失败静默（PM review 发现，与 H-1 同级加急）
 
 7/6 16:50 event_push 吃 Telegram 400（"can't parse entities: Unsupported start tag"——消息含非法 HTML），**无重试、无降级、无失败感知**。若失败的是 credit stop TRIGGER 即事故。立即修：(a) 定位并修复该消息的 HTML 构造；(b) 所有发送点加"parse 失败→重发纯文本"降级 + 一次重试；(c) 发送成功/失败计数落盘，heartbeat 注册表加当日发送健康断言。网关级根治见 SPEC-126（本项不等它）。
+
+## H-5 BCD 持仓动作引擎未执行自身 21-DTE 规则（PM 交易讨论中发现）
+
+House 纪律（catalog BCD roll_rule_text）："短腿 21 DTE 时全平"。PM 的 6/3 diagonal 短腿 7/17 到期，21 DTE ≈ 6/26 已过 **~7 个交易日**，今日短腿仅 11 DTE、残值 $2.08/share——系统今天仍推 **HOLD**。疑似根因：ledger/state 单一 expiry 字段（记的短腿）或持仓动作逻辑未实现 diagonal 的 21-DTE 全平判定（只实现了 ±50%/60% 止损止盈）。请核实 HOLD/CLOSE 判定实际评估哪些条件，补 21-DTE 规则 + 回归测试（构造 dte≤21 的 diagonal 断言输出 CLOSE）。
