@@ -15,3 +15,7 @@
 ## 随附：BCD 首批实现流水复审记录（预注册触发器，quant 侧已完成）
 
 2 笔实现 **+$2,900/张（+7.1% of debit）**，来自 6/5 SPEC-060 格手动仓（注：exit_reason 下拉记为 60pct_profit，实际 +7%——建议下拉词表补 manual/discretionary 项）。降级四门无一触发（实现和为正）；对 D1/D2 无影响；作为 BCD 结构在当前时代的首个真实数据点记录在案。下一批实现流水：6/3 两笔 carve 仓 2026-07-17 到期。
+
+## H-4 推送发送失败静默（PM review 发现，与 H-1 同级加急）
+
+7/6 16:50 event_push 吃 Telegram 400（"can't parse entities: Unsupported start tag"——消息含非法 HTML），**无重试、无降级、无失败感知**。若失败的是 credit stop TRIGGER 即事故。立即修：(a) 定位并修复该消息的 HTML 构造；(b) 所有发送点加"parse 失败→重发纯文本"降级 + 一次重试；(c) 发送成功/失败计数落盘，heartbeat 注册表加当日发送健康断言。网关级根治见 SPEC-126（本项不等它）。
