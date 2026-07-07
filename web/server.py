@@ -5376,6 +5376,26 @@ def api_position_open():
     account = str(body.get("account") or "schwab").strip().lower()
     add_tranche = bool(body.get("add_tranche", False))
     pm_override = bool(body.get("pm_override", False))
+
+    # SPEC-129 §2 — 偏离当日推荐的字段（前端预填基线 vs 实际提交值）。
+    # 结构化落 ledger open 事件 + note 追加 "deviated: field=actual (rec v)"。
+    # 5 月实证：长腿三笔全买太远（δ0.09-0.12 vs 0.15）——默认值锚定 + 偏离
+    # 留痕专治单向 drift。提示不拦：偏离不阻塞提交。
+    deviations: list[dict] = []
+    note_text = str(body.get("note", "") or "")
+    raw_devs = body.get("deviations")
+    if isinstance(raw_devs, list):
+        for d in raw_devs:
+            if not isinstance(d, dict):
+                continue
+            f = str(d.get("field") or "").strip()
+            if not f:
+                continue
+            deviations.append({"field": f, "actual": d.get("actual"), "rec": d.get("rec")})
+        if deviations:
+            dev_text = "; ".join(
+                f"deviated: {d['field']}={d['actual']} (rec {d['rec']})" for d in deviations)
+            note_text = f"{note_text} | {dev_text}" if note_text else dev_text
     try:
         from strategy.sleeve_governance import evaluate_candidate, log_decision, maybe_alert_decision
 
@@ -5526,7 +5546,9 @@ def api_position_open():
             "iv_signal": body.get("iv_signal"),
             "trend_signal": body.get("trend_signal"),
             "paper_trade": paper_trade,
-            "note": body.get("note", ""),
+            "note": note_text,
+            # SPEC-129 §2: 结构化偏离记录（有偏离时才带字段）
+            **({"deviations": deviations} if deviations else {}),
         })
 
     # Async Telegram push — mirrors bot /entered flow
@@ -5577,10 +5599,18 @@ def _manual_open_governance_advisory(strategy_key: str, body: dict, trade_id: st
             rec = get_recommendation(use_intraday=False)
             routed = rec.strategy_key
             regime_val = getattr(rec.vix_snapshot.regime, "value", str(rec.vix_snapshot.regime))
+            # SPEC-129 §1 — 附上生产 selector 的 reason 文本（BPS 复审 F1：
+            # PM 把 IVP 55 当退出信号用，说明不知道它是入场否决门。原因文本
+            # 是教学面——"路由为 wait" 不够，要说为什么）。
+            reason = str(getattr(rec, "rationale", "") or "").strip()
             if routed == "reduce_wait":
                 notes.append("本单所在格当前路由为 wait（含 SPEC-060 类死格）")
+                if reason:
+                    notes.append(f"Selector 原因: {reason}")
             elif routed != strategy_key:
                 notes.append(f"本单策略与当前格路由不符（路由={routed}）")
+                if reason:
+                    notes.append(f"Selector 原因: {reason}")
             if strategy_key == "bull_call_diagonal" and regime_val == "LOW_VOL":
                 from strategy.bcd_governance import quote_gate_status
                 qg = quote_gate_status()
@@ -5595,6 +5625,107 @@ def _manual_open_governance_advisory(strategy_key: str, body: dict, trade_id: st
                     "本单在治理口径外：\n" + "\n".join(f"  · {n}" for n in notes))
     except Exception:
         pass
+
+
+def _strategy_family(strategy_key: str) -> str:
+    """SPEC-129 §3 — 并发风险的家族口径：同策略含 _hv 变体（bull_put_spread 与
+    bull_put_spread_hv 同家族；BCD 家族 = bull_call_diagonal，同 SPEC-123 用法）。"""
+    k = str(strategy_key or "").strip().lower()
+    return k[:-3] if k.endswith("_hv") else k
+
+
+def _order_max_loss_usd(strategy_key: str, short_strike, long_strike, premium, contracts) -> float | None:
+    """本单 max loss $（今日尺度绝对值）。credit 结构 = (width−credit)×100×n；
+    debit 结构 = |debit|×100×n。公式复用 _estimate_bp_per_contract（PM BP
+    校准结论：spread BP ≈ max loss）——服务端是公式唯一真值，前端镜像。"""
+    per_contract = _estimate_bp_per_contract(strategy_key, short_strike, long_strike, premium)
+    n = _num(contracts)
+    if per_contract is None or not n or n <= 0:
+        return None
+    return round(per_contract * n, 2)
+
+
+@app.route("/api/position/entry-risk")
+def api_position_entry_risk():
+    """SPEC-129 §3 — entry 表单风险行数据（提示不拦）：
+
+      order_max_loss_usd              本单 max loss $（带齐 order 参数时）
+      family_open_max_loss_usd        现有 open 同家族仓位 max loss 合计
+      family_concurrent_max_loss_usd  本单 + 家族合计
+      liquid_cash_usd / cash_source   get_current_liquid_cash()；不可用 → null + fail-soft
+      concurrent_pct_of_cash          并发 max loss 占流动现金 %
+
+    5 月实证：5/14 单日加 $154k、5/14+5/15 并发 ~$197k，当时无人看见这个数。"""
+    from strategy.state import read_all_positions
+
+    strategy_key = str(flask_req.args.get("strategy_key", "")).strip().lower()
+    if not strategy_key:
+        return jsonify({"error": "strategy_key is required"}), 400
+    family = _strategy_family(strategy_key)
+
+    order_max_loss = _order_max_loss_usd(
+        strategy_key,
+        flask_req.args.get("short_strike"),
+        flask_req.args.get("long_strike"),
+        flask_req.args.get("premium"),
+        flask_req.args.get("contracts") or 1,
+    )
+
+    family_positions: list[dict] = []
+    family_open = 0.0
+    try:
+        for p in ((read_all_positions() or {}).get("positions") or []):
+            p_key = str(p.get("strategy_key") or "").strip().lower()
+            if _strategy_family(p_key) != family:
+                continue
+            ml = _order_max_loss_usd(
+                p_key, p.get("short_strike"), p.get("long_strike"),
+                p.get("actual_premium") or p.get("model_premium"),
+                p.get("contracts") or 1,
+            )
+            if ml is None:
+                continue
+            family_open += ml
+            family_positions.append({
+                "trade_id": p.get("trade_id"),
+                "account": p.get("account"),
+                "strategy_key": p_key,
+                "max_loss_usd": ml,
+            })
+    except Exception as exc:
+        app.logger.warning("entry-risk: family positions unavailable: %s", exc)
+
+    liquid_cash = None
+    cash_source = "unavailable"
+    try:
+        from strategy.cash_budget_governance import get_current_liquid_cash
+        cash = get_current_liquid_cash()
+        cash_source = str(cash.get("source") or "unavailable")
+        if cash_source != "unavailable":
+            liquid_cash = round(float(cash.get("total") or 0.0), 2)
+    except Exception as exc:
+        app.logger.warning("entry-risk: liquid cash unavailable: %s", exc)
+
+    concurrent = round(order_max_loss + family_open, 2) if order_max_loss is not None else None
+    pct = None
+    if concurrent is not None and liquid_cash and liquid_cash > 0:
+        pct = round(concurrent / liquid_cash * 100.0, 2)
+
+    payload = {
+        "strategy_key": strategy_key,
+        "family": family,
+        "order_max_loss_usd": order_max_loss,
+        "family_open_max_loss_usd": round(family_open, 2),
+        "family_open_positions": family_positions,
+        "family_concurrent_max_loss_usd": concurrent,
+        "liquid_cash_usd": liquid_cash,
+        "cash_source": cash_source,
+        "concurrent_pct_of_cash": pct,
+    }
+    # NaN/Inf 禁入浏览器 JSON（strict-JSON AC）
+    from strategy.campaign import _assert_finite
+    _assert_finite(payload, "entry_risk")
+    return jsonify(payload)
 
 
 @app.route("/api/position/open-draft")
