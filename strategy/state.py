@@ -226,6 +226,16 @@ def read_all_positions() -> Optional[dict]:
         return None
     if "positions" in data:
         _normalise(data)
+        # Positions written before per-leg strategy_key stamping carry only
+        # the envelope-level key. Readers that filter on the per-position key
+        # (cash_budget_governance debit total, portfolio_surface BP proxy)
+        # silently skip such legs — 2026-07-06 the debit budget read $0 with
+        # $76.6k BCD debit open. Fill down from the envelope.
+        env_sk = data.get("strategy_key")
+        if env_sk:
+            for p in data.get("positions") or []:
+                if isinstance(p, dict) and not p.get("strategy_key"):
+                    p["strategy_key"] = env_sk
         return data
     # Wrap old format
     pos_fields = {k: v for k, v in data.items() if k not in _META_KEYS}

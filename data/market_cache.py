@@ -3,9 +3,10 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -55,6 +56,40 @@ def _is_fresh(path: Path, interval: str) -> bool:
     return age <= _policy_for_interval(interval).ttl
 
 
+def _expected_last_daily_bar() -> "datetime.date":
+    """Most recent US session date whose daily bar should exist by now (ET).
+
+    Before ~17:00 ET the current session's bar may not be published yet, so
+    expect the prior weekday. Holidays aren't modeled — on a holiday this
+    expects a bar that doesn't exist, which just forces one refetch per TTL
+    window (fetch failure falls back to the stale frame, so it's harmless).
+    """
+    now = datetime.now(ZoneInfo("America/New_York"))
+    d = now.date()
+    if now.hour < 17:
+        d -= timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return d
+
+
+def _content_stale(df: pd.DataFrame, interval: str) -> bool:
+    """Wall-clock TTL alone is not enough for daily bars: a pre-market fetch
+    (e.g. 08:14 ET) caches a frame whose last row is the PRIOR session, and
+    an 18h TTL then serves that prior close as "fresh" for the entire trading
+    day — 2026-07-06 the recommendation engine quoted SPX 7,483 (7/02 close)
+    all evening while the market closed at 7,537. For 1d frames, also require
+    the last bar to be the most recent expected session.
+    """
+    if interval != "1d" or df.empty:
+        return False
+    try:
+        last = pd.Timestamp(df.index[-1]).date()
+    except Exception:
+        return False
+    return last < _expected_last_daily_bar()
+
+
 def _load_cached_df(path: Path) -> pd.DataFrame | None:
     if not path.exists():
         return None
@@ -86,7 +121,7 @@ def load_or_fetch_history(
     path = _cache_path(source, symbol, period, interval)
     if not _cache_refresh_requested() and _is_fresh(path, interval):
         cached = _load_cached_df(path)
-        if cached is not None:
+        if cached is not None and not _content_stale(cached, interval):
             return cached
 
     stale = None if _cache_refresh_requested() else _load_cached_df(path)

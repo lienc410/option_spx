@@ -1631,8 +1631,11 @@ async function loadSpx() {
     // Subtitle: strategy + legs (only update if rec data is present)
     const legs = (rec.legs || []);
     if (rec.strategy || legs.length > 0) {
+      // Option type from l.option — the structure chips were fixed for CALL
+      // strategies but this subtitle still hard-coded PUT (BCD showed
+      // "BUY PUT / SELL PUT" above CALL chips).
       const legsStr = legs.map(l =>
-        `${l.action} PUT ${l.dte}d Δ${Number(l.delta).toFixed(2)}`
+        `${l.action} ${String(l.option || l.option_type || 'PUT').toUpperCase()} ${l.dte}d Δ${Number(l.delta).toFixed(2)}`
       ).join(' / ');
       document.getElementById('subtitle-spx').textContent =
         (rec.strategy || '') + (legsStr ? ' · ' + legsStr : '');
@@ -1784,17 +1787,20 @@ async function loadSpx() {
         const liveHtml = `
           <div class="pos-item full" style="padding:4px 0;border-top:1px solid var(--border);margin-top:4px">
             <div style="font-family:var(--f-ui);font-size:0.58rem;font-weight:500;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-2);margin-bottom:3px;display:flex;align-items:center;gap:6px">
-              <span>Live Risk (Schwab${live.pricing_source === 'positions_mark' ? ' · mark only' : ''})${live.visible && live.stale ? ' · stale' : ''}</span>
+              <span>Live Risk (${totalContracts}× all accts · Schwab greeks${live.pricing_source === 'positions_mark' ? ' · mark only' : ''})${live.visible && live.stale ? ' · stale' : ''}</span>
               <span onclick="showPosGreekHelp()" style="cursor:pointer;width:14px;height:14px;border-radius:50%;background:var(--theme-lit-006);color:var(--text-2);font-size:0.60rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;line-height:1;user-select:none" title="Position Greeks 解读">?</span>
             </div>
             ${liveStatusNote}
           </div>`;
-        // Max Risk = Σ (spread_width − entry_prem) × contracts × 100
+        // Max Risk: credit spread = |width| − credit; debit structure (BCD:
+        // prem < 0) risks only the debit paid. The old width−prem formula
+        // charged BCD (450+383)×100 = $83.3k/contract vs the true $38.3k.
         const totalMaxRisk = allPositions.reduce((sum, p) => {
-          const width = Number(p.short_strike || 0) - Number(p.long_strike || 0);
+          const width = Math.abs(Number(p.short_strike || 0) - Number(p.long_strike || 0));
           const n     = Number(p.contracts) || 0;
           const prem  = Number(p.actual_premium || p.model_premium) || 0;
-          return sum + Math.max(0, (width - prem) * n * 100);
+          const perShare = prem < 0 ? Math.abs(prem) : Math.max(0, width - prem);
+          return sum + perShare * n * 100;
         }, 0);
         // Max Profit (theoretical) + Tgt Profit.
         // SPEC-125 C1: target = profit_target (API, engine params) × |entry
@@ -1821,7 +1827,12 @@ async function loadSpx() {
         const partial = posWithMark.length < allPositions.length ? '~' : '';
         let tgtHtml = '', maxProfitHtml = '', capturedHtml = '', maxRiskHtml = '';
         if (tgtProfitAll != null) {
-          tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Profit (${profitTargetPct})</div><div class="pos-value profit">+$${Math.round(tgtProfitAll).toLocaleString()}</div></div>`;
+          // SPEC-125 C1 target = profit_target × |premium| — for debit
+          // diagonals that can exceed the structure's theoretical max profit
+          // (60% × $38.3k debit = $23k tgt vs $12.6k BS max). An unreachable
+          // target silently disables the exit discipline; surface it.
+          const unreachable = isDebitAll && totalMaxProfit > 0 && tgtProfitAll > totalMaxProfit;
+          tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Profit (${profitTargetPct})${unreachable ? ' ⚠' : ''}</div><div class="pos-value ${unreachable ? '' : 'profit'}" ${unreachable ? 'style="color:var(--orange)" title="Target exceeds theoretical max profit — unreachable for this debit structure. Engine pnl_ratio convention needs a debit-structure review (SPEC-125 C1)."' : ''}>+$${Math.round(tgtProfitAll).toLocaleString()}</div></div>`;
         }
         if (isDebitAll && totalMaxProfit > 0) {
           maxProfitHtml = `<div class="pos-item"><div class="pos-label">Max Profit</div><div class="pos-value" style="color:var(--text-2)">+$${Math.round(totalMaxProfit).toLocaleString()}</div></div>`;
@@ -1834,12 +1845,23 @@ async function loadSpx() {
           const pctCls = pct >= 100 ? 'profit' : pct >= 60 ? 'warn' : '';
           capturedHtml = `<div class="pos-item"><div class="pos-label">Captured</div><div class="pos-value ${pctCls}">${partial}${pct.toFixed(1)}%${pct >= 100 ? ' ✓' : ''}</div></div>`;
         }
+        // Short-strike distance — the daily "am I safe" number. Signed:
+        // negative = short strike breached (CALL: SPX above K; PUT: below).
+        let shortDistHtml = '';
+        const distK = Number(allPositions[0]?.short_strike);
+        if (Number.isFinite(distK) && _lastSpx != null) {
+          const isCallPos = String(pos.strategy_key || '').includes('call')
+            || Number(allPositions[0]?.actual_premium ?? allPositions[0]?.model_premium ?? 0) < 0;
+          const otm = (isCallPos ? (distK - _lastSpx) : (_lastSpx - distK)) / _lastSpx * 100;
+          const otmColor = otm <= 0 ? 'var(--red)' : otm < 1.5 ? 'var(--orange)' : 'var(--green)';
+          shortDistHtml = `<div class="pos-item"><div class="pos-label">Short K Dist</div><div class="pos-value" style="color:${otmColor}">${otm.toFixed(1)}% ${otm <= 0 ? 'ITM ⚠' : 'OTM'}</div></div>`;
+        }
         posBody.className = 'pos-grid';
         posBody.innerHTML = `
           ${pos.opened_at ? `<div class="pos-item"><div class="pos-label">Opened</div><div class="pos-value">${pos.opened_at}</div></div>` : ''}
           ${pos.expiry    ? `<div class="pos-item"><div class="pos-label">Expiry</div><div class="pos-value">${pos.expiry}${dte != null ? ' (' + dte + 'd)' : ''}</div></div>` : ''}
           ${pnl != null ? `<div class="pos-item"><div class="pos-label">P&L (all accts)</div><div class="pos-value ${pnlCls}">${pnlStr}</div></div>` : ''}
-          ${tgtHtml}${maxProfitHtml}${maxRiskHtml}${capturedHtml}
+          ${tgtHtml}${maxProfitHtml}${maxRiskHtml}${shortDistHtml}${capturedHtml}
           <div class="pos-item full" style="padding:0">${posRows}</div>
           ${liveHtml}
         `;
@@ -1940,7 +1962,7 @@ async function loadNLVChange() {
   try {
     const d = await _getJson('/api/portfolio/nlv-change');
     if (d.status === 'no_history') {
-      el.innerHTML = `<span style="color:var(--text-2)">NLV history pending — first snapshot at 16:30 ET</span>`;
+      el.innerHTML = `<span style="color:var(--text-2)">NLV history pending — first snapshot at 17:00 ET</span>`;
       return;
     }
     if (d.status === 'first_day') {
@@ -1956,11 +1978,15 @@ async function loadNLVChange() {
     const sign  = up ? '+' : '−';
     const dlrs  = Math.abs(d.change_dollars ?? 0);
     const pct   = Math.abs(d.change_pct ?? 0);
+    // MTD/YTD are ΔNLV, NOT returns — deposits/withdrawals are included
+    // (the 6/01 +$288k ETrade transfer alone is ~+30pp of "YTD"). Label
+    // honestly until a capital-flows ledger exists.
+    const _flowTitle = 'ΔNLV — includes deposits/withdrawals, not a pure trading return';
     const mtd = d.mtd_pct != null
-      ? `<span style="color:var(--text-2)"> · MTD</span> <span style="color:${d.mtd_pct>=0?'var(--green)':'var(--red)'}">${d.mtd_pct>=0?'+':'−'}${Math.abs(d.mtd_pct).toFixed(1)}%</span>`
+      ? `<span style="color:var(--text-2)" title="${_flowTitle}"> · ΔNLV MTD</span> <span style="color:${d.mtd_pct>=0?'var(--green)':'var(--red)'}" title="${_flowTitle}">${d.mtd_pct>=0?'+':'−'}${Math.abs(d.mtd_pct).toFixed(1)}%</span>`
       : '';
     const ytd = d.ytd_pct != null
-      ? `<span style="color:var(--text-2)"> · YTD</span> <span style="color:${d.ytd_pct>=0?'var(--green)':'var(--red)'}">${d.ytd_pct>=0?'+':'−'}${Math.abs(d.ytd_pct).toFixed(1)}%</span>`
+      ? `<span style="color:var(--text-2)" title="${_flowTitle}"> · YTD</span> <span style="color:${d.ytd_pct>=0?'var(--green)':'var(--red)'}" title="${_flowTitle}">${d.ytd_pct>=0?'+':'−'}${Math.abs(d.ytd_pct).toFixed(1)}%</span>`
       : '';
     const sourceTag = d.source_label
       ? ` <span style="color:var(--text-2);font-size:0.82em">(${d.source_label})</span>`
@@ -2487,7 +2513,10 @@ async function loadSnapshot() {
     const totalReal = typeof data.total_real_margin_pct === 'number' ? data.total_real_margin_pct : null;
     const idlePct   = typeof data.idle_capacity_pct === 'number' ? data.idle_capacity_pct : null;
     const rails     = data.rails || {};
-    const spxOpen   = (rails.spx_live || {}).status === 'open' ? 1 : 0;
+    // Count actual SPX tranches (Schwab + ETrade legs), not "1 if strategy
+    // open" — with a 2-broker BCD on, "Open 1" under-reported the book.
+    const spxLiveOpen = (rails.spx_live || {}).status === 'open';
+    const spxOpen   = spxLiveOpen ? (_spxPos?.positions?.length || 1) : 0;
     const q041Pos   = ((rails.q041_paper || {}).current_paper_positions || []).length;
     const openCount = spxOpen + q041Pos;
     const basisFallback = data.bp_basis_source === "default_params";
@@ -2929,8 +2958,12 @@ function _renderGovernance() {
     </div>`;
 
   // ── blocked candidates ───────────────────────────────────────────────────────
-  const blocksHtml = blocked.length
-    ? blocked.slice(-5).reverse().map(row => {
+  // Only show blocks from the last 10 days — month-old rows are stale noise
+  // (the 30D count above already carries the aggregate signal).
+  const _blockCutoff = new Date(Date.now() - 10 * 86400000).toISOString().slice(0, 10);
+  const recentBlocked = blocked.filter(row => (row.timestamp || '') >= _blockCutoff);
+  const blocksHtml = recentBlocked.length
+    ? recentBlocked.slice(-5).reverse().map(row => {
         const c = row.candidate || {};
         const ts = (row.timestamp || '').slice(0, 16).replace('T', ' ');
         return `<div class="governance-block-row">
@@ -2939,7 +2972,7 @@ function _renderGovernance() {
           <span class="gov-ts">${ts}</span>
         </div>`;
       }).join('')
-    : '<div class="snapshot-unavail" style="padding:0">No blocked candidates logged.</div>';
+    : `<div class="snapshot-unavail" style="padding:0">No blocks in the last 10 days${blocked.length ? ` (${blocked.length} older logged)` : ''}.</div>`;
 
   body.innerHTML = `
     <div class="governance-view-meta">
