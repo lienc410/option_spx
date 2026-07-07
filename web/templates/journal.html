@@ -33,7 +33,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 
 /* Hero */
 .page-hero { margin-bottom: 22px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
-.page-title { font-family: var(--f-ui); font-size: 1.80rem; font-weight: 500; color: var(--text); margin-bottom: 6px; display: flex; align-items: baseline; gap: 12px; }
+.page-title { font-family: var(--f-display); font-size: 1.7rem; font-weight: 400; color: var(--text); margin-bottom: 6px; display: flex; align-items: baseline; gap: 12px; }
 .page-title em { color: var(--gold); font-style: italic; }
 .page-tier-badge { font-family: var(--f-ui); font-size: 0.60rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.10em; color: var(--text-2); background: var(--gray-bg); border: 1px solid var(--gray-border); padding: 2px 8px; border-radius: 5px; }
 .page-meta { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-2); letter-spacing: 0.02em; }
@@ -44,9 +44,24 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .warmup-title { font-family: var(--f-ui); font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--gold); margin-bottom: 3px; }
 .warmup-body { font-family: var(--f-ui); font-size: 0.68rem; color: var(--text-2); }
 
-/* Section label */
-.section-label { font-family: var(--f-ui); font-size: 0.60rem; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-2); margin-bottom: 10px; margin-top: 20px; }
-.section-label:first-of-type { margin-top: 0; }
+/* Zone header — four top-level groups (State / Performance / Risk / Records) */
+.zone-head { display: flex; align-items: baseline; gap: 8px; margin: 28px 0 10px; }
+.zone-head.first { margin-top: 0; }
+.zone-num { font-family: var(--f-mono); font-size: 0.60rem; font-weight: 600; color: var(--gold); letter-spacing: 0.06em; }
+.zone-title { font-family: var(--f-ui); font-size: 0.62rem; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text); white-space: nowrap; }
+.zone-head::after { content: ''; flex: 1; align-self: center; height: 1px; background: var(--border); }
+
+/* Panel header — every panel carries its own title row (one pattern sitewide) */
+.panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 10px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
+.panel-titles { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.panel-title { font-family: var(--f-ui); font-size: 0.76rem; font-weight: 600; color: var(--text); letter-spacing: 0.02em; }
+.panel-sub { font-family: var(--f-ui); font-size: 0.60rem; color: var(--text-2); }
+.panel-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+
+/* Table panel header — same visual language as .attr-daily-title */
+.tw-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--surface-hi); }
+.tw-title { font-family: var(--f-ui); font-size: 0.58rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2); }
+.tw-sub { font-family: var(--f-ui); font-size: 0.58rem; color: var(--text-2); }
 
 /* Account view tabs */
 .acct-view-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
@@ -72,7 +87,6 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   background: var(--orange-bg); border: 1px solid var(--orange-border);
   border-radius: 5px; padding: 6px 10px; margin-bottom: 8px;
 }
-.chart-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid var(--border); }
 .ctrl-label { font-family: var(--f-ui); font-size: 0.60rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); }
 .btn-group { display: flex; gap: 3px; }
 .ctrl-btn { font-family: var(--f-mono); font-size: 0.62rem; padding: 3px 9px; background: var(--surface-hi); border: 1px solid var(--border-2); border-radius: 4px; color: var(--text-2); cursor: pointer; transition: 0.15s; }
@@ -215,8 +229,8 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .attr-note-copy {
   display: grid;
   gap: 2px;
-  margin-left: auto;
-  text-align: right;
+  margin-bottom: 12px;
+  font-size: 0.58rem;
   color: var(--text-2);
   line-height: 1.35;
 }
@@ -224,7 +238,6 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .attr-note-copy .teaching, .attr-note-copy .cum-total { font-family: var(--f-ui); }
 @media (max-width: 768px) {
   .attr-kpi-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .attr-note-copy { width: 100%; margin-left: 0; text-align: left; }
 }
 
 /* Positions table */
@@ -256,7 +269,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 
 .unavail { font-family: var(--f-ui); font-size: 0.72rem; color: var(--text-2); font-style: italic; padding: 24px 0; text-align: center; }
 
-.footer { text-align: center; padding: 20px 0 0; font-size: 0.65rem; color: var(--text-muted); }
+.footer { text-align: center; padding: 20px 0 0; font-size: 0.65rem; color: var(--text-2); }
 </style>
 </head>
 <body>
@@ -300,63 +313,94 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     <span class="acct-view-note" id="acct-view-note">NLV / positions / day records filter by selection. BP composition + market context are global.</span>
   </div>
 
-  <!-- Latest snapshot strip -->
-  <div class="section-label">Latest Snapshot</div>
+  <!-- ═══ 01 · STATE — where the book stands now ═══ -->
+  <div class="zone-head first">
+    <span class="zone-num">01</span>
+    <span class="zone-title">State</span>
+  </div>
+
   <div class="latest-strip" id="latest-strip"><span class="unavail">Loading…</span></div>
 
-  <!-- NLV curve -->
-  <div class="section-label">NLV Curve</div>
+  <div class="table-wrap">
+    <div class="tw-head">
+      <span class="tw-title">Open Positions</span>
+      <span class="tw-sub">latest snapshot · filtered by account view</span>
+    </div>
+    <table class="pos-table">
+      <thead>
+        <tr>
+          <th>Account</th>
+          <th>Trade ID</th>
+          <th>Strikes</th>
+          <th>×</th>
+          <th>Expiry</th>
+          <th>DTE</th>
+          <th>Entry $</th>
+          <th>Mark $</th>
+          <th>Unrealized</th>
+        </tr>
+      </thead>
+      <tbody id="positions-body"><tr><td colspan="9" class="unavail" style="text-align:center">Loading…</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- ═══ 02 · PERFORMANCE — how the book got here ═══ -->
+  <div class="zone-head">
+    <span class="zone-num">02</span>
+    <span class="zone-title">Performance</span>
+  </div>
+
   <div class="chart-panel">
-    <div class="chart-controls">
-      <span class="ctrl-label">Window</span>
-      <div class="btn-group" id="nlv-window-group">
-        <button class="ctrl-btn"        data-win="30">30d</button>
-        <button class="ctrl-btn active" data-win="90">90d</button>
-        <button class="ctrl-btn"        data-win="365">1Y</button>
-        <button class="ctrl-btn"        data-win="730">2Y</button>
-        <button class="ctrl-btn"        data-win="all">All</button>
+    <div class="panel-head">
+      <div class="panel-titles">
+        <span class="panel-title">NLV Curve</span>
+        <span class="panel-sub">combined equity at 16:30 ET · dashed = synthetic fill</span>
+      </div>
+      <div class="panel-controls">
+        <span class="ctrl-label">Window</span>
+        <div class="btn-group" id="nlv-window-group">
+          <button class="ctrl-btn"        data-win="30">30d</button>
+          <button class="ctrl-btn active" data-win="90">90d</button>
+          <button class="ctrl-btn"        data-win="365">1Y</button>
+          <button class="ctrl-btn"        data-win="730">2Y</button>
+          <button class="ctrl-btn"        data-win="all">All</button>
+        </div>
       </div>
     </div>
     <div class="chart-wrap medium"><canvas id="nlv-chart"></canvas></div>
   </div>
 
-  <!-- BP stack -->
-  <div class="section-label">Buying Power Composition</div>
   <div class="chart-panel">
-    <div class="chart-controls">
-      <span class="ctrl-label">Unit</span>
-      <div class="btn-group" id="bp-unit-group">
-        <button class="ctrl-btn active" data-bp-unit="dollars">$</button>
-        <button class="ctrl-btn"        data-bp-unit="pct">% of NLV</button>
+    <div class="panel-head">
+      <div class="panel-titles">
+        <span class="panel-title">Strategy Cum P&amp;L</span>
+        <span class="panel-sub">SPX Spread · realized closes + open MTM</span>
       </div>
-      <span class="acct-view-note" style="margin-left:auto">$ scales with NLV via PM model; % isolates allocation discipline.</span>
-    </div>
-    <div class="chart-wrap medium"><canvas id="bp-chart"></canvas></div>
-  </div>
-
-  <!-- Strategy Cum PnL (realized + unrealized) -->
-  <div class="section-label">Strategy Cum P&amp;L <span style="color:var(--text-2);font-weight:400;font-size:11px;font-family:'DM Sans'">· SPX Spread · realized closes + open MTM</span></div>
-  <div class="chart-panel">
-    <div class="chart-controls">
-      <span class="acct-view-note" id="cumpnl-note" style="margin-left:auto">Loading…</span>
+      <div class="panel-controls">
+        <span class="acct-view-note" id="cumpnl-note">Loading…</span>
+      </div>
     </div>
     <div class="chart-wrap medium"><canvas id="cumpnl-chart"></canvas></div>
   </div>
 
-  <!-- Strategy PnL Attribution by Greek -->
-  <div class="section-label">Strategy PnL Attribution by Greek <span style="color:var(--text-2);font-weight:400;font-size:11px;font-family:'DM Sans'">· SPX Spread · BS reverse-solve</span></div>
   <div class="chart-panel">
-    <div class="chart-controls">
-      <span class="ctrl-label">Window</span>
-      <div class="btn-group" id="attr-window-group">
-        <button class="ctrl-btn active" data-attr-win="cum">Cumulative</button>
-        <button class="ctrl-btn"        data-attr-win="7d">7d rolling</button>
-        <button class="ctrl-btn"        data-attr-win="30d">30d rolling</button>
+    <div class="panel-head">
+      <div class="panel-titles">
+        <span class="panel-title">P&amp;L Attribution by Greek</span>
+        <span class="panel-sub">SPX Spread · BS reverse-solve + broker chain greeks</span>
       </div>
-      <span class="acct-view-note attr-note-copy" id="attr-note">
-        <span class="formula">Δ·ΔS + ½Γ·ΔS² + Θ·Δt + V·ΔIV + Residual · BS reverse-solve (r=5%, q=1.3%)</span>
-        <span class="teaching">Short put spread = net short gamma · 健康标准: |Θ+V| &gt; |Γ|</span>
-      </span>
+      <div class="panel-controls">
+        <span class="ctrl-label">Window</span>
+        <div class="btn-group" id="attr-window-group">
+          <button class="ctrl-btn active" data-attr-win="cum">Cumulative</button>
+          <button class="ctrl-btn"        data-attr-win="7d">7d rolling</button>
+          <button class="ctrl-btn"        data-attr-win="30d">30d rolling</button>
+        </div>
+      </div>
+    </div>
+    <div class="attr-note-copy" id="attr-note">
+      <span class="formula">Δ·ΔS + ½Γ·ΔS² + Θ·Δt + V·ΔIV + Residual · BS reverse-solve (r=5%, q=1.3%)</span>
+      <span class="teaching">Short put spread = net short gamma · 健康标准: |Θ+V| &gt; |Γ|</span>
     </div>
     <div class="attr-kpi-strip" id="attr-kpi-strip" aria-label="Greek attribution KPI summary">
       <div class="attr-kpi-card">
@@ -392,38 +436,54 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     </div>
   </div>
 
-  <!-- Regime + Market strip -->
-  <div class="section-label">Regime &amp; Market Context</div>
+  <!-- ═══ 03 · RISK &amp; ALLOCATION — what the book is exposed to ═══ -->
+  <div class="zone-head">
+    <span class="zone-num">03</span>
+    <span class="zone-title">Risk &amp; Allocation</span>
+  </div>
+
   <div class="chart-panel">
+    <div class="panel-head">
+      <div class="panel-titles">
+        <span class="panel-title">Buying Power Composition</span>
+        <span class="panel-sub">$ scales with NLV via PM model · % isolates allocation discipline</span>
+      </div>
+      <div class="panel-controls">
+        <span class="ctrl-label">Unit</span>
+        <div class="btn-group" id="bp-unit-group">
+          <button class="ctrl-btn active" data-bp-unit="dollars">$</button>
+          <button class="ctrl-btn"        data-bp-unit="pct">% of NLV</button>
+        </div>
+      </div>
+    </div>
+    <div class="chart-wrap medium"><canvas id="bp-chart"></canvas></div>
+  </div>
+
+  <div class="chart-panel">
+    <div class="panel-head">
+      <div class="panel-titles">
+        <span class="panel-title">Regime &amp; Market Context</span>
+        <span class="panel-sub">regime strip · SPX / VIX overlay</span>
+      </div>
+    </div>
     <div class="chart-wrap short"><canvas id="regime-strip"></canvas></div>
     <div class="chart-wrap medium" style="margin-top:10px"><canvas id="market-chart"></canvas></div>
   </div>
 
-  <!-- Open positions (latest snapshot) -->
-  <div class="section-label">Open Positions (Latest)</div>
-  <div class="table-wrap">
-    <table class="pos-table">
-      <thead>
-        <tr>
-          <th>Account</th>
-          <th>Trade ID</th>
-          <th>Strikes</th>
-          <th>×</th>
-          <th>Expiry</th>
-          <th>DTE</th>
-          <th>Entry $</th>
-          <th>Mark $</th>
-          <th>Unrealized</th>
-        </tr>
-      </thead>
-      <tbody id="positions-body"><tr><td colspan="9" class="unavail" style="text-align:center">Loading…</td></tr></tbody>
-    </table>
+  <!-- ═══ 04 · RECORDS — audit trail ═══ -->
+  <div class="zone-head">
+    <span class="zone-num">04</span>
+    <span class="zone-title">Records</span>
   </div>
 
-  <!-- Day records (raw JSON expandable) -->
-  <div class="section-label">Day Records</div>
-  <div class="table-wrap" id="day-records-wrap">
-    <div class="unavail">Loading…</div>
+  <div class="table-wrap">
+    <div class="tw-head">
+      <span class="tw-title">Day Records</span>
+      <span class="tw-sub">click a row to expand the raw snapshot JSON</span>
+    </div>
+    <div id="day-records-wrap">
+      <div class="unavail">Loading…</div>
+    </div>
   </div>
 
 </div>
