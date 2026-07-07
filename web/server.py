@@ -647,8 +647,70 @@ def partnership_page():
 
 @app.route("/api/partnership/book")
 def api_partnership_book():
+    # SPEC-128: native engine is the source of truth once data/book/ is
+    # migrated; the legacy Drive/xlsx chain stays as transition fallback only.
+    from web.book_engine import DATA_DIR, compute_book
+    if (DATA_DIR / "config.json").exists():
+        return jsonify(compute_book())
     from web.partnership_book import read_book
     return jsonify(read_book())
+
+
+def _book_write_response(row: dict) -> Any:
+    from web.book_engine import compute_book
+    payload = compute_book(force=True)
+    return jsonify({"ok": True, "row": row,
+                    "recon_checks": payload.get("recon_checks", []),
+                    "recon_all_green": payload.get("recon_all_green")})
+
+
+@app.route("/api/partnership/book/snapshot", methods=["POST"])
+def api_book_snapshot():
+    from web.book_engine import ClosedPeriodError, record_snapshot
+    b = flask_req.get_json(force=True) or {}
+    try:
+        row = record_snapshot(str(b.get("pool", "")).lower(), str(b["date"])[:10],
+                              float(b["total"]), str(b.get("note", "")))
+    except ClosedPeriodError as exc:
+        return jsonify({"error": str(exc)}), 409
+    except (KeyError, ValueError, TypeError) as exc:
+        return jsonify({"error": f"invalid payload: {exc}"}), 400
+    return _book_write_response(row)
+
+
+@app.route("/api/partnership/book/flow", methods=["POST"])
+def api_book_flow():
+    from web.book_engine import ClosedPeriodError, record_flow
+    b = flask_req.get_json(force=True) or {}
+    try:
+        row = record_flow(str(b.pop("pool", "")).lower(), b)
+    except ClosedPeriodError as exc:
+        return jsonify({"error": str(exc)}), 409
+    except (KeyError, ValueError, TypeError) as exc:
+        return jsonify({"error": f"invalid payload: {exc}"}), 400
+    return _book_write_response(row)
+
+
+@app.route("/api/partnership/book/mark", methods=["POST"])
+def api_book_mark():
+    from web.book_engine import record_series_event
+    b = flask_req.get_json(force=True) or {}
+    try:
+        row = record_series_event(str(b.pop("series", "")).lower(), b)
+    except (KeyError, ValueError, TypeError) as exc:
+        return jsonify({"error": f"invalid payload: {exc}"}), 400
+    return _book_write_response(row)
+
+
+@app.route("/api/partnership/book/void", methods=["POST"])
+def api_book_void():
+    from web.book_engine import record_void
+    b = flask_req.get_json(force=True) or {}
+    try:
+        row = record_void(str(b["file"]), str(b["target_id"]), str(b.get("note", "")))
+    except (KeyError, ValueError, TypeError) as exc:
+        return jsonify({"error": f"invalid payload: {exc}"}), 400
+    return _book_write_response(row)
 
 
 @app.route("/api/partnership/live-nlv")
@@ -3025,6 +3087,53 @@ def api_strategy_cum_pnl():
     })
 
 
+def _load_capital_flows() -> list[dict]:
+    """PM-maintained deposit/withdrawal ledger (data/capital_flows.jsonl).
+
+    Row shape: {date, account, amount, type: deposit|withdrawal, note}.
+    Returns rows with signed_amount (+deposit / −withdrawal), date-sorted.
+    """
+    path = os.path.normpath(
+        os.path.join(os.path.dirname(__file__), "..", "data", "capital_flows.jsonl")
+    )
+    flows: list[dict] = []
+    if not os.path.exists(path):
+        return flows
+    try:
+        with open(path) as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    r = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not r.get("date") or r.get("amount") is None:
+                    continue
+                try:
+                    amt = abs(float(r["amount"]))
+                except (TypeError, ValueError):
+                    continue
+                if str(r.get("type", "deposit")).lower() == "withdrawal":
+                    amt = -amt
+                flows.append({**r, "signed_amount": amt})
+    except Exception:
+        return []
+    flows.sort(key=lambda r: r["date"])
+    return flows
+
+
+@app.route("/api/portfolio/capital-flows")
+def api_portfolio_capital_flows():
+    """Capital-flow ledger for journal chips + return-adjustment audit."""
+    flows = _load_capital_flows()
+    return jsonify({
+        "status": "available" if flows else "empty",
+        "flows": flows,
+        "net_total": round(sum(f["signed_amount"] for f in flows), 2),
+    })
+
+
 @app.route("/api/portfolio/nlv-change")
 def api_portfolio_nlv_change():
     """Today's combined NLV vs prior snapshot. Fed by scripts/daily_snapshot.py."""
@@ -3098,6 +3207,37 @@ def api_portfolio_nlv_change():
             return None
         return round((today_combined - anchor) / anchor * 100.0, 2)
 
+    # Flow-adjusted period return (Modified Dietz): deposits/withdrawals from
+    # data/capital_flows.jsonl are removed from the numerator and day-weighted
+    # into the denominator. Raw ΔNLV MTD/YTD stays in mtd_pct/ytd_pct — the
+    # 6/01 +$288k ETrade transfer alone is ~+30pp of raw "YTD".
+    flows = _load_capital_flows()
+
+    def _adj_pct_from(rows):
+        if not rows:
+            return None
+        anchor = float(rows[0].get("combined_nlv") or 0.0)
+        anchor_date_iso = rows[0]["date"]
+        if anchor <= 0:
+            return None
+        period = [f for f in flows if anchor_date_iso < f["date"] <= today_iso]
+        if not period:
+            return _pct_from(rows)
+        anchor_date = _date.fromisoformat(anchor_date_iso)
+        total_days = max((today_date - anchor_date).days, 1)
+        net_flow = sum(f["signed_amount"] for f in period)
+        weighted = sum(
+            f["signed_amount"]
+            * ((today_date - _date.fromisoformat(f["date"])).days / total_days)
+            for f in period
+        )
+        denom = anchor + weighted
+        if denom <= 0:
+            return None
+        return round((today_combined - anchor - net_flow) / denom * 100.0, 2)
+
+    ytd_flow_count = sum(1 for f in flows if ytd_start <= f["date"] <= today_iso)
+
     # Source label: surface which accounts are contributing to the live NLV
     # so the hero can disambiguate Schwab-only vs combined.
     source_parts = []
@@ -3114,6 +3254,9 @@ def api_portfolio_nlv_change():
         "change_pct": round(change_pct, 3),
         "mtd_pct": _pct_from(mtd_rows),
         "ytd_pct": _pct_from(ytd_rows),
+        "mtd_adj_pct": _adj_pct_from(mtd_rows),
+        "ytd_adj_pct": _adj_pct_from(ytd_rows),
+        "flows_recorded_ytd": ytd_flow_count,
         "history_days": len(records),
         "source_label": source_label,
         "schwab_nlv": round(schwab_nlv, 2),

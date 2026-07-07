@@ -74,6 +74,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .live-caveat { font-size:0.62rem;color:var(--orange);margin-top:6px;line-height:1.5; }
 
 /* tables */
+.form-row input, .form-row select { background:var(--surface-hi);border:1px solid var(--border-2);border-radius:5px;color:var(--text);font-family:var(--f-mono);font-size:0.7rem;padding:3px 7px;margin-right:8px;max-width:150px; }
 .book-table { width:100%;border-collapse:collapse;margin-bottom:6px; }
 .book-table th { font-size:0.56rem;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-2);padding:6px 8px;text-align:right;border-bottom:1px solid var(--border-2);white-space:nowrap; }
 .book-table th:first-child { text-align:left; }
@@ -128,7 +129,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 <div class="page">
   <div class="page-hero">
     <h1>Partnership <em>Book</em></h1>
-    <div class="page-sub">家庭合伙投资账本 — 只读镜像。真值源是 Google Sheet（纯公式引擎）；本页只读取其已算缓存值，不回写。</div>
+    <div class="page-sub">家庭合伙投资账本 — 本系统即真值源（SPEC-128 已从 Google Sheet 迁入）。记录走事件账本（append-only，修正留痕）；旧 Sheet 已冻结归档。</div>
     <div class="page-meta" id="meta-line">加载中…</div>
   </div>
 
@@ -414,6 +415,89 @@ function renderMemberStatement(idx) {
 }
 
 /* ---------------- Loader ---------------- */
+/* ---------------- SPEC-128 native extras ---------------- */
+function renderReconBar(b) {
+  const checks = b.recon_checks || [];
+  if (!checks.length) return '';
+  const bad = checks.filter(c => !c.ok);
+  const g = b.guarantees && b.guarantees[0];
+  const gTxt = g ? ` · 保底(${g.beneficiary} ${ (g.hurdle*100).toFixed(0) }% @${g.period}): ${g.met ? '达标 ✓' : '未达标 ✗'}` : '';
+  if (!bad.length) {
+    return `<div style="font-family:var(--f-mono);font-size:0.68rem;color:var(--green);margin-bottom:10px">✓ ${checks.length}/${checks.length} 项完整性校验通过${gTxt}</div>`;
+  }
+  return `<div style="font-family:var(--f-ui);font-size:0.72rem;color:var(--red);background:var(--red-bg);border:1px solid var(--red-border);border-radius:9px;padding:9px 13px;margin-bottom:10px">
+    ✗ ${bad.length} 项校验未通过：${bad.map(c => `${c.name}（${c.detail}）`).join('；')}${gTxt}</div>`;
+}
+
+function renderEntryBar() {
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+    <button class="refresh-btn" onclick="showBookForm('snapshot')">＋ 记快照</button>
+    <button class="refresh-btn" onclick="showBookForm('flow')">＋ 记资金流</button>
+    <button class="refresh-btn" onclick="showBookForm('mark')">＋ 记个人市值</button>
+  </div>
+  <div id="book-form-slot"></div>`;
+}
+
+const BOOK_FORMS = {
+  snapshot: `
+    <div class="form-row">池：<select id="bf-pool"><option value="sw">Schwab CCC-354</option><option value="et">E*Trade PM</option></select>
+    日期：<input type="date" id="bf-date">
+    总值：<input type="number" step="0.01" id="bf-total" placeholder="账户总市值">
+    备注：<input type="text" id="bf-note">
+    <button class="refresh-btn" onclick="submitBook('snapshot')">提交</button></div>`,
+  flow: `
+    <div class="form-row">池：<select id="bf-pool"><option value="sw">Schwab CCC-354</option><option value="et">E*Trade PM</option></select>
+    快照期：<input type="date" id="bf-snapdate" title="归属的快照期（引擎按此匹配）">
+    到账日：<input type="date" id="bf-bankdate">
+    合伙人：<input type="text" id="bf-partner" placeholder="Chinchaung/Lien/Xinzhong/…">
+    From：<input type="text" id="bf-from"> To：<input type="text" id="bf-to">
+    金额：<input type="number" step="0.01" id="bf-amount">
+    Counts：<select id="bf-counts" title="Yes=真正进/出投资账户（计入资本）；No=中转腿（只记录）"><option>Yes</option><option>No</option></select>
+    Type：<select id="bf-type"><option>Contribution</option><option>Distribution</option><option value="">（Counts=No 可留空）</option></select>
+    工具：<input type="text" id="bf-instr" placeholder="Wire/Check/Book…">
+    备注：<input type="text" id="bf-note">
+    <button class="refresh-btn" onclick="submitBook('flow')">提交</button></div>`,
+  mark: `
+    <div class="form-row">序列：<select id="bf-series"><option value="cxz">CXZ 6842</option><option value="lien">Lien PM</option></select>
+    月份：<input type="text" id="bf-month" placeholder="2026-06">
+    市值：<input type="number" step="0.01" id="bf-value">
+    <button class="refresh-btn" onclick="submitBook('mark')">提交</button></div>`,
+};
+
+function showBookForm(kind) {
+  document.getElementById('book-form-slot').innerHTML =
+    `<div style="background:var(--surface);border:1px solid var(--border-2);border-radius:9px;padding:12px 14px;margin-bottom:14px;font-size:0.72rem;line-height:2.2">${BOOK_FORMS[kind]}
+     <div id="bf-msg" style="font-family:var(--f-mono);font-size:0.68rem;margin-top:4px"></div></div>`;
+}
+
+async function submitBook(kind) {
+  const v = (id) => document.getElementById(id)?.value ?? '';
+  let url, payload;
+  if (kind === 'snapshot') {
+    url = '/api/partnership/book/snapshot';
+    payload = { pool: v('bf-pool'), date: v('bf-date'), total: Number(v('bf-total')), note: v('bf-note') };
+  } else if (kind === 'flow') {
+    url = '/api/partnership/book/flow';
+    payload = { pool: v('bf-pool'), snapshot_date: v('bf-snapdate'), bank_date: v('bf-bankdate'),
+                partner: v('bf-partner'), from: v('bf-from'), to: v('bf-to'),
+                amount: Number(v('bf-amount')), counts: v('bf-counts'), type: v('bf-type'),
+                instrument: v('bf-instr'), note: v('bf-note') };
+  } else {
+    url = '/api/partnership/book/mark';
+    payload = { series: v('bf-series'), event: 'mark', month: v('bf-month'), value: Number(v('bf-value')) };
+  }
+  const msg = document.getElementById('bf-msg');
+  msg.textContent = '提交中…';
+  try {
+    const res = await fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+    const d = await res.json();
+    if (!res.ok) { msg.textContent = '✗ ' + (d.error || res.status); msg.style.color = 'var(--red)'; return; }
+    msg.style.color = d.recon_all_green ? 'var(--green)' : 'var(--orange)';
+    msg.textContent = d.recon_all_green ? '✓ 已记录，校验全绿' : '⚠ 已记录，但完整性校验有红项——请核对（详见上方校验行）';
+    setTimeout(load, 900);
+  } catch (e) { msg.textContent = '✗ ' + e; msg.style.color = 'var(--red)'; }
+}
+
 async function load() {
   const meta = document.getElementById('meta-line');
   const ov = document.getElementById('tab-overview');
@@ -432,12 +516,15 @@ async function load() {
   }
   const mtime = book.workbook_mtime ? book.workbook_mtime.replace('T', ' ').slice(0, 16) : '—';
   const isDrive = book.source === 'google_drive';
-  const srcBadge = isDrive
-    ? `<span class="src-badge src-drive">DRIVE</span>`
-    : `<span class="src-badge src-local">LOCAL</span>`;
-  meta.innerHTML = `${srcBadge} <code>${book.source_file}</code> · 工作簿更新 ${mtime} UTC · <button class="refresh-btn" onclick="load()">↻ Refresh</button>`;
+  const isNative = book.source === 'native';
+  const srcBadge = isNative
+    ? `<span class="src-badge src-local" style="color:var(--green);border-color:var(--green-border)">NATIVE</span>`
+    : (isDrive ? `<span class="src-badge src-drive">DRIVE (legacy)</span>`
+               : `<span class="src-badge src-local">LOCAL (legacy)</span>`);
+  const srcDetail = book.source_detail || book.source_file || '';
+  meta.innerHTML = `${srcBadge} <code>${srcDetail}</code>${isNative ? '' : ' · 工作簿更新 ' + mtime + ' UTC'} · <button class="refresh-btn" onclick="load()">↻ Refresh</button>`;
 
-  ov.innerHTML = renderOverview(book);
+  ov.innerHTML = (isNative ? renderReconBar(book) + renderEntryBar() : '') + renderOverview(book);
   document.getElementById('tab-member').innerHTML = renderMemberSelect(book);
   renderMemberStatement(0);
 
