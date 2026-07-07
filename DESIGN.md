@@ -54,6 +54,23 @@ This mixes an English imperative clause ("Daily selector tick decides entry") wi
 
 **Badge text is always English**, even inside an otherwise Chinese-language card. Badges are semantic tokens, not prose.
 
+**Spec/rule IDs are provenance, not names (2026-07-06).** `SPEC-104`, `B4`,
+`R5/R6` and similar identifiers answer "which document ratified this", not
+"what does this do". They must never LEAD a user-facing label — the primary
+label says what the surface does in plain function-first English, and the
+identifier demotes to a muted `.spec-ref` suffix (mono, 0.52rem, `--text-2`)
+or a tooltip. Precedent: Q042 → display name "Drawdown Overlay" (2026-05-10).
+
+| Wrong (leads with provenance) | Right (function first, provenance demoted) |
+|---|---|
+| `SPEC-104 Monitors` | `Governance Health Monitors <span class="spec-ref">SPEC-104</span>` |
+| `SPEC-108.1 V1b Ladder (weekly Wed)` | `Entry Ladder · weekly Wed anchor <span class="spec-ref">SPEC-108.1 V1b</span>` |
+| `B4 booster gate (cap 80% → 90%)` | `BP Cap Booster · benign-regime gate 80% → 90% <span class="spec-ref">B4 · SPEC-105</span>` |
+
+Rule IDs inside prose/detail lines (`rules R5/R6`, `(R1)`) are fine as
+suffixes — the test is whether a reader who forgot the spec can still tell
+what the surface does from the primary label alone.
+
 **Personal-tool page exemption (SPEC-125 D9, PM default):** `funds.html`,
 `partnership.html`, `etrade_reauth.html` are Chinese-domain personal tools —
 buttons/h1/badge-content may be Chinese there (e.g. 「＋ 记录减仓」「基金 清仓信号」).
@@ -388,3 +405,4 @@ Label decisions (2026-07-06): `DD Overlay` (nav-width form of display name
 | 2026-07-06 | Evidence streams (S2-BPS paper, BCD shadow, skew monitor) deliberately have NO display surface | SPEC-125 C6: they are background data feeds for research arbitration; PM reads the jsonl / monthly digest when needed. A dashboard surface would invite daily micro-reading of pre-registered experiments |
 | 2026-07-06 | Page-title scale: two tiers — Portfolio hero 2.1rem, all other pages 1.7rem, always `--f-display` | Six drifting sizes found (SPEC-125/S3); normalize opportunistically when touching a page |
 | 2026-07-06 | Unified notification gateway (SPEC-126): 4-category contract + mandatory about 首行 + 15:55 pre-close digest replaces 15:30/16:03/16:15 scheduled pushes | 8 direct-send sites had no classification/dedupe/quiet levels; PM received contradictory-looking HOLD-vs-WAIT messages and 3 overlapping late-day pushes |
+| 2026-07-06 | Spec/rule IDs banned as primary UI labels — function-first names + muted `.spec-ref` suffix | PM couldn't tell what "SPEC-104 Monitors" / "SPEC-108.1 V1b Ladder" do from the label; generalizes the Q042→"Drawdown Overlay" precedent into a rule |

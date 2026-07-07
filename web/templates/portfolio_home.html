@@ -792,6 +792,9 @@ body {
 .gov-collapse-head:hover .gov-collapse-arrow { color: var(--text); }
 .gov-collapse-arrow { font-family: var(--f-mono); font-size: 0.62rem; color: var(--text-2); width: 10px; flex-shrink: 0; }
 .gov-collapse-summary-num { margin-left: auto; font-family: var(--f-mono); font-size: 0.58rem; color: var(--text-2); }
+/* Provenance tag: spec/rule IDs never lead a UI label — function-first names
+   with the spec number demoted to this muted suffix (DESIGN.md naming rule). */
+.spec-ref { font-family: var(--f-mono); font-size: 0.52rem; font-weight: 400; letter-spacing: 0.04em; color: var(--text-2); text-transform: none; }
 .booster-panel.b-shadow { background: var(--orange-bg); border-color: var(--orange-border); }
 .booster-panel.b-active { background: var(--green-bg);  border-color: var(--green-border); }
 .booster-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -2738,7 +2741,7 @@ function _renderGovernance() {
 
   // Stress Put Ladder — research-only globally per SPEC-104 (production allocation = 0%)
   function hvContent(r) {
-    return `<div class="rm-val v-wait">○ RESEARCH-ONLY</div><div class="rm-note">SPEC-104: 0% production · paper signals continue</div>`;
+    return `<div class="rm-val v-wait">○ RESEARCH-ONLY</div><div class="rm-note">0% production · paper signals continue (SPEC-104)</div>`;
   }
 
   // Fix 4: DD Overlay — show entry conditions explicitly
@@ -2892,7 +2895,7 @@ function _renderGovernance() {
   const boosterHtml = `
     <div class="booster-panel ${boosterPanelCls}">
       ${_govWrap('booster',
-        `<span class="booster-panel-head" style="margin:0">B4 booster gate (cap ${fmtPct(caps.R1_spx_pm_pool_cap_pct ?? 80)} → ${fmtPct(caps.CAP_SPX_BENIGN_BOOSTER ?? 90)})</span>
+        `<span class="booster-panel-head" style="margin:0">BP Cap Booster · benign-regime gate ${fmtPct(caps.R1_spx_pm_pool_cap_pct ?? 80)} → ${fmtPct(caps.CAP_SPX_BENIGN_BOOSTER ?? 90)} <span class="spec-ref">B4 · SPEC-105</span></span>
          <span class="booster-label">${boosterLabel}</span>
          <span class="booster-cap-line">${boosterCapLine}</span>
          <span class="booster-gate-result ${gatePass ? 'ok' : 'fail'}" style="margin-left:auto">${gatePass ? '✓ PASS' : '× FAIL'}</span>`,
@@ -2922,7 +2925,7 @@ function _renderGovernance() {
   const ladderHtml = `
     <div class="ladder-panel ${ladderModeCls}">
       ${_govWrap('ladder108',
-        `<span class="ladder-title">SPEC-108 Selector-Gated Ladder</span>
+        `<span class="ladder-title">Entry Ladder · selector-gated <span class="spec-ref">SPEC-108</span></span>
          <span class="ladder-mode ${ladderMode}">${ladderMode}</span>
          ${ladderChip}
          ${driftChip}
@@ -2951,7 +2954,7 @@ function _renderGovernance() {
   const ladderV1bHtml = `
     <div class="ladder-v1b-panel ${v1bModeCls}">
       ${_govWrap('ladder108v1b',
-        `<span class="ladder-v1b-title">SPEC-108.1 V1b Ladder (weekly Wed)</span>
+        `<span class="ladder-v1b-title">Entry Ladder · weekly Wed anchor <span class="spec-ref">SPEC-108.1 V1b</span></span>
          <span class="ladder-v1b-mode">${v1bMode}</span>
          ${v1bChip}
          <span class="gov-collapse-summary-num">${v1bPositions} · ${v1bBP}</span>`,
@@ -2986,11 +2989,11 @@ function _renderGovernance() {
   const monitorsHtml = `
     <div class="monitor-block">
       ${_govWrap('monitors104',
-        `<span class="monitor-block-head" style="margin:0">SPEC-104 Monitors</span>
+        `<span class="monitor-block-head" style="margin:0">Governance Health Monitors <span class="spec-ref">SPEC-104</span></span>
          <span class="gov-collapse-summary-num">${monSummary}</span>`,
         `<div style="margin-top:6px">
           ${monRow('blocked_hv_signals', 'Stress Put Ladder Blocked Signals')}
-          ${monRow('r5_r6_frequency', 'R5/R6 Block Frequency (90d)')}
+          ${monRow('r5_r6_frequency', 'Governance Block Frequency (90d) · rules R5/R6')}
           ${monRow('spx_normal_to_stress_transition_loss', 'SPX Normal→Stress Transition Loss')}
         </div>`)}
     </div>`;
