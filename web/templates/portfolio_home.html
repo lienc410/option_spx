@@ -786,6 +786,12 @@ body {
   border: 1px solid var(--border); background: var(--surface-hi);
   border-radius: 9px;
 }
+/* Collapsed-by-default governance sections (PM 2026-07-06): shadow/reference
+   surfaces fold to a one-line summary; localStorage remembers expansion. */
+.gov-collapse-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; cursor: pointer; user-select: none; }
+.gov-collapse-head:hover .gov-collapse-arrow { color: var(--text); }
+.gov-collapse-arrow { font-family: var(--f-mono); font-size: 0.62rem; color: var(--text-2); width: 10px; flex-shrink: 0; }
+.gov-collapse-summary-num { margin-left: auto; font-family: var(--f-mono); font-size: 0.58rem; color: var(--text-2); }
 .booster-panel.b-shadow { background: var(--orange-bg); border-color: var(--orange-border); }
 .booster-panel.b-active { background: var(--green-bg);  border-color: var(--green-border); }
 .booster-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -1978,16 +1984,20 @@ async function loadNLVChange() {
     const sign  = up ? '+' : '−';
     const dlrs  = Math.abs(d.change_dollars ?? 0);
     const pct   = Math.abs(d.change_pct ?? 0);
-    // MTD/YTD are ΔNLV, NOT returns — deposits/withdrawals are included
-    // (the 6/01 +$288k ETrade transfer alone is ~+30pp of "YTD"). Label
-    // honestly until a capital-flows ledger exists.
-    const _flowTitle = 'ΔNLV — includes deposits/withdrawals, not a pure trading return';
-    const mtd = d.mtd_pct != null
-      ? `<span style="color:var(--text-2)" title="${_flowTitle}"> · ΔNLV MTD</span> <span style="color:${d.mtd_pct>=0?'var(--green)':'var(--red)'}" title="${_flowTitle}">${d.mtd_pct>=0?'+':'−'}${Math.abs(d.mtd_pct).toFixed(1)}%</span>`
-      : '';
-    const ytd = d.ytd_pct != null
-      ? `<span style="color:var(--text-2)" title="${_flowTitle}"> · YTD</span> <span style="color:${d.ytd_pct>=0?'var(--green)':'var(--red)'}" title="${_flowTitle}">${d.ytd_pct>=0?'+':'−'}${Math.abs(d.ytd_pct).toFixed(1)}%</span>`
-      : '';
+    // Prefer flow-adjusted returns (Modified Dietz over data/capital_flows.jsonl,
+    // deposits/withdrawals excluded); fall back to raw ΔNLV when the ledger
+    // is empty for the period. Raw ΔNLV kept in the tooltip for cross-check.
+    const _mkPeriod = (label, adjPct, rawPct) => {
+      const useAdj = adjPct != null;
+      const v = useAdj ? adjPct : rawPct;
+      if (v == null) return '';
+      const title = useAdj
+        ? `flow-adjusted return (Modified Dietz) — deposits/withdrawals excluded; raw ΔNLV ${rawPct != null ? (rawPct>=0?'+':'−') + Math.abs(rawPct).toFixed(1) + '%' : '—'}`
+        : 'ΔNLV — includes deposits/withdrawals (no flows recorded this period)';
+      return `<span style="color:var(--text-2)" title="${title}"> · ${label}</span> <span style="color:${v>=0?'var(--green)':'var(--red)'}" title="${title}">${v>=0?'+':'−'}${Math.abs(v).toFixed(1)}%</span>`;
+    };
+    const mtd = _mkPeriod('MTD', d.mtd_adj_pct, d.mtd_pct);
+    const ytd = _mkPeriod('YTD', d.ytd_adj_pct, d.ytd_pct);
     const sourceTag = d.source_label
       ? ` <span style="color:var(--text-2);font-size:0.82em">(${d.source_label})</span>`
       : '';
@@ -2557,6 +2567,28 @@ async function loadSnapshot() {
 }
 
 let _governanceCache = null;
+
+// ── Collapsed-by-default sections (PM 2026-07-06 noise decision) ─────────────
+function _govOpen(id) {
+  try { return localStorage.getItem('gov_open_' + id) === '1'; } catch (_) { return false; }
+}
+function toggleGovSection(id) {
+  const b = document.getElementById('gc-body-' + id);
+  const a = document.getElementById('gc-arrow-' + id);
+  if (!b) return;
+  const open = b.style.display === 'none';
+  b.style.display = open ? '' : 'none';
+  if (a) a.textContent = open ? '▾' : '▸';
+  try { localStorage.setItem('gov_open_' + id, open ? '1' : '0'); } catch (_) {}
+}
+function _govWrap(id, summaryHtml, bodyHtml) {
+  const open = _govOpen(id);
+  return `<div class="gov-collapse-head" onclick="toggleGovSection('${id}')">
+      <span class="gov-collapse-arrow" id="gc-arrow-${id}">${open ? '▾' : '▸'}</span>${summaryHtml}
+    </div>
+    <div id="gc-body-${id}" style="display:${open ? '' : 'none'}">${bodyHtml}</div>`;
+}
+
 function _govUtil(val, cap) {
   if (typeof val !== 'number' || typeof cap !== 'number' || cap <= 0) return '';
   return ` · 已用 ${(val / cap * 100).toFixed(0)}%`;
@@ -2859,14 +2891,14 @@ function _renderGovernance() {
 
   const boosterHtml = `
     <div class="booster-panel ${boosterPanelCls}">
-      <div class="booster-panel-head">B4 booster gate (cap ${fmtPct(caps.R1_spx_pm_pool_cap_pct ?? 80)} → ${fmtPct(caps.CAP_SPX_BENIGN_BOOSTER ?? 90)})</div>
-      <div class="booster-row">
-        <span class="booster-label">${boosterLabel}</span>
-        <span class="booster-cap-line">${boosterCapLine}</span>
-        <span class="booster-meta">Stage 1 shadow: observation only unless PM approves active mode.</span>
-      </div>
-      <div class="booster-chips">${boosterConditionsHtml}</div>
-      ${gateBlockHtml}
+      ${_govWrap('booster',
+        `<span class="booster-panel-head" style="margin:0">B4 booster gate (cap ${fmtPct(caps.R1_spx_pm_pool_cap_pct ?? 80)} → ${fmtPct(caps.CAP_SPX_BENIGN_BOOSTER ?? 90)})</span>
+         <span class="booster-label">${boosterLabel}</span>
+         <span class="booster-cap-line">${boosterCapLine}</span>
+         <span class="booster-gate-result ${gatePass ? 'ok' : 'fail'}" style="margin-left:auto">${gatePass ? '✓ PASS' : '× FAIL'}</span>`,
+        `<div class="booster-chips">${boosterConditionsHtml}</div>
+         ${gateBlockHtml}
+         <div class="booster-meta" style="margin-top:6px">Stage 1 shadow: observation only unless PM approves active mode.</div>`)}
     </div>`;
 
   const ladderMode = String(state.ladder_mode || 'shadow');
@@ -2889,19 +2921,19 @@ function _renderGovernance() {
   const ladderBP = state.ladder_active_total_bp != null ? fmtPct(state.ladder_active_total_bp) : '—';
   const ladderHtml = `
     <div class="ladder-panel ${ladderModeCls}">
-      <div class="ladder-head">
-        <span class="ladder-title">SPEC-108 Selector-Gated Ladder</span>
-        <span class="ladder-mode ${ladderMode}">${ladderMode}</span>
-        ${ladderChip}
-        ${driftChip}
-      </div>
-      <div class="ladder-grid">
-        <div class="ladder-cell"><div class="ladder-k">Cadence</div><div class="ladder-v">${state.ladder_cadence_eligible ? 'eligible' : 'gap block'}</div></div>
-        <div class="ladder-cell"><div class="ladder-k">Last Entry</div><div class="ladder-v">${ladderLast}</div></div>
-        <div class="ladder-cell"><div class="ladder-k">Action Days YTD</div><div class="ladder-v">${ladderActionDays}</div></div>
-        <div class="ladder-cell"><div class="ladder-k">Active / BP</div><div class="ladder-v">${ladderPositions} · ${ladderBP}</div></div>
-      </div>
-      <div class="ladder-note">Forward shadow observation only unless PM explicitly flips <code>LADDER_MODE=active</code>. Sizing fixed at 3 contracts; cadence is at most one selector-approved entry per 5 trading days.</div>
+      ${_govWrap('ladder108',
+        `<span class="ladder-title">SPEC-108 Selector-Gated Ladder</span>
+         <span class="ladder-mode ${ladderMode}">${ladderMode}</span>
+         ${ladderChip}
+         ${driftChip}
+         <span class="gov-collapse-summary-num">${ladderPositions} · ${ladderBP}</span>`,
+        `<div class="ladder-grid" style="margin-top:8px">
+          <div class="ladder-cell"><div class="ladder-k">Cadence</div><div class="ladder-v">${state.ladder_cadence_eligible ? 'eligible' : 'gap block'}</div></div>
+          <div class="ladder-cell"><div class="ladder-k">Last Entry</div><div class="ladder-v">${ladderLast}</div></div>
+          <div class="ladder-cell"><div class="ladder-k">Action Days YTD</div><div class="ladder-v">${ladderActionDays}</div></div>
+          <div class="ladder-cell"><div class="ladder-k">Active / BP</div><div class="ladder-v">${ladderPositions} · ${ladderBP}</div></div>
+        </div>
+        <div class="ladder-note">Forward shadow observation only unless PM explicitly flips <code>LADDER_MODE=active</code>. Sizing fixed at 3 contracts; cadence is at most one selector-approved entry per 5 trading days.</div>`)}
     </div>`;
 
   // SPEC-108.1 R2: V1b parallel shadow panel (below V3 panel; orange tint)
@@ -2918,18 +2950,18 @@ function _renderGovernance() {
   const v1bBP = state.ladder_v1b_active_total_bp != null ? fmtPct(state.ladder_v1b_active_total_bp) : '—';
   const ladderV1bHtml = `
     <div class="ladder-v1b-panel ${v1bModeCls}">
-      <div class="ladder-head">
-        <span class="ladder-v1b-title">SPEC-108.1 V1b Ladder (weekly Wed)</span>
-        <span class="ladder-v1b-mode">${v1bMode}</span>
-        ${v1bChip}
-      </div>
-      <div class="ladder-grid">
-        <div class="ladder-cell"><div class="ladder-k">Anchor</div><div class="ladder-v">${state.ladder_v1b_cadence_eligible ? 'Wed eligible' : v1bSkip || 'not Wed'}</div></div>
-        <div class="ladder-cell"><div class="ladder-k">Last Entry</div><div class="ladder-v">${v1bLast}</div></div>
-        <div class="ladder-cell"><div class="ladder-k">Action Days YTD</div><div class="ladder-v">${v1bActionDays}</div></div>
-        <div class="ladder-cell"><div class="ladder-k">Active / BP</div><div class="ladder-v">${v1bPositions} · ${v1bBP}</div></div>
-      </div>
-      <div class="ladder-note">V1b parallel shadow — weekly anchor Wed. Shadow only; mutually exclusive with V3 active. Flip <code>LADDER_V1B_MODE=active</code> only after PM Stage 2 V1b signoff.</div>
+      ${_govWrap('ladder108v1b',
+        `<span class="ladder-v1b-title">SPEC-108.1 V1b Ladder (weekly Wed)</span>
+         <span class="ladder-v1b-mode">${v1bMode}</span>
+         ${v1bChip}
+         <span class="gov-collapse-summary-num">${v1bPositions} · ${v1bBP}</span>`,
+        `<div class="ladder-grid" style="margin-top:8px">
+          <div class="ladder-cell"><div class="ladder-k">Anchor</div><div class="ladder-v">${state.ladder_v1b_cadence_eligible ? 'Wed eligible' : v1bSkip || 'not Wed'}</div></div>
+          <div class="ladder-cell"><div class="ladder-k">Last Entry</div><div class="ladder-v">${v1bLast}</div></div>
+          <div class="ladder-cell"><div class="ladder-k">Action Days YTD</div><div class="ladder-v">${v1bActionDays}</div></div>
+          <div class="ladder-cell"><div class="ladder-k">Active / BP</div><div class="ladder-v">${v1bPositions} · ${v1bBP}</div></div>
+        </div>
+        <div class="ladder-note">V1b parallel shadow — weekly anchor Wed. Shadow only; mutually exclusive with V3 active. Flip <code>LADDER_V1B_MODE=active</code> only after PM Stage 2 V1b signoff.</div>`)}
     </div>`;
 
   // Monitors block (SPEC-104) — pulled from /api/sleeve-governance/state.monitors
@@ -2949,12 +2981,18 @@ function _renderGovernance() {
       <span class="monitor-badge ${_monBadgeCls(m.status)}">${m.status || '—'}</span>
     </div>`;
   };
+  const _monKeys = ['blocked_hv_signals', 'r5_r6_frequency', 'spx_normal_to_stress_transition_loss'];
+  const monSummary = _monKeys.map(k => monitors[k]?.status).filter(Boolean).join(' · ') || '—';
   const monitorsHtml = `
     <div class="monitor-block">
-      <div class="monitor-block-head">SPEC-104 Monitors</div>
-      ${monRow('blocked_hv_signals', 'Stress Put Ladder Blocked Signals')}
-      ${monRow('r5_r6_frequency', 'R5/R6 Block Frequency (90d)')}
-      ${monRow('spx_normal_to_stress_transition_loss', 'SPX Normal→Stress Transition Loss')}
+      ${_govWrap('monitors104',
+        `<span class="monitor-block-head" style="margin:0">SPEC-104 Monitors</span>
+         <span class="gov-collapse-summary-num">${monSummary}</span>`,
+        `<div style="margin-top:6px">
+          ${monRow('blocked_hv_signals', 'Stress Put Ladder Blocked Signals')}
+          ${monRow('r5_r6_frequency', 'R5/R6 Block Frequency (90d)')}
+          ${monRow('spx_normal_to_stress_transition_loss', 'SPX Normal→Stress Transition Loss')}
+        </div>`)}
     </div>`;
 
   // ── blocked candidates ───────────────────────────────────────────────────────
@@ -2987,6 +3025,12 @@ function _renderGovernance() {
     ${ladderHtml}
     ${ladderV1bHtml}
 
+    <div class="gov-collapse-head" onclick="toggleGovSection('regimematrix')" style="margin:14px 0 6px">
+      <span class="gov-collapse-arrow" id="gc-arrow-regimematrix">${_govOpen('regimematrix') ? '▾' : '▸'}</span>
+      <span class="governance-label" style="margin:0">Strategy / Regime Matrix</span>
+      <span class="gov-collapse-summary-num">current: ${regime.toUpperCase()} · counterfactual reference</span>
+    </div>
+    <div id="gc-body-regimematrix" style="display:${_govOpen('regimematrix') ? '' : 'none'}">
     <div class="regime-matrix">
 
       <!-- ── Header row ── -->
@@ -3060,6 +3104,7 @@ function _renderGovernance() {
       <div class="rm-footer">${footerStress}</div>
       <div class="rm-footer">${footerSecond}</div>
 
+    </div>
     </div>
 
     <div class="governance-blocks">

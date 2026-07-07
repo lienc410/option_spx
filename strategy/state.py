@@ -377,7 +377,12 @@ def close_position(
             data["status"]     = "closed"
             data["closed_at"]  = date.today().isoformat()
             data["close_note"] = note or None
-        data.update({k: v for k, v in extra_fields.items() if v is not None})
+            data.update({k: v for k, v in extra_fields.items() if v is not None})
+        # Partial close (legs remain open): exit_premium / exit_reason /
+        # actual_pnl describe the CLOSED leg, not the still-open envelope.
+        # Stamping them here left a stale sign-slip actual_pnl=-85100 on an
+        # open state (2026-07-06). Closed-leg facts already live in
+        # closed_trades.jsonl + trade_log close events — skip the envelope.
         _save(data)
     else:
         # Old flat-format

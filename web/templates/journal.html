@@ -1697,6 +1697,21 @@ function _groupCounts(poss) {
 // where ΔNLV massively exceeds what the strategy produced (deposits,
 // withdrawals). Populated by _renderCumPnlChart; day records re-render after.
 let _stratDayPnlByDate = null;
+// Capital-flow ledger by date (data/capital_flows.jsonl via API) — recorded
+// flows get a definitive chip; the residual heuristic only covers dates the
+// ledger doesn't know about.
+let _capitalFlowsByDate = null;
+async function _loadCapitalFlows() {
+  try {
+    const res = await fetch('/api/portfolio/capital-flows');
+    const d = await res.json();
+    _capitalFlowsByDate = {};
+    for (const f of (d.flows || [])) {
+      _capitalFlowsByDate[f.date] = (_capitalFlowsByDate[f.date] || 0) + Number(f.signed_amount || 0);
+    }
+    if (_records.length) _renderDayRecords();
+  } catch (_) { _capitalFlowsByDate = {}; }
+}
 
 function _isPartialRow(r) {
   return !!(r && Array.isArray(r.partial_accounts) && r.partial_accounts.length);
@@ -1754,14 +1769,19 @@ function _renderDayRecords() {
     if (_isPartialRow(r)) {
       book += `<span class="day-evt partial" title="One broker unauthenticated this day — NLV covers ${(r.partial_accounts || []).join(', ')} only">partial</span>`;
     }
-    // Deposit/withdrawal detection: ΔNLV that the strategy's own day PnL
-    // can't remotely explain (>10% of prior NLV residual) is almost surely
-    // a capital flow, not trading PnL. Flag it so the journal doesn't read
-    // a $296k ETrade transfer as a +31% trading day (2026-06-01 incident).
-    if (change != null && prevNlv > 0 && _stratDayPnlByDate) {
+    // Capital-flow marking, two tiers:
+    // 1. Recorded ledger flow (data/capital_flows.jsonl) → definitive chip.
+    // 2. Residual heuristic for unrecorded dates: ΔNLV the strategy day PnL
+    //    can't remotely explain (>10% of prior NLV) → "cash flow?" prompt to
+    //    record it (2026-06-01 $296k ETrade transfer incident).
+    const ledgerFlow = _capitalFlowsByDate ? _capitalFlowsByDate[r.date] : null;
+    if (ledgerFlow != null && ledgerFlow !== 0) {
+      const fSign = ledgerFlow >= 0 ? '+' : '−';
+      book += `<span class="day-evt flow" title="Recorded capital flow (data/capital_flows.jsonl) — excluded from flow-adjusted returns">${ledgerFlow >= 0 ? 'deposit' : 'withdrawal'} ${fSign}${fmt$K(Math.abs(ledgerFlow))}</span>`;
+    } else if (change != null && prevNlv > 0 && _stratDayPnlByDate) {
       const stratDay = _stratDayPnlByDate[r.date] ?? 0;
       if (Math.abs(change - stratDay) > 0.10 * prevNlv) {
-        book += `<span class="day-evt flow" title="ΔNLV ${sign}${fmt$K(Math.abs(change))} vs strategy day PnL ${fmt$K(stratDay)} — likely deposit/withdrawal or non-SPX PnL, not trading result">cash flow?</span>`;
+        book += `<span class="day-evt flow" title="ΔNLV ${sign}${fmt$K(Math.abs(change))} vs strategy day PnL ${fmt$K(stratDay)} — likely an unrecorded deposit/withdrawal; add it to data/capital_flows.jsonl">cash flow?</span>`;
       }
     }
 
@@ -1823,6 +1843,7 @@ document.getElementById('nav-date').textContent = now.toLocaleDateString('en-US'
 document.querySelectorAll('.acct-view-tab').forEach(b => b.classList.toggle('active', b.dataset.acct === _accountView));
 
 loadJournal();
+_loadCapitalFlows();
 </script>
 </body>
 </html>
