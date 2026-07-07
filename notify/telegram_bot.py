@@ -1639,7 +1639,9 @@ def build_preclose_digest() -> tuple[str, str, str]:
     # 2. 持仓动作清单
     try:
         from strategy.state import read_all_positions
-        pos = (read_all_positions() or {}).get("positions", [])
+        _all = read_all_positions() or {}
+        pos = _all.get("positions", [])
+        _state_sk = _all.get("strategy_key") or ""
         if pos:
             for p in pos:
                 dte = ""
@@ -1652,7 +1654,7 @@ def build_preclose_digest() -> tuple[str, str, str]:
                             actionable = True
                     except ValueError:
                         pass
-                _sk = p.get("strategy_key") or p.get("strategy") or "?"
+                _sk = p.get("strategy_key") or p.get("strategy") or _state_sk or "?"
                 lines.append(f"  · 持仓 {_h(p.get('trade_id', '?'))}"
                              f"（{_h(_sk)}{dte}）")
         else:
