@@ -18,7 +18,13 @@ class StateAndApiTests(unittest.TestCase):
         self.orig_state_file = state_mod.STATE_FILE
         self.orig_results_cache = server_mod._RESULTS_DISK_CACHE
         self.orig_trade_log_file = trade_log_mod.TRADE_LOG_FILE
+        # CLOSED_TRADES_FILE isolation is NOT optional: close_position's
+        # auto-hook appends to it, and un-patched runs wrote ghost trades
+        # (5400/5350, 5420/5370 test fixtures) into the PRODUCTION ledger
+        # on 6/07 and 7/06.
+        self.orig_closed_trades_file = state_mod.CLOSED_TRADES_FILE
         state_mod.STATE_FILE = os.path.join(self.tmpdir.name, "current_position.json")
+        state_mod.CLOSED_TRADES_FILE = os.path.join(self.tmpdir.name, "closed_trades.jsonl")
         server_mod._RESULTS_DISK_CACHE = Path(self.tmpdir.name) / "backtest_results_cache.json"
         trade_log_mod.TRADE_LOG_FILE = Path(self.tmpdir.name) / "trade_log.jsonl"
         server_mod._backtest_cache.clear()
@@ -38,6 +44,7 @@ class StateAndApiTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         state_mod.STATE_FILE = self.orig_state_file
+        state_mod.CLOSED_TRADES_FILE = self.orig_closed_trades_file
         server_mod._RESULTS_DISK_CACHE = self.orig_results_cache
         trade_log_mod.TRADE_LOG_FILE = self.orig_trade_log_file
         self._gov_mod.RUNTIME_STATE_PATH = self.orig_runtime
