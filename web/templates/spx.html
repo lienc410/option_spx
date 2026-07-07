@@ -595,6 +595,31 @@ body {
   font-size: 0.78rem;
   color: var(--text);
 }
+/* SPEC-129 §2 — 偏离当日推荐的预填字段高亮（orange = approaching threshold） */
+.modal-input.deviated {
+  border-color: var(--orange-border);
+  background: var(--orange-bg);
+}
+/* SPEC-129 §2 — wait 日横幅（含 selector reason；提示不拦） */
+.open-wait-banner {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  padding: 9px 12px; margin-bottom: 12px;
+  background: var(--gray-bg); border: 1px solid var(--gray-border);
+  border-left: 3px solid var(--orange-border);
+  border-radius: 6px;
+  font-size: 0.74rem; color: var(--text);
+}
+.open-wait-banner .banner-state {
+  font-family: var(--f-ui); font-size: 0.60rem; font-weight: 500;
+  letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--orange); background: var(--orange-bg);
+  border: 1px solid var(--orange-border);
+  padding: 2px 8px; border-radius: 5px; flex-shrink: 0;
+}
+.open-wait-banner .banner-reason { color: var(--text-2); font-size: 0.72rem; }
+/* SPEC-129 §3 — 风险行（今日尺度绝对值） */
+#open-risk-row strong { font-family: var(--f-mono); color: var(--text); }
+#open-risk-row .risk-warn { color: var(--orange); }
 .scan-wrap {
   display: grid;
   gap: 6px;
@@ -892,6 +917,10 @@ let CURRENT_POS = null;
 let MANUAL_OPTIONS = [];
 let CURRENT_OPEN_DRAFT = null;
 let CURRENT_BP_PREVIEW = null;
+// SPEC-129 §2/§3 — 推荐预填基线（偏离检测）、wait 日标记、风险行上下文
+let REC_BASELINE = null;
+let OPEN_MODAL_WAIT_DAY = false;
+let ENTRY_RISK_CTX = null;
 
 function bpMetaForStrategy(strategyKey) {
   if (strategyKey === 'reduce_wait') {
@@ -1385,13 +1414,14 @@ function selectedOpenMeta() {
   return STRATEGY_META[key] || {};
 }
 
-function updateOpenDerivedFields() {
+function updateOpenDerivedFields(userInitiated) {
   const strategyKey = document.getElementById('open-strategy-key')?.value || '';
   const meta = STRATEGY_META[strategyKey] || {};
   const expiryInput = document.getElementById('open-expiry');
   const underlyingInput = document.getElementById('open-underlying');
   if (underlyingInput) underlyingInput.value = meta.underlying || 'SPX';
   if (expiryInput && !expiryInput.dataset.locked) expiryInput.value = plusDays(dteDefault(meta));
+  if (userInitiated) loadEntryRisk();  // SPEC-129 §3: family follows strategy
   if (CURRENT_OPEN_DRAFT && CURRENT_OPEN_DRAFT.strategy_key === strategyKey) {
     renderStrikeScan(CURRENT_OPEN_DRAFT);
     updatePremiumDiff();
@@ -1401,7 +1431,7 @@ function updateOpenDerivedFields() {
     renderStrikeScan(null);
     updatePremiumDiff();
     updateOpenBpPreview();
-    loadOpenDraft(strategyKey);
+    loadOpenDraft(strategyKey, userInitiated);
   }
 }
 
@@ -1573,7 +1603,7 @@ function updateSpreadQuotes() {
   el.textContent = `Spread B/A: ${parts.join(' · ')}`;
 }
 
-function applyOpenDraft(draft) {
+function applyOpenDraft(draft, isLiveRec) {
   CURRENT_OPEN_DRAFT = draft;
   CURRENT_BP_PREVIEW = draft.bp_preview || null;
   const set = (id, value) => {
@@ -1588,6 +1618,15 @@ function applyOpenDraft(draft) {
   set('open-long-strike', draft.long_strike);
   set('open-contracts', draft.contracts || 1);
   set('open-model-premium', draft.model_premium);
+  // SPEC-129 §2 — 偏离基线只在"当日 live 推荐"预填时建立；force_strategy
+  // override（wait 日或异格策略）没有推荐可偏离。
+  REC_BASELINE = isLiveRec ? {
+    short_strike: draft.short_strike,
+    long_strike: draft.long_strike,
+    expiry: draft.expiry,
+    dte_at_entry: draft.dte_at_entry,
+  } : null;
+  checkOpenDeviations();
   const paperEl = document.getElementById('open-paper-trade');
   if (paperEl) paperEl.checked = !!draft.paper_trade;
   const hint = document.getElementById('open-legs-hint');
@@ -1598,7 +1637,10 @@ function applyOpenDraft(draft) {
   updateSpreadQuotes();
 }
 
-async function loadOpenDraft(strategyKey) {
+async function loadOpenDraft(strategyKey, userInitiated) {
+  // SPEC-129 §2: wait 日不自动预填 — 只有用户显式切换策略（override 动作）
+  // 才加载腿；横幅（含 selector reason）保持可见。
+  if (OPEN_MODAL_WAIT_DAY && !userInitiated) return;
   const hint = document.getElementById('open-legs-hint');
   if (hint) hint.textContent = 'Computing delta strikes…';
   try {
@@ -1606,16 +1648,121 @@ async function loadOpenDraft(strategyKey) {
     // Use force_strategy whenever the selected key differs from the live rec
     // (including when rec is reduce_wait — server will compute legs for the chosen strategy)
     const recKey = CURRENT_REC?.strategy_key || '';
-    const url = (key && key !== recKey)
+    const forced = !!(key && key !== recKey);
+    const url = forced
       ? `/api/position/open-draft?force_strategy=${encodeURIComponent(key)}`
       : '/api/position/open-draft';
     const res = await fetch(url);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    applyOpenDraft(data);
+    applyOpenDraft(data, !forced && !OPEN_MODAL_WAIT_DAY && recKey === data.strategy_key);
   } catch (e) {
     if (hint) hint.textContent = e.message || 'Could not prefill from recommendation.';
   }
+}
+
+// ── SPEC-129 §2 — wait 横幅 + 偏离检测 ──────────────────────────────────────
+
+function isWaitDay() {
+  return !CURRENT_REC
+    || CURRENT_REC.strategy_key === 'reduce_wait'
+    || !(CURRENT_REC.legs || []).length;
+}
+
+function renderOpenWaitBanner() {
+  const el = document.getElementById('open-wait-banner');
+  if (!el) return;
+  if (!OPEN_MODAL_WAIT_DAY) { el.innerHTML = ''; return; }
+  const reason = CURRENT_REC?.rationale || 'No recommendation payload available today.';
+  el.innerHTML = `
+    <div class="open-wait-banner">
+      <span class="banner-state">NO ENTRY</span>
+      <span>Selector routes to wait today — manual open is an override (advisory only, not blocked).</span>
+      <span class="banner-reason">${reason}</span>
+    </div>`;
+}
+
+const DEVIATION_FIELDS = [
+  { field: 'short_strike', id: 'open-short-strike', numeric: true },
+  { field: 'long_strike', id: 'open-long-strike', numeric: true },
+  { field: 'expiry', id: 'open-expiry', numeric: false },
+  { field: 'dte_at_entry', id: 'open-dte', numeric: true },
+];
+
+function collectOpenDeviations() {
+  if (!REC_BASELINE) return [];
+  const out = [];
+  for (const spec of DEVIATION_FIELDS) {
+    const el = document.getElementById(spec.id);
+    if (!el) continue;
+    const rec = REC_BASELINE[spec.field];
+    if (rec == null || el.value === '') continue;
+    const actual = spec.numeric ? Number(el.value) : String(el.value);
+    const same = spec.numeric ? Number(actual) === Number(rec) : String(actual) === String(rec);
+    if (!same) out.push({ field: spec.field, actual, rec });
+  }
+  return out;
+}
+
+function checkOpenDeviations() {
+  const devs = collectOpenDeviations();
+  const devByField = new Set(devs.map((d) => d.field));
+  for (const spec of DEVIATION_FIELDS) {
+    const el = document.getElementById(spec.id);
+    if (el) el.classList.toggle('deviated', devByField.has(spec.field));
+  }
+  const noteEl = document.getElementById('open-deviation-note');
+  if (noteEl) {
+    noteEl.textContent = devs.length
+      ? 'Auto-note on submit: ' + devs.map((d) => `deviated: ${d.field}=${d.actual} (rec ${d.rec})`).join('; ')
+      : (REC_BASELINE ? 'Legs match today’s recommendation.' : '');
+  }
+  return devs;
+}
+
+// ── SPEC-129 §3 — 风险行（今日尺度绝对值，fail-soft）────────────────────────
+
+async function loadEntryRisk() {
+  const el = document.getElementById('open-risk-row');
+  if (!el) return;
+  ENTRY_RISK_CTX = null;
+  try {
+    const key = document.getElementById('open-strategy-key')?.value || CURRENT_REC?.strategy_key || '';
+    if (!key || key === 'reduce_wait') { el.textContent = 'Risk absolutes: pick a strategy.'; return; }
+    const res = await fetch(`/api/position/entry-risk?strategy_key=${encodeURIComponent(key)}`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    ENTRY_RISK_CTX = data;
+  } catch (_) {
+    ENTRY_RISK_CTX = null;
+  }
+  updateOpenRiskRow();
+}
+
+function updateOpenRiskRow() {
+  const el = document.getElementById('open-risk-row');
+  if (!el) return;
+  const strategyKey = document.getElementById('open-strategy-key')?.value || '';
+  const shortStrike = Number(document.getElementById('open-short-strike')?.value || 0);
+  const longStrike = Number(document.getElementById('open-long-strike')?.value || 0);
+  const premium = document.getElementById('open-actual-premium')?.value
+    || document.getElementById('open-model-premium')?.value || 0;
+  const contracts = Math.max(1, Number(document.getElementById('open-contracts')?.value || 1));
+  // 公式与服务端 _order_max_loss_usd 同源（credit=(width−credit)×100×n，
+  // debit=|debit|×100×n）— estimateBpPerContract 即该公式的前端镜像
+  const perContract = estimateBpPerContract(strategyKey, shortStrike, longStrike, premium);
+  const orderMaxLoss = perContract > 0 ? perContract * contracts : null;
+  const famMatch = ENTRY_RISK_CTX && ENTRY_RISK_CTX.family === (strategyKey.endsWith('_hv') ? strategyKey.slice(0, -3) : strategyKey);
+  const famOpen = famMatch ? Number(ENTRY_RISK_CTX.family_open_max_loss_usd || 0) : null;
+  const famN = famMatch ? (ENTRY_RISK_CTX.family_open_positions || []).length : 0;
+  const concurrent = (orderMaxLoss != null && famOpen != null) ? orderMaxLoss + famOpen : orderMaxLoss;
+  const cash = famMatch && ENTRY_RISK_CTX.liquid_cash_usd > 0 ? Number(ENTRY_RISK_CTX.liquid_cash_usd) : null;
+  const pct = (concurrent != null && cash) ? (concurrent / cash) * 100 : null;
+  const usd = (v) => v == null ? '—' : '$' + Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 });
+  el.innerHTML = `
+    Max loss (this order): <strong>${usd(orderMaxLoss)}</strong>
+    · Family concurrent${famN ? ` (+${famN} open)` : ''}: <strong>${usd(concurrent)}</strong>
+    · Of liquid cash: <strong class="${pct != null && pct >= 25 ? 'risk-warn' : ''}">${pct == null ? 'n/a' : pct.toFixed(1) + '%'}</strong>${cash ? ` (${usd(cash)})` : ''}`;
 }
 
 function updatePremiumDiff() {
@@ -1676,6 +1823,7 @@ function updateOpenBpPreview() {
     · Basis: <strong>${basisLabel}</strong>${basisDollars ? ` <strong>($${basisDollars.toLocaleString(undefined, {maximumFractionDigits: 0})})</strong>` : ''}
     · Recommended contracts: <strong>${recommendedContracts}</strong>`;
   updateSpreadQuotes();
+  updateOpenRiskRow();  // SPEC-129 §3 — 同一批输入驱动风险行
 }
 
 function updateCloseDerivedFields() {
@@ -1727,10 +1875,11 @@ function openTradeModal(kind, presetAccount, addTranche) {
     const options = MANUAL_OPTIONS.map(o => `<option value="${o.key}" ${o.key === CURRENT_REC?.strategy_key ? 'selected' : ''}>${o.name}</option>`).join('');
     title.textContent = addTranche ? 'Add Tranche' : 'Open Position';
     body.innerHTML = modalShell(`
+      <div id="open-wait-banner"></div>
       <div class="modal-grid">
         <div class="modal-field">
           <label class="modal-label">Strategy</label>
-          <select id="open-strategy-key" class="modal-select" onchange="updateOpenDerivedFields()">${options}</select>
+          <select id="open-strategy-key" class="modal-select" onchange="updateOpenDerivedFields(true)">${options}</select>
         </div>
         <div class="modal-field">
           <label class="modal-label">Underlying</label>
@@ -1746,22 +1895,22 @@ function openTradeModal(kind, presetAccount, addTranche) {
         </div>
         <div class="modal-field">
           <label class="modal-label">Expiry</label>
-          <input id="open-expiry" class="modal-input" type="date" value="${plusDays(dteDefault(STRATEGY_META[CURRENT_REC?.strategy_key] || {}))}" oninput="this.dataset.locked='1'">
+          <input id="open-expiry" class="modal-input" type="date" value="${plusDays(dteDefault(STRATEGY_META[CURRENT_REC?.strategy_key] || {}))}" oninput="this.dataset.locked='1'; checkOpenDeviations()">
         </div>
         <div class="modal-field">
           <label class="modal-label">DTE at Entry</label>
-          <input id="open-dte" class="modal-input" type="number" value="${dteDefault(STRATEGY_META[CURRENT_REC?.strategy_key] || {})}">
+          <input id="open-dte" class="modal-input" type="number" value="${dteDefault(STRATEGY_META[CURRENT_REC?.strategy_key] || {})}" oninput="checkOpenDeviations()">
         </div>
         <div class="modal-field">
           <label class="modal-label">Short Strike</label>
-          <input id="open-short-strike" class="modal-input" type="number" oninput="updateOpenBpPreview()">
+          <input id="open-short-strike" class="modal-input" type="number" oninput="updateOpenBpPreview(); checkOpenDeviations()">
         </div>
         <div class="modal-field full">
           <div class="scan-wrap" id="scan-short-wrap"></div>
         </div>
         <div class="modal-field">
           <label class="modal-label">Long Strike</label>
-          <input id="open-long-strike" class="modal-input" type="number" oninput="updateOpenBpPreview()">
+          <input id="open-long-strike" class="modal-input" type="number" oninput="updateOpenBpPreview(); checkOpenDeviations()">
         </div>
         <div class="modal-field full">
           <div class="scan-wrap" id="scan-long-wrap"></div>
@@ -1825,6 +1974,12 @@ function openTradeModal(kind, presetAccount, addTranche) {
         <div class="modal-field full">
           <div class="modal-hint" id="open-bp-preview">Loading buying power estimate…</div>
         </div>
+        <div class="modal-field full">
+          <div class="modal-hint" id="open-risk-row">Loading risk absolutes…</div>
+        </div>
+        <div class="modal-field full">
+          <div class="modal-hint" id="open-deviation-note"></div>
+        </div>
       </div>
       <div class="modal-cta">
         <button class="action-btn" onclick="closeTradeModal()">Cancel</button>
@@ -1836,8 +1991,19 @@ function openTradeModal(kind, presetAccount, addTranche) {
       const expEl = document.getElementById('open-expiry');
       if (expEl) { expEl.value = CURRENT_POS.expiry; expEl.dataset.locked = '1'; }
     }
+    // SPEC-129 §2 — wait 日：不做推荐预填，顶部横幅带 selector reason，
+    // 提交路径照常（提示不拦）。用户主动切策略 = 显式 override，仍可加载腿。
+    REC_BASELINE = null;
+    OPEN_MODAL_WAIT_DAY = isWaitDay();
+    renderOpenWaitBanner();
     updateOpenDerivedFields();
-    loadOpenDraft(document.getElementById('open-strategy-key')?.value || '');
+    if (!OPEN_MODAL_WAIT_DAY) {
+      loadOpenDraft(document.getElementById('open-strategy-key')?.value || '');
+    } else {
+      const hint = document.getElementById('open-legs-hint');
+      if (hint) hint.textContent = 'NO ENTRY day — recommendation prefill disabled. Pick a strategy to load legs as an explicit override.';
+    }
+    loadEntryRisk();
   } else if (kind === 'close') {
     title.textContent = 'Close Position';
     // Per-position close UI: each open leg gets its own row + exit-premium
@@ -2104,6 +2270,10 @@ async function submitOpenPosition() {
     pm_override: !!document.getElementById('open-pm-override')?.checked,
     note: document.getElementById('open-note').value || '',
   };
+  // SPEC-129 §2 — 偏离当日推荐的字段：结构化上送，服务端落 ledger open 事件
+  // （note 自动追加 "deviated: field=actual (rec v)"）
+  const _devs = collectOpenDeviations();
+  if (_devs.length) basePayload.deviations = _devs;
   const addTranche = !!document.getElementById('open-submit-btn')?.dataset.addTranche;
   const accounts = accountSel === 'both' ? ['schwab', 'etrade'] : [accountSel];
   let lastData = null;
