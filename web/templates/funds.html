@@ -106,6 +106,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .tl-r3, .tl-r4, .tl-r5 { background:var(--gold); }
 .tl-r6, .tl-r0 { background:var(--border-3); }
 .tl-r7 { background:var(--gold-pale,var(--gold)); }
+.tl-r8 { background:var(--blue); }
 .tl-legend { font-size:0.58rem;color:var(--text-2);margin-top:5px; }
 .tl-legend .tl-cell { height:9px;width:9px;border-radius:50%; }
 .gate-on  { color:var(--gold); }
@@ -216,7 +217,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 </div>
 
 <script>
-const RULE_COLOR = { 1:'ab-green', 7:'ab-gold', 2:'ab-red', 3:'ab-gold', 4:'ab-gold', 5:'ab-gold', 6:'ab-dim', 0:'ab-dim' };
+const RULE_COLOR = { 1:'ab-green', 7:'ab-gold', 8:'ab-gold', 2:'ab-red', 3:'ab-gold', 4:'ab-gold', 5:'ab-gold', 6:'ab-dim', 0:'ab-dim' };
 
 function fmt_cny(v) {
   if (v == null) return '—';
@@ -264,7 +265,10 @@ function render_signal_panel(f, P) {
       lv('跌破 → 退出上升·转加速清', f.ma20*(1-band));
     } else {
       if (f.roll_high!=null) lv(`反弹至 → ⑦回前高·减${(recClip*100).toFixed(0)}%`, f.roll_high*(1-recBand));
-      if (f.trend==='下降') {
+      if (f.rule===8) {
+        lv('跌破 → 退出上升·回弱势信号', f.ma20*(1-band));
+        W.push('<div class="sig-watch-line">📍 持续上升满15日(无破势) → 转①慢池</div>');
+      } else if (f.trend==='下降') {
         lv('站上 → 退出下降·停额外', f.ma20*(1-band));
         if (!deepHit && f.roll_high!=null) lv('失守 → 转②深套·停额外', f.roll_high*(1-DEEP));
       } else {
@@ -471,7 +475,7 @@ async function load(retry=0) {
     </div>`;
 
   const funds = d.funds || [];
-  const reducible = funds.filter(f => f.ok && [7,3,4,5].includes(f.rule)).sort((a,b)=>b.clip-a.clip);
+  const reducible = funds.filter(f => f.ok && [7,8,3,4,5].includes(f.rule)).sort((a,b)=>b.clip-a.clip);
   const strong    = funds.filter(f => f.ok && f.rule === 1);
   const other     = funds.filter(f => !f.ok || [2,6,0].includes(f.rule));
 
@@ -492,7 +496,7 @@ async function load(retry=0) {
 let LAST = null;
 let SIG_HIST = {};
 let SECTORS = null;
-const RULE_LABEL = {1:'①上升',7:'⑦回前高',2:'②深套',3:'③确认下降',4:'④破带',5:'⑤破MA20',6:'⑥观察',0:'数据不足'};
+const RULE_LABEL = {1:'①上升',7:'⑦回前高',8:'⑧回升未稳',2:'②深套',3:'③确认下降',4:'④破带',5:'⑤破MA20',6:'⑥观察',0:'数据不足'};
 
 function openRec() {
   if (!LAST || !LAST.funds) { return; }

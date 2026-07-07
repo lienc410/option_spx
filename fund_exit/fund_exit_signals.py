@@ -156,6 +156,7 @@ LOCKED = {}
 ACTION_TEXT = {
     1: "①上升趋势：延长慢清(慢速TWAP)，让赢家多跑",
     7: "⑦回前高：反弹至前高附近，减仓兑现(清仓窗口)",
+    8: "⑧回升未稳：破势后重回上升(<15日)，不授慢池，快池TWAP",
     2: "②深套：不加码砸底，仅走周 TWAP 逐步出",
     3: "③确认下降趋势：周 TWAP + 弱倾斜前置",
     4: "④震荡·破追踪带：周 TWAP + 弱倾斜前置",
@@ -324,8 +325,10 @@ def signal_at(nav, weeks_fast, weeks_slow) -> dict:
     # 规则引擎（优先级）；深套/回前高用 dist_roll（统一滚动高，A6）
     if dist_roll == dist_roll and dist_roll >= -REC_BAND and recent_break:
         rule = 7   # 回前高：反弹至前高附近就卖，优先于①（防反弹强→重回上升→反而转慢池）
+    elif trend == "上升" and not recent_break:
+        rule = 1   # 慢池资格 = 持续上升(近15日无破势)的真赢家
     elif trend == "上升":
-        rule = 1
+        rule = 8   # 回升未稳：破势后重回上升(<15日) → 不授慢池(修非单调: 半反弹曾掉到12.5%<地板)
     elif trend == "下降" and dist_roll <= -DEEP:
         rule = 2
     elif trend == "下降":
@@ -389,6 +392,8 @@ def main():
     # 周频截止日 TWAP：按真实今日到 deadline 的剩余周数定步
     today = datetime.now().date()
     weeks_fast = max(weeks_remaining_at(today, DEADLINE_FAST), SOFT_FLOOR_WEEKS)  # 软化: 不悬崖到 100%/周
+    if today > DEADLINE_SLOW:   # 硬外沿: 软化有边界——8-31 后全书回到"剩1周清光"(thesis 到期)
+        weeks_fast = 1
     weeks_slow = weeks_remaining_at(today, DEADLINE_SLOW)
     twap_fast = min(1.0, 1.0 / weeks_fast)
     twap_slow = min(1.0, 1.0 / weeks_slow)
@@ -613,7 +618,7 @@ def write_json(results, path, regime, data_date, cad):
     os.replace(tmp, path)
 
 
-_RULE_NAME = {1: "①上升持有", 7: "⑦回前高", 2: "②深套", 3: "③确认下降", 4: "④破追踪带",
+_RULE_NAME = {1: "①上升持有", 7: "⑦回前高", 8: "⑧回升未稳", 2: "②深套", 3: "③确认下降", 4: "④破追踪带",
               5: "⑤破MA20", 6: "⑥观察", 0: "数据不足"}
 
 
@@ -676,9 +681,10 @@ def backfill_signal_log(days=60):
         for i in range(start, n):
             d = dates.iloc[i].strftime("%Y-%m-%d")
             d_i = dates.iloc[i].date()
-            s = signal_at(nav.iloc[:i + 1],
-                          max(weeks_remaining_at(d_i, DEADLINE_FAST), SOFT_FLOOR_WEEKS),
-                          weeks_remaining_at(d_i, DEADLINE_SLOW))
+            wf = max(weeks_remaining_at(d_i, DEADLINE_FAST), SOFT_FLOOR_WEEKS)
+            if d_i > DEADLINE_SLOW:
+                wf = 1
+            s = signal_at(nav.iloc[:i + 1], wf, weeks_remaining_at(d_i, DEADLINE_SLOW))
             merged[(d, code)] = {
                 "date": d, "code": code, "name": name,
                 "rule": s["rule"], "rule_name": _RULE_NAME.get(s["rule"], ""), "trend": s["trend"],
