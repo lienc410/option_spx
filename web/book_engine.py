@@ -449,9 +449,25 @@ def compute_book(data_dir: Path | None = None, force: bool = False) -> dict[str,
         guarantees.append({**g, "floor": round(floor, 2), "actual": actual,
                            "met": (actual is not None and actual >= floor)})
 
+    # UI form options (SPEC-128 follow-up): dropdowns from config + observed
+    # ledger values — the Counts/Type/Partner judgments stay human, the UI
+    # just constrains typos.
+    _all_flows = (_read_events(data_dir / "sw_cashledger.jsonl")
+                  + _read_events(data_dir / "et_cashledger.jsonl"))
+    _accounts = sorted({v for f in _all_flows for v in (f.get("from"), f.get("to"))
+                        if v})
+    _instruments = sorted({f.get("instrument") for f in _all_flows if f.get("instrument")}
+                          | {"Wire", "Check", "Transfer", "Book", "Deposit"})
+    form_options = {
+        "partners": {"sw": cfg["sw_partners"], "et": cfg["et_partners"]},
+        "accounts": _accounts,
+        "instruments": _instruments,
+    }
+
     payload = {
         "available": True,
         "source": "native",
+        "form_options": form_options,
         "source_detail": f"native engine · data/book ({len(sw['periods'])} SW + {len(et['periods'])} ET periods)",
         "members": members,
         "total": total,

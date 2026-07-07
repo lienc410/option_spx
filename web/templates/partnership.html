@@ -431,42 +431,93 @@ function renderReconBar(b) {
 
 function renderEntryBar() {
   return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
-    <button class="refresh-btn" onclick="showBookForm('snapshot')">＋ 记快照</button>
+    <button class="refresh-btn" onclick="showBookForm('snapshot')">＋ 记快照（对账日）</button>
     <button class="refresh-btn" onclick="showBookForm('flow')">＋ 记资金流</button>
-    <button class="refresh-btn" onclick="showBookForm('mark')">＋ 记个人市值</button>
+    <button class="refresh-btn" onclick="showBookForm('mark')" title="CXZ 6842 / Lien PM 并入前个人业绩序列——2026-06 并入后已冻结，仅历史补录用">＋ 补录个人市值（并入前）</button>
   </div>
   <div id="book-form-slot"></div>`;
 }
 
-const BOOK_FORMS = {
-  snapshot: `
-    <div class="form-row">池：<select id="bf-pool"><option value="sw">Schwab CCC-354</option><option value="et">E*Trade PM</option></select>
-    日期：<input type="date" id="bf-date">
-    总值：<input type="number" step="0.01" id="bf-total" placeholder="账户总市值">
-    备注：<input type="text" id="bf-note">
-    <button class="refresh-btn" onclick="submitBook('snapshot')">提交</button></div>`,
-  flow: `
-    <div class="form-row">池：<select id="bf-pool"><option value="sw">Schwab CCC-354</option><option value="et">E*Trade PM</option></select>
-    快照期：<input type="date" id="bf-snapdate" title="归属的快照期（引擎按此匹配）">
-    到账日：<input type="date" id="bf-bankdate">
-    合伙人：<input type="text" id="bf-partner" placeholder="Chinchaung/Lien/Xinzhong/…">
-    From：<input type="text" id="bf-from"> To：<input type="text" id="bf-to">
-    金额：<input type="number" step="0.01" id="bf-amount">
-    Counts：<select id="bf-counts" title="Yes=真正进/出投资账户（计入资本）；No=中转腿（只记录）"><option>Yes</option><option>No</option></select>
-    Type：<select id="bf-type"><option>Contribution</option><option>Distribution</option><option value="">（Counts=No 可留空）</option></select>
-    工具：<input type="text" id="bf-instr" placeholder="Wire/Check/Book…">
-    备注：<input type="text" id="bf-note">
-    <button class="refresh-btn" onclick="submitBook('flow')">提交</button></div>`,
-  mark: `
-    <div class="form-row">序列：<select id="bf-series"><option value="cxz">CXZ 6842</option><option value="lien">Lien PM</option></select>
-    月份：<input type="text" id="bf-month" placeholder="2026-06">
-    市值：<input type="number" step="0.01" id="bf-value">
-    <button class="refresh-btn" onclick="submitBook('mark')">提交</button></div>`,
-};
+function _optSelect(id, options, withOther) {
+  const opts = options.map(o => `<option value="${o}">${o}</option>`).join('');
+  const other = withOther ? `<option value="__other__">Other…</option>` : '';
+  return `<select id="${id}" onchange="bfOther('${id}')">${opts}${other}</select><input type="text" id="${id}-other" placeholder="手动输入" style="display:none">`;
+}
+function bfOther(id) {
+  const sel = document.getElementById(id);
+  const inp = document.getElementById(id + '-other');
+  if (inp) inp.style.display = sel.value === '__other__' ? '' : 'none';
+}
+function bfVal(id) {
+  const sel = document.getElementById(id);
+  if (!sel) return '';
+  if (sel.value === '__other__') return document.getElementById(id + '-other')?.value ?? '';
+  return sel.value;
+}
+
+function bookForms() {
+  const fo = (BOOK && BOOK.form_options) || {};
+  const accounts = fo.accounts || [];
+  const instruments = fo.instruments || [];
+  const partnersByPool = fo.partners || { sw: [], et: [] };
+  return {
+    snapshot: `
+      <div style="font-size:0.66rem;color:var(--text-2);margin-bottom:6px">快照 = 记账锚（定义期间、倒挤盈亏、驱动份额）。请以<strong>券商对账单确认过的数值</strong>为准；「取实时值」仅预填，提交前请核对（实时账户身份未验证）。</div>
+      <div class="form-row">池：<select id="bf-pool"><option value="sw">Schwab CCC-354</option><option value="et">E*Trade PM</option></select>
+      日期：<input type="date" id="bf-date">
+      总值：<input type="number" step="0.01" id="bf-total" placeholder="账户总市值">
+      <button class="refresh-btn" onclick="prefillSnapshot()">⤓ 取实时值</button>
+      备注：<input type="text" id="bf-note">
+      <button class="refresh-btn" onclick="submitBook('snapshot')">提交</button></div>`,
+    flow: `
+      <div class="form-row">池：<select id="bf-pool" onchange="refreshPartnerOptions()"><option value="sw">Schwab CCC-354</option><option value="et">E*Trade PM</option></select>
+      快照期：<input type="date" id="bf-snapdate" title="归属的快照期（引擎按此匹配）">
+      到账日：<input type="date" id="bf-bankdate">
+      合伙人：<span id="bf-partner-slot">${_optSelect('bf-partner', partnersByPool.sw || [], true)}</span>
+      From：${_optSelect('bf-from', accounts, true)}
+      To：${_optSelect('bf-to', accounts, true)}
+      金额：<input type="number" step="0.01" id="bf-amount">
+      Counts：<select id="bf-counts" title="Yes=真正进/出投资账户（计入资本）；No=中转腿（只记录）"><option>Yes</option><option>No</option></select>
+      Type：<select id="bf-type"><option>Contribution</option><option>Distribution</option><option value="">（Counts=No 可留空）</option></select>
+      工具：${_optSelect('bf-instr', instruments, true)}
+      备注：<input type="text" id="bf-note">
+      <button class="refresh-btn" onclick="submitBook('flow')">提交</button></div>`,
+    mark: `
+      <div style="font-size:0.66rem;color:var(--text-2);margin-bottom:6px">并入前（2026-06-01 之前）的个人业绩序列历史补录：CXZ 6842 月度 / Lien PM 季度。并入后个人业绩走池，不再新增。</div>
+      <div class="form-row">序列：<select id="bf-series"><option value="cxz">CXZ 6842</option><option value="lien">Lien PM</option></select>
+      月份：<input type="text" id="bf-month" placeholder="2026-05">
+      市值：<input type="number" step="0.01" id="bf-value">
+      <button class="refresh-btn" onclick="submitBook('mark')">提交</button></div>`,
+  };
+}
+
+function refreshPartnerOptions() {
+  const pool = document.getElementById('bf-pool')?.value || 'sw';
+  const fo = (BOOK && BOOK.form_options) || {};
+  const partners = (fo.partners || {})[pool] || [];
+  document.getElementById('bf-partner-slot').innerHTML = _optSelect('bf-partner', partners, true);
+}
+
+async function prefillSnapshot() {
+  const totalEl = document.getElementById('bf-total');
+  const dateEl = document.getElementById('bf-date');
+  totalEl.placeholder = '读取实时余额…';
+  try {
+    const live = await (await fetch('/api/partnership/live-nlv')).json();
+    const pool = document.getElementById('bf-pool').value;
+    const v = pool === 'sw' ? live?.schwab?.live_value : live?.etrade?.live_value;
+    if (v != null) {
+      totalEl.value = Number(v).toFixed(2);
+      if (!dateEl.value) dateEl.value = new Date().toISOString().slice(0, 10);
+    } else {
+      totalEl.placeholder = '实时值不可用（盘后/未配置）——请手动录入对账值';
+    }
+  } catch (e) { totalEl.placeholder = '实时值读取失败——请手动录入'; }
+}
 
 function showBookForm(kind) {
   document.getElementById('book-form-slot').innerHTML =
-    `<div style="background:var(--surface);border:1px solid var(--border-2);border-radius:9px;padding:12px 14px;margin-bottom:14px;font-size:0.72rem;line-height:2.2">${BOOK_FORMS[kind]}
+    `<div style="background:var(--surface);border:1px solid var(--border-2);border-radius:9px;padding:12px 14px;margin-bottom:14px;font-size:0.72rem;line-height:2.2">${bookForms()[kind]}
      <div id="bf-msg" style="font-family:var(--f-mono);font-size:0.68rem;margin-top:4px"></div></div>`;
 }
 
@@ -479,9 +530,9 @@ async function submitBook(kind) {
   } else if (kind === 'flow') {
     url = '/api/partnership/book/flow';
     payload = { pool: v('bf-pool'), snapshot_date: v('bf-snapdate'), bank_date: v('bf-bankdate'),
-                partner: v('bf-partner'), from: v('bf-from'), to: v('bf-to'),
+                partner: bfVal('bf-partner'), from: bfVal('bf-from'), to: bfVal('bf-to'),
                 amount: Number(v('bf-amount')), counts: v('bf-counts'), type: v('bf-type'),
-                instrument: v('bf-instr'), note: v('bf-note') };
+                instrument: bfVal('bf-instr'), note: v('bf-note') };
   } else {
     url = '/api/partnership/book/mark';
     payload = { series: v('bf-series'), event: 'mark', month: v('bf-month'), value: Number(v('bf-value')) };
