@@ -2956,6 +2956,9 @@ def api_strategy_closed_trades():
                     trades.append({
                         "trade_id":     ct.get("trade_id"),
                         "account":      ct.get("account"),
+                        # SPEC-127: cycle 行（roll 短腿周期实现）与 campaign 归属
+                        "campaign_id":  ct.get("campaign_id"),
+                        "cycle_event":  bool(ct.get("cycle_event", False)),
                         "strategy_key": ct.get("strategy_key"),
                         "short_strike": ct.get("short_strike"),
                         "long_strike":  ct.get("long_strike"),
@@ -5346,10 +5349,17 @@ def api_position_open():
         actual_premium = model_premium
         premium_source = "model"
 
+    # SPEC-127 §2 — 长短腿分离（H-5 根因：单一 expiry 字段）。long_expiry 只在
+    # diagonal 填写；per-leg fill 可选（collapse 触发需要短腿自己的入场权利金）。
+    long_expiry = body.get("long_expiry") or None
+    short_entry_price = _num(body.get("short_leg_fill"))
+    long_entry_price = _num(body.get("long_leg_fill"))
+
     state_payload = {
         "short_strike": body.get("short_strike"),
         "long_strike": body.get("long_strike"),
         "expiry": body.get("expiry"),
+        "long_expiry": long_expiry,
         "dte_at_entry": body.get("dte_at_entry"),
         "contracts": body.get("contracts", 1),
         "actual_premium": actual_premium,
@@ -5361,6 +5371,7 @@ def api_position_open():
         "iv_signal": body.get("iv_signal"),
         "trend_signal": body.get("trend_signal"),
         "paper_trade": paper_trade,
+        "short_entry_price": short_entry_price,
     }
     account = str(body.get("account") or "schwab").strip().lower()
     add_tranche = bool(body.get("add_tranche", False))
@@ -5454,6 +5465,36 @@ def api_position_open():
     with ID_ALLOC_LOCK:
         trade_id = next_trade_id(strategy_key)
         state_payload["trade_id"] = trade_id
+        # SPEC-127 §1/§2 — campaign_id：显式传入 > 同长腿的已开 diagonal 仓
+        # （双仓/加仓共享一个 campaign）> 默认自身 id（退化单-trade campaign）。
+        campaign_id = str(body.get("campaign_id") or "").strip() or None
+        if not campaign_id and strategy_key == "bull_call_diagonal":
+            from strategy.state import read_all_positions as _rap
+            existing_state = _rap()
+            if existing_state and existing_state.get("strategy_key") == strategy_key:
+                for p in existing_state.get("positions") or []:
+                    same_long = (
+                        str(p.get("long_strike")) == str(body.get("long_strike"))
+                        and str(p.get("long_expiry") or p.get("expiry"))
+                        == str(long_expiry or body.get("expiry"))
+                    )
+                    if same_long and p.get("campaign_id"):
+                        campaign_id = str(p["campaign_id"])
+                        break
+                    if same_long and p.get("trade_id"):
+                        campaign_id = str(p["trade_id"])
+                        break
+        campaign_id = campaign_id or trade_id
+        state_payload["campaign_id"] = campaign_id
+        legs = [
+            {"side": "short", "strike": body.get("short_strike"), "expiry": body.get("expiry")},
+            {"side": "long", "strike": body.get("long_strike"),
+             "expiry": long_expiry or body.get("expiry")},
+        ]
+        if short_entry_price is not None:
+            legs[0]["entry_price"] = short_entry_price
+        if long_entry_price is not None:
+            legs[1]["entry_price"] = long_entry_price
         write_state(desc.name, body.get("underlying", desc.underlying), strategy_key=strategy_key, account=account, add_tranche=add_tranche, **state_payload)
         if ladder_state_for_active is not None and ladder_decision_for_active and ladder_decision_for_active[0]:
             try:
@@ -5467,9 +5508,13 @@ def api_position_open():
             "strategy_key": strategy_key,
             "strategy": desc.name,
             "underlying": body.get("underlying", desc.underlying),
+            "campaign_id": campaign_id,
+            "legs": legs,
             "short_strike": body.get("short_strike"),
             "long_strike": body.get("long_strike"),
             "expiry": body.get("expiry"),
+            "long_expiry": long_expiry,
+            "short_entry_price": short_entry_price,
             "dte_at_entry": body.get("dte_at_entry"),
             "contracts": body.get("contracts", 1),
             "actual_premium": actual_premium,
@@ -6028,6 +6073,12 @@ def api_position_roll():
     state = read_state()
     if not state:
         return jsonify({"error": "No open position"}), 400
+
+    # SPEC-127 §2/§3 — per-leg diagonal roll（原子）：payload 带 legs 数组时走
+    # 新流程；否则保留 legacy envelope roll（credit-spread 整体 roll，零回归）。
+    if isinstance(body.get("legs"), list):
+        return _apply_diagonal_roll(body)
+
     roll_position(
         expiry=body.get("new_expiry"),
         short_strike=body.get("new_short_strike"),
@@ -6045,6 +6096,177 @@ def api_position_roll():
         "note": body.get("note", ""),
     })
     return jsonify({"ok": True})
+
+
+def _apply_diagonal_roll(body: dict):
+    """SPEC-127 §2 — atomic per-leg short roll（AC-1：部分失败回滚）。
+
+    payload: {legs: [{trade_id, close_price, open_price}, ...],
+              new_short_strike, new_expiry, note}
+      close_price — 买回旧短腿 per-share cost（正数 = 付出）
+      open_price  — 卖出新短腿 per-share credit（正数 = 收到）
+
+    提交序列：全部校验（零写入）→ 状态快照 → ledger roll 事件（单次写 =
+    commit point）→ state 更新 → closed_trades cycle 行。commit 后任一步失败
+    → 恢复状态快照 + 追加 roll_void 补偿事件（resolve_log 会丢弃被 void 的
+    roll），净效果 = 什么都没发生。"""
+    import strategy.state as state_mod
+    from logs.trade_log_io import ID_ALLOC_LOCK, append_events, resolve_log
+
+    # ── 校验阶段（不允许任何写入）─────────────────────────────────────────
+    new_strike = _num(body.get("new_short_strike"))
+    new_expiry = str(body.get("new_expiry") or "").strip()
+    note = str(body.get("note") or "")
+    if not new_strike or new_strike <= 0:
+        return jsonify({"error": "new_short_strike is required and must be > 0"}), 400
+    try:
+        datetime.strptime(new_expiry, "%Y-%m-%d")
+    except ValueError:
+        return jsonify({"error": "new_expiry must be YYYY-MM-DD"}), 400
+
+    all_state = state_mod.read_all_positions()
+    positions = (all_state or {}).get("positions") or []
+    by_tid = {p.get("trade_id"): p for p in positions}
+    resolved_by_id = {t["id"]: t for t in resolve_log()}
+
+    legs_spec: list[dict] = []
+    seen: set = set()
+    for spec in body.get("legs") or []:
+        tid = str(spec.get("trade_id") or "").strip()
+        close_price = _num(spec.get("close_price"))
+        open_price = _num(spec.get("open_price"))
+        if not tid:
+            return jsonify({"error": "each leg needs a trade_id"}), 400
+        if tid in seen:
+            return jsonify({"error": f"duplicate leg trade_id {tid}"}), 400
+        seen.add(tid)
+        leg = by_tid.get(tid)
+        if leg is None:
+            return jsonify({"error": f"trade_id {tid} is not an open leg"}), 400
+        if close_price is None or open_price is None:
+            return jsonify({"error": f"leg {tid}: close_price and open_price are required"}), 400
+        if not (_math.isfinite(close_price) and _math.isfinite(open_price)):
+            return jsonify({"error": f"leg {tid}: prices must be finite"}), 400
+        if close_price < 0 or open_price < 0:
+            return jsonify({"error": f"leg {tid}: prices are per-share positives "
+                                     "(close=买回成本, open=新腿 credit)"}), 400
+        legs_spec.append({"trade_id": tid, "leg": leg,
+                          "close_price": close_price, "open_price": open_price})
+    if not legs_spec:
+        return jsonify({"error": "at least one leg is required"}), 400
+
+    timestamp = _now_et_iso()
+    closed_at_iso = timestamp[:10]
+    events: list[dict] = []
+    cycle_rows: list[dict] = []
+    results: list[dict] = []
+    for spec in legs_spec:
+        tid, leg = spec["trade_id"], spec["leg"]
+        resolved = resolved_by_id.get(tid) or {}
+        prior_rolls = resolved.get("rolls") or []
+        seq = len(prior_rolls) + 1
+        roll_id = f"{tid}_roll_{seq}"
+        campaign_id = (resolved.get("campaign_id")
+                       or leg.get("campaign_id") or tid)
+        old_strike = leg.get("short_strike")
+        old_expiry = leg.get("expiry")
+        contracts = _num(leg.get("contracts")) or 1
+        net = round(spec["open_price"] - spec["close_price"], 4)
+        # cycle 起点 = 上一个 roll 日或建仓日（journal hold_days 用）
+        if prior_rolls:
+            cycle_start = str(prior_rolls[-1].get("timestamp") or "")[:10] or None
+        else:
+            cycle_start = leg.get("opened_at")
+        events.append({
+            "id": tid,
+            "event": "roll",
+            "timestamp": timestamp,
+            "roll_id": roll_id,
+            "campaign_id": campaign_id,
+            "closed_short": {"strike": old_strike, "expiry": old_expiry,
+                             "price": spec["close_price"]},
+            "new_short": {"strike": new_strike, "expiry": new_expiry,
+                          "price": spec["open_price"]},
+            "roll_net_credit": net,
+            "contracts": contracts,
+            "note": note,
+        })
+        cycle_rows.append({
+            "trade_id": tid,
+            "campaign_id": campaign_id,
+            "cycle_event": True,
+            "roll_id": roll_id,
+            "strategy": "spx_spread",
+            "strategy_key": leg.get("strategy_key") or (all_state or {}).get("strategy_key"),
+            "account": leg.get("account") or "schwab",
+            "underlying": (all_state or {}).get("underlying") or "SPX",
+            "short_strike": old_strike,
+            "expiry": old_expiry,
+            "new_short_strike": new_strike,
+            "new_expiry": new_expiry,
+            "contracts": int(contracts),
+            "opened_at": cycle_start,
+            "closed_at": closed_at_iso,
+            "entry_credit_per_share": spec["open_price"],
+            "exit_debit_per_share": spec["close_price"],
+            "realized_pnl": round(net * 100.0 * contracts, 2),
+            "close_reason": "roll",
+            "seeded_from": "spec127_roll_endpoint",
+        })
+        results.append({"trade_id": tid, "roll_id": roll_id,
+                        "roll_net_credit": net,
+                        "cycle_realized": round(net * 100.0 * contracts, 2)})
+
+    # ── 提交阶段 ─────────────────────────────────────────────────────────
+    with ID_ALLOC_LOCK:
+        snapshot = state_mod._load_raw()
+        ledger_committed = False
+        try:
+            append_events(events)          # commit point（单次写）
+            ledger_committed = True
+            for spec in legs_spec:
+                ok = state_mod.roll_short_leg(
+                    spec["trade_id"],
+                    new_short_strike=new_strike,
+                    new_expiry=new_expiry,
+                    net_credit_per_share=spec["open_price"] - spec["close_price"],
+                    new_short_entry_price=spec["open_price"],
+                )
+                if not ok:
+                    raise RuntimeError(f"state update failed for {spec['trade_id']}")
+            state_mod.append_roll_cycle_rows(cycle_rows)
+        except Exception as exc:
+            # AC-1 回滚：状态恢复快照；已 commit 的 roll 事件用 roll_void 抵销
+            try:
+                if snapshot is not None:
+                    state_mod._save(snapshot)
+            except Exception:
+                app.logger.exception("roll rollback: state restore failed")
+            if ledger_committed:
+                try:
+                    append_events([
+                        {"id": e["id"], "event": "roll_void",
+                         "timestamp": _now_et_iso(), "roll_id": e["roll_id"],
+                         "reason": f"atomic rollback: {exc}"}
+                        for e in events
+                    ])
+                except Exception:
+                    app.logger.exception("roll rollback: roll_void append failed")
+            app.logger.exception("diagonal roll failed — rolled back")
+            return jsonify({"error": f"roll failed and was rolled back: {exc}"}), 500
+
+    # 推送（gateway，STATE：登记确认，不响铃）— fail-soft
+    try:
+        from notify.gateway import push as gw_push
+        for r in results:
+            gw_push("STATE", f"持仓 {r['trade_id']}", "Roll 已登记",
+                    f"旧短腿平 / 新短腿 C{new_strike:g} exp {new_expiry} 开 · "
+                    f"cycle 实现 ${r['cycle_realized']:,.0f} · "
+                    "adjusted basis 已更新（21-DTE 时钟按新短腿重置）")
+    except Exception:
+        app.logger.exception("roll push failed")
+
+    return jsonify({"ok": True, "legs": results})
 
 
 @app.route("/api/position/note", methods=["POST"])
@@ -6069,6 +6291,51 @@ def api_position_note():
     return jsonify({"ok": True})
 
 
+@app.route("/api/campaigns")
+def api_campaigns():
+    """SPEC-127 §1 — campaign 双层视图（cycle 行 + Adjusted Basis 英雄指标）。
+
+    Query: status=open|closed（缺省全量）。open campaign 附带最近一次治理
+    chain mark（value_mid / mark 日期），前端有 live quote 时可覆盖。"""
+    from logs.trade_log_io import resolve_log
+    from strategy.campaign import build_campaigns
+
+    try:
+        camps = build_campaigns(resolve_log())
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+    status = flask_req.args.get("status")
+    if status in ("open", "closed"):
+        camps = [c for c in camps if c["status"] == status]
+
+    # 最近 mark（per member trade_id）→ campaign 层未平现值合计
+    try:
+        from strategy.bcd_governance import _latest_open_marks, _marks_history
+        latest = _latest_open_marks(_marks_history())
+    except Exception:
+        latest = {}
+    for c in camps:
+        if c["status"] != "open":
+            continue
+        marks = [latest[m] for m in c["members"] if m in latest]
+        if marks:
+            open_value = sum(float(m["value_mid"]) * 100.0 * float(m.get("contracts") or 1)
+                             for m in marks)
+            c["open_value_usd"] = round(open_value, 2)
+            c["mark_date"] = max(str(m["date"]) for m in marks)
+            # Net = realized（closed member pnl + roll 收入）+ Σ_open (entry+value)
+            # ——open member 的 entry_premium 为 signed debit（负），mark value 为
+            # 平仓可收现值（正）。
+            open_entry = 0.0
+            for m in marks:
+                open_entry += float(m.get("entry_premium") or 0.0) * 100.0 * float(m.get("contracts") or 1)
+            c["campaign_net_usd"] = round(c["realized_usd"] + open_entry + open_value, 2)
+            if c["initial_debit_usd"] > 0:
+                c["campaign_roi"] = round(c["campaign_net_usd"] / c["initial_debit_usd"], 4)
+    return jsonify({"campaigns": camps})
+
+
 @app.route("/api/trade-log")
 def api_trade_log():
     from logs.trade_log_io import load_log, resolve_log
@@ -6084,6 +6351,9 @@ _CORRECTABLE_FIELDS = {
             "actual_premium", "model_premium", "contracts", "short_strike", "long_strike",
             "expiry", "long_expiry", "dte_at_entry", "entry_spx", "entry_vix",
             "note", "paper_trade",
+            # SPEC-127 §2: campaign membership + per-leg identity are
+            # correctable (migration backfill uses the same event shape)
+            "campaign_id", "legs", "short_entry_price",
         },
     "close": {
         "exit_premium", "exit_spx", "exit_reason", "actual_pnl", "note",

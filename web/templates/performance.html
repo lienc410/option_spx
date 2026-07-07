@@ -254,7 +254,7 @@ tr:last-child td { border-bottom: none; }
   </section>
 
   <section class="card">
-    <div class="section-title">Recent Closed Trades</div>
+    <div class="section-title">Recent Closed Trades <span style="font-weight:400;letter-spacing:0;text-transform:none;color:var(--text-2)">· campaign 为统计单元，点 ID 下钻 cycle 层</span> <span class="spec-ref">SPEC-127</span></div>
     <div class="table-wrap">
       <table>
         <thead>
@@ -264,6 +264,7 @@ tr:last-child td { border-bottom: none; }
             <th>Opened</th>
             <th>Closed</th>
             <th>Contracts</th>
+            <th>Cycles</th>
             <th>Actual P&amp;L</th>
           </tr>
         </thead>
@@ -363,22 +364,73 @@ function renderOpenPositions(rows, schwabVisible) {
   }
 }
 
+function cycleRowsHtml(campaign) {
+  // SPEC-127 §1 cycle 层下钻：第 0 行 = 初始建仓（debit），roll 行 = 短腿周期
+  const cyc = campaign.cycles || [];
+  if (!cyc.length) {
+    return `<div class="muted" style="font-size:0.74rem;padding:6px 0">Campaign ${campaign.members?.join(' + ') || ''} · ${campaign.n_rolls || 0} rolls · cycle detail unavailable</div>`;
+  }
+  const fmtK = (v) => v == null ? '—' : Number(v).toLocaleString();
+  const rows = cyc.map((c) => {
+    const legTxt = c.kind === 'open'
+      ? `S ${fmtK(c.short_strike)} ${c.short_expiry || ''} / L ${fmtK(c.long_strike)} ${c.long_expiry || ''}`
+      : c.kind === 'roll'
+        ? `${fmtK(c.closed_short_strike)} ${c.closed_short_expiry || ''} → ${fmtK(c.short_strike)} ${c.short_expiry || ''}`
+        : (c.exit_reason || 'close');
+    const cash = c.cashflow_usd == null ? '—' : money(c.cashflow_usd);
+    const realized = c.realized_usd == null ? '—' : money(c.realized_usd);
+    const realizedCls = c.realized_usd == null ? 'muted' : (Number(c.realized_usd) >= 0 ? 'pos' : 'neg');
+    return `<tr>
+      <td class="mono">${c.cycle}</td>
+      <td class="mono">${c.kind}</td>
+      <td class="mono">${c.date || '—'}</td>
+      <td class="mono" style="font-size:0.7rem">${legTxt}</td>
+      <td class="mono">${cash}</td>
+      <td class="mono ${realizedCls}">${realized}</td>
+      <td class="mono">${c.days_held == null ? '—' : c.days_held}</td>
+    </tr>`;
+  }).join('');
+  const basisLine = campaign.adjusted_basis_usd == null ? '' :
+    `<div class="muted" style="font-size:0.72rem;margin:4px 0 6px">Adjusted Basis ${money(campaign.adjusted_basis_usd)} = Initial Debit ${money(campaign.initial_debit_usd)} − Roll Income ${money(campaign.roll_income_usd)}</div>`;
+  return `${basisLine}<div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Kind</th><th>Date</th><th>Legs</th><th>Cashflow</th><th>Realized</th><th>Days</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
+
+function toggleCampaignDetail(idx) {
+  const el = document.getElementById(`campaign-detail-${idx}`);
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
 function renderRecent(rows) {
   const tbody = document.getElementById('recent-body');
   tbody.innerHTML = '';
   document.getElementById('recent-empty').style.display = rows.length ? 'none' : 'block';
-  for (const row of rows) {
+  rows.forEach((row, idx) => {
+    const camp = row.campaign;
     const tr = document.createElement('tr');
+    const idCell = camp
+      ? `<span style="cursor:pointer" onclick="toggleCampaignDetail(${idx})" title="展开 cycle 层">▸ ${row.id || '—'}</span>`
+      : (row.id || '—');
+    const cyclesCell = camp ? `${camp.n_cycles ?? '—'}` : '1';
     tr.innerHTML = `
-      <td class="mono">${row.id || '—'}</td>
+      <td class="mono">${idCell}</td>
       <td>${strategyName(row.strategy_key, row.strategy)}</td>
       <td class="mono">${row.opened_at || '—'}</td>
       <td class="mono">${row.closed_at || '—'}</td>
       <td class="mono">${row.contracts || 0}</td>
+      <td class="mono">${cyclesCell}</td>
       <td class="mono ${Number(row.actual_pnl || 0) >= 0 ? 'pos' : 'neg'}">${money(row.actual_pnl)}</td>
     `;
     tbody.appendChild(tr);
-  }
+    if (camp) {
+      const dtr = document.createElement('tr');
+      dtr.id = `campaign-detail-${idx}`;
+      dtr.style.display = 'none';
+      dtr.innerHTML = `<td colspan="7" style="background:var(--surface-hi);border-radius:8px">${cycleRowsHtml(camp)}</td>`;
+      tbody.appendChild(dtr);
+    }
+  });
 }
 
 function renderCharts(monthly) {

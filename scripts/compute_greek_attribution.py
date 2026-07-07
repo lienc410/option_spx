@@ -168,6 +168,12 @@ def load_closed_trades() -> list[Position]:
             if not line.strip():
                 continue
             r = json.loads(line)
+            # SPEC-127: cycle rows (roll 短腿周期实现, cycle_event=True) are
+            # cash-flow records of a single leg transition, not closed spread
+            # structures — they cannot be re-marked leg-by-leg on chains.
+            # Their realized cash is already carried in the ledger totals.
+            if r.get("cycle_event"):
+                continue
             # Option type from explicit field, strategy_key, or entry_credit sign
             opt = r.get("option_type")
             if not opt:

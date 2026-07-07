@@ -39,6 +39,11 @@ def _month_key(timestamp: str | None) -> str | None:
         return None
 
 
+def _campaign_id_of(trade: dict) -> str:
+    open_ev = trade.get("open") or {}
+    return str(trade.get("campaign_id") or open_ev.get("campaign_id") or trade.get("id"))
+
+
 def compute_live_performance(
     resolved_trades: list[dict],
     schwab_snapshot: dict | None = None,
@@ -47,41 +52,79 @@ def compute_live_performance(
     non_voided = [t for t in resolved_trades if not t.get("voided")]
     paper_trade_count = sum(1 for t in non_voided if t.get("paper_trade"))
     included = non_voided if include_paper else [t for t in non_voided if not t.get("paper_trade")]
-    closed = [t for t in included if t.get("open") and t.get("close")]
     open_only = [t for t in included if t.get("open") and not t.get("close")]
+
+    # ── SPEC-127 §1 — campaign 为统计单元（一个 campaign = 一笔 trade）────────
+    # 单 member、零 roll 的 campaign 退化为原逐-trade 口径（回归零行为变更）。
+    # 部分平仓的 campaign（仍有 member open）不进 closed 统计——campaign 未完结。
+    groups: dict[str, list[dict]] = defaultdict(list)
+    for t in included:
+        if t.get("open"):
+            groups[_campaign_id_of(t)].append(t)
 
     pnls: list[float] = []
     by_strategy_raw: dict[str, dict[str, float]] = defaultdict(lambda: {"n": 0, "wins": 0, "total_pnl": 0.0})
     monthly_raw: dict[str, dict[str, float]] = defaultdict(lambda: {"realized_pnl": 0.0, "trades": 0})
     recent_closed: list[dict] = []
 
-    for trade in closed:
-        pnl = _realized_pnl(trade)
-        if pnl is None:
-            continue
+    from strategy.campaign import trade_roll_income_usd
+
+    for cid, members in groups.items():
+        if any(t.get("close") is None for t in members):
+            continue  # campaign not finished yet
+        member_pnls = [_realized_pnl(t) for t in members]
+        if any(p is None for p in member_pnls):
+            continue  # legacy semantics: unknown-pnl trades stay out of stats
+        roll_income = sum(trade_roll_income_usd(t) for t in members)
+        pnl = sum(member_pnls) + roll_income
         pnls.append(pnl)
-        open_ev = trade["open"]
-        close_ev = trade["close"]
+
+        members = sorted(members, key=lambda t: str(t.get("id")))
+        open_ev = members[0]["open"]
+        last_close = max(members, key=lambda t: str((t.get("close") or {}).get("timestamp") or ""))["close"]
         key = open_ev.get("strategy_key") or "unknown"
         stats = by_strategy_raw[key]
         stats["n"] += 1
         stats["wins"] += 1 if pnl > 0 else 0
         stats["total_pnl"] += pnl
 
-        month = _month_key(close_ev.get("timestamp"))
+        month = _month_key(last_close.get("timestamp"))
         if month:
             monthly_raw[month]["realized_pnl"] += pnl
             monthly_raw[month]["trades"] += 1
 
-        recent_closed.append({
-            "id": trade["id"],
+        n_rolls = sum(len(t.get("rolls") or []) for t in members)
+        contracts_total = sum(float(t["open"].get("contracts") or 0) for t in members)
+        if contracts_total and float(contracts_total).is_integer():
+            contracts_total = int(contracts_total)
+        row = {
+            "id": cid,
             "strategy_key": open_ev.get("strategy_key"),
             "strategy": open_ev.get("strategy"),
-            "opened_at": (open_ev.get("timestamp") or "")[:10] or open_ev.get("opened_at"),
-            "closed_at": (close_ev.get("timestamp") or "")[:10],
-            "contracts": open_ev.get("contracts"),
+            "opened_at": min(((t["open"].get("timestamp") or "")[:10] or t["open"].get("opened_at") or "")
+                             for t in members) or None,
+            "closed_at": (last_close.get("timestamp") or "")[:10],
+            "contracts": contracts_total or open_ev.get("contracts"),
             "actual_pnl": round(pnl, 2),
-        })
+        }
+        if n_rolls > 0 or len(members) > 1:
+            # campaign 下钻数据（cycle 层）；fail-soft — 元数据缺失不掩盖统计行
+            try:
+                from strategy.campaign import build_campaigns
+                camp = build_campaigns(members)[0]
+                row["campaign"] = {
+                    "members": camp["members"],
+                    "n_cycles": camp["n_cycles"],
+                    "n_rolls": camp["n_rolls"],
+                    "initial_debit_usd": camp["initial_debit_usd"],
+                    "roll_income_usd": camp["roll_income_usd"],
+                    "adjusted_basis_usd": camp["adjusted_basis_usd"],
+                    "cycles": camp["cycles"],
+                }
+            except Exception:
+                row["campaign"] = {"members": [t["id"] for t in members],
+                                   "n_rolls": n_rolls, "error": "campaign_meta_unavailable"}
+        recent_closed.append(row)
 
     wins = [p for p in pnls if p > 0]
     losses = [p for p in pnls if p <= 0]

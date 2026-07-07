@@ -465,6 +465,54 @@ body {
   display: flex; gap: 8px; flex-wrap: wrap;
   margin-top: 10px;
 }
+
+/* ── Campaign card (SPEC-127 §1 双层记账) ───────────────────── */
+.campaign-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--gold-border);
+  border-radius: 9px;
+  padding: 13px 18px 12px;
+  margin-top: 12px;
+}
+.campaign-head {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.campaign-title {
+  font-family: var(--f-ui); font-size: 0.64rem; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-2);
+}
+.campaign-id { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-2); }
+.campaign-badges { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+.campaign-badge {
+  font-family: var(--f-mono); font-size: 0.60rem; padding: 2px 8px;
+  border-radius: 9999px; color: var(--text-2);
+  background: var(--gray-bg); border: 1px solid var(--gray-border);
+}
+.campaign-badge.warn { color: var(--orange); background: var(--orange-bg); border-color: var(--orange-border); }
+.campaign-hero { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.campaign-hero-label {
+  font-family: var(--f-ui); font-size: 0.62rem; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2);
+}
+.campaign-hero-val {
+  font-family: var(--f-mono); font-size: 1.3rem; font-weight: 600; color: var(--text);
+}
+.campaign-sub { font-family: var(--f-mono); font-size: 0.68rem; color: var(--text-2); margin-top: 3px; }
+.campaign-cycles { margin-top: 9px; border-top: 1px solid var(--border); padding-top: 6px; overflow-x: auto; }
+.campaign-cycles table { width: 100%; border-collapse: collapse; }
+.campaign-cycles th {
+  font-family: var(--f-mono); font-size: 0.58rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2);
+  text-align: left; padding: 3px 8px 3px 0;
+}
+.campaign-cycles td {
+  font-family: var(--f-mono); font-size: 0.68rem; color: var(--text);
+  padding: 3px 8px 3px 0; border-top: 1px solid var(--border);
+  white-space: nowrap;
+}
+.campaign-cycles td.dim { color: var(--text-2); }
 .strat-link {
   font-family: var(--f-ui); font-size: 0.65rem; color: var(--text-2);
   text-decoration: none; border: 1px solid var(--border-2); border-radius: 9999px;
@@ -806,6 +854,7 @@ body {
   <div id="pos-panel" class="pos-panel pos-empty">
     <span>No open position on record.</span>
   </div>
+  <div id="campaign-cards"></div>
   <div id="pos-actions" class="pos-actions"></div>
 
   <!-- Settled VIX (Signal 2) -->
@@ -1460,10 +1509,18 @@ function selectScanRow(slot, idx) {
   const inputId = slot === 'short_leg' ? 'open-short-strike' : 'open-long-strike';
   const input = document.getElementById(inputId);
   if (input) input.value = row.strike ?? '';
-  const expiry = document.getElementById('open-expiry');
-  if (expiry && row.expiry) {
-    expiry.value = row.expiry;
-    expiry.dataset.locked = '1';
+  // SPEC-127 §2 长短腿分离: long-leg scan rows fill the LONG expiry field
+  // (when present) — picking a 90 DTE long leg must not overwrite the short
+  // expiry (the old single-expiry behavior was the H-5 root cause).
+  const longExpiryEl = document.getElementById('open-long-expiry');
+  if (slot === 'long_leg' && longExpiryEl && row.expiry) {
+    longExpiryEl.value = row.expiry;
+  } else {
+    const expiry = document.getElementById('open-expiry');
+    if (expiry && row.expiry) {
+      expiry.value = row.expiry;
+      expiry.dataset.locked = '1';
+    }
   }
   renderStrikeScan(CURRENT_OPEN_DRAFT);
   updateOpenBpPreview();
@@ -1709,6 +1766,20 @@ function openTradeModal(kind, presetAccount, addTranche) {
         <div class="modal-field full">
           <div class="scan-wrap" id="scan-long-wrap"></div>
         </div>
+        <!-- SPEC-127 §2: 长短腿分离 — diagonal 的长腿 expiry 独立登记；
+             per-leg fill 可选（collapse 触发需要短腿自己的入场权利金） -->
+        <div class="modal-field">
+          <label class="modal-label">Long Expiry <span style="font-weight:400;color:var(--text-2);font-size:0.65rem">(diagonal only)</span></label>
+          <input id="open-long-expiry" class="modal-input" type="date" placeholder="leave blank if vertical">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Short Leg Fill <span style="font-weight:400;color:var(--text-2);font-size:0.65rem">(optional, per-share credit)</span></label>
+          <input id="open-short-fill" class="modal-input" type="number" step="0.01" min="0">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Long Leg Fill <span style="font-weight:400;color:var(--text-2);font-size:0.65rem">(optional, per-share cost)</span></label>
+          <input id="open-long-fill" class="modal-input" type="number" step="0.01" min="0">
+        </div>
         <div class="modal-field">
           <label class="modal-label">Contracts</label>
           <input id="open-contracts" class="modal-input" type="number" min="1" step="1" value="1" oninput="updateOpenBpPreview()">
@@ -1800,6 +1871,10 @@ function openTradeModal(kind, presetAccount, addTranche) {
             <option value="60pct_profit">60pct_profit</option>
             <option value="stop_loss">stop_loss</option>
             <option value="roll_21dte">roll_21dte</option>
+            <!-- SPEC-127 §3: manual roll bookkeeping via close+open (过渡期
+                 workaround) — prefer the Roll button, which books the atomic
+                 roll event + campaign cycle row -->
+            <option value="roll">roll (prefer Roll button)</option>
             <option value="manual">manual</option>
             <!-- H-3: PM closes below target need their own label — the 7/6
                  +7% closes were forced into "60pct_profit" -->
@@ -1892,34 +1967,85 @@ function openTradeModal(kind, presetAccount, addTranche) {
         <button class="action-btn primary" onclick="submitVoidTrade()">Void Trade</button>
       </div>`);
   } else if (kind === 'roll') {
-    title.textContent = 'Roll Position';
-    body.innerHTML = modalShell(`
-      <div class="modal-grid">
-        <div class="modal-field">
-          <label class="modal-label">New Expiry</label>
-          <input id="roll-expiry" class="modal-input" type="date" value="${CURRENT_POS?.expiry || plusDays(30)}">
+    // SPEC-127 §3 — diagonal per-leg roll form: close old short (cost) + open
+    // new short (credit) per broker leg, one atomic submit. Non-diagonal
+    // strategies keep the legacy envelope-roll form.
+    const _isDiagonal = CURRENT_POS?.strategy_key === 'bull_call_diagonal'
+      || (CURRENT_POS?.positions || []).some(p => p.long_expiry && p.long_expiry !== p.expiry);
+    if (_isDiagonal) {
+      title.textContent = 'Roll Short Leg';
+      const _legs = (CURRENT_POS?.positions || []);
+      const _legRows = _legs.map((p, i) => {
+        const acct = (p.account || 'schwab');
+        const acctLabel = acct.charAt(0).toUpperCase() + acct.slice(1);
+        return `
+          <div class="roll-leg-row" data-trade-id="${p.trade_id}" data-roll-income="${p.roll_income ?? 0}" data-entry="${p.actual_premium ?? 0}" style="display:grid;grid-template-columns:auto 1fr 1.2fr 1fr 1fr;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+            <input type="checkbox" id="roll-leg-chk-${i}" class="roll-leg-chk" checked oninput="updateRollPreview()" style="cursor:pointer">
+            <span style="font-family:var(--f-mono);font-size:0.72rem">${acctLabel}</span>
+            <span style="font-family:var(--f-mono);font-size:0.72rem">C${p.short_strike ?? '?'} ${p.expiry ?? '?'} ×${p.contracts ?? '?'}</span>
+            <input type="number" step="0.01" min="0" placeholder="close cost" class="modal-input roll-leg-close" id="roll-leg-close-${i}" oninput="updateRollPreview()" style="text-align:right">
+            <input type="number" step="0.01" min="0" placeholder="new credit" class="modal-input roll-leg-open" id="roll-leg-open-${i}" oninput="updateRollPreview()" style="text-align:right">
+          </div>`;
+      }).join('');
+      body.innerHTML = modalShell(`
+        <div style="margin-bottom:10px">
+          <div style="display:grid;grid-template-columns:auto 1fr 1.2fr 1fr 1fr;gap:8px;padding:0 0 4px 0;font-size:0.62rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-2);font-weight:600">
+            <span></span><span>Account</span><span>Old short ×n</span><span style="text-align:right">Close cost</span><span style="text-align:right">New credit</span>
+          </div>
+          ${_legRows || '<div class="modal-hint">No open legs.</div>'}
         </div>
-        <div class="modal-field">
-          <label class="modal-label">Roll Credit</label>
-          <input id="roll-credit" class="modal-input" type="number" step="0.01">
+        <div class="modal-grid">
+          <div class="modal-field">
+            <label class="modal-label">New Short Strike</label>
+            <input id="roll-new-strike" class="modal-input" type="number" oninput="updateRollPreview()">
+          </div>
+          <div class="modal-field">
+            <label class="modal-label">New Short Expiry <span style="font-weight:400;color:var(--text-2);font-size:0.65rem">(45 DTE |Δ|0.30 建议)</span></label>
+            <input id="roll-new-expiry" class="modal-input" type="date" value="${plusDays(45)}" oninput="updateRollPreview()">
+          </div>
+          <div class="modal-field full">
+            <label class="modal-label">Note</label>
+            <input id="roll-note" class="modal-input" value="rolled at 21 DTE">
+          </div>
+          <div class="modal-field full">
+            <div class="modal-hint" id="roll-preview">Fill close cost + new credit per leg to preview cycle realized + adjusted basis.</div>
+          </div>
         </div>
-        <div class="modal-field">
-          <label class="modal-label">New Short Strike</label>
-          <input id="roll-short-strike" class="modal-input" type="number" value="${CURRENT_POS?.short_strike || ''}">
+        <div class="modal-cta">
+          <button class="action-btn" onclick="closeTradeModal()">Cancel</button>
+          <button class="action-btn primary" onclick="submitDiagonalRoll()">Roll selected</button>
+        </div>`);
+      updateRollPreview();
+    } else {
+      title.textContent = 'Roll Position';
+      body.innerHTML = modalShell(`
+        <div class="modal-grid">
+          <div class="modal-field">
+            <label class="modal-label">New Expiry</label>
+            <input id="roll-expiry" class="modal-input" type="date" value="${CURRENT_POS?.expiry || plusDays(30)}">
+          </div>
+          <div class="modal-field">
+            <label class="modal-label">Roll Credit</label>
+            <input id="roll-credit" class="modal-input" type="number" step="0.01">
+          </div>
+          <div class="modal-field">
+            <label class="modal-label">New Short Strike</label>
+            <input id="roll-short-strike" class="modal-input" type="number" value="${CURRENT_POS?.short_strike || ''}">
+          </div>
+          <div class="modal-field">
+            <label class="modal-label">New Long Strike</label>
+            <input id="roll-long-strike" class="modal-input" type="number" value="${CURRENT_POS?.long_strike || ''}">
+          </div>
+          <div class="modal-field full">
+            <label class="modal-label">Note</label>
+            <input id="roll-note" class="modal-input" value="rolled at 21 DTE">
+          </div>
         </div>
-        <div class="modal-field">
-          <label class="modal-label">New Long Strike</label>
-          <input id="roll-long-strike" class="modal-input" type="number" value="${CURRENT_POS?.long_strike || ''}">
-        </div>
-        <div class="modal-field full">
-          <label class="modal-label">Note</label>
-          <input id="roll-note" class="modal-input" value="rolled at 21 DTE">
-        </div>
-      </div>
-      <div class="modal-cta">
-        <button class="action-btn" onclick="closeTradeModal()">Cancel</button>
-        <button class="action-btn primary" onclick="submitRollPosition()">Roll</button>
-      </div>`);
+        <div class="modal-cta">
+          <button class="action-btn" onclick="closeTradeModal()">Cancel</button>
+          <button class="action-btn primary" onclick="submitRollPosition()">Roll</button>
+        </div>`);
+    }
   } else {
     title.textContent = 'Add Note';
     body.innerHTML = modalShell(`
@@ -1964,6 +2090,9 @@ async function submitOpenPosition() {
     expiry: document.getElementById('open-expiry').value,
     dte_at_entry: Number(document.getElementById('open-dte').value || dteDefault(selectedOpenMeta())),
     contracts: Number(document.getElementById('open-contracts').value || 1),
+    long_expiry: document.getElementById('open-long-expiry')?.value || null,
+    short_leg_fill: document.getElementById('open-short-fill')?.value || null,
+    long_leg_fill: document.getElementById('open-long-fill')?.value || null,
     actual_premium: document.getElementById('open-actual-premium').value || null,
     model_premium: document.getElementById('open-model-premium').value || null,
     entry_spx: CURRENT_REC?.trend_snapshot?.spx ?? null,
@@ -2043,6 +2172,66 @@ async function submitRollPosition() {
   setTimeout(closeTradeModal, 400);
 }
 
+// ── SPEC-127 §3 — diagonal per-leg roll ─────────────────────────────────────
+
+function collectRollLegs() {
+  const rows = Array.from(document.querySelectorAll('.roll-leg-row'));
+  const legs = [];
+  rows.forEach((row, i) => {
+    const chk = document.getElementById(`roll-leg-chk-${i}`);
+    const closeEl = document.getElementById(`roll-leg-close-${i}`);
+    const openEl = document.getElementById(`roll-leg-open-${i}`);
+    if (!chk?.checked || !closeEl || !openEl) return;
+    if (closeEl.value === '' || openEl.value === '') return;
+    legs.push({
+      trade_id: row.getAttribute('data-trade-id'),
+      close_price: Number(closeEl.value),
+      open_price: Number(openEl.value),
+      _entry: Number(row.dataset.entry ?? 0),
+      _rollIncome: Number(row.dataset.rollIncome ?? 0),
+    });
+  });
+  return legs;
+}
+
+function updateRollPreview() {
+  const el = document.getElementById('roll-preview');
+  if (!el) return;
+  const legs = collectRollLegs();
+  if (!legs.length) {
+    el.textContent = 'Fill close cost + new credit per leg to preview cycle realized + adjusted basis.';
+    return;
+  }
+  const parts = legs.map((l) => {
+    const net = l.open_price - l.close_price;
+    // adjusted basis per share: |initial debit| − 累计 roll income − 本次 net
+    const basisNow = Math.abs(l._entry) - l._rollIncome;
+    const basisAfter = basisNow - net;
+    return `${l.trade_id}: cycle ${net >= 0 ? '+' : ''}${net.toFixed(2)}/share · adjusted basis ${basisNow.toFixed(2)} → ${basisAfter.toFixed(2)} (stop line ${(0.5 * basisAfter).toFixed(2)})`;
+  });
+  el.innerHTML = parts.join('<br>');
+}
+
+async function submitDiagonalRoll() {
+  const legs = collectRollLegs().map(({ trade_id, close_price, open_price }) => ({ trade_id, close_price, open_price }));
+  if (!legs.length) return showTradeModalMessage('Pick at least one leg with both prices.', true);
+  const newStrike = Number(document.getElementById('roll-new-strike').value || 0);
+  const newExpiry = document.getElementById('roll-new-expiry').value;
+  if (!newStrike || !newExpiry) return showTradeModalMessage('New short strike + expiry are required.', true);
+  const payload = {
+    legs,
+    new_short_strike: newStrike,
+    new_expiry: newExpiry,
+    note: document.getElementById('roll-note').value || '',
+  };
+  const data = await postJson('/api/position/roll', payload);
+  if (data.error) return showTradeModalMessage(data.error, true);
+  const summary = (data.legs || []).map((l) => `${l.trade_id} ${l.cycle_realized >= 0 ? '+' : ''}$${Number(l.cycle_realized).toLocaleString()}`).join(' · ');
+  showTradeModalMessage(`Rolled ${legs.length} leg${legs.length === 1 ? '' : 's'} · ${summary}`);
+  await loadPosition();
+  setTimeout(closeTradeModal, 600);
+}
+
 async function submitPositionNote() {
   const payload = { note: document.getElementById('note-body').value || '' };
   const data = await postJson('/api/position/note', payload);
@@ -2119,6 +2308,102 @@ async function loadPosition() {
     renderPosition(data);
   } catch (_) {
     // non-critical — leave panel as-is
+  }
+  loadCampaigns(); // fire-and-forget — campaign card is additive
+}
+
+// ── SPEC-127 §1 — campaign card（cycle 行 + Adjusted Basis 英雄指标）─────────
+
+const fmtUsd = (v) => v == null ? '—'
+  : `${v < 0 ? '−' : ''}$${Math.abs(Number(v)).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+
+function campaignCycleTable(c) {
+  const rows = (c.cycles || []).map((cy) => {
+    const legTxt = cy.kind === 'open'
+      ? `S ${cy.short_strike ?? '—'} ${cy.short_expiry || ''} / L ${cy.long_strike ?? '—'} ${cy.long_expiry || ''}`
+      : cy.kind === 'roll'
+        ? `${cy.closed_short_strike ?? '—'} ${cy.closed_short_expiry || ''} → ${cy.short_strike ?? '—'} ${cy.short_expiry || ''}`
+        : (cy.exit_reason || 'close');
+    const realizedCls = cy.realized_usd == null ? 'dim' : (cy.realized_usd >= 0 ? '' : '');
+    const realizedColor = cy.realized_usd == null ? '' : `color:${cy.realized_usd >= 0 ? 'var(--green)' : 'var(--red)'}`;
+    return `<tr>
+      <td class="dim">${cy.cycle}</td>
+      <td class="dim">${cy.kind}</td>
+      <td>${cy.date || '—'}</td>
+      <td class="dim">${legTxt}</td>
+      <td>${cy.cashflow_usd == null ? '—' : fmtUsd(cy.cashflow_usd)}</td>
+      <td class="${realizedCls}" style="${realizedColor}">${cy.realized_usd == null ? '—' : fmtUsd(cy.realized_usd)}</td>
+      <td class="dim">${cy.days_held ?? '—'}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="campaign-cycles"><table>
+    <thead><tr><th>#</th><th>Kind</th><th>Date</th><th>Legs</th><th>Cashflow</th><th>Realized</th><th>Days</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
+
+function renderCampaignCards(campaigns) {
+  const wrap = document.getElementById('campaign-cards');
+  if (!wrap) return;
+  // 只渲染 open diagonal campaign（或任何已发生 roll 的 open campaign）
+  const show = (campaigns || []).filter((c) => c.status === 'open'
+    && (c.strategy_key === 'bull_call_diagonal' || (c.n_rolls || 0) > 0));
+  if (!show.length) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = show.map((c) => {
+    // live marks（position_lives）可用时用 live Net 覆盖治理 mark Net
+    let net = c.campaign_net_usd;
+    let netSrc = c.mark_date ? `mark ${c.mark_date}` : null;
+    const lives = CURRENT_POS?.position_lives || {};
+    const positions = CURRENT_POS?.positions || [];
+    const openMembers = positions.filter((p) => c.members?.includes(p.trade_id));
+    if (openMembers.length && openMembers.every((p) => lives[p.trade_id]?.visible)) {
+      const openVal = openMembers.reduce((s, p) => {
+        const entry = Number(p.actual_premium || 0);
+        const mark = Number(lives[p.trade_id].mark || 0);
+        const n = Number(p.contracts || 1);
+        return s + (entry + mark) * 100 * n;
+      }, 0);
+      net = (c.realized_usd || 0) + openVal;
+      netSrc = 'live';
+    }
+    const roi = (net != null && c.initial_debit_usd > 0) ? net / c.initial_debit_usd : null;
+    const recovered = c.initial_debit_usd > 0 ? (c.roll_income_usd / c.initial_debit_usd) : null;
+    const shortBadgeCls = (c.short_dte != null && c.short_dte <= 21) ? 'campaign-badge warn' : 'campaign-badge';
+    const netColor = net == null ? 'var(--text-2)' : (net >= 0 ? 'var(--green)' : 'var(--red)');
+    return `
+    <div class="campaign-card">
+      <div class="campaign-head">
+        <span class="campaign-title">Campaign</span>
+        <span class="campaign-id">${c.campaign_id}${(c.members || []).length > 1 ? ` +${c.members.length - 1}` : ''}</span>
+        <span class="campaign-badges">
+          <span class="campaign-badge">${c.n_cycles} cycle${c.n_cycles === 1 ? '' : 's'}</span>
+          <span class="campaign-badge">long ${c.long_dte ?? '—'} DTE</span>
+          <span class="${shortBadgeCls}">short ${c.short_dte ?? '—'} DTE</span>
+        </span>
+      </div>
+      <div class="campaign-hero">
+        <span class="campaign-hero-label">Adjusted Basis</span>
+        <span class="campaign-hero-val">${fmtUsd(c.adjusted_basis_usd)}</span>
+        <span class="campaign-sub">= debit ${fmtUsd(c.initial_debit_usd)} − roll income ${fmtUsd(c.roll_income_usd)}${recovered != null ? ` (${(recovered * 100).toFixed(1)}% 已收回)` : ''}</span>
+      </div>
+      <div class="campaign-sub">
+        Campaign Net <strong style="color:${netColor};font-weight:600">${fmtUsd(net)}</strong>${roi != null ? ` · ROI ${(roi * 100).toFixed(1)}%` : ''}${netSrc ? ` · ${netSrc}` : ''}
+        · stop line: 现值 ≤ ${fmtUsd(0.5 * (c.adjusted_basis_usd || 0))}
+      </div>
+      ${campaignCycleTable(c)}
+    </div>`;
+  }).join('');
+}
+
+async function loadCampaigns() {
+  const wrap = document.getElementById('campaign-cards');
+  if (!wrap) return;
+  try {
+    const res = await fetch('/api/campaigns?status=open');
+    const data = await res.json();
+    if (data.error) { wrap.innerHTML = ''; return; }
+    renderCampaignCards(data.campaigns || []);
+  } catch (_) {
+    wrap.innerHTML = '';
   }
 }
 
