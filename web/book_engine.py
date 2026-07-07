@@ -88,6 +88,9 @@ def _pool_engine(snapshots: list[dict], flows: list[dict], partners: list[str]) 
                 "quarantined": [], "orphan_flows": [], "pending_flows": []}
 
     quarantined: list[dict] = []
+    yearly_contrib: dict[str, dict[str, float]] = {}
+    yearly_distrib: dict[str, dict[str, float]] = {}
+    year_end_bal: dict[str, dict[str, float]] = {}
     bal = {p: 0.0 for p in partners}
     contrib = {p: 0.0 for p in partners}
     distrib = {p: 0.0 for p in partners}
@@ -128,10 +131,14 @@ def _pool_engine(snapshots: list[dict], flows: list[dict], partners: list[str]) 
             if str(f.get("type", "")).lower() == "contribution":
                 net[p] += amt
                 contrib[p] += amt
+                yearly_contrib.setdefault(year, {}).setdefault(p, 0.0)
+                yearly_contrib[year][p] += amt
                 cashflow_series[p].append((date.fromisoformat(d), -amt))
             else:
                 net[p] -= amt
                 distrib[p] += amt
+                yearly_distrib.setdefault(year, {}).setdefault(p, 0.0)
+                yearly_distrib[year][p] += amt
                 cashflow_series[p].append((date.fromisoformat(d), amt))
 
         net_total = sum(net.values())
@@ -156,6 +163,7 @@ def _pool_engine(snapshots: list[dict], flows: list[dict], partners: list[str]) 
             if nav > 1e-9:
                 units[p] += net[p] / nav       # end-of-period pricing (§3.3)
 
+        year_end_bal[year] = dict(bal)   # last period of the year wins
         periods.append({"date": d, "year": year, "opening_total": opening_total,
                         "net_flow": net_total, "pnl": period_pnl,
                         "pool_return": pool_return, "nav": nav,
@@ -199,7 +207,9 @@ def _pool_engine(snapshots: list[dict], flows: list[dict], partners: list[str]) 
     return {"periods": periods, "members": members, "nav_unit": nav,
             "total_value": prev_total, "last_date": periods[-1]["date"],
             "yearly_pnl": yearly_pnl, "quarantined": quarantined,
-            "orphan_flows": orphans, "pending_flows": pending}
+            "orphan_flows": orphans, "pending_flows": pending,
+            "yearly_contrib": yearly_contrib, "yearly_distrib": yearly_distrib,
+            "year_end_bal": year_end_bal}
 
 
 def _xirr(flows: list[tuple[date, float]]) -> float | None:
@@ -517,11 +527,52 @@ def compute_book(data_dir: Path | None = None, force: bool = False) -> dict[str,
                                "summary": _row_summary(fkey, r)})
     recent.sort(key=lambda r: r["recorded_at"], reverse=True)
 
+    # capital-flows sub-page (fund-accounting view): full enriched ledger +
+    # per-pool rollforward + transit/pending zones
+    def _flow_rows(pool_key: str, fname: str) -> list[dict]:
+        rows = []
+        for r in _read_events(data_dir / fname):
+            if r.get("event", "flow") != "flow":
+                continue
+            rows.append({
+                "pool": pool_key, "id": r.get("id"),
+                "snapshot_date": r.get("snapshot_date"),
+                "bank_date": r.get("bank_date"),
+                "partner": disp.get(r.get("partner"), r.get("partner")) or "—",
+                "from": r.get("from", ""), "to": r.get("to", ""),
+                "amount": r.get("amount"), "fee": r.get("fee", 0),
+                "instrument": r.get("instrument", ""),
+                "counts": r.get("counts"), "type": r.get("type") or "",
+                "note": r.get("note", ""), "native": bool(r.get("recorded_at")),
+            })
+        return rows
+
+    all_flow_rows = (_flow_rows("SW", "sw_cashledger.jsonl")
+                     + _flow_rows("ET", "et_cashledger.jsonl"))
+    all_flow_rows.sort(key=lambda r: (r["snapshot_date"] or r["bank_date"] or "9999",
+                                      r["id"] or ""), reverse=True)
+    capital_activity = {
+        "flows": all_flow_rows,
+        "rollforward": {
+            "sw": _rollforward(sw, cfg["sw_partners"], disp),
+            "et": _rollforward(et, cfg["et_partners"], disp),
+        },
+        "totals": {
+            "sw": {"contributions": sum(m["contributions"] for m in sw["members"].values()),
+                   "distributions": sum(m["distributions"] for m in sw["members"].values())},
+            "et": {"contributions": sum(m["contributions"] for m in et["members"].values()),
+                   "distributions": sum(m["distributions"] for m in et["members"].values())},
+        },
+        "pending_flows": sw.get("pending_flows", []) + et.get("pending_flows", []),
+        "subaccounts": sub_pending,
+    }
+
     payload = {
         "available": True,
         "source": "native",
         "form_options": form_options,
         "recent_entries": recent[:12],
+        "capital_activity": capital_activity,
         "source_detail": f"native engine · data/book ({len(sw['periods'])} SW + {len(et['periods'])} ET periods)",
         "members": members,
         "total": total,
@@ -545,6 +596,36 @@ def compute_book(data_dir: Path | None = None, force: bool = False) -> dict[str,
     _cache["key"] = key
     _cache["payload"] = payload
     return payload
+
+
+def _rollforward(pool: dict, partners: list[str], display: dict) -> list[dict]:
+    """Capital account rollforward (基金会计标准表): per year × partner —
+    opening capital + contributions − distributions + allocated P&L = closing.
+    The identity is asserted per cell (engine-level integrity, ±$0.01)."""
+    years = sorted(pool.get("year_end_bal", {}))
+    out = []
+    prev_close = {p: 0.0 for p in partners}
+    for y in years:
+        rows = []
+        for p in partners:
+            opening = prev_close[p]
+            c = pool.get("yearly_contrib", {}).get(y, {}).get(p, 0.0)
+            dd = pool.get("yearly_distrib", {}).get(y, {}).get(p, 0.0)
+            pnl = pool.get("yearly_pnl", {}).get(y, {}).get(p, 0.0)
+            closing = pool["year_end_bal"][y].get(p, 0.0)
+            identity_ok = abs(opening + c - dd + pnl - closing) < 0.01
+            rows.append({"partner": display.get(p, p), "opening": opening,
+                         "contributions": c, "distributions": dd, "pnl": pnl,
+                         "closing": closing, "identity_ok": identity_ok})
+            prev_close[p] = closing
+        out.append({
+            "year": y, "rows": rows,
+            "totals": {k: sum(r[k] for r in rows)
+                       for k in ("opening", "contributions", "distributions",
+                                 "pnl", "closing")},
+            "identity_ok": all(r["identity_ok"] for r in rows),
+        })
+    return out
 
 
 def _row_summary(fkey: str, r: dict) -> str:

@@ -136,10 +136,12 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
   <div class="page-tabs">
     <button class="page-tab active" data-tab="overview" onclick="switchTab('overview')">Overview</button>
     <button class="page-tab" data-tab="member" onclick="switchTab('member')">Member Statement</button>
+    <button class="page-tab" data-tab="flows" onclick="switchTab('flows')">Capital Flows</button>
   </div>
 
   <div id="tab-overview"><div class="err">加载中…</div></div>
   <div id="tab-member" class="hidden"></div>
+  <div id="tab-flows" class="hidden"></div>
 </div>
 
 <script>
@@ -155,6 +157,7 @@ function switchTab(tab) {
   document.querySelectorAll('.page-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   document.getElementById('tab-overview').classList.toggle('hidden', tab !== 'overview');
   document.getElementById('tab-member').classList.toggle('hidden', tab !== 'member');
+  document.getElementById('tab-flows').classList.toggle('hidden', tab !== 'flows');
 }
 
 /* ---------------- Overview ---------------- */
@@ -534,6 +537,122 @@ function showBookForm(kind) {
      <div id="bf-msg" style="font-family:var(--f-mono);font-size:0.68rem;margin-top:4px"></div></div>`;
 }
 
+/* ---------------- Capital Flows tab (基金会计视图) ---------------- */
+let FLOW_FILTER = { pool: 'ALL', partner: 'ALL', kind: 'ALL' };
+
+function setFlowFilter(k, v) { FLOW_FILTER[k] = v; renderFlowsTab(); }
+
+function renderFlowsTab() {
+  const el = document.getElementById('tab-flows');
+  const ca = BOOK && BOOK.capital_activity;
+  if (!ca) { el.innerHTML = '<div class="err">原生数据不可用（回退源无资金流视图）。</div>'; return; }
+
+  const tot = ca.totals;
+  const sumStrip = `
+    <div class="aum-card" style="margin-bottom:14px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;font-family:var(--f-mono);font-size:0.74rem">
+        ${['sw','et'].map(k => {
+          const c = tot[k].contributions, d = tot[k].distributions;
+          const label = k === 'sw' ? 'Schwab CCC-354' : 'E*Trade PM';
+          return `<div><div style="font-family:var(--f-ui);font-size:0.6rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-2);margin-bottom:4px">${label}</div>
+            流入 <span class="pos">${fmtUSD(c)}</span> · 流出 <span class="${d>0?'neg':''}">${fmtUSD(d)}</span><br>净投入 <strong>${fmtUSD(c-d)}</strong></div>`;
+        }).join('')}
+      </div>
+    </div>`;
+
+  const rollTables = ['sw','et'].map(k => {
+    const rf = ca.rollforward[k];
+    if (!rf || !rf.length) return '';
+    const label = k === 'sw' ? 'Schwab CCC-354' : 'E*Trade PM';
+    return `
+      <div class="section-label" style="margin-top:18px">资本账户滚动表 · ${label}</div>
+      <div style="overflow-x:auto"><table class="book-table">
+        <tr><th>年度 / 合伙人</th><th>期初资本</th><th>出资 +</th><th>分配 −</th><th>损益分摊 ±</th><th>期末资本</th></tr>
+        ${rf.map(yblk => yblk.rows.filter(r => r.opening || r.contributions || r.distributions || r.pnl || r.closing).map((r, i) => `
+          <tr>
+            <td>${i === 0 ? `<strong>${yblk.year}</strong> · ` : ''}${r.partner}${r.identity_ok ? '' : ' ⚠'}</td>
+            <td>${fmtUSD(r.opening)}</td>
+            <td class="pos">${r.contributions ? '+' + fmtUSD(r.contributions) : '—'}</td>
+            <td class="${r.distributions ? 'neg' : ''}">${r.distributions ? '−' + fmtUSD(r.distributions) : '—'}</td>
+            <td class="${pnlClass(r.pnl)}">${fmtSignedUSD(r.pnl)}</td>
+            <td><strong>${fmtUSD(r.closing)}</strong></td>
+          </tr>`).join('') + `
+          <tr class="total-row"><td>${yblk.year} 合计${yblk.identity_ok ? '' : ' ⚠ 恒等式不平'}</td>
+            <td>${fmtUSD(yblk.totals.opening)}</td>
+            <td class="pos">+${fmtUSD(yblk.totals.contributions)}</td>
+            <td>${yblk.totals.distributions ? '−' + fmtUSD(yblk.totals.distributions) : '—'}</td>
+            <td class="${pnlClass(yblk.totals.pnl)}">${fmtSignedUSD(yblk.totals.pnl)}</td>
+            <td>${fmtUSD(yblk.totals.closing)}</td></tr>`).join('')}
+      </table></div>
+      <div style="font-family:var(--f-ui);font-size:0.6rem;color:var(--text-2);margin-top:2px">恒等式：期初 + 出资 − 分配 + 损益分摊 = 期末（引擎逐格断言，⚠ = 不平）</div>`;
+  }).join('');
+
+  const partners = [...new Set((ca.flows || []).map(f => f.partner).filter(x => x && x !== '—'))];
+  const filters = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:18px 0 8px;font-family:var(--f-ui);font-size:0.68rem">
+      <span class="section-label" style="margin:0">资金活动明细</span>
+      <select onchange="setFlowFilter('pool', this.value)" class="modal-select" style="font-size:0.66rem">
+        <option value="ALL" ${FLOW_FILTER.pool==='ALL'?'selected':''}>全部池</option>
+        <option value="SW" ${FLOW_FILTER.pool==='SW'?'selected':''}>Schwab</option>
+        <option value="ET" ${FLOW_FILTER.pool==='ET'?'selected':''}>E*Trade</option>
+      </select>
+      <select onchange="setFlowFilter('partner', this.value)" class="modal-select" style="font-size:0.66rem">
+        <option value="ALL">全部合伙人</option>
+        ${partners.map(x => `<option ${FLOW_FILTER.partner===x?'selected':''}>${x}</option>`).join('')}
+      </select>
+      <select onchange="setFlowFilter('kind', this.value)" class="modal-select" style="font-size:0.66rem">
+        <option value="ALL" ${FLOW_FILTER.kind==='ALL'?'selected':''}>资本事件 + 中转</option>
+        <option value="CAP" ${FLOW_FILTER.kind==='CAP'?'selected':''}>仅资本事件（Counts=Yes）</option>
+        <option value="TRANSIT" ${FLOW_FILTER.kind==='TRANSIT'?'selected':''}>仅中转腿（Counts=No）</option>
+      </select>
+      <button class="refresh-btn" onclick="switchTab('overview');showBookForm('flow')">＋ 记资金流</button>
+    </div>`;
+
+  const rows = (ca.flows || []).filter(f =>
+    (FLOW_FILTER.pool === 'ALL' || f.pool === FLOW_FILTER.pool) &&
+    (FLOW_FILTER.partner === 'ALL' || f.partner === FLOW_FILTER.partner) &&
+    (FLOW_FILTER.kind === 'ALL' || (FLOW_FILTER.kind === 'CAP' ? f.counts === 'Yes' : f.counts !== 'Yes')));
+  const ledger = `
+    <div style="overflow-x:auto"><table class="book-table">
+      <tr><th>快照期</th><th>到账日</th><th>池</th><th>合伙人</th><th>From → To</th><th>金额</th><th>类型</th><th>工具</th><th>备注</th><th></th></tr>
+      ${rows.map(f => {
+        const isCap = f.counts === 'Yes';
+        const isOut = f.type === 'Distribution';
+        const amtCls = !isCap ? '' : (isOut ? 'neg' : 'pos');
+        const amtSign = !isCap ? '' : (isOut ? '−' : '+');
+        const typeBadge = isCap
+          ? `<span style="font-size:0.58rem;padding:1px 6px;border-radius:4px;background:${isOut ? 'var(--red-bg)' : 'var(--green-bg)'};color:${isOut ? 'var(--red)' : 'var(--green)'}">${isOut ? '分配' : '出资'}</span>`
+          : `<span style="font-size:0.58rem;padding:1px 6px;border-radius:4px;background:var(--gray-bg);color:var(--text-2)">中转</span>`;
+        return `<tr style="${isCap ? '' : 'opacity:0.65'}">
+          <td>${f.snapshot_date || '—'}</td><td>${f.bank_date || '—'}</td>
+          <td>${f.pool}</td><td>${f.partner}</td>
+          <td style="font-size:0.66rem">${f.from} → ${f.to}</td>
+          <td class="${amtCls}">${amtSign}${fmtUSD(f.amount)}</td>
+          <td>${typeBadge}</td><td style="font-size:0.64rem">${f.instrument || '—'}</td>
+          <td style="font-family:var(--f-ui);font-size:0.62rem;color:var(--text-2);max-width:200px">${f.note || ''}</td>
+          <td>${f.native ? `<button class="refresh-btn" style="font-size:0.56rem" onclick="voidEntry('${f.pool.toLowerCase()}_flows','${f.id}')">撤销</button>` : ''}</td>
+        </tr>`;
+      }).join('')}
+    </table></div>
+    <div style="font-family:var(--f-ui);font-size:0.6rem;color:var(--text-2);margin-top:2px">共 ${rows.length} 笔 · 中转腿（Counts=No）不计资本，只用于子账户在途追踪 · 迁移自 Excel 的历史行更正请走「记资金流」新分录</div>`;
+
+  const pending = ca.pending_flows || [];
+  const pendingHtml = pending.length ? `
+    <div class="section-label" style="margin-top:18px">待对账（未来快照期）</div>
+    <div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:9px;padding:9px 13px;font-family:var(--f-mono);font-size:0.68rem">
+      ${pending.map(f => `${f.snapshot_date} ${f.partner} ${fmtUSD(f.amount)}（等待该期快照录入后生效）`).join('<br>')}
+    </div>` : '';
+
+  const subs = ca.subaccounts || {};
+  const subHtml = Object.keys(subs).length ? `
+    <div class="section-label" style="margin-top:18px">子账户在途（中转未入池）</div>
+    <div style="font-family:var(--f-mono);font-size:0.72rem">
+      ${Object.entries(subs).map(([k, v]) => `${k}: <strong class="${v < 0 ? 'neg' : ''}">${fmtUSD(v)}</strong>${Math.abs(v) < 0.01 ? ' ✓ 已全部转入' : ' — 在途'}`).join('　·　')}
+    </div>` : '';
+
+  el.innerHTML = sumStrip + rollTables + filters + ledger + pendingHtml + subHtml;
+}
+
 async function voidEntry(file, id) {
   const note = prompt('撤销原因（留痕）：', '录入错误');
   if (note === null) return;
@@ -603,6 +722,7 @@ async function load() {
   ov.innerHTML = (isNative ? renderReconBar(book) + renderEntryBar() : '') + renderOverview(book);
   document.getElementById('tab-member').innerHTML = renderMemberSelect(book);
   renderMemberStatement(0);
+  renderFlowsTab();
 
   // Live overlay loads separately (broker calls may be slow / fail-soft)
   const liveSlot = document.getElementById('live-slot');

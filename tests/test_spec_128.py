@@ -225,6 +225,35 @@ class TestApiAndFallback(unittest.TestCase):
             self.assertEqual(r.status_code, 400)
 
 
+class TestCapitalActivity(unittest.TestCase):
+    def test_rollforward_identity_and_shape(self):
+        """Fund-accounting invariant: opening + contributions − distributions
+        + allocated P&L = closing, per partner per year (engine-asserted)."""
+        d = _mini_book(Path(tempfile.mkdtemp()))
+        b = be.compute_book(d, force=True)
+        ca = b["capital_activity"]
+        self.assertEqual(len(ca["flows"]), 4)   # 3 SW + 1 ET
+        rf = ca["rollforward"]["sw"]
+        self.assertEqual(len(rf), 1)            # one year (2025)
+        self.assertTrue(rf[0]["identity_ok"], rf[0])
+        totals = rf[0]["totals"]
+        self.assertAlmostEqual(totals["closing"], 1150.0)
+        self.assertAlmostEqual(totals["contributions"], 1000.0)
+        self.assertAlmostEqual(totals["pnl"], 150.0)
+        # per-partner closing must reconcile to member balances
+        a_row = next(r for r in rf[0]["rows"] if r["partner"] == "A")
+        self.assertAlmostEqual(a_row["closing"], 690.0)
+
+    def test_transit_legs_flagged_not_capital(self):
+        d = _mini_book(Path(tempfile.mkdtemp()))
+        b = be.compute_book(d, force=True)
+        transit = [f for f in b["capital_activity"]["flows"] if f["counts"] != "Yes"]
+        self.assertEqual(len(transit), 1)
+        self.assertEqual(transit[0]["to"], "SUB-1")
+        # transit must NOT appear in contribution totals
+        self.assertAlmostEqual(b["capital_activity"]["totals"]["sw"]["contributions"], 1000.0)
+
+
 class TestLiveNlvBaseline(unittest.TestCase):
     def test_drift_baseline_uses_native_reconciled(self):
         """PM incident: a freshly recorded native snapshot must move the live
