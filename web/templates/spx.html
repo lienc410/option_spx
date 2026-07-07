@@ -466,6 +466,56 @@ body {
   margin-top: 10px;
 }
 
+/* ── Structure Map (SPEC-132 — 描述性态势感知，非信号) ────────── */
+.structure-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--theme-lit-135, rgba(96,104,128,0.40));
+  border-radius: 9px;
+  padding: 13px 18px 12px;
+  margin-top: 12px;
+}
+.structure-head {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;
+}
+.structure-title {
+  font-family: var(--f-ui); font-size: 0.64rem; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-2);
+}
+.structure-date { font-family: var(--f-mono); font-size: 0.66rem; color: var(--text-2); }
+.structure-stale { color: var(--orange); font-family: var(--f-mono); font-size: 0.66rem; }
+.structure-badge {
+  font-family: var(--f-ui); font-size: 0.58rem; font-weight: 500;
+  letter-spacing: 0.08em; padding: 2px 8px; border-radius: 9999px;
+}
+.structure-badge.open {
+  color: var(--gold); background: var(--gold-bg); border: 1px solid var(--gold-border);
+}
+.structure-badge.null {
+  color: var(--text-2); background: var(--gray-bg); border: 1px solid var(--gray-border);
+}
+.walls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.walls-col-label {
+  font-family: var(--f-mono); font-size: 0.60rem; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--text-2); margin-bottom: 3px;
+}
+.wall-row {
+  display: flex; gap: 10px; align-items: baseline;
+  font-family: var(--f-mono); font-size: 0.72rem; color: var(--text);
+  padding: 2px 0;
+}
+.wall-row .oi { color: var(--text-2); font-size: 0.66rem; }
+.wall-row .dist { margin-left: auto; color: var(--text-2); font-size: 0.66rem; }
+.structure-footnotes {
+  margin-top: 9px; border-top: 1px solid var(--border); padding-top: 7px;
+  display: grid; gap: 3px;
+}
+.structure-fn {
+  display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap;
+  font-size: 0.68rem; color: var(--text-2);
+}
+.structure-fn strong { font-family: var(--f-mono); color: var(--text); font-weight: 500; }
+
 /* ── Campaign card (SPEC-127 §1 双层记账) ───────────────────── */
 .campaign-card {
   background: var(--surface);
@@ -881,6 +931,7 @@ body {
   </div>
   <div id="campaign-cards"></div>
   <div id="pos-actions" class="pos-actions"></div>
+  <div id="structure-map"></div>
 
   <!-- Settled VIX (Signal 2) -->
   <div class="settling-panel" id="settling-panel-spx">
@@ -1169,10 +1220,16 @@ function renderDecisionStrip(d) {
   const gov = d.intraday_governance || {};
   const finalAction = gov.governed_position_action || d.position_action;
   const finalStrategy = gov.governed_strategy || d.strategy;
-  const actionClass = finalAction === 'OPEN' ? 'action-open'
+  // SPEC-131 — 敞口感知降级：≥T% 时开仓语气降为 STATE（蓝 = informational，
+  // DESIGN 语义），动作词表不变、策略照常显示
+  const expDeg = d.exposure_degrade || {};
+  let actionClass = finalAction === 'OPEN' ? 'action-open'
     : finalAction === 'HOLD' ? 'action-hold'
     : finalAction === 'CLOSE_AND_OPEN' ? 'action-shift'
     : 'action-wait';
+  if (expDeg.degraded && (finalAction === 'OPEN' || finalAction === 'CLOSE_AND_OPEN')) {
+    actionClass = 'action-hold';
+  }
   const nextActionableText = (() => {
     if (!gov.next_actionable_decision_at) return null;
     const next = new Date(gov.next_actionable_decision_at);
@@ -1202,6 +1259,12 @@ function renderDecisionStrip(d) {
   if (d.canonical_strategy && d.canonical_strategy !== d.strategy) lines.push(`<div class="decision-line"><strong>Canonical:</strong> ${d.canonical_strategy}</div>`);
   if (d.re_enable_hint) lines.push(`<div class="decision-line"><strong>Re-enable:</strong> ${d.re_enable_hint}</div>`);
   if (d.position_action === 'HOLD' && CURRENT_POS && CURRENT_POS.opened_at) lines.push(`<div class="decision-line"><strong>Position:</strong> open since ${CURRENT_POS.opened_at}</div>`);
+  // SPEC-131 — 降级文案与晨报逐字同源（exposure.degrade_copy）；n/a fail-soft 标注
+  if (expDeg.degraded && expDeg.copy) {
+    lines.push(`<div class="decision-line" style="color:var(--blue)"><strong>敞口降级:</strong> ${expDeg.copy}</div>`);
+  } else if (expDeg.note) {
+    lines.push(`<div class="decision-line" style="color:var(--text-2)">${expDeg.note}</div>`);
+  }
   if (!lines.length) lines.push('<div class="decision-line"><strong>Status:</strong> no blockers</div>');
   strip.innerHTML = `
     <div class="decision-main">
@@ -2577,6 +2640,64 @@ async function loadCampaigns() {
   }
 }
 
+// ── SPEC-132 — Structure Map（描述性态势感知；Q090 verdict badge 随显示携带）──
+
+function renderStructureMap(d) {
+  const wrap = document.getElementById('structure-map');
+  if (!wrap) return;
+  if (!d || !d.available) { wrap.innerHTML = ''; return; }
+  const row = d.row || {};
+  const prog = d.progress || {};
+  // Badge 词汇表（SPEC-132 强制）：墙 = 前瞻收集中 n=X/60；其余 = Q090 无验证边际，仅描述
+  const wallBadge = `<span class="structure-badge open">前瞻收集中 n=${prog.s3_n ?? 0}/${d.targets?.s3 ?? 60}</span>`;
+  const nullBadge = '<span class="structure-badge null">Q090 无验证边际，仅描述</span>';
+  const fmtK = (v) => v == null ? '—' : Number(v).toLocaleString();
+  const wallRows = (arr) => (arr && arr.length)
+    ? arr.map((w) => `<div class="wall-row"><strong>${fmtK(w.strike)}</strong><span class="oi">OI ${Number(w.oi).toLocaleString()}</span><span class="dist">${w.dist_pct >= 0 ? '+' : ''}${w.dist_pct}%</span></div>`).join('')
+    : '<div class="wall-row"><span class="oi">—</span></div>';
+  const chainNote = row.chain_missing
+    ? `<span class="structure-stale">chain stale · 最近快照 ${row.chain_asof || '—'}</span>`
+    : (d.stale ? `<span class="structure-stale">数据日 ${row.date}（stale）</span>` : '');
+  const walls = row.walls || {};
+  const fn = [];
+  const r = row.s1r_nearest, s = row.s1s_nearest;
+  fn.push(`<div class="structure-fn"><span>压力簇 S1r</span>${r ? `<strong>${fmtK(r.level)}</strong><span>${r.touches} 触碰 · ${r.dist_pct >= 0 ? '+' : ''}${r.dist_pct}%</span>` : '<span>—</span>'}${row.s1r_flag ? '<strong>at level</strong>' : ''}${nullBadge}</div>`);
+  fn.push(`<div class="structure-fn"><span>支撑簇 S1s</span>${s ? `<strong>${fmtK(s.level)}</strong><span>${s.touches} 触碰 · ${s.dist_pct >= 0 ? '+' : ''}${s.dist_pct}%</span>` : '<span>—</span>'}${row.s1s_flag ? '<strong>at level</strong>' : ''}<span class="structure-badge null">无裁决 · 重开 n=${prog.s1s_n ?? 0}/${d.targets?.s1s ?? 100}</span></div>`);
+  fn.push(`<div class="structure-fn"><span>递减线 S4</span>${row.s4_line != null ? `<strong>${fmtK(row.s4_line)}</strong>` : '<span>不活跃</span>'}${row.s4_flag ? '<strong>at line</strong>' : ''}${nullBadge}</div>`);
+  fn.push(`<div class="structure-fn"><span>量比 V/20d</span><strong>${row.vol_ratio ?? '—'}</strong>${nullBadge}</div>`);
+  wrap.innerHTML = `
+    <div class="structure-card">
+      <div class="structure-head">
+        <span class="structure-title">Structure Map</span>
+        <span class="structure-date">spot ${fmtK(row.spot)} · ${row.date || '—'}</span>
+        ${chainNote}
+        <span style="margin-left:auto;display:flex;gap:6px;align-items:center">${wallBadge}</span>
+      </div>
+      <div class="walls-grid">
+        <div>
+          <div class="walls-col-label">Call Walls（上方）</div>
+          ${wallRows(walls.calls)}
+        </div>
+        <div>
+          <div class="walls-col-label">Put Walls（下方）</div>
+          ${wallRows(walls.puts)}
+        </div>
+      </div>
+      <div class="structure-footnotes">${fn.join('')}</div>
+    </div>`;
+}
+
+async function loadStructureMap() {
+  const wrap = document.getElementById('structure-map');
+  if (!wrap) return;
+  try {
+    const res = await fetch('/api/structure-map');
+    renderStructureMap(await res.json());
+  } catch (_) {
+    wrap.innerHTML = '';
+  }
+}
+
 // ── Intraday panel ──────────────────────────────────────────────────────────
 
 const SPIKE_LEVEL_RANK = { CALM: 0, WARNING: 1, ALERT: 2 };
@@ -2732,6 +2853,7 @@ async function loadSettling() {
   loadPosition();
   loadIntraday();
   loadSettling();
+  loadStructureMap();  // SPEC-132 — 日更 shadow，页面加载读一次即可
   setInterval(load,        5 * 60 * 1000);
   setInterval(loadPosition,    30 * 1000);
   setInterval(loadIntraday,    60 * 1000);

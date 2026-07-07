@@ -1473,8 +1473,26 @@ async def scheduled_push(bot: Bot, chat_id: str) -> None:
         from notify.gateway import apush
         _title = ("NO ENTRY" if rec.strategy_key == "reduce_wait"
                   else f"OPEN 候选 · {rec.strategy}")
-        await apush(bot, chat_id, "ACTION", "新开仓", f"晨报 · {_title}",
-                    _format_recommendation(rec), dedupe_key="morning_push")
+        _category = "ACTION"
+        _body = _format_recommendation(rec)
+        # SPEC-131 — 敞口感知降级（显示/推送层，PM ratify T=40%）：目标家族
+        # 并发 max loss / 流动现金 ≥ 阈值 → ACTION 降 STATE 语气，正文置顶
+        # 降级文案（与推荐卡逐字同源 exposure.degrade_copy）。分母不可用 →
+        # fail-soft 照常推荐 + 标注 n/a。selector 信号逻辑零改动。
+        if rec.strategy_key and rec.strategy_key != "reduce_wait":
+            try:
+                from strategy.exposure import evaluate_exposure_degrade
+                deg = evaluate_exposure_degrade(rec.strategy_key)
+                if deg.get("degraded"):
+                    _category = "STATE"
+                    _title = f"条件满足，敞口已满 · {rec.strategy}"
+                    _body = f"{_h(deg['copy'])}\n{'─' * 32}\n{_body}"
+                elif deg.get("note"):
+                    _body = f"{_body}\n<i>{_h(deg['note'])}</i>"
+            except Exception:
+                log.exception("SPEC-131 exposure degrade check failed (fail-soft)")
+        await apush(bot, chat_id, _category, "新开仓", f"晨报 · {_title}",
+                    _body, dedupe_key="morning_push")
         _morning_snapshot = {
             "strategy_key": rec.strategy_key,
             "position_action": rec.position_action,

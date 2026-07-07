@@ -767,6 +767,17 @@ def api_recommendation():
                 "actionable": False,
                 "final_priority_name": "raw_selector",
             }
+        # SPEC-131 — 敞口感知降级（显示层附加；selector 输出零改动）。
+        # 只对可开仓推荐评估；fail-soft：评估失败不影响推荐本体。
+        if rec.strategy_key and rec.strategy_key != "reduce_wait":
+            try:
+                from strategy.exposure import evaluate_exposure_degrade
+                payload["exposure_degrade"] = evaluate_exposure_degrade(rec.strategy_key)
+            except Exception as exp_exc:
+                payload["exposure_degrade"] = {
+                    "degraded": False,
+                    "note": f"敞口检查不可用（fail-soft）: {exp_exc}",
+                }
         return app.response_class(
             json.dumps(_json_sanitize(payload), cls=_EnumEncoder, default=str),
             mimetype="application/json",
@@ -5188,29 +5199,9 @@ def _bp_target_fraction_for_strategy(strategy_key: str, regime_name: str | None 
     return float(DEFAULT_PARAMS.bp_target_normal)
 
 
-def _estimate_bp_per_contract(strategy_key: str, short_strike, long_strike, premium) -> float | None:
-    short_k = _num(short_strike)
-    long_k = _num(long_strike)
-    premium_val = abs(_num(premium) or 0.0)
-    width = abs(short_k - long_k) if short_k is not None and long_k is not None else None
-
-    if strategy_key == "bull_call_diagonal":
-        return round(max(premium_val * 100.0, 0.0), 2)
-
-    if strategy_key in {
-        "bull_put_spread",
-        "bull_put_spread_hv",
-        "bear_call_spread_hv",
-        "iron_condor",
-        "iron_condor_hv",
-    }:
-        if width is None:
-            return None
-        return round(max((width - premium_val) * 100.0, 0.0), 2)
-
-    if width is not None:
-        return round(max((width - premium_val) * 100.0, 0.0), 2)
-    return round(max(premium_val * 100.0, 0.0), 2)
+# SPEC-131: SPEC-129 的单一真值函数下沉 strategy/exposure（bot 晨报共用，
+# 不 import Flask）。名称保留为薄别名 — 既有调用点/测试不变。
+from strategy.exposure import estimate_bp_per_contract as _estimate_bp_per_contract  # noqa: E402
 
 
 def _bp_basis_snapshot() -> dict:
@@ -5642,22 +5633,9 @@ def _manual_open_governance_advisory(strategy_key: str, body: dict, trade_id: st
         pass
 
 
-def _strategy_family(strategy_key: str) -> str:
-    """SPEC-129 §3 — 并发风险的家族口径：同策略含 _hv 变体（bull_put_spread 与
-    bull_put_spread_hv 同家族；BCD 家族 = bull_call_diagonal，同 SPEC-123 用法）。"""
-    k = str(strategy_key or "").strip().lower()
-    return k[:-3] if k.endswith("_hv") else k
-
-
-def _order_max_loss_usd(strategy_key: str, short_strike, long_strike, premium, contracts) -> float | None:
-    """本单 max loss $（今日尺度绝对值）。credit 结构 = (width−credit)×100×n；
-    debit 结构 = |debit|×100×n。公式复用 _estimate_bp_per_contract（PM BP
-    校准结论：spread BP ≈ max loss）——服务端是公式唯一真值，前端镜像。"""
-    per_contract = _estimate_bp_per_contract(strategy_key, short_strike, long_strike, premium)
-    n = _num(contracts)
-    if per_contract is None or not n or n <= 0:
-        return None
-    return round(per_contract * n, 2)
+# SPEC-131: 薄别名（SPEC-129 名称保留；真值在 strategy/exposure）
+from strategy.exposure import order_max_loss_usd as _order_max_loss_usd  # noqa: E402
+from strategy.exposure import strategy_family as _strategy_family  # noqa: E402
 
 
 @app.route("/api/position/entry-risk")
@@ -5670,13 +5648,13 @@ def api_position_entry_risk():
       liquid_cash_usd / cash_source   get_current_liquid_cash()；不可用 → null + fail-soft
       concurrent_pct_of_cash          并发 max loss 占流动现金 %
 
-    5 月实证：5/14 单日加 $154k、5/14+5/15 并发 ~$197k，当时无人看见这个数。"""
-    from strategy.state import read_all_positions
+    5 月实证：5/14 单日加 $154k、5/14+5/15 并发 ~$197k，当时无人看见这个数。
+    SPEC-131 后计算主体住 strategy/exposure（晨报降级共用同一真值）。"""
+    from strategy.exposure import family_open_exposure, liquid_cash as _liquid_cash
 
     strategy_key = str(flask_req.args.get("strategy_key", "")).strip().lower()
     if not strategy_key:
         return jsonify({"error": "strategy_key is required"}), 400
-    family = _strategy_family(strategy_key)
 
     order_max_loss = _order_max_loss_usd(
         strategy_key,
@@ -5686,40 +5664,11 @@ def api_position_entry_risk():
         flask_req.args.get("contracts") or 1,
     )
 
-    family_positions: list[dict] = []
-    family_open = 0.0
-    try:
-        for p in ((read_all_positions() or {}).get("positions") or []):
-            p_key = str(p.get("strategy_key") or "").strip().lower()
-            if _strategy_family(p_key) != family:
-                continue
-            ml = _order_max_loss_usd(
-                p_key, p.get("short_strike"), p.get("long_strike"),
-                p.get("actual_premium") or p.get("model_premium"),
-                p.get("contracts") or 1,
-            )
-            if ml is None:
-                continue
-            family_open += ml
-            family_positions.append({
-                "trade_id": p.get("trade_id"),
-                "account": p.get("account"),
-                "strategy_key": p_key,
-                "max_loss_usd": ml,
-            })
-    except Exception as exc:
-        app.logger.warning("entry-risk: family positions unavailable: %s", exc)
-
-    liquid_cash = None
-    cash_source = "unavailable"
-    try:
-        from strategy.cash_budget_governance import get_current_liquid_cash
-        cash = get_current_liquid_cash()
-        cash_source = str(cash.get("source") or "unavailable")
-        if cash_source != "unavailable":
-            liquid_cash = round(float(cash.get("total") or 0.0), 2)
-    except Exception as exc:
-        app.logger.warning("entry-risk: liquid cash unavailable: %s", exc)
+    fam = family_open_exposure(strategy_key)
+    family = fam["family"]
+    family_open = fam["family_open_max_loss_usd"]
+    family_positions = fam["family_open_positions"]
+    liquid_cash, cash_source = _liquid_cash()
 
     concurrent = round(order_max_loss + family_open, 2) if order_max_loss is not None else None
     pct = None
@@ -6435,6 +6384,32 @@ def api_position_note():
         "note": note,
     })
     return jsonify({"ok": True})
+
+
+@app.route("/api/structure-map")
+def api_structure_map():
+    """SPEC-132 — Structure Map 卡数据：最新 shadow 行 + n 进度 + stale 标注。
+
+    显示与取证共用真值（shadow jsonl 由 17:00 job 落盘）；这里只读不算——
+    卡片内容与证据流严格一致。文件缺失/过期 → fail-soft 返回 stale 信息。"""
+    from strategy.structure_map import (S1S_TARGET_N, S3_TARGET_N, progress,
+                                        read_shadow)
+    rows = read_shadow()
+    if not rows:
+        return jsonify({"available": False,
+                        "note": "shadow 尚未落盘（job 17:00 ET 日更）"})
+    latest = rows[-1]
+    today = datetime.now(_ET).date().isoformat()
+    payload = {
+        "available": True,
+        "row": latest,
+        "stale": latest.get("date") != today,
+        "progress": progress(rows),
+        "targets": {"s3": S3_TARGET_N, "s1s": S1S_TARGET_N},
+    }
+    from strategy.campaign import _assert_finite
+    _assert_finite(payload, "structure_map")
+    return jsonify(payload)
 
 
 @app.route("/api/campaigns")
