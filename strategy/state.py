@@ -393,6 +393,63 @@ def close_position(
         _save(data)
 
 
+def append_roll_cycle_rows(rows: list[dict]) -> None:
+    """SPEC-127 §1 — write cycle-realization rows (one per rolled leg) to
+    data/closed_trades.jsonl in ONE buffered write. Each roll 的短腿平仓是一个
+    真实决策点：这些行就是降级门（SPEC-123 D1）“最近 6 笔实现”的计数单位。
+
+    Row shape mirrors regular closed rows plus:
+      cycle_event: True   — attribution 等按整段 spread 建模的 reader 必须跳过
+      campaign_id         — campaign membership
+      close_reason: roll
+    Raises on failure (the atomic roll flow needs the error to roll back)."""
+    if not rows:
+        return
+    os.makedirs(os.path.dirname(CLOSED_TRADES_FILE), exist_ok=True)
+    payload = "".join(json.dumps(r) + "\n" for r in rows)
+    with open(CLOSED_TRADES_FILE, "a") as f:
+        f.write(payload)
+        f.flush()
+        os.fsync(f.fileno())
+
+
+def roll_short_leg(trade_id: str, *, new_short_strike, new_expiry: str,
+                   net_credit_per_share: float,
+                   new_short_entry_price: float | None = None) -> bool:
+    """SPEC-127 §2 — apply a diagonal short-leg roll to ONE position leg.
+
+    Updates the position's short leg (expiry + short_strike), accumulates
+    per-share roll income (feeds the §4b adjusted-basis stop anchor and the
+    campaign card), and stamps the new short's own entry credit so the §4
+    collapse trigger (残值 ≤15% 入场权利金) has its reference. actual_premium
+    (initial debit) is deliberately NOT touched — the campaign layer owns the
+    basis math. Returns False when the trade_id is not an open leg."""
+    data = _load_raw()
+    if data is None or data.get("status") != "open":
+        return False
+    found = False
+    for pos in (data.get("positions") or []) if "positions" in data else [data]:
+        if pos.get("trade_id") != trade_id:
+            continue
+        pos["expiry"] = new_expiry
+        pos["short_strike"] = new_short_strike
+        prev = 0.0
+        try:
+            prev = float(pos.get("roll_income") or 0.0)
+        except (TypeError, ValueError):
+            prev = 0.0
+        pos["roll_income"] = round(prev + float(net_credit_per_share), 4)
+        pos["roll_count"] = int(pos.get("roll_count") or 0) + 1
+        if new_short_entry_price is not None:
+            pos["short_entry_price"] = float(new_short_entry_price)
+        found = True
+    if found:
+        data["roll_count"] = data.get("roll_count", 0) + 1
+        data["rolled_at"] = date.today().isoformat()
+        _save(data)
+    return found
+
+
 def roll_position(**extra_fields) -> None:
     """
     Record a roll: increments roll_count and updates rolled_at.
