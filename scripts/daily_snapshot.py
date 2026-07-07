@@ -276,8 +276,20 @@ def build_record() -> dict | None:
                     current_dte = max(0, (exp - today_date).days)
                 except Exception:
                     pass
-            # Unrealized P&L lives in pos.position_lives[trade_id]
+            # Unrealized P&L lives in pos.position_lives[trade_id].
+            # ETrade legs often carry mark but no unrealized_pnl (live-quote
+            # path only fills it for the primary broker) — derive it so the
+            # snapshot is broker-symmetric: (entry − mark) × 100 × contracts
+            # works for credit (+entry) and debit (−entry) alike.
             pl = position_lives.get(p.get("trade_id")) or {}
+            if pl.get("unrealized_pnl") is None and pl.get("mark") is not None:
+                try:
+                    ep_raw = p.get("actual_premium") or p.get("model_premium")
+                    ct_raw = p.get("contracts") or 1
+                    pl = dict(pl)
+                    pl["unrealized_pnl"] = (float(ep_raw) - float(pl["mark"])) * 100.0 * float(ct_raw)
+                except (TypeError, ValueError):
+                    pass
             spx_positions.append({
                 "account":        p.get("account"),
                 "trade_id":       p.get("trade_id"),

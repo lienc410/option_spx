@@ -2718,7 +2718,7 @@ def api_strategy_greek_attribution():
                     r = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                if r.get("strategy") == strategy:
+                if _strategy_matches(r.get("strategy"), strategy):
                     rows.append(r)
     except Exception as exc:
         return jsonify({"status": "error", "error": str(exc)})
@@ -2833,6 +2833,91 @@ def api_strategy_greek_attribution():
     })
 
 
+# Rows written by strategy/state.py's auto-hook carried the raw strategy_key
+# (e.g. "bull_call_diagonal") whenever _STRATEGY_BUCKET lagged a new strategy,
+# instead of the "spx_spread" bucket the journal endpoints filter on. The 6/05
+# BCD closes (2026-07-06) silently dropped $5,800 realized this way. Normalize
+# at read so historical rows keep working even if the map lags again.
+_SPX_SPREAD_ALIASES = {
+    "spx_spread", "bull_put_spread", "bull_put_spread_hv",
+    "bear_call_spread", "bear_call_spread_hv",
+    "bull_call_diagonal", "iron_condor", "iron_condor_hv",
+}
+
+
+def _strategy_matches(row_strategy, requested: str) -> bool:
+    s = str(row_strategy or "").lower()
+    if requested == "spx_spread":
+        return s in _SPX_SPREAD_ALIASES
+    return s == requested
+
+
+@app.route("/api/strategy/closed-trades")
+def api_strategy_closed_trades():
+    """Closed-trade ledger + summary stats for the Journal trade log."""
+    closed_path = os.path.normpath(
+        os.path.join(os.path.dirname(__file__), "..", "data", "closed_trades.jsonl")
+    )
+    strategy = flask_req.args.get("strategy", "spx_spread")
+    trades: list[dict] = []
+    if os.path.exists(closed_path):
+        try:
+            with open(closed_path) as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    try:
+                        ct = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if not _strategy_matches(ct.get("strategy"), strategy):
+                        continue
+                    hold_days = None
+                    try:
+                        hold_days = (date.fromisoformat(ct["closed_at"])
+                                     - date.fromisoformat(ct["opened_at"])).days
+                    except Exception:
+                        pass
+                    trades.append({
+                        "trade_id":     ct.get("trade_id"),
+                        "account":      ct.get("account"),
+                        "strategy_key": ct.get("strategy_key"),
+                        "short_strike": ct.get("short_strike"),
+                        "long_strike":  ct.get("long_strike"),
+                        "contracts":    ct.get("contracts"),
+                        "expiry":       ct.get("expiry"),
+                        "long_expiry":  ct.get("long_expiry"),
+                        "opened_at":    ct.get("opened_at"),
+                        "closed_at":    ct.get("closed_at"),
+                        "hold_days":    hold_days,
+                        "entry_credit_per_share": ct.get("entry_credit_per_share"),
+                        "exit_debit_per_share":   ct.get("exit_debit_per_share"),
+                        "realized_pnl": ct.get("realized_pnl"),
+                        "close_reason": ct.get("close_reason"),
+                    })
+        except Exception as exc:
+            return jsonify({"status": "error", "error": str(exc)})
+    if not trades:
+        return jsonify({"status": "no_data", "trades": [], "summary": {}})
+    trades.sort(key=lambda t: (t.get("closed_at") or "", t.get("trade_id") or ""))
+    pnls = [float(t["realized_pnl"]) for t in trades if t.get("realized_pnl") is not None]
+    wins = [p for p in pnls if p > 0]
+    losses = [p for p in pnls if p < 0]
+    holds = [t["hold_days"] for t in trades if t.get("hold_days") is not None]
+    summary = {
+        "count":          len(trades),
+        "wins":           len(wins),
+        "losses":         len(losses),
+        "win_rate":       round(100.0 * len(wins) / len(pnls), 1) if pnls else None,
+        "total_realized": round(sum(pnls), 2),
+        "avg_win":        round(sum(wins) / len(wins), 2) if wins else None,
+        "avg_loss":       round(sum(losses) / len(losses), 2) if losses else None,
+        "profit_factor":  round(sum(wins) / abs(sum(losses)), 2) if losses and sum(losses) != 0 else None,
+        "avg_hold_days":  round(sum(holds) / len(holds), 1) if holds else None,
+    }
+    return jsonify({"status": "available", "trades": trades, "summary": summary})
+
+
 @app.route("/api/strategy/cum-pnl")
 def api_strategy_cum_pnl():
     """Cumulative strategy PnL — combines realized (from closed_trades) and
@@ -2865,7 +2950,7 @@ def api_strategy_cum_pnl():
                     r = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                if r.get("strategy") == strategy:
+                if _strategy_matches(r.get("strategy"), strategy):
                     rows.append(r)
     except Exception as exc:
         return jsonify({"status": "error", "error": str(exc)})
@@ -2902,7 +2987,7 @@ def api_strategy_cum_pnl():
                         ct = json.loads(line)
                     except json.JSONDecodeError:
                         continue
-                    if ct.get("strategy") != strategy:
+                    if not _strategy_matches(ct.get("strategy"), strategy):
                         continue
                     if (ct.get("closed_at") or "9999-99-99") <= latest_date:
                         realized_cum += float(ct.get("realized_pnl") or 0.0)

@@ -54,8 +54,13 @@ CLOSED_TRADES_FILE = os.path.join(os.path.dirname(__file__), "..", "data", "clos
 # Strategy-key → bucket label used in closed_trades.jsonl + attribution jsonl
 # (matches daily_snapshot.jsonl's strategies.{bucket}.positions key).
 _STRATEGY_BUCKET = {
-    "bull_put_spread": "spx_spread",
-    "bear_call_spread": "spx_spread",
+    "bull_put_spread":     "spx_spread",
+    "bull_put_spread_hv":  "spx_spread",
+    "bear_call_spread":    "spx_spread",
+    "bear_call_spread_hv": "spx_spread",
+    "bull_call_diagonal":  "spx_spread",
+    "iron_condor":         "spx_spread",
+    "iron_condor_hv":      "spx_spread",
 }
 
 

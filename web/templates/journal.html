@@ -257,6 +257,10 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .day-evt { display: inline-block; font-size: 0.56rem; padding: 1px 6px; border-radius: 4px; border: 1px solid; margin-left: 5px; }
 .day-evt.open { color: var(--green); border-color: var(--green-border); background: var(--green-bg); }
 .day-evt.close { color: var(--red); border-color: var(--red-border); background: var(--red-bg); }
+.day-evt.partial { color: var(--orange); border-color: var(--orange-border); background: var(--orange-bg); }
+.day-evt.flow { color: var(--blue); border-color: var(--blue-border); background: var(--blue-bg); cursor: help; }
+.day-head { display: grid; grid-template-columns: 92px 84px 1fr auto 110px 130px; gap: 10px; padding: 7px 14px; border-bottom: 1px solid var(--border-2); background: var(--surface-hi); font-family: var(--f-ui); font-size: 0.54rem; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-2); }
+.day-head span:nth-child(4), .day-head span:nth-child(5), .day-head span:nth-child(6) { text-align: right; }
 .day-row:hover { background: var(--surface-hi); }
 .day-row:last-of-type { border-bottom: none; }
 .day-date { color: var(--text); }
@@ -298,14 +302,14 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
       <span class="meta-sep">·</span>
       <span id="hero-count">— records</span>
       <span class="meta-sep">·</span>
-      <span>Schema v2 · captured 16:30 ET daily</span>
+      <span>Schema v2 · captured 17:00 ET daily</span>
     </div>
   </div>
 
   <!-- Warmup banner (shown when < 5 records) -->
   <div class="warmup-banner" id="warmup-banner" style="display:none">
     <div class="warmup-title">Warming up</div>
-    <div class="warmup-body" id="warmup-body">— records captured. Charts and analytics activate once 5+ days of data exist. Snapshot runs daily at 16:30 ET.</div>
+    <div class="warmup-body" id="warmup-body">— records captured. Charts and analytics activate once 5+ days of data exist. Snapshot runs daily at 17:00 ET.</div>
   </div>
 
   <!-- Account view selector -->
@@ -342,10 +346,13 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
           <th>DTE</th>
           <th>Entry $</th>
           <th>Mark $</th>
+          <th>Δ×n $/pt</th>
+          <th>Θ×n $/d</th>
+          <th>OTM%</th>
           <th>Unrealized</th>
         </tr>
       </thead>
-      <tbody id="positions-body"><tr><td colspan="9" class="unavail" style="text-align:center">Loading…</td></tr></tbody>
+      <tbody id="positions-body"><tr><td colspan="12" class="unavail" style="text-align:center">Loading…</td></tr></tbody>
     </table>
   </div>
 
@@ -359,7 +366,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     <div class="panel-head">
       <div class="panel-titles">
         <span class="panel-title">NLV Curve</span>
-        <span class="panel-sub">combined equity at 16:30 ET · dashed = synthetic fill</span>
+        <span class="panel-sub">combined equity at 17:00 ET · dashed = synthetic fill</span>
       </div>
       <div class="panel-controls">
         <span class="ctrl-label">Window</span>
@@ -439,6 +446,30 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
         <tbody><tr><td class="row-head">Loading…</td><td>—</td></tr></tbody>
       </table>
     </div>
+  </div>
+
+  <div class="table-wrap">
+    <div class="tw-head">
+      <span class="tw-title">Closed Trades</span>
+      <span class="tw-sub" id="closed-trades-summary">Loading…</span>
+    </div>
+    <table class="pos-table">
+      <thead>
+        <tr>
+          <th>Closed</th>
+          <th>Trade ID</th>
+          <th>Acct</th>
+          <th>Type</th>
+          <th>Strikes</th>
+          <th>×</th>
+          <th>Hold</th>
+          <th>Entry → Exit</th>
+          <th>Realized</th>
+          <th>Reason</th>
+        </tr>
+      </thead>
+      <tbody id="closed-trades-body"><tr><td colspan="10" class="unavail" style="text-align:center">Loading…</td></tr></tbody>
+    </table>
   </div>
 
   <!-- ═══ 03 · RISK &amp; ALLOCATION — what the book is exposed to ═══ -->
@@ -592,14 +623,14 @@ async function loadJournal() {
 }
 
 function _showEmpty() {
-  const msg = 'No snapshots yet — first capture scheduled for 16:30 ET. Page activates once data exists.';
+  const msg = 'No snapshots yet — first capture scheduled for 17:00 ET. Page activates once data exists.';
   document.getElementById('hero-range').textContent = '—';
   document.getElementById('hero-count').textContent = '0 records';
   document.getElementById('warmup-banner').style.display = 'block';
   document.getElementById('warmup-body').textContent = msg;
   document.getElementById('latest-strip').innerHTML = `<span class="unavail">${msg}</span>`;
   document.getElementById('positions-body').innerHTML =
-    '<tr><td colspan="9" class="unavail" style="text-align:center">No positions captured yet.</td></tr>';
+    '<tr><td colspan="12" class="unavail" style="text-align:center">No positions captured yet.</td></tr>';
   document.getElementById('day-records-wrap').innerHTML = `<div class="unavail">${msg}</div>`;
 }
 
@@ -621,6 +652,7 @@ function _renderAll(payload) {
   _renderNlvChart();
   _renderBpChart();
   _renderCumPnlChart(); // fetches its own data — closed_trades + attribution jsonl
+  _renderClosedTrades(); // fetches its own data — closed_trades ledger
   _renderAttrChart();   // fetches its own data — independent of daily_snapshot
   _renderRegimeStrip();
   _renderMarketChart();
@@ -642,6 +674,16 @@ function _renderLatest() {
   const r = latest.regime || {};
   const regimeClass = `r-${r.name || 'normal'}`;
   const maint = _acctMaint(latest);
+
+  // NLV drawdown vs the account-view peak (partial-broker rows excluded —
+  // their NLV covers one broker only and would poison the peak/current).
+  let nlvDd = null;
+  if (nlv != null) {
+    const full = _records.filter(x => !(Array.isArray(x.partial_accounts) && x.partial_accounts.length));
+    const peak = Math.max(...full.map(x => _acctNlv(x)).filter(v => v != null), nlv);
+    if (peak > 0) nlvDd = (nlv / peak - 1) * 100;
+  }
+  const nlvDdCls = nlvDd == null ? '' : nlvDd <= -5 ? 'red' : '';
 
   document.getElementById('latest-strip').innerHTML = `
     <div class="latest-metric">
@@ -671,8 +713,12 @@ function _renderLatest() {
       <span class="lm-num" style="font-size:0.95rem">${typeof m.spx === 'number' ? Math.round(m.spx).toLocaleString() : '—'}</span>
     </div>
     <div class="latest-metric">
-      <span class="lm-lbl">ddATH</span>
+      <span class="lm-lbl">SPX ddATH</span>
       <span class="lm-num" style="font-size:0.95rem">${r.ddath_pct != null ? r.ddath_pct.toFixed(2) + '%' : '—'}</span>
+    </div>
+    <div class="latest-metric">
+      <span class="lm-lbl">NLV DD</span>
+      <span class="lm-num ${nlvDdCls}" style="font-size:0.95rem">${nlvDd == null ? '—' : nlvDd.toFixed(2) + '%'}</span>
     </div>
     <div class="latest-metric">
       <span class="lm-lbl">Captured</span>
@@ -1145,6 +1191,11 @@ async function _renderCumPnlChart() {
     const f = n => '$' + Math.round(n).toLocaleString();
     note.textContent = `Cum ${f(t.cum_pnl)}  ·  Realized ${f(t.realized)} (${t.closed_trades} closed)  ·  Unrealized ${f(t.unrealized)}`;
   }
+
+  // Feed day-records cash-flow detection, then re-render with chips.
+  _stratDayPnlByDate = {};
+  for (const r of payload.series) _stratDayPnlByDate[r.date] = r.day_pnl;
+  if (_records.length) _renderDayRecords();
 }
 
 // Strategy PnL Attribution — fetches /api/strategy/greek-attribution and
@@ -1507,22 +1558,55 @@ function _renderMarketChart() {
   });
 }
 
+// Signed money: −$383.00 (sign before the $, not "$-383.00")
+function fmtSigned$(v, dec = 2) {
+  if (v == null || Number.isNaN(Number(v))) return '—';
+  const n = Number(v);
+  return (n < 0 ? '−' : '') + '$' + Math.abs(n).toFixed(dec);
+}
+
 function _renderPositions() {
   const latest = _records[_records.length - 1];
   const all = latest?.strategies?.spx_spread?.positions || [];
   const positions = _accountView === 'all' ? all : all.filter(p => p.account === _accountView);
   const body = document.getElementById('positions-body');
+  const spxNow = latest?.market?.spx;
   if (!positions.length) {
     const msg = _accountView === 'all'
       ? 'No open positions in latest snapshot.'
       : `No open positions on ${_acctLabel()} in latest snapshot.`;
-    body.innerHTML = `<tr><td colspan="9" class="unavail" style="text-align:center">${msg}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="12" class="unavail" style="text-align:center">${msg}</td></tr>`;
     return;
   }
   body.innerHTML = positions.map(p => {
-    const pnl = p.unrealized_pnl;
+    // Unrealized: snapshot value, else derive from entry/mark (older ETrade
+    // rows carry mark but a null unrealized_pnl).
+    let pnl = p.unrealized_pnl;
+    if (pnl == null && p.entry_premium != null && p.mark != null) {
+      pnl = (p.entry_premium - p.mark) * 100 * (p.contracts || 1);
+    }
     const pnlCls = pnl == null ? '' : pnl >= 0 ? 'green' : 'red';
     const pnlStr = pnl == null ? '—' : (pnl >= 0 ? '+' : '−') + '$' + Math.abs(pnl).toLocaleString(undefined, { maximumFractionDigits: 0 });
+
+    // Net position greeks from broker per-leg chain greeks (short leg −1,
+    // long leg +1), scaled ×100×contracts — same convention as home page
+    // Live Risk chips. Broker theta is $/day per share.
+    const gs = p.greeks_short, gl = p.greeks_long;
+    const mult = 100 * (p.contracts || 1);
+    let deltaN = null, thetaN = null;
+    if (gs && gl && gs.delta != null && gl.delta != null) deltaN = (-gs.delta + gl.delta) * mult;
+    if (gs && gl && gs.theta != null && gl.theta != null) thetaN = (-gs.theta + gl.theta) * mult;
+
+    // Distance from SPX to the short strike, signed so negative = breached.
+    // CALL structures want SPX below short K; PUT structures want SPX above.
+    const abbrev = _stratAbbrev(p);
+    const isCall = abbrev === 'BCD' || abbrev.startsWith('BCS');
+    let otm = null;
+    if (spxNow != null && p.short_strike != null) {
+      otm = (isCall ? (p.short_strike - spxNow) : (spxNow - p.short_strike)) / spxNow * 100;
+    }
+    const otmCls = otm == null ? '' : otm <= 0 ? 'red' : otm < 2 ? '' : 'green';
+
     return `<tr>
       <td class="emph">${p.account || '—'}</td>
       <td>${p.trade_id || '—'}</td>
@@ -1530,8 +1614,11 @@ function _renderPositions() {
       <td>${p.contracts ?? '—'}</td>
       <td>${p.expiry || '—'}</td>
       <td>${p.dte_current ?? '—'}d</td>
-      <td>${p.entry_premium != null ? '$' + p.entry_premium.toFixed(2) : '—'}</td>
-      <td>${p.mark != null ? '$' + p.mark.toFixed(2) : '—'}</td>
+      <td>${fmtSigned$(p.entry_premium)}</td>
+      <td>${fmtSigned$(p.mark)}</td>
+      <td>${deltaN == null ? '—' : (deltaN >= 0 ? '+' : '−') + '$' + Math.abs(deltaN).toFixed(0)}</td>
+      <td>${thetaN == null ? '—' : (thetaN >= 0 ? '+' : '−') + '$' + Math.abs(thetaN).toFixed(0)}</td>
+      <td class="${otmCls}">${otm == null ? '—' : otm.toFixed(1) + '%'}</td>
       <td class="${pnlCls}">${pnlStr}</td>
     </tr>`;
   }).join('');
@@ -1542,6 +1629,50 @@ const _STRAT_ABBREV = {
   bear_call_spread: 'BCS', bear_call_spread_hv: 'BCS-HV',
   bull_call_diagonal: 'BCD', iron_condor: 'IC', iron_condor_hv: 'IC-HV',
 };
+
+async function _renderClosedTrades() {
+  let payload;
+  try {
+    const res = await fetch('/api/strategy/closed-trades?strategy=spx_spread');
+    payload = await res.json();
+  } catch (e) { payload = { status: 'error', trades: [] }; }
+  const body = document.getElementById('closed-trades-body');
+  const sum = document.getElementById('closed-trades-summary');
+  if (!payload || payload.status !== 'available' || !payload.trades.length) {
+    body.innerHTML = '<tr><td colspan="10" class="unavail" style="text-align:center">No closed trades yet.</td></tr>';
+    if (sum) sum.textContent = '—';
+    return;
+  }
+  const trades = payload.trades.slice().reverse();   // newest first
+  body.innerHTML = trades.map(t => {
+    const pnl = t.realized_pnl;
+    const cls = pnl == null ? '' : pnl >= 0 ? 'green' : 'red';
+    const pnlStr = pnl == null ? '—' : (pnl >= 0 ? '+' : '−') + '$' + Math.abs(pnl).toLocaleString(undefined, { maximumFractionDigits: 0 });
+    const typ = _stratAbbrev({ strategy_key: t.strategy_key, entry_premium: t.entry_credit_per_share });
+    return `<tr>
+      <td>${t.closed_at || '—'}</td>
+      <td>${t.trade_id || '—'}</td>
+      <td class="emph">${t.account || '—'}</td>
+      <td>${typ}</td>
+      <td class="emph">${t.short_strike ?? '?'}/${t.long_strike ?? '?'}</td>
+      <td>${t.contracts ?? '—'}</td>
+      <td>${t.hold_days != null ? t.hold_days + 'd' : '—'}</td>
+      <td>${fmtSigned$(t.entry_credit_per_share)} → ${fmtSigned$(t.exit_debit_per_share)}</td>
+      <td class="${cls}">${pnlStr}</td>
+      <td>${t.close_reason || '—'}</td>
+    </tr>`;
+  }).join('');
+  if (sum && payload.summary) {
+    const s = payload.summary;
+    const parts = [`${s.count} trades`];
+    if (s.win_rate != null) parts.push(`win ${s.win_rate.toFixed(0)}%`);
+    if (s.total_realized != null) parts.push(`total ${(s.total_realized >= 0 ? '+' : '−')}$${Math.abs(s.total_realized).toLocaleString(undefined, { maximumFractionDigits: 0 })}`);
+    if (s.avg_win != null)  parts.push(`avg win +$${Math.abs(s.avg_win).toLocaleString(undefined, { maximumFractionDigits: 0 })}`);
+    if (s.avg_loss != null) parts.push(`avg loss −$${Math.abs(s.avg_loss).toLocaleString(undefined, { maximumFractionDigits: 0 })}`);
+    if (s.avg_hold_days != null) parts.push(`avg hold ${s.avg_hold_days.toFixed(0)}d`);
+    sum.textContent = parts.join(' · ');
+  }
+}
 function _dayPositions(r) {
   let poss = r.strategies?.spx_spread?.positions || [];
   if (_accountView !== 'all') poss = poss.filter(p => (p.account || 'schwab') === _accountView);
@@ -1562,6 +1693,15 @@ function _groupCounts(poss) {
   return Object.entries(g).map(([a, n]) => n > 1 ? `${a}×${n}` : a);
 }
 
+// Strategy day-PnL by date from /api/strategy/cum-pnl — used to spot days
+// where ΔNLV massively exceeds what the strategy produced (deposits,
+// withdrawals). Populated by _renderCumPnlChart; day records re-render after.
+let _stratDayPnlByDate = null;
+
+function _isPartialRow(r) {
+  return !!(r && Array.isArray(r.partial_accounts) && r.partial_accounts.length);
+}
+
 function _renderDayRecords() {
   const wrap = document.getElementById('day-records-wrap');
   if (!_records.length) {
@@ -1570,14 +1710,21 @@ function _renderDayRecords() {
   }
   // Show newest first
   const rows = _records.slice().reverse();
-  wrap.innerHTML = rows.map((r, idx) => {
+  const header = `<div class="day-head">
+      <span>Date</span><span>Regime</span><span>Market</span>
+      <span>Book</span><span>NLV</span><span>Δ NLV</span>
+    </div>`;
+  wrap.innerHTML = header + rows.map((r, idx) => {
     const regimeName = (r.regime?.name || 'normal');
     const nlv = _acctNlv(r);
     // Compute prev for that day (using same account view)
     const origIdx = _records.length - 1 - idx;
     const prev = origIdx > 0 ? _records[origIdx - 1] : null;
     const prevNlv = prev ? _acctNlv(prev) : null;
-    const change = (nlv != null && prevNlv != null) ? nlv - prevNlv : null;
+    // Partial-broker rows (one account unauthenticated) carry a one-broker
+    // NLV — Δ against them is fiction. Suppress rather than mislead.
+    const partial = _isPartialRow(r) || _isPartialRow(prev);
+    const change = (!partial && nlv != null && prevNlv != null) ? nlv - prevNlv : null;
     const changePct = (change != null && prevNlv) ? (change / prevNlv * 100) : null;
     const cls = change == null ? '' : change >= 0 ? 'up' : 'dn';
     const sign = change == null ? '' : change >= 0 ? '+' : '−';
@@ -1603,6 +1750,19 @@ function _renderDayRecords() {
       const closed = [...prvM.keys()].filter(t => t && !curM.has(t)).map(t => prvM.get(t));
       for (const lbl of _groupCounts(opened)) book += `<span class="day-evt open">+${lbl}</span>`;
       for (const lbl of _groupCounts(closed)) book += `<span class="day-evt close">−${lbl}</span>`;
+    }
+    if (_isPartialRow(r)) {
+      book += `<span class="day-evt partial" title="One broker unauthenticated this day — NLV covers ${(r.partial_accounts || []).join(', ')} only">partial</span>`;
+    }
+    // Deposit/withdrawal detection: ΔNLV that the strategy's own day PnL
+    // can't remotely explain (>10% of prior NLV residual) is almost surely
+    // a capital flow, not trading PnL. Flag it so the journal doesn't read
+    // a $296k ETrade transfer as a +31% trading day (2026-06-01 incident).
+    if (change != null && prevNlv > 0 && _stratDayPnlByDate) {
+      const stratDay = _stratDayPnlByDate[r.date] ?? 0;
+      if (Math.abs(change - stratDay) > 0.10 * prevNlv) {
+        book += `<span class="day-evt flow" title="ΔNLV ${sign}${fmt$K(Math.abs(change))} vs strategy day PnL ${fmt$K(stratDay)} — likely deposit/withdrawal or non-SPX PnL, not trading result">cash flow?</span>`;
+      }
     }
 
     return `<div class="day-row" onclick="_toggleDayRaw(${idx})">
