@@ -63,3 +63,9 @@ git rm -r fund_exit/
 # 移除 task/fund_exit_*.md（可选保留作记录）
 ```
 低耦合设计：独立 route/template/api/folder，一刀切即可。
+
+## 行业透视层（2026-07-06, display-only）
+- `fund_sectors.py`：季报前十大重仓 × 证监会行业（cninfo 按需查询+永久缓存 `sector_map_cache.json`）→ `fund_sectors.json`（均 gitignore）。
+- 主扫描内嵌 `refresh_if_stale()`（<7 天跳过）；单独重跑：`.venv_fund/bin/python fund_exit/fund_sectors.py`。
+- **不进卖出规则**（季度滞后 + 前十大仅覆盖 40-60% NAV，不足以驱动闸门；同 5.5 regime 降级先例）；用于回答"剩余持仓是否同一行业赌注"。前端：账户条集中度（>30% 金色警示）+ 展开面板每只 top3 行业。
+- 数据源备注：EM 个股/板块端点 2026-07 起被反爬（JSONDecodeError/RemoteDisconnected），sina 行业成分 ~2.5min/行业太慢，均弃用。
