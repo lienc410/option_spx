@@ -184,6 +184,14 @@ class Position:
     bp_target:       float = 0.0  # BP utilization target captured at entry (from StrategyParams)
     overlay_factor:  float = 1.0
     entry_reason:    str = ""
+    # SPEC-127 §4b — cumulative short-leg roll net income (per-share, same
+    # units as entry_value). The simulation itself never rolls (positions
+    # close at 21 DTE), so this stays 0.0 in every production backtest path —
+    # the debit stop then reduces bit-identically to the legacy
+    # pnl/|entry_value| anchor. Non-zero only in roll-scenario unit tests /
+    # future roll-aware engines: the stop denominator becomes the campaign
+    # Adjusted Basis (|entry debit| − roll_income).
+    roll_income:     float = 0.0
 
 
 @dataclass
@@ -1054,17 +1062,24 @@ def run_backtest(
                 elif is_credit and pnl_ratio <= -params.stop_mult:   # credit trade stop
                     exit_reason = "stop_loss"
                 elif not is_credit:
-                    from strategy.bcd_stop import bcd_debit_stop, log_bcd_stop_event, BCD_STOP_TIGHTER, BCD_STOP_DEFAULT
+                    from strategy.bcd_stop import bcd_debit_stop, debit_stop_ratio, log_bcd_stop_event, BCD_STOP_TIGHTER, BCD_STOP_DEFAULT
+                    # SPEC-127 §4b: the debit stop anchors on the campaign
+                    # Adjusted Basis (|entry debit| − cumulative roll income).
+                    # roll_income is 0.0 everywhere the engine itself runs
+                    # (no roll mechanic) → stop_ratio is bit-identical to the
+                    # legacy pnl_ratio anchor; only roll-scenario tests /
+                    # future roll-aware paths diverge.
+                    stop_ratio = debit_stop_ratio(position.entry_value, current_val, position.roll_income)
                     is_bcd = (position.strategy == StrategyName.BULL_CALL_DIAGONAL)
                     if is_bcd and params.bcd_stop_tightening_mode != "disabled":
                         effective_stop = bcd_debit_stop(params.bcd_stop_tightening_mode)
                         # shadow: log if -0.35 would trigger but -0.50 has not
                         if params.bcd_stop_tightening_mode == "shadow":
-                            if BCD_STOP_TIGHTER >= pnl_ratio > BCD_STOP_DEFAULT:
-                                log_bcd_stop_event(position.entry_date, pnl_ratio, "shadow", "engine")
-                        if pnl_ratio <= effective_stop:
+                            if BCD_STOP_TIGHTER >= stop_ratio > BCD_STOP_DEFAULT:
+                                log_bcd_stop_event(position.entry_date, stop_ratio, "shadow", "engine")
+                        if stop_ratio <= effective_stop:
                             exit_reason = "stop_loss"
-                    elif pnl_ratio <= -0.50:
+                    elif stop_ratio <= -0.50:
                         exit_reason = "stop_loss"
 
             # Q068 Phase 7 regime stops (research mode; defaults disabled)

@@ -52,12 +52,20 @@ class EngineStopWiringTests(unittest.TestCase):
         )
 
     def test_engine_debit_stop_still_hardcoded_for_spec080(self) -> None:
-        """Debit-side stop loss stays hardcoded at -0.50 until SPEC-080 replaces it for BCD."""
-        # Line 882: `elif not is_credit and pnl_ratio <= -0.50:`
+        """SPEC-127 §4b: debit-side stop reads the campaign-adjusted ratio.
+
+        The -0.50 threshold remains, but the ratio must come from
+        strategy.bcd_stop.debit_stop_ratio (Adjusted-Basis anchor; reduces to
+        the legacy pnl_ratio bit-identically when roll_income == 0)."""
         self.assertIn(
-            "pnl_ratio <= -0.50",
+            "stop_ratio <= -0.50",
             self.engine_src,
-            "debit-side hardcoded -0.50 must remain for SPEC-080 to replace",
+            "debit-side -0.50 threshold must compare against stop_ratio",
+        )
+        self.assertIn(
+            "debit_stop_ratio(position.entry_value, current_val, position.roll_income)",
+            self.engine_src,
+            "debit stop must be wired through bcd_stop.debit_stop_ratio (SPEC-127 §4b)",
         )
 
     def test_credit_stop_logic_equivalence(self) -> None:
