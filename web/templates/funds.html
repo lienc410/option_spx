@@ -351,7 +351,7 @@ function render_fund_row(f, P, dataDate) {
     <td class="fund-chart-cell" colspan="11">
       ${render_signal_panel(f, P)}
       <img alt="${f.name} 净值图" data-src="/api/fund-exit/chart/${f.code}" data-try="0"
-           onerror="if((+this.dataset.try)<3){this.dataset.try=+this.dataset.try+1;const s=(this.dataset.src||this.src).split('?')[0];const me=this;setTimeout(()=>{me.src=s+'?r='+Date.now();},700);}else if(!this.nextElementSibling||!this.nextElementSibling.classList.contains('chart-err')){this.style.display='none';this.insertAdjacentHTML('afterend','<p class=\'chart-err\'>图表加载失败 — 收起再展开可重试</p>');}">
+           onerror="if((+this.dataset.try)<3){this.dataset.try=+this.dataset.try+1;const s=(this.dataset.src||this.src).split('?')[0];const me=this;setTimeout(()=>{me.src=s+'?r='+Date.now();},700);}else if(!this.nextElementSibling||!this.nextElementSibling.classList.contains('chart-err')){this.style.display='none';this.insertAdjacentHTML('afterend','<p class=chart-err>图表加载失败 — 收起再展开可重试</p>');}">
     </td>
   </tr>`;
 }
