@@ -29,9 +29,17 @@
 
 短腿 ≤21 DTE 时推送 ACTION：**"CLOSE 或 ROLL"** 双选项（带当前链上建议新短腿：45DTE |Δ|0.30——shadow 已在算同款腿）；roll 后 21-DTE 时钟按新短腿重置。
 
+## 4b. 止损锚定（2026-07-06 补充，PM 实仓暴露的设计参数）
+
+Debit 结构 −50% 止损在 roll 后锚什么：
+- **定稿：锚 Adjusted Basis**——止损线 = 结构现值 ≤ 0.5 × adjusted basis。含义：campaign 层最大追加损失恒为"剩余真实敞口"的一半；已入袋的 roll 收入不参与止损计算（银行里的钱不该被拿来垫亏损空间的分母）
+- 弃案（锚原始 debit）：roll 收入越多止损越松相对于剩余敞口，campaign 总损上限漂移，与"风险跟真实敞口走"直觉相悖
+- 引擎侧：`pnl_ratio` 分母从 entry debit 换成 campaign adjusted basis（仅 diagonal/roll 场景；无 roll 时两者恒等，回归零行为变更）
+- 属参数语义变更 → 随本 SPEC 整体走 PM ratify
+
 ## 5. AC 要点
 
-roll 原子性（部分失败回滚）；campaign 聚合数学的单测（含多 cycle + 部分平仓）；adjusted basis 与逐 cycle 加总恒等断言；performance 页 campaign 口径回归；H-5 的 21-DTE 测试扩展 ROLL 分支；ledger 迁移（既有 5 笔 BCD 回填 campaign_id 与 legs——PM 的 6/3 双仓即首个 campaign）。
+roll 原子性（部分失败回滚）；campaign 聚合数学的单测（含多 cycle + 部分平仓）；adjusted basis 与逐 cycle 加总恒等断言；止损锚定单测（零 roll 时新旧口径 bit-identical + 有 roll 时按 adjusted basis 触发）；performance 页 campaign 口径回归；H-5 的 21-DTE 测试扩展 ROLL 分支；ledger 迁移（既有 5 笔 BCD 回填 campaign_id 与 legs——PM 的 6/3 双仓即首个 campaign）。
 
 ## 过渡期 workaround（SPEC-127 落地前，给 PM）
 
