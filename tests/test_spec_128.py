@@ -221,6 +221,23 @@ class TestApiAndFallback(unittest.TestCase):
             self.assertEqual(r.status_code, 400)
 
 
+class TestLiveNlvBaseline(unittest.TestCase):
+    def test_drift_baseline_uses_native_reconciled(self):
+        """PM incident: a freshly recorded native snapshot must move the live
+        overlay's drift baseline (it was still reading the legacy xlsx)."""
+        import web.partnership_book as legacy
+        tmp = _mini_book(Path(tempfile.mkdtemp()))
+        be.record_snapshot("sw", "2025-03-31", 2000.0, data_dir=tmp)
+        with patch.object(be, "DATA_DIR", tmp), \
+             patch.object(legacy, "_live_schwab",
+                          side_effect=lambda recon: {"reconciled": recon}), \
+             patch.object(legacy, "_live_etrade",
+                          side_effect=lambda recon: {"reconciled": recon}):
+            out = legacy.live_nlv()
+        self.assertEqual(out["schwab"]["reconciled"]["date"], "2025-03-31")
+        self.assertAlmostEqual(out["schwab"]["reconciled"]["value"], 2000.0)
+
+
 class TestPii(unittest.TestCase):
     def test_book_dir_gitignored(self):
         res = subprocess.run(["git", "check-ignore", "data/book/config.json"],

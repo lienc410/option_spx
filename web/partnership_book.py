@@ -497,8 +497,23 @@ def live_nlv() -> dict[str, Any]:
     and flag drift as informational only (``account_match: "unverified"``), never
     asserting the live account equals the Excel account.
     """
-    book = read_book()
-    reconciled = (book.get("reconciled") or {}) if book.get("available") else {}
+    # SPEC-128 follow-up: the drift baseline must come from the SAME source of
+    # truth as the Book page. After migration the native engine holds the
+    # latest reconciled snapshots — reading the legacy Drive/xlsx here left
+    # drift anchored to the pre-migration snapshot (PM recorded a new native
+    # snapshot and the overlay kept showing stale drift).
+    reconciled: dict = {}
+    try:
+        from web.book_engine import DATA_DIR, compute_book
+        if (DATA_DIR / "config.json").exists():
+            native = compute_book()
+            if native.get("available"):
+                reconciled = native.get("reconciled") or {}
+    except Exception:
+        log.warning("partnership_book: native reconciled fetch failed", exc_info=True)
+    if not reconciled:
+        book = read_book()
+        reconciled = (book.get("reconciled") or {}) if book.get("available") else {}
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
