@@ -180,12 +180,29 @@ def run(now: datetime | None = None, *, dry_run: bool = False) -> list[str]:
             if v:
                 violations.append(f"{label}: {v}")
 
+    # H-4: surface Telegram delivery counters — a final send failure (both
+    # HTML and plain-text attempts dead) is a violation; fallback-only days
+    # get an FYI line so formatting bugs stay visible without alarming.
+    push_note = ""
+    try:
+        stats_path = ROOT / "logs" / "push_stats.json"
+        if stats_path.exists():
+            stats = json.loads(stats_path.read_text())
+            d = stats.get(now.date().isoformat(), {})
+            failed, fb = int(d.get("failed", 0)), int(d.get("fallback", 0))
+            if failed:
+                violations.append(f"push: {failed} 条推送两次发送均失败（sent {d.get('sent', 0)}, fallback {fb}）")
+            elif fb:
+                push_note = f"\n  ℹ push: {fb} 条降级为纯文本送达（HTML parse 失败）"
+    except Exception:
+        pass
+
     n = len(jobs)
     if violations:
         msg = f"🚨 ops heartbeat {now:%m-%d %H:%M} — {len(violations)} violation(s) / {n} jobs\n" + \
-              "\n".join(f"  · {v}" for v in violations[:15])
+              "\n".join(f"  · {v}" for v in violations[:15]) + push_note
     else:
-        msg = f"✅ ops {n}/{n} green · {now:%m-%d %H:%M}"
+        msg = f"✅ ops {n}/{n} green · {now:%m-%d %H:%M}" + push_note
 
     digest = _deferred_digest(now)
 

@@ -5631,6 +5631,12 @@ def api_position_close():
             try:
                 entry = float(leg.get("actual_premium") or 0)
                 exit_p = float(exit_premium)
+                # H-3 server guard (SPEC-123 addendum): exit_premium is the
+                # signed COST to close. Closing a DEBIT position always
+                # RECEIVES value — a positive submission there is the UI sign
+                # slip that recorded −85,100 on 2026-07-06 (truth +2,900/张).
+                if entry < 0 and exit_p > 0:
+                    exit_p = -exit_p
                 contracts = float(leg.get("contracts", 1))
                 pnl = round((entry - exit_p) * contracts * 100, 2)
                 total_pnl += pnl
@@ -5649,6 +5655,17 @@ def api_position_close():
                 "id": tid,
                 "event": "close",
                 "timestamp": _now_et_iso(),
+                # H-3: close events are now self-describing — explicit open
+                # linkage + contract identity (the 7/6 closes could only be
+                # attributed by reverse-engineering broker positions)
+                "open_id": tid,
+                "strategy_key": leg.get("strategy_key") or state.get("strategy_key"),
+                "short_strike": leg.get("short_strike"),
+                "long_strike": leg.get("long_strike"),
+                "expiry": leg.get("expiry"),
+                "long_expiry": leg.get("long_expiry"),
+                "contracts": leg.get("contracts"),
+                "entry_premium": leg.get("actual_premium"),
                 "exit_premium": exit_p,
                 "exit_spx": body.get("exit_spx"),
                 "exit_reason": body.get("exit_reason"),
@@ -5688,11 +5705,18 @@ def api_position_close():
     actual_pnl = None
     model_pnl = None
     try:
-        if entry_premium is not None and exit_premium not in (None, ""):
-            actual_pnl = round((float(entry_premium) - float(exit_premium)) * float(leg.get("contracts", 1)) * 100, 2)
-        model_prem = leg.get("model_premium")
-        if model_prem is not None and exit_premium not in (None, ""):
-            model_pnl = round((float(model_prem) - float(exit_premium)) * float(leg.get("contracts", 1)) * 100, 2)
+        if exit_premium not in (None, ""):
+            exit_f = float(exit_premium)
+            # H-3 server guard: same debit-branch sign normalization as the
+            # per-leg flow (exit = signed cost to close; debit closes receive)
+            if entry_premium is not None and float(entry_premium) < 0 and exit_f > 0:
+                exit_f = -exit_f
+                exit_premium = exit_f
+            if entry_premium is not None:
+                actual_pnl = round((float(entry_premium) - exit_f) * float(leg.get("contracts", 1)) * 100, 2)
+            model_prem = leg.get("model_premium")
+            if model_prem is not None:
+                model_pnl = round((float(model_prem) - exit_f) * float(leg.get("contracts", 1)) * 100, 2)
     except (TypeError, ValueError):
         actual_pnl = None
         model_pnl = None
@@ -5700,7 +5724,7 @@ def api_position_close():
     close_position(
         note=body.get("note"),
         account=account,
-        exit_premium=body.get("exit_premium"),
+        exit_premium=exit_premium,
         exit_spx=body.get("exit_spx"),
         exit_reason=body.get("exit_reason"),
         actual_pnl=actual_pnl,
@@ -5710,7 +5734,15 @@ def api_position_close():
         "id": state.get("trade_id"),
         "event": "close",
         "timestamp": _now_et_iso(),
-        "exit_premium": body.get("exit_premium"),
+        "open_id": state.get("trade_id"),
+        "strategy_key": leg.get("strategy_key") or state.get("strategy_key"),
+        "short_strike": leg.get("short_strike"),
+        "long_strike": leg.get("long_strike"),
+        "expiry": leg.get("expiry"),
+        "long_expiry": leg.get("long_expiry"),
+        "contracts": leg.get("contracts"),
+        "entry_premium": entry_premium,
+        "exit_premium": exit_premium,
         "exit_spx": body.get("exit_spx"),
         "exit_reason": body.get("exit_reason"),
         "actual_pnl": actual_pnl,

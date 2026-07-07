@@ -806,6 +806,35 @@ def _format_etrade_reauth_message() -> str:
     )
 
 
+async def _safe_send(bot: Bot, chat_id: str, text: str, **kwargs) -> bool:
+    """H-4 (2026-07-06): unattended sends must never die on a formatting 400.
+    Try HTML; on BadRequest (parse failure) resend as plain text — delivery
+    beats formatting. Outcomes feed logs/push_stats.json via event_push so the
+    heartbeat surfaces failures. Interactive command replies keep their direct
+    reply_* calls (a user watching the chat sees those fail)."""
+    from telegram.error import BadRequest
+    from notify.event_push import _record_push
+    try:
+        await bot.send_message(chat_id=chat_id, text=text,
+                               parse_mode=ParseMode.HTML, **kwargs)
+        _record_push("sent")
+        return True
+    except BadRequest as exc:
+        log.warning("telegram send BadRequest (%s) — retrying as plain text", exc)
+        try:
+            await bot.send_message(chat_id=chat_id, text=text, **kwargs)
+            _record_push("fallback")
+            return True
+        except Exception:
+            log.exception("telegram plain-text retry failed")
+            _record_push("failed")
+            return False
+    except Exception:
+        log.exception("telegram send failed")
+        _record_push("failed")
+        return False
+
+
 async def _maybe_send_etrade_token_alert(bot: Bot, chat_id: str) -> None:
     from etrade.auth import clear_token_issue, is_token_valid, load_alert_state, mark_token_alert_sent
 
@@ -815,7 +844,7 @@ async def _maybe_send_etrade_token_alert(bot: Bot, chat_id: str) -> None:
     state = load_alert_state()
     if not state.get("invalid") or state.get("alert_sent"):
         return
-    await bot.send_message(chat_id=chat_id, text=_format_etrade_reauth_message(), parse_mode=ParseMode.HTML)
+    await _safe_send(bot, chat_id, _format_etrade_reauth_message())
     mark_token_alert_sent()
 
 
@@ -948,7 +977,7 @@ async def intraday_monitor(bot: Bot, chat_id: str) -> None:
 
     for msg in msgs:
         try:
-            await bot.send_message(chat_id=chat_id, text=msg, parse_mode=ParseMode.HTML)
+            await _safe_send(bot, chat_id, msg)
         except Exception:
             log.exception("intraday_monitor: failed to send message")
     try:
@@ -1407,11 +1436,7 @@ async def scheduled_push(bot: Bot, chat_id: str) -> None:
     try:
         rec = get_recommendation(use_intraday=True)
         _safe_append_recommendation_event(rec=rec, source="scheduled_push", mode="intraday")
-        await bot.send_message(
-            chat_id=chat_id,
-            text=_format_recommendation(rec),
-            parse_mode=ParseMode.HTML,
-        )
+        await _safe_send(bot, chat_id, _format_recommendation(rec))
         _morning_snapshot = {
             "strategy_key": rec.strategy_key,
             "position_action": rec.position_action,
@@ -1462,11 +1487,7 @@ async def scheduled_intraday_governance_push(bot: Bot, chat_id: str) -> None:
         if not decision.actionable:
             log.info("SPEC-107 governance push skipped — observation bar only.")
             return
-        await bot.send_message(
-            chat_id=chat_id,
-            text=_format_governance_decision(rec, decision),
-            parse_mode=ParseMode.HTML,
-        )
+        await _safe_send(bot, chat_id, _format_governance_decision(rec, decision))
         log.info("SPEC-107 governance decision sent.")
     except Exception:
         log.exception("SPEC-107 governance push failed")
@@ -1511,21 +1532,13 @@ async def scheduled_ladder_shadow_push(bot: Bot, chat_id: str) -> None:
         # V3 shadow alert
         payload = state.get("ladder_shadow_payload") or {}
         if payload.get("shadow_log_written") and payload.get("would_enter") and payload.get("ladder_mode") == "shadow":
-            await bot.send_message(
-                chat_id=chat_id,
-                text=_format_ladder_shadow_message(payload),
-                parse_mode=ParseMode.HTML,
-            )
+            await _safe_send(bot, chat_id, _format_ladder_shadow_message(payload))
             log.info("SPEC-108 ladder shadow alert sent.")
 
         # SPEC-108.1 R2: V1b shadow alert
         v1b_payload = state.get("ladder_v1b_shadow_payload") or {}
         if v1b_payload.get("shadow_log_written") and v1b_payload.get("would_enter") and v1b_payload.get("ladder_v1b_mode") == "shadow":
-            await bot.send_message(
-                chat_id=chat_id,
-                text=_format_ladder_v1b_shadow_message(v1b_payload),
-                parse_mode=ParseMode.HTML,
-            )
+            await _safe_send(bot, chat_id, _format_ladder_v1b_shadow_message(v1b_payload))
             log.info("SPEC-108.1 V1b ladder shadow alert sent.")
 
         if not payload.get("shadow_log_written") and not v1b_payload.get("shadow_log_written"):
@@ -1559,11 +1572,7 @@ async def scheduled_eod_push(bot: Bot, chat_id: str) -> None:
         except Exception:
             pass
 
-        await bot.send_message(
-            chat_id=chat_id,
-            text=eod_text,
-            parse_mode=ParseMode.HTML,
-        )
+        await _safe_send(bot, chat_id, eod_text)
         log.info("EOD snapshot sent.")
     except Exception:
         log.exception("EOD push failed")

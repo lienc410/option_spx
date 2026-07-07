@@ -12,8 +12,10 @@ Design notes:
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
+from pathlib import Path
 from typing import Optional
 
 import requests
@@ -22,8 +24,39 @@ log = logging.getLogger(__name__)
 
 _TELEGRAM_API = "https://api.telegram.org/bot{token}/sendMessage"
 
+PUSH_STATS = Path(__file__).resolve().parents[1] / "logs" / "push_stats.json"
+
+
+def _record_push(outcome: str) -> None:
+    """H-4: per-day send counters {date: {sent, fallback, failed}} — surfaced
+    by ops_heartbeat so a silently-eaten ALERT can never hide again."""
+    try:
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        day = datetime.now(ZoneInfo("America/New_York")).date().isoformat()
+        stats = {}
+        if PUSH_STATS.exists():
+            try:
+                stats = json.loads(PUSH_STATS.read_text())
+            except json.JSONDecodeError:
+                stats = {}
+        d = stats.setdefault(day, {"sent": 0, "fallback": 0, "failed": 0})
+        d[outcome] = d.get(outcome, 0) + 1
+        for k in sorted(stats)[:-14]:   # keep last 14 days
+            stats.pop(k, None)
+        PUSH_STATS.parent.mkdir(parents=True, exist_ok=True)
+        PUSH_STATS.write_text(json.dumps(stats, indent=1, sort_keys=True))
+    except Exception:
+        log.exception("event_push: stats record failed")
+
 
 def _send(text: str) -> bool:
+    """H-4 (2026-07-06 incident): the 16:50 governance push contained a raw
+    '< 0' comparison, Telegram's HTML parser returned 400, and the message
+    vanished with only a log line — no retry, no fallback, no operator
+    visibility. Today it was an FYI; on a credit-stop TRIGGER day it would
+    be an incident. Policy now: try HTML; on ANY non-200 retry once as PLAIN
+    TEXT (delivery beats formatting); count every outcome for the heartbeat."""
     token   = os.getenv("TELEGRAM_BOT_TOKEN", "")
     chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
     if not token or not chat_id:
@@ -35,12 +68,26 @@ def _send(text: str) -> bool:
             json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"},
             timeout=8,
         )
-        if r.status_code != 200:
-            log.warning("event_push: Telegram returned %s: %s", r.status_code, r.text[:200])
-            return False
-        return True
+        if r.status_code == 200:
+            _record_push("sent")
+            return True
+        log.warning("event_push: Telegram returned %s: %s — retrying as plain text",
+                    r.status_code, r.text[:200])
+        r2 = requests.post(
+            _TELEGRAM_API.format(token=token),
+            json={"chat_id": chat_id, "text": text},
+            timeout=8,
+        )
+        if r2.status_code == 200:
+            _record_push("fallback")
+            return True
+        log.error("event_push: plain-text retry also failed %s: %s",
+                  r2.status_code, r2.text[:200])
+        _record_push("failed")
+        return False
     except Exception:
         log.exception("event_push: Telegram send failed")
+        _record_push("failed")
         return False
 
 

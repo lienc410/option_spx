@@ -145,7 +145,56 @@ def _mid_implied_iv(rows, spx: float, *, is_call: bool) -> float | None:
     return sum(vals) / len(vals) if vals else None
 
 
-def measure_skew(puts, vix: float, date_str: str, calls=None, spx: float | None = None) -> dict:
+def parity_spot(puts, calls, *, r: float = _MIV_R) -> float | None:
+    """SPX spot implied by put-call parity on the day's OWN chain snapshot.
+
+    H-1 root cause (2026-07-06): the 16:50 job priced the 16:30 chain with the
+    yahoo EOD cache, which (a) refreshes on an 18h TTL so it is ALWAYS the
+    morning state (= previous close) by 16:50, and (b) went two sessions stale
+    across the July-4 gap — spot was off by −56 pts and every near-bucket put
+    miv solved ~2.5vp low (calls symmetric high). The chain is self-consistent:
+    S = C_mid − P_mid + K·e^{−rT} at the ATM-most strikes. Averaged over up to
+    3 strikes nearest put |Δ|=0.50 on the expiry nearest 30 DTE."""
+    if puts is None or calls is None or not len(puts) or not len(calls):
+        return None
+    p = puts[(puts.dte >= 25) & (puts.dte <= 35)]
+    if not len(p):
+        p = puts
+    best_dte = min(p.dte.unique(), key=lambda d: abs(int(d) - 30))
+    pe = p[p.dte == best_dte].assign(ad=lambda x: x.delta.abs())
+    ce = calls[calls.dte == best_dte]
+    vals = []
+    for _, pr in pe.iloc[(pe.ad - 0.50).abs().argsort()[:3]].iterrows():
+        cr = ce[ce.strike == pr.strike]
+        if cr.empty:
+            continue
+        T = float(pr.dte) / 365.0
+        s = float(cr.iloc[0].mid) - float(pr.mid) + float(pr.strike) * math.exp(-r * T)
+        if math.isfinite(s) and s > 0:
+            vals.append(s)
+    return sum(vals) / len(vals) if vals else None
+
+
+def resolve_pricing_spot(puts, calls, yahoo_spot: float | None) -> tuple[float | None, str]:
+    """(spot, source) for pricing the day's chain. Chain parity is primary —
+    correct by construction, no cache dependency; yahoo EOD is fallback only.
+    Logs loudly when the two diverge >0.1% (that is the H-1 failure mode)."""
+    par = None
+    try:
+        par = parity_spot(puts, calls)
+    except Exception:
+        log.exception("q085: parity spot failed")
+    if par is not None:
+        if yahoo_spot and abs(par - yahoo_spot) / par > 0.001:
+            log.warning("q085: yahoo spot %.2f diverges from chain parity %.2f "
+                        "(>0.1%%) — stale cache suspected, using parity",
+                        yahoo_spot, par)
+        return par, "chain_parity"
+    return yahoo_spot, "yahoo_eod"
+
+
+def measure_skew(puts, vix: float, date_str: str, calls=None, spx: float | None = None,
+                 spx_source: str | None = None) -> dict:
     """25-35 DTE |delta| IV legs (mean of 3 nearest rows) + offsets vs VIX.
 
     Near-bucket put legs are the original SPEC-116 fields and stay REQUIRED
@@ -215,6 +264,8 @@ def measure_skew(puts, vix: float, date_str: str, calls=None, spx: float | None 
     if spx is not None and spx > 0 and any(k.endswith("_miv") or "_miv_" in k for k in row):
         row["spx"] = round(float(spx), 2)
         row["miv_conv"] = _MIV_CONV
+        if spx_source:
+            row["spx_source"] = spx_source
 
     _append_jsonl(SKEW_OUT, row, "skew")
     return row
@@ -408,9 +459,18 @@ def run(today: str | None = None, *, dry_run: bool = False) -> dict:
 
     calls = load_today_calls(today)
 
+    # H-1: spot for chain pricing comes from the chain itself (put-call
+    # parity); the yahoo EOD close is fallback only — by 16:50 the 18h-TTL
+    # cache still holds the morning state (= previous close), and holiday
+    # gaps made it 2 sessions stale on 2026-07-06 (−56 pts → every near-put
+    # miv ~2.5vp low). spx_source is recorded on the row.
+    spx_spot, spx_source = resolve_pricing_spot(puts, calls, spx_spot)
+    summary["spx_source"] = spx_source
+
     # A. skew (unconditional; calls fail-soft — extension buckets only, SPEC-119)
     try:
-        summary["skew"] = measure_skew(puts, vix, today, calls=calls, spx=spx_spot)
+        summary["skew"] = measure_skew(puts, vix, today, calls=calls, spx=spx_spot,
+                                       spx_source=spx_source)
     except Exception as exc:
         log.exception("q085 skew measurement failed")
         summary["skew_error"] = str(exc)
@@ -482,6 +542,14 @@ def run(today: str | None = None, *, dry_run: bool = False) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    # H-1 second layer: the 16:50 job must see TODAY's closes, not the 18h-TTL
+    # morning cache — vix (moff baseline) and the selector rec (signal-day
+    # determination!) both read these caches. Force one fresh pull per run;
+    # yahoo failure still falls back to the stale cache inside
+    # data.market_cache (fail-soft preserved). Entry-point only: tests and
+    # importers are unaffected.
+    import os
+    os.environ.setdefault("SPX_REFRESH_YF_CACHE", "1")
     p = argparse.ArgumentParser(description="SPEC-116 Q085 S2-BPS daily paper job")
     p.add_argument("--date", default=None, help="YYYY-MM-DD (default today ET)")
     p.add_argument("--dry-run", action="store_true", help="no Telegram, still writes files")

@@ -249,7 +249,12 @@ def evaluate_gates(today: str) -> list[dict]:
 
 
 def _halt_message(fired: list[dict], today: str) -> str:
-    lines = "\n".join(f"  · {f['gate']}: {f['detail']}" for f in fired)
+    # H-4: gate details carry raw "<" comparisons — they killed the 7/6 push
+    # (Telegram HTML parse 400). Escape at the push boundary; the state file
+    # keeps plain text.
+    def _esc(s: str) -> str:
+        return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    lines = "\n".join(f"  · {f['gate']}: {_esc(f['detail'])}" for f in fired)
     full = any(f.get("full_halt") for f in fired)
     head = "[BCD 治理] 例行复核事件 — D1 门触发，BCD 格降级为 wait"
     if full:

@@ -1635,7 +1635,10 @@ function updateCloseDerivedFields() {
     if (!chk || !exitEl || !pnlEl) return;
     const entry = Number(row.dataset.entry || 0);
     const contracts = Number(row.dataset.contracts || 1);
-    const exitV = Number(exitEl.value || 0);
+    let exitV = Number(exitEl.value || 0);
+    // H-3: debit position (entry < 0) — typed exit value is RECEIVED on
+    // close, ledger convention wants signed cost-to-close (negative here)
+    if (entry < 0 && exitV > 0) exitV = -exitV;
     const rowPnl = entry && exitEl.value !== '' ? (entry - exitV) * contracts * 100 : null;
     if (chk.checked && rowPnl != null) {
       total += rowPnl;
@@ -1798,6 +1801,9 @@ function openTradeModal(kind, presetAccount, addTranche) {
             <option value="stop_loss">stop_loss</option>
             <option value="roll_21dte">roll_21dte</option>
             <option value="manual">manual</option>
+            <!-- H-3: PM closes below target need their own label — the 7/6
+                 +7% closes were forced into "60pct_profit" -->
+            <option value="discretionary">discretionary (below target)</option>
             <option value="expired">expired</option>
           </select>
         </div>
@@ -1997,10 +2003,16 @@ async function submitClosePosition() {
     if (!chk || !exitEl) return;
     if (!chk.checked) return;
     if (exitEl.value === '') return;
-    legs.push({
-      trade_id: row.dataset.tradeId || row.dataset['tradeId'] || row.getAttribute('data-trade-id'),
-      exit_premium: Number(exitEl.value),
-    });
+    // H-3 (SPEC-123 addendum): ledger convention is exit_premium = signed
+    // COST to close (pay > 0). Closing a DEBIT position (entry < 0) SELLS
+    // the spread — the value the user types is RECEIVED, so it must go in
+    // negative. 7/6 incident: two BCD closes entered +440 → PnL recorded
+    // −85,100 instead of +2,900/contract.
+    const tid = row.dataset.tradeId || row.dataset['tradeId'] || row.getAttribute('data-trade-id');
+    const entryPrem = Number(row.dataset.entry ?? NaN);
+    let exitVal = Number(exitEl.value);
+    if (Number.isFinite(entryPrem) && entryPrem < 0 && exitVal > 0) exitVal = -exitVal;
+    legs.push({ trade_id: tid, exit_premium: exitVal });
   });
   if (!legs.length) return showTradeModalMessage('Pick at least one row with an exit premium.', true);
   const payload = {

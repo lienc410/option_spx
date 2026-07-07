@@ -11,7 +11,7 @@
     {"label": "com.spxstrat.refresh_backtest",     "kind": "calendar",  "allow_exit": [0],
      "freshness": {"path": "data/backtest_stats_cache.json", "rule": "daily_26h"}},
     {"label": "com.spxstrat.signal_settling",      "kind": "calendar",  "allow_exit": [0],
-     "freshness": {"path": "data/q019_settling_state.json", "rule": "trading_day"}},
+     "freshness": {"path": "logs/q019_settling_state.json", "rule": "trading_day"}},
     {"label": "com.spxstrat.greek_attribution",    "kind": "calendar",  "allow_exit": [0]},
     {"label": "com.spxstrat.q041_collect",         "kind": "calendar",  "allow_exit": [0, 1],
      "freshness": {"path": "data/q041_chains/{today}/SPX.parquet", "rule": "trading_day"},
