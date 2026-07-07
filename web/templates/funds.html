@@ -164,7 +164,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
   <div class="page-hero" style="display:flex;justify-content:space-between;align-items:flex-end;">
     <div>
       <h1>基金 <em>清仓信号</em></h1>
-      <p class="page-meta">纪律工具 · 逐步清仓过渡期 · <span style="color:var(--gold)">▸ 点击行展开净值图+信号</span> · <span class="dot dot-fresh"></span>今日净值已出 <span class="dot dot-stale"></span>未出(用昨日)</p>
+      <p class="page-meta">纪律工具 · 逐步清仓过渡期 · <span style="color:var(--gold)">▸ 点击行展开净值图+信号</span> · <span class="dot dot-fresh"></span>已同步本批最新净值日 <span class="dot dot-stale"></span>该只落后(悬停看日期)</p>
     </div>
     <button class="rec-btn" onclick="openRec()">＋ 记录减仓</button>
   </div>
@@ -197,7 +197,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
     </div>
     <div class="fld">
       <label>减仓份额（份，券商赎回填的份额）</label>
-      <input id="rec-shares" type="number" min="0" step="1" placeholder="如 9000" oninput="recCalc()">
+      <input id="rec-shares" type="number" min="0" step="0.01" placeholder="如 9000" oninput="recCalc()">
       <div class="fld-hint" id="rec-hint"></div>
     </div>
     <div class="fld">
@@ -288,7 +288,7 @@ function render_signal_panel(f, P) {
   const tlHtml = hist.length ? `<div class="sig-timeline">
       <div class="sig-tl-label">信号历史 · 近 ${hist.length} 交易日（左旧→右新）</div>
       ${hist.map(h=>`<span class="tl-cell tl-r${h.rule}" title="${h.date} ${h.rule_name||''}${h.day_chg!=null?' · 日'+fmt_signed(h.day_chg):''}"></span>`).join('')}
-      <div class="tl-legend"><span class="tl-cell tl-r1"></span>持有 &nbsp;<span class="tl-cell tl-r3"></span>减仓(③④⑤) &nbsp;<span class="tl-cell tl-r7"></span>回前高 &nbsp;<span class="tl-cell tl-r2"></span>深套 &nbsp;<span class="tl-cell tl-r6"></span>观察</div>
+      <div class="tl-legend"><span class="tl-cell tl-r1"></span>持有 &nbsp;<span class="tl-cell tl-r3"></span>减仓(③④⑤) &nbsp;<span class="tl-cell tl-r7"></span>回前高 &nbsp;<span class="tl-cell tl-r8"></span>回升未稳 &nbsp;<span class="tl-cell tl-r2"></span>深套 &nbsp;<span class="tl-cell tl-r6"></span>观察</div>
     </div>` : '';
 
   return `<div class="sig-panel">
@@ -326,7 +326,7 @@ function render_fund_row(f, P, dataDate) {
   const veto = vetoApplied ? `<span class="veto-badge">超卖·仅走周TWAP</span>` : '';
   const clip_disp = f.clip > 0 ? fmt_pct(f.clip) : '持有';
   const clip_amt_disp = f.clip_amt > 0 ? fmt_cny(f.clip_amt) : '—';
-  const action_short = (f.action || '').split('｜')[0].replace(/^[①②③④⑤⑥]/, '').substring(0, 16);
+  const action_short = (f.action || '').split('｜')[0].replace(/^[①②③④⑤⑥⑦⑧⓪]/, '').substring(0, 16);
   // 状态灯：该只今日净值是否已更新（latest_date == 批次最新日 → 绿；落后 → 黄）
   const fresh = f.latest_date && dataDate && f.latest_date === dataDate;
   const dot = `<span class="dot ${fresh?'dot-fresh':'dot-stale'}" title="${fresh?('今日净值已更新 '+f.latest_date):('未出今日净值，在用 '+(f.latest_date||'?'))}"></span>`;
@@ -351,7 +351,7 @@ function render_fund_row(f, P, dataDate) {
     <td class="fund-chart-cell" colspan="11">
       ${render_signal_panel(f, P)}
       <img alt="${f.name} 净值图" data-src="/api/fund-exit/chart/${f.code}" data-try="0"
-           onerror="if((+this.dataset.try)<3){this.dataset.try=+this.dataset.try+1;const s=(this.dataset.src||this.src).split('?')[0];const me=this;setTimeout(()=>{me.src=s+'?r='+Date.now();},700);}else{this.replaceWith(Object.assign(document.createElement('p'),{className:'chart-err',textContent:'图表加载失败 — 收起再展开可重试'}));}">
+           onerror="if((+this.dataset.try)<3){this.dataset.try=+this.dataset.try+1;const s=(this.dataset.src||this.src).split('?')[0];const me=this;setTimeout(()=>{me.src=s+'?r='+Date.now();},700);}else if(!this.nextElementSibling||!this.nextElementSibling.classList.contains('chart-err')){this.style.display='none';this.insertAdjacentHTML('afterend','<p class=\'chart-err\'>图表加载失败 — 收起再展开可重试</p>');}">
     </td>
   </tr>`;
 }
@@ -365,7 +365,14 @@ function toggle_chart(code) {
   if (tr) tr.classList.toggle('expanded');
   if (opening) {   // 展开时才加载图（避免折叠行 10 张图并发抓取打爆单线程 web）
     const img = row.querySelector('img[data-src]');
-    if (img && !img.getAttribute('src')) img.src = img.dataset.src;
+    if (img) {
+      if (!img.getAttribute('src')) img.src = img.dataset.src;
+      else if (img.style.display === 'none') {   // 上次3连败: 重置重试, 兑现"再展开可重试"
+        row.querySelector('.chart-err')?.remove();
+        img.style.display = ''; img.dataset.try = 0;
+        img.src = img.dataset.src + '?r=' + Date.now();
+      }
+    }
   }
 }
 
@@ -386,7 +393,7 @@ function render_table(title, funds, P, dataDate) {
         <th>日涨跌</th>
         <th>RSI</th>
         <th>vs均匀</th>
-        <th>盈亏</th>
+        <th title="2026-05-31 中信App快照口径, 未随净值/减仓更新">盈亏*</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
@@ -503,7 +510,7 @@ function openRec() {
   const sel = document.getElementById('rec-fund');
   sel.innerHTML = LAST.funds.filter(f=>f.ok && (f.mv||0)>0)
     .map(f=>`<option value="${f.code}" data-mv="${f.mv}" data-clip="${f.clip||0}" data-amt="${f.clip_amt||0}" data-unit="${f.unit_nav||0}">${f.name}（${f.code}）· 持仓 ${fmt_cny(f.mv)}</option>`).join('');
-  document.getElementById('rec-date').value = (LAST.data_date) || new Date().toISOString().slice(0,10);
+  document.getElementById('rec-date').value = new Date().toLocaleDateString('sv-SE');
   document.getElementById('rec-shares').value = '';
   document.getElementById('rec-note').value = '';
   document.getElementById('rec-msg').textContent = '';
@@ -577,6 +584,8 @@ async function loadTrades() {
       </tr>`).join('')}</tbody>
     </table>`;
 }
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeRec(); });
 
 load();
 loadTrades();
