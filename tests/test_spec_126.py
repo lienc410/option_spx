@@ -118,7 +118,10 @@ class TestTransportWiring(GatewayBase):
 
         with patch.object(ep, "PUSH_STATS", stats), \
              patch.dict("os.environ", {"TELEGRAM_BOT_TOKEN": "t",
-                                       "TELEGRAM_CHAT_ID": "c"}), \
+                                       "TELEGRAM_CHAT_ID": "c",
+                                       # SPEC-130: 传输测试显式声明生产推送
+                                       # 主机上下文（HTTP 已 mock，密闭）
+                                       "SPX_PUSH_ENABLE": "1"}), \
              patch.object(ep.requests, "post", side_effect=post):
             ok = gw.push("ACTION", "系统状态", "bad <tag", "x < 0 未闭合")
         self.assertTrue(ok)

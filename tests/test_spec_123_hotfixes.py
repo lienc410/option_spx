@@ -230,7 +230,10 @@ class TestH4PushDelivery(unittest.TestCase):
 
         with patch.object(ep, "PUSH_STATS", stats), \
              patch.dict("os.environ", {"TELEGRAM_BOT_TOKEN": "t",
-                                       "TELEGRAM_CHAT_ID": "c"}), \
+                                       "TELEGRAM_CHAT_ID": "c",
+                                       # SPEC-130: 传输测试显式声明生产推送
+                                       # 主机上下文（HTTP 已 mock，密闭）
+                                       "SPX_PUSH_ENABLE": "1"}), \
              patch.object(ep.requests, "post", side_effect=post):
             ok = ep._send("D1 门: 和 $-175,460 < 0")
         self.assertTrue(ok)
@@ -245,7 +248,9 @@ class TestH4PushDelivery(unittest.TestCase):
         stats = Path(tempfile.mkdtemp()) / "push_stats.json"
         with patch.object(ep, "PUSH_STATS", stats), \
              patch.dict("os.environ", {"TELEGRAM_BOT_TOKEN": "t",
-                                       "TELEGRAM_CHAT_ID": "c"}), \
+                                       "TELEGRAM_CHAT_ID": "c",
+                                       # SPEC-130: 显式生产主机上下文（HTTP mock）
+                                       "SPX_PUSH_ENABLE": "1"}), \
              patch.object(ep.requests, "post",
                           return_value=self._mock_resp(400, "nope")):
             ok = ep._send("x")

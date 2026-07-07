@@ -118,8 +118,11 @@ class TelegramBotSpec041Tests(unittest.TestCase):
 
         # SPEC-126: the morning push goes through the gateway (dedupe state
         # must be test-isolated, never the repo's data/.push_dedupe.json)
+        # SPEC-130: _safe_send is host-guarded — declare production-push host
+        # context explicitly (bot is an AsyncMock; hermetic).
         with patch.object(gw, "DEDUPE_PATH",
-                          Path(tempfile.mkdtemp()) / "dedupe.json"):
+                          Path(tempfile.mkdtemp()) / "dedupe.json"), \
+             patch.dict("os.environ", {"SPX_PUSH_ENABLE": "1"}):
             asyncio.run(bot_mod.scheduled_push(bot, "chat"))
             self.assertEqual(bot_mod._morning_snapshot["strategy_key"], morning_rec.strategy_key)
             asyncio.run(bot_mod.scheduled_eod_push(bot, "chat"))
@@ -182,7 +185,9 @@ class TelegramBotSpec046Tests(unittest.TestCase):
 
         import asyncio
 
-        asyncio.run(bot_mod.intraday_monitor(bot, "chat"))
+        # SPEC-130: _safe_send host-guarded — declare push-host context (mock bot)
+        with patch.dict("os.environ", {"SPX_PUSH_ENABLE": "1"}):
+            asyncio.run(bot_mod.intraday_monitor(bot, "chat"))
         mock_get_vix_quote.assert_called_once()
         mock_get_spx_quote.assert_called_once()
         mock_vix_from_quote.assert_called_once()
@@ -222,7 +227,9 @@ class TelegramBotSpec046Tests(unittest.TestCase):
 
         import asyncio
 
-        asyncio.run(bot_mod.intraday_monitor(bot, "chat"))
+        # SPEC-130: _safe_send host-guarded — declare push-host context (mock bot)
+        with patch.dict("os.environ", {"SPX_PUSH_ENABLE": "1"}):
+            asyncio.run(bot_mod.intraday_monitor(bot, "chat"))
         mock_get_vix_spike.assert_called_once_with(interval="5m")
         mock_get_spx_stop.assert_called_once_with(interval="5m")
         self.assertEqual(bot.send_message.await_count, 1)

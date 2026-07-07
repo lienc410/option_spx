@@ -26,3 +26,10 @@
 
 - 分类/about 缺失即 raise；digest 集成测试（三源合并 + 空异常区省略）；parse-fallback 否定测试（构造坏 HTML → 纯文本送达）；去重当日幂等测试；迁移完备 grep 断言；静默日零推送回归；DESIGN.md push-vocabulary 节 + decisions log 条目
 - 上线验收：连续 3 个交易日 PM 收件量 ≤ 晨报 1 + digest 1 + 事件驱动 N（N 仅 ALERT/ACTION）
+
+## 5. 验收注记（SPEC-130 补记，2026-07-07）
+
+INCIDENT 2026-07-07：验收期间（7/6-7/7）dev 机 pytest 即污染源——测试夹具推送
+经真 token 直达 PM（7/6 sent=68、7/7 sent=187，oldair 同期零发送），两日收件量
+数据全部作废。**密闭性先于验收**：SPEC-130 主机 guard（SPX_PUSH_ENABLE
+deny-by-default）落地次日起，"连续 3 个交易日收件量" 验收时钟重新计 day 1。
