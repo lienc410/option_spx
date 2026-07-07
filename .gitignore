@@ -52,3 +52,7 @@ data/.push_dedupe.json
 
 # SPEC-128 native partnership book — PII ledgers, never in git
 data/book/
+
+# SPEC-132 runtime artifacts — production shadow pipeline (research cache
+# data/q085_spx_ohlc_cache.json stays tracked as reproducibility truth)
+data/q090_ohlc_runtime.json

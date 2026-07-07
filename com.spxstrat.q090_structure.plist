@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.spxstrat.q090_structure</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/macbook/SPX_strat/venv/bin/python</string>
+    <string>-m</string>
+    <string>production.q090_structure_shadow</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/macbook/SPX_strat</string>
+
+  <!-- 17:00 ET Mon-Fri: after the 16:30 q041 chain snapshot + 16:50 q085 job,
+       before the 17:30 ops heartbeat freshness assertions (SPEC-132).
+       No SPX_PUSH_ENABLE: this job never pushes (SPEC-132 边界). -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>0</integer><key>Weekday</key><integer>1</integer></dict>
+    <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>0</integer><key>Weekday</key><integer>2</integer></dict>
+    <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>0</integer><key>Weekday</key><integer>3</integer></dict>
+    <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>0</integer><key>Weekday</key><integer>4</integer></dict>
+    <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>0</integer><key>Weekday</key><integer>5</integer></dict>
+  </array>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>KeepAlive</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/macbook/SPX_strat/logs/q090_structure.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/macbook/SPX_strat/logs/q090_structure.err.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Users/macbook/SPX_strat/venv/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>/Users/macbook</string>
+  </dict>
+</dict>
+</plist>

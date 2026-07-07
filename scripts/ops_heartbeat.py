@@ -141,6 +141,16 @@ def _deferred_digest(now: datetime, path: Path | None = None) -> str | None:
         lines.append(f"逾期未复核 {len(overdue)} 项（置顶）：")
         lines.extend(overdue)
     lines.append(f"在期 {upcoming} 项 · 条件/事件挂起 {conditional} 项 · 全文 task/DEFERRED.md")
+    # SPEC-132 — Q090 前瞻证据流 n 进度（重开条件进度条，随同一月度 FYI 走）
+    try:
+        from strategy.structure_map import progress
+        p = progress()
+        lines.append(
+            f"Q090 structure shadow: 已记 {p['days_logged']} 天 · "
+            f"S3 墙触发 {p['s3_n']}/{p['s3_target']}（正式测门槛）· "
+            f"S1s on-day {p['s1s_n']}/{p['s1s_target']}（重开门槛）")
+    except Exception:
+        pass  # non-fatal — digest 主体照发
     return "\n".join(lines)
 
 
