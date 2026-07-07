@@ -141,6 +141,9 @@ def test_live_push_production_smoke():
       SPX_TEST_LIVE_PUSH=1 SPX_PUSH_ENABLE=1 \
         ./venv/bin/python -m pytest tests/test_spec_130.py -m live_push -q
     证明 guard 未误伤生产发送路径。"""
+    # pytest 进程不经 launchd/main.py 启动 — 凭证需自行从 .env 装载
+    from dotenv import load_dotenv
+    load_dotenv()
     ok = gw.push(
         "STATE", "系统状态", "SPEC-130 生产冒烟",
         "推送主机 guard 部署后传输验证 — 单条 STATE 测试推送，无需操作。",
