@@ -285,6 +285,12 @@ function render_signal_panel(f, P) {
       <div class="sig-k">追踪止盈</div><div class="sig-v">σ带 ${fmt_pct(f.trail)} · 触发位 ${nf(f.trail_trigger)} &nbsp; ${gate(trailHit,'已破')}</div>
       <div class="sig-k">超卖否决</div><div class="sig-v">RSI ${f.rsi!=null?f.rsi.toFixed(0):'—'} &nbsp; ${gate(f.oversold,'超卖 RSI<'+RSIov)} ${vetoApplied?'<span style="color:var(--gold)">→ 已挡额外，仅走周TWAP</span>':''}</div>
       <div class="sig-k">建议卖出</div><div class="sig-v">${clipBreak}</div>
+      ${(() => {
+        const sf = SECTORS && SECTORS.funds && SECTORS.funds[f.code];
+        if (!sf || !sf.sectors || !sf.sectors.length) return '';
+        const top3 = sf.sectors.slice(0,3).map(s=>`${s[0].replace(/、通信和其他电子设备制造业/,'通信电子').replace(/制造业$/,'')} ${s[1].toFixed(0)}%`).join(' · ');
+        return `<div class="sig-k">重仓行业</div><div class="sig-v">${top3} <span style="color:var(--text-2)">(季报前十大, 覆盖${(sf.coverage*100).toFixed(0)}% · 滞后~1季度)</span></div>`;
+      })()}
     </div>
     <div class="sig-hit">▶ 命中 ${f.action||''}</div>
     ${W.length?`<div class="sig-watch">${W.join('')}</div>`:''}
@@ -296,7 +302,7 @@ function render_fund_row(f, P, dataDate) {
   if (!f.ok) {
     return `<tr class="err-row">
       <td><div class="fund-name">${f.name}</div><div class="fund-code">${f.code}</div></td>
-      <td colspan="11">❌ 取数失败：${f.err || '未知错误'}</td>
+      <td colspan="10">❌ 取数失败：${f.err || '未知错误'}</td>
     </tr>`;
   }
   const cls = RULE_COLOR[f.rule] || 'ab-dim';
@@ -392,9 +398,11 @@ async function load(retry=0) {
     return;
   }
 
-  // 信号历史（迷你时间线用）—— 渲染前先取，失败不阻塞主表
+  // 信号历史（迷你时间线用）+ 行业透视 —— 渲染前先取，失败不阻塞主表
   try { SIG_HIST = (await (await fetch('/api/fund-exit/signal-history')).json()).history || {}; }
   catch(e) { SIG_HIST = {}; }
+  try { const s = await (await fetch('/api/fund-exit/sectors')).json(); SECTORS = s.available ? s : null; }
+  catch(e) { SECTORS = null; }
 
   // staleness check
   if (d.generated_at) {
@@ -442,9 +450,15 @@ async function load(retry=0) {
       <div class="acct-cell">
         <div class="acct-label">数据日</div>
         <div class="acct-value" style="font-size:0.80rem">${d.data_date || '—'}</div>
-        <div class="acct-sub">${freshAge}生成·${cad.op_freq ? '每周一次' : ''}</div>
+        <div class="acct-sub">${freshAge}生成 · 每周一次操作</div>
       </div>
-      <div class="acct-regime">市场 <em style="font-style:normal;color:var(--text)">${d.market_regime || '—'}</em>（仅提示，非决策依据）</div>
+      <div class="acct-regime">市场 <em style="font-style:normal;color:var(--text)">${d.market_regime || '—'}</em>（仅提示，非决策依据）${(() => {
+        const a = SECTORS && SECTORS.account;
+        if (!a || !a.top_sector) return '';
+        const warn = a.top_share > 0.30;
+        const nm = a.top_sector.replace(/、通信和其他电子设备制造业/,'通信电子').replace(/制造业$/,'');
+        return ` · 行业集中 <span style="color:${warn?'var(--gold)':'var(--text)'}">${nm} ${(a.top_share*100).toFixed(0)}%</span>(占已披露重仓${warn?' ⚠️剩余持仓高度同质':''})`;
+      })()}</div>
     </div>`;
 
   const funds = d.funds || [];
@@ -468,6 +482,7 @@ async function load(retry=0) {
 // ── 记录减仓 ──
 let LAST = null;
 let SIG_HIST = {};
+let SECTORS = null;
 const RULE_LABEL = {1:'①上升',2:'②深套',3:'③确认下降',4:'④破带',5:'⑤破MA20',6:'⑥观察',0:'数据不足'};
 
 function openRec() {

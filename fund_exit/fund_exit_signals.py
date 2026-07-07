@@ -346,7 +346,10 @@ def analyze(name, code, mv, pnl_pct, weeks_fast, weeks_slow) -> FundResult:
 
     r.df = df
     r.latest_date = df["date"].iloc[-1].strftime("%Y-%m-%d")
-    r.unit_nav = fetch_unit_nav(code) or float(df["nav"].iloc[-1])   # 单位净值(失败→退回累计)
+    # 单位净值(份额换算用)。取数失败不回退累计净值——分红基两者不同, 静默错值比缺值更糟;
+    # 缺值时前端拒绝换算并提示, 下次扫描自愈。
+    u = fetch_unit_nav(code)
+    r.unit_nav = u if u else float("nan")
     s = signal_at(df["nav"], weeks_fast, weeks_slow)
     for k in ("n", "latest", "short_hist", "ma20", "ma60", "roll_high", "rsi", "ann_vol",
               "trail", "trail_trigger", "dist_ma20", "dist_ma60", "dist_roll", "day_chg",
@@ -432,7 +435,7 @@ def main():
             "波动(年化)": r.ann_vol, "保底%": r.base, "额外%": r.extra,
             "建议卖出%": r.clip,
             "建议卖出¥": round(r.mv * r.clip, 0), "vsTWAP%": dev,
-            "费率": fetch_fee(r.code) if r.rule in (3, 4, 5) else "见App核对",
+            "费率": "见App核对",   # 原 fetch_fee 每次扫描打 akshare 且返回恒为占位 → 移除网络调用
             "锁定/备注": (LOCKED.get(r.code, "") + (" 次新基样本不足" if r.short_hist else "")).strip(),
         })
 
@@ -454,6 +457,13 @@ def main():
 
     # ── 每日信号日志（按 净值日×代码 去重 upsert）──
     write_signal_log(results, OUTDIR / "signal_log.csv")
+
+    # ── 行业透视（display-only; 文件新鲜则跳过, 失败不影响主扫描）──
+    try:
+        from fund_exit.fund_sectors import refresh_if_stale
+    except ImportError:
+        from fund_sectors import refresh_if_stale
+    refresh_if_stale(holdings)
 
     # ── 图 ──
     chart_dir = OUTDIR / "charts"

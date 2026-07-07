@@ -6,4 +6,6 @@ fund_signals.json
 positions.csv
 trade_log.csv
 signal_log.csv
+fund_sectors.json
+sector_map_cache.json
 __pycache__/

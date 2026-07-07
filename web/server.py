@@ -511,6 +511,9 @@ def fund_exit_record_trade():
     amount = min(amount, old_mv)
     pct = amount / old_mv if old_mv > 0 else 0.0
     new_mv = max(0.0, old_mv - amount)
+    # 全部赎回容差：份额取整/NAV 漂移会留下 ¥几毛的幽灵残值(仍被扫描) → 视为清零
+    if pct >= 0.995 or new_mv < 1.0:
+        pct, new_mv, amount = 1.0, 0.0, old_mv
 
     nav = rule = rec_clip = None
     sf = _FUND_DIR / "fund_signals.json"
@@ -557,6 +560,21 @@ def fund_exit_record_trade():
     return jsonify({"ok": True, "code": code, "name": name, "amount": round(amount, 2),
                     "shares": round(shares, 2) if shares is not None else None,
                     "pct_sold": round(pct, 4), "new_mv": round(new_mv, 2)})
+
+
+@app.route("/api/fund-exit/sectors")
+def fund_exit_sectors():
+    """基金重仓行业透视（display-only, 季报滞后~1季度）。"""
+    f = _FUND_DIR / "fund_sectors.json"
+    if not f.exists():
+        return jsonify({"available": False}), 200
+    try:
+        with open(f, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (ValueError, OSError):
+        return jsonify({"available": False}), 200
+    data["available"] = True
+    return jsonify(data)
 
 
 @app.route("/api/fund-exit/signal-history")
