@@ -6392,8 +6392,8 @@ def api_structure_map():
 
     显示与取证共用真值（shadow jsonl 由 17:00 job 落盘）；这里只读不算——
     卡片内容与证据流严格一致。文件缺失/过期 → fail-soft 返回 stale 信息。"""
-    from strategy.structure_map import (S1S_TARGET_N, S3_TARGET_N, progress,
-                                        read_shadow)
+    from strategy.structure_map import (S1S_TARGET_N, S3_TARGET_N,
+                                        chart_payload, progress, read_shadow)
     rows = read_shadow()
     if not rows:
         return jsonify({"available": False,
@@ -6407,6 +6407,13 @@ def api_structure_map():
         "progress": progress(rows),
         "targets": {"s3": S3_TARGET_N, "s1s": S1S_TARGET_N},
     }
+    # SPEC-132.1 — 蜡烛图基底（同一 response 同源，无第二数据路径；chart
+    # 生成失败 fail-soft → v1 数字卡照常渲染）
+    try:
+        payload["chart"] = chart_payload(latest)
+    except Exception as exc:
+        app.logger.warning("structure-map chart payload unavailable: %s", exc)
+        payload["chart"] = None
     from strategy.campaign import _assert_finite
     _assert_finite(payload, "structure_map")
     return jsonify(payload)

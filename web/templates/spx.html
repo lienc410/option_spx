@@ -11,6 +11,10 @@
 <script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec108"></script>
 <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec108">
 <script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
+<!-- SPEC-132.1: TradingView lightweight-charts v4.2.3 (Apache-2.0), vendored
+     at web/static/ — self-hosted, NO CDN (deploy red line).
+     License text: web/static/lightweight-charts.LICENSE -->
+<script src="{{ url_for('static', filename='lightweight-charts.standalone.production.js') }}?v=spec132_1"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -493,6 +497,11 @@ body {
 }
 .structure-badge.null {
   color: var(--text-2); background: var(--gray-bg); border: 1px solid var(--gray-border);
+}
+/* SPEC-132.1 — 蜡烛图容器（lightweight-charts 挂载点） */
+.structure-chart {
+  width: 100%; height: 330px; margin-bottom: 9px;
+  border-bottom: 1px solid var(--border);
 }
 .walls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .walls-col-label {
@@ -2642,10 +2651,14 @@ async function loadCampaigns() {
 
 // ── SPEC-132 — Structure Map（描述性态势感知；Q090 verdict badge 随显示携带）──
 
+let STRUCTURE_LAST_DATA = null;   // themechange 重绘用缓存
+let STRUCTURE_CHART = null;       // lightweight-charts 实例（重绘前 remove）
+
 function renderStructureMap(d) {
   const wrap = document.getElementById('structure-map');
   if (!wrap) return;
   if (!d || !d.available) { wrap.innerHTML = ''; return; }
+  STRUCTURE_LAST_DATA = d;
   const row = d.row || {};
   const prog = d.progress || {};
   // Badge 词汇表（SPEC-132 强制）：墙 = 前瞻收集中 n=X/60；其余 = Q090 无验证边际，仅描述
@@ -2673,6 +2686,7 @@ function renderStructureMap(d) {
         ${chainNote}
         <span style="margin-left:auto;display:flex;gap:6px;align-items:center">${wallBadge}</span>
       </div>
+      <div id="structure-chart" class="structure-chart"></div>
       <div class="walls-grid">
         <div>
           <div class="walls-col-label">Call Walls（上方）</div>
@@ -2685,7 +2699,128 @@ function renderStructureMap(d) {
       </div>
       <div class="structure-footnotes">${fn.join('')}</div>
     </div>`;
+  renderStructureChart(d);
 }
+
+// ── SPEC-132.1 — 蜡烛图叠加（lightweight-charts，vendored；零 CDN）─────────
+
+function structureChartColors() {
+  // 全部经 theme.js 桥读取 theme.css token（双主题跟随）。
+  const isLight = (document.documentElement.getAttribute('data-theme') || 'dark') === 'light';
+  return {
+    text: themeColor('--text-2'),
+    grid: themeRgba('--border-2', 0.5) || themeColor('--border'),
+    up: themeColor('--green'),
+    down: themeColor('--red'),
+    gold: themeColor('--gold'),
+    blue: themeColor('--blue'),
+    orange: themeColor('--orange'),
+    cluster: themeColor('--text-2'),
+    // SPEC-132.1 表格指定 put 墙 = teal；设计系统无 teal token —— 图表专用
+    // 常量（非 :root 复制，light/dark 双值）
+    teal: isLight ? '#0F8A7C' : '#2FB8A6',
+    volS2: themeRgba('--gold', 0.55),
+    volNeutral: themeRgba('--text-2', isLight ? 0.30 : 0.40),
+  };
+}
+
+function renderStructureChart(d) {
+  const el = document.getElementById('structure-chart');
+  if (!el) return;
+  const chart = d.chart;
+  if (typeof LightweightCharts === 'undefined' || !chart || !(chart.ohlc || []).length) {
+    el.style.display = 'none';
+    return;
+  }
+  if (STRUCTURE_CHART) { try { STRUCTURE_CHART.remove(); } catch (_) {} STRUCTURE_CHART = null; }
+  el.style.display = '';
+  el.innerHTML = '';
+  const row = d.row || {};
+  const C = structureChartColors();
+  const LWC = LightweightCharts;
+  const ch = LWC.createChart(el, {
+    height: 330,
+    autoSize: true,
+    layout: {
+      background: { type: 'solid', color: 'transparent' },
+      textColor: C.text,
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: 10,
+    },
+    grid: { vertLines: { color: C.grid }, horzLines: { color: C.grid } },
+    rightPriceScale: { borderColor: C.grid, scaleMargins: { top: 0.04, bottom: 0.24 } },
+    timeScale: { borderColor: C.grid, rightOffset: 3 },
+    crosshair: { mode: LWC.CrosshairMode.Normal },   // 悬停读数（原生 crosshair）
+  });
+
+  // 主窗格：近 120td 日线蜡烛（现价 = 最后收盘参考线，priceLine 原生）
+  const candles = ch.addCandlestickSeries({
+    upColor: C.up, downColor: C.down,
+    borderUpColor: C.up, borderDownColor: C.down,
+    wickUpColor: C.up, wickDownColor: C.down,
+    priceLineVisible: true, priceLineColor: C.text, priceLineStyle: LWC.LineStyle.Dotted,
+  });
+  candles.setData(chart.ohlc);
+
+  // 副窗格：成交量柱（S2 缩量上涨日淡金着色）+ V20 均量线
+  const vol = ch.addHistogramSeries({
+    priceScaleId: 'vol', priceFormat: { type: 'volume' },
+    lastValueVisible: false, priceLineVisible: false,
+  });
+  ch.priceScale('vol').applyOptions({ scaleMargins: { top: 0.80, bottom: 0 } });
+  vol.setData((chart.volume || []).map((v) => ({
+    time: v.time, value: v.value, color: v.s2 ? C.volS2 : C.volNeutral,
+  })));
+  if ((chart.v20 || []).length) {
+    const v20 = ch.addLineSeries({
+      priceScaleId: 'vol', color: C.blue, lineWidth: 1,
+      lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false,
+    });
+    v20.setData(chart.v20);
+  }
+
+  // 叠加物（数值全部来自同一 response 的 row —— 无第二数据路径）
+  const fmtOi = (oi) => oi >= 1000 ? `${Math.round(oi / 1000)}k` : String(oi);
+  const walls = row.walls || {};
+  const allOi = [...(walls.calls || []), ...(walls.puts || [])].map((w) => w.oi);
+  const maxOi = Math.max(...allOi, 1);
+  const wallLine = (w, color) => candles.createPriceLine({
+    price: w.strike, color,
+    lineWidth: 1 + Math.round(2 * (w.oi / maxOi)),   // 线宽按 OI 相对量 (1-3)
+    lineStyle: LWC.LineStyle.Solid,
+    axisLabelVisible: true,
+    title: `K${Math.round(w.strike)} · OI ${fmtOi(w.oi)}`,
+  });
+  (walls.calls || []).forEach((w) => wallLine(w, C.gold));
+  (walls.puts || []).forEach((w) => wallLine(w, C.teal));
+
+  // 簇位：灰虚线带触碰数（clusters_at 同源输出）
+  const clusterLine = (c) => candles.createPriceLine({
+    price: c.level, color: C.cluster, lineWidth: 1,
+    lineStyle: LWC.LineStyle.Dashed, axisLabelVisible: false,
+    title: `${c.touches}触 · ${Math.round(c.level)}`,
+  });
+  (row.s1r_clusters || []).forEach(clusterLine);
+  (row.s1s_clusters || []).forEach(clusterLine);
+
+  // S4 递减线：经最近确认 swing highs 的线段外推至今日；活跃高亮
+  if ((chart.s4_line_points || []).length >= 2) {
+    const s4 = ch.addLineSeries({
+      color: C.orange, lineWidth: row.s4_flag ? 2 : 1,
+      lineStyle: row.s4_flag ? LWC.LineStyle.Solid : LWC.LineStyle.Dashed,
+      lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false,
+    });
+    s4.setData(chart.s4_line_points);
+  }
+
+  ch.timeScale().fitContent();
+  STRUCTURE_CHART = ch;
+}
+
+// 主题切换 → 用缓存数据整卡重绘（图表颜色随 theme.css token）
+window.addEventListener('themechange', () => {
+  if (STRUCTURE_LAST_DATA) renderStructureMap(STRUCTURE_LAST_DATA);
+});
 
 async function loadStructureMap() {
   const wrap = document.getElementById('structure-map');

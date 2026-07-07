@@ -152,25 +152,44 @@ def compute_flags(ohlc_df, t: int | None = None) -> dict:
     s4_flag, s4_line = q.trendline_state_at(t, hi_idx, hi, cl,
                                             S4_PARAMS["n_highs"], S4_PARAMS["prox"])
 
+    def _fmt_cluster(c: dict) -> dict:
+        return {"level": round(c["level"], 2), "touches": c["touches"],
+                "dist_pct": round((c["level"] / spot - 1) * 100, 2)}
+
     def _nearest(levels: list[dict]) -> dict | None:
         if not levels:
             return None
-        best = min(levels, key=lambda x: abs(x["level"] - spot))
-        return {"level": round(best["level"], 2), "touches": best["touches"],
-                "dist_pct": round((best["level"] / spot - 1) * 100, 2)}
+        return _fmt_cluster(min(levels, key=lambda x: abs(x["level"] - spot)))
+
+    def _top_clusters(levels: list[dict], n: int = 3) -> list[dict]:
+        """SPEC-132.1 chart：按距现价排序的前 n 个簇（灰虚线叠加物）。"""
+        return [_fmt_cluster(c) for c in
+                sorted(levels, key=lambda x: abs(x["level"] - spot))[:n]]
 
     r_levels = q.clusters_at(t, hi_idx, hi, S1R_PARAMS["band"], S1R_PARAMS["touches"])
     s_levels = q.clusters_at(t, lo_idx, lo, S1S_PARAMS["band"], S1S_PARAMS["touches"])
+
+    # SPEC-132.1 — S4 递减线锚点（trendline_state_at 同款选取逻辑的描述性
+    # 伴生函数）：锚点 (date, high, bar_index)；外推到 t 的值即 row.s4_line
+    anchors_idx = q.trendline_anchors_at(t, hi_idx, hi, S4_PARAMS["n_highs"])
+    s4_anchors = None
+    if anchors_idx:
+        s4_anchors = [{"date": ohlc_df.index[i].date().isoformat(),
+                       "value": round(float(hi[i]), 2), "bar_index": int(i)}
+                      for i in anchors_idx]
 
     vr = q.volume_ratio(ohlc_df["volume"]).iloc[t]
     return {
         "spot": round(spot, 2),
         "s1r_flag": s1r_flag,
         "s1r_nearest": _nearest(r_levels),
+        "s1r_clusters": _top_clusters(r_levels),
         "s1s_flag": s1s_flag,
         "s1s_nearest": _nearest(s_levels),
+        "s1s_clusters": _top_clusters(s_levels),
         "s4_flag": bool(s4_flag),
         "s4_line": round(s4_line, 2) if s4_line is not None else None,
+        "s4_anchors": s4_anchors,
         "vol_ratio": round(float(vr), 3) if math.isfinite(float(vr)) else None,
     }
 
@@ -285,6 +304,65 @@ def read_shadow() -> list[dict]:
             except json.JSONDecodeError:
                 continue
     return rows
+
+
+# SPEC-132.1 — 蜡烛图基底数据（近 LOOK=120td，与信号回看窗口共长）
+CHART_LOOKBACK_TD = 120
+# S2 winner（q090_e1 封账 tag S2_d2_v85）— 成交量副窗格缩量上涨日着色
+S2_PARAMS = {"consecutive": 2, "threshold": 0.85}
+
+
+def chart_payload(row: dict | None = None) -> dict:
+    """SPEC-132.1 — /api/structure-map 的 chart 扩展（同源，无第二数据路径）：
+
+      ohlc[]  近 120td {time, open, high, low, close}（runtime OHLC 缓存）
+      volume[] {time, value, s2}（s2 = q090.s2_flag winner d2_v85 —— 同函数）
+      v20[]   {time, value} 20d 均量
+      s4_line_points[] 递减线段：锚点 + 外推至最后 bar（row.s4_anchors 同源；
+              外推终点值 = row.s4_line）
+
+    叠加物的位值（walls/clusters/s4_line）由调用方从同一 response 的 row
+    读取——chart 只携带基底序列与线段坐标，禁第二真值。"""
+    q = _q090()
+    df = load_ohlc()
+    tail = df.iloc[-CHART_LOOKBACK_TD:]
+    ohlc = [{"time": d.date().isoformat(), "open": round(float(r.open), 2),
+             "high": round(float(r.high), 2), "low": round(float(r.low), 2),
+             "close": round(float(r.close), 2)}
+            for d, r in tail.iterrows()]
+
+    # S2/V20 在全量 df 上算（rolling 20 需要窗前数据），再切尾
+    s2 = q.s2_flag(df["close"], df["volume"], **S2_PARAMS)
+    v20 = df["volume"].rolling(20).mean()
+    volume = [{"time": d.date().isoformat(), "value": float(r),
+               "s2": bool(s2.loc[d])}
+              for d, r in tail["volume"].items()]
+    v20_series = [{"time": d.date().isoformat(), "value": round(float(v), 0)}
+                  for d, v in v20.loc[tail.index].items() if math.isfinite(float(v))]
+
+    out: dict = {
+        "ohlc": ohlc,
+        "volume": volume,
+        "v20": v20_series,
+        "s2_params": dict(S2_PARAMS),
+        "lookback_td": CHART_LOOKBACK_TD,
+    }
+
+    # S4 线段坐标：row 的锚点（同源）+ 外推至图内最后 bar
+    anchors = (row or {}).get("s4_anchors")
+    if anchors and len(anchors) >= 2:
+        a1, a2 = anchors[-2], anchors[-1]
+        i1, i2 = a1["bar_index"], a2["bar_index"]
+        t_last = len(df) - 1
+        slope = (a2["value"] - a1["value"]) / (i2 - i1)
+        extrap = a2["value"] + slope * (t_last - i2)
+        pts = [{"time": a["date"], "value": a["value"]} for a in anchors]
+        pts.append({"time": df.index[t_last].date().isoformat(),
+                    "value": round(float(extrap), 2)})
+        # 图窗口只有尾 120td——线段起点可能在窗外，lightweight-charts 会裁剪
+        out["s4_line_points"] = [p for p in pts if p["time"] >= ohlc[0]["time"]] or pts[-2:]
+    _assert_finite(out, "chart")
+    return out
 
 
 def progress(rows: list[dict] | None = None) -> dict:
