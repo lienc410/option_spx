@@ -251,7 +251,12 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 .table-wrap { border: 1px solid var(--border); border-radius: 9px; overflow: hidden; margin-bottom: 18px; }
 
 /* Day records (raw json expandable) */
-.day-row { display: grid; grid-template-columns: 100px 90px 1fr 110px 80px; gap: 10px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border); font-family: var(--f-mono); font-size: 0.66rem; cursor: pointer; transition: background 0.12s; }
+.day-row { display: grid; grid-template-columns: 92px 84px 1fr auto 110px 130px; gap: 10px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border); font-family: var(--f-mono); font-size: 0.66rem; cursor: pointer; transition: background 0.12s; }
+.day-book { color: var(--text-2); text-align: right; white-space: nowrap; }
+.day-book b { color: var(--text); font-weight: 600; }
+.day-evt { display: inline-block; font-size: 0.56rem; padding: 1px 6px; border-radius: 4px; border: 1px solid; margin-left: 5px; }
+.day-evt.open { color: var(--green); border-color: var(--green-border); background: var(--green-bg); }
+.day-evt.close { color: var(--red); border-color: var(--red-border); background: var(--red-bg); }
 .day-row:hover { background: var(--surface-hi); }
 .day-row:last-of-type { border-bottom: none; }
 .day-date { color: var(--text); }
@@ -667,7 +672,7 @@ function _renderLatest() {
     </div>
     <div class="latest-metric">
       <span class="lm-lbl">ddATH</span>
-      <span class="lm-num" style="font-size:0.95rem">${r.ddath_pct != null ? (r.ddath_pct * 100).toFixed(2) + '%' : '—'}</span>
+      <span class="lm-num" style="font-size:0.95rem">${r.ddath_pct != null ? r.ddath_pct.toFixed(2) + '%' : '—'}</span>
     </div>
     <div class="latest-metric">
       <span class="lm-lbl">Captured</span>
@@ -884,10 +889,15 @@ function _renderBpChart() {
     const poss = spxBlock.positions || [];
     let s = 0;
     for (const p of poss) {
-      const w = (p.short_strike || 0) - (p.long_strike || 0);
+      const w = Math.abs((p.short_strike || 0) - (p.long_strike || 0));
       const credit = p.entry_premium || 0;
       const ct = p.contracts || 0;
-      s += Math.max(0, (w - credit) * 100 * ct);
+      // Debit structures (BCD diagonal: entry_premium < 0) risk only the
+      // debit paid. The width−credit formula is credit-spread max loss and
+      // more-than-doubles BCD risk (e.g. 450+383 vs 383), which zeroed the
+      // Equity bucket whenever ≥2 BCD pairs were on.
+      s += credit < 0 ? Math.abs(credit) * 100 * ct
+                      : Math.max(0, (w - credit) * 100 * ct);
     }
     return s;
   }
@@ -1527,6 +1537,31 @@ function _renderPositions() {
   }).join('');
 }
 
+const _STRAT_ABBREV = {
+  bull_put_spread: 'BPS', bull_put_spread_hv: 'BPS-HV',
+  bear_call_spread: 'BCS', bear_call_spread_hv: 'BCS-HV',
+  bull_call_diagonal: 'BCD', iron_condor: 'IC', iron_condor_hv: 'IC-HV',
+};
+function _dayPositions(r) {
+  let poss = r.strategies?.spx_spread?.positions || [];
+  if (_accountView !== 'all') poss = poss.filter(p => (p.account || 'schwab') === _accountView);
+  return poss;
+}
+function _stratAbbrev(p) {
+  const k = String(p.strategy_key || '').toLowerCase();
+  if (_STRAT_ABBREV[k]) return _STRAT_ABBREV[k];
+  // Legacy rows lack strategy_key — debit entry means call diagonal era
+  return (p.entry_premium != null && p.entry_premium < 0) ? 'BCD' : 'BPS';
+}
+function _groupCounts(poss) {
+  const g = {};
+  for (const p of poss) {
+    const a = _stratAbbrev(p);
+    g[a] = (g[a] || 0) + 1;
+  }
+  return Object.entries(g).map(([a, n]) => n > 1 ? `${a}×${n}` : a);
+}
+
 function _renderDayRecords() {
   const wrap = document.getElementById('day-records-wrap');
   if (!_records.length) {
@@ -1552,10 +1587,29 @@ function _renderDayRecords() {
     if (m.spx != null) metaParts.push(`SPX ${Math.round(m.spx).toLocaleString()}`);
     if (m.trend) metaParts.push(m.trend.toLowerCase());
     const meta = metaParts.join(' · ');
+
+    // Book summary: open structures + options BP; roster diff vs prior day
+    // surfaces open/close events inline (the actual journal-worthy facts).
+    const poss = _dayPositions(r);
+    const bookParts = _groupCounts(poss);
+    const bp = r.strategies?.spx_spread?.bp_dollars;
+    let book = poss.length
+      ? `<b>${bookParts.join(' · ')}</b>${bp != null && _accountView === 'all' ? ` · BP ${fmt$K(bp)}` : ''}`
+      : '<span style="color:var(--text-2)">flat</span>';
+    if (prev) {
+      const curM = new Map(poss.map(p => [p.trade_id, p]));
+      const prvM = new Map(_dayPositions(prev).map(p => [p.trade_id, p]));
+      const opened = [...curM.keys()].filter(t => t && !prvM.has(t)).map(t => curM.get(t));
+      const closed = [...prvM.keys()].filter(t => t && !curM.has(t)).map(t => prvM.get(t));
+      for (const lbl of _groupCounts(opened)) book += `<span class="day-evt open">+${lbl}</span>`;
+      for (const lbl of _groupCounts(closed)) book += `<span class="day-evt close">−${lbl}</span>`;
+    }
+
     return `<div class="day-row" onclick="_toggleDayRaw(${idx})">
         <span class="day-date">${r.date}</span>
         <span><span class="day-regime-chip r-${regimeName}">${regimeName.toUpperCase()}</span></span>
         <span class="day-meta">${meta}</span>
+        <span class="day-book">${book}</span>
         <span class="day-nlv">${fmt$(nlv)}</span>
         <span class="day-pnl ${cls}">${change != null ? sign + fmt$(Math.abs(change)) + ' (' + sign + Math.abs(changePct).toFixed(2) + '%)' : '—'}</span>
       </div>
