@@ -29,6 +29,8 @@
 
 短腿 ≤21 DTE 时推送 ACTION：**"CLOSE 或 ROLL"** 双选项（带当前链上建议新短腿：45DTE |Δ|0.30——shadow 已在算同款腿）；roll 后 21-DTE 时钟按新短腿重置。
 
+**新增机械触发（Q089 幸存项，PM ratify 2026-07-06）**：短腿残值 ≤15% 入场权利金 → 同样推送 CLOSE/ROLL ACTION（collapse buyback，仓位状态触发非择时；Q089 E4 已证任何延迟 re-sell 无显著优势——roll 即同时平旧开新，不留等待裁量）。
+
 ## 4b. 止损锚定（2026-07-06 补充，PM 实仓暴露的设计参数）
 
 Debit 结构 −50% 止损在 roll 后锚什么：

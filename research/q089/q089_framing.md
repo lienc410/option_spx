@@ -1,6 +1,6 @@
 # Q089 Framing — Layer-2 方向性入场的择时 overlay（预注册，2026-07-06）
 
-**状态**: FRAMING（未碰数据）。触发：PM 6/3 实仓复盘——跟推送在强势日买高，浮亏一个月；PM 提问"是否该等适当回调才进看多仓位"。DEFERRED #19 转正。
+**状态**: **CLOSED 2026-07-06**（同日 E1-E4 全流程：双 kill，外审 CONFIRM，PM ratify，FDR seal 零发现——见 q089_e2_e4_verdict_2026-07-06.md）。触发：PM 6/3 实仓复盘——跟推送在强势日买高，浮亏一个月；PM 提问"是否该等适当回调才进看多仓位"。DEFERRED #19 转正。
 
 ## 0. 问题陈述（Execution 决策，非 Alpha）
 
