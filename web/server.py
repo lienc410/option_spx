@@ -575,6 +575,21 @@ def fund_exit_record_trade():
                     "pct_sold": round(pct, 4), "new_mv": round(new_mv, 2)})
 
 
+@app.route("/api/fund-exit/pnl")
+def fund_exit_pnl():
+    """清仓总账 P&L 台账（每扫描重建）。"""
+    f = _FUND_DIR / "fund_pnl.json"
+    if not f.exists():
+        return jsonify({"available": False}), 200
+    try:
+        with open(f, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (ValueError, OSError):
+        return jsonify({"available": False}), 200
+    data["available"] = True
+    return jsonify(data)
+
+
 @app.route("/api/fund-exit/sectors")
 def fund_exit_sectors():
     """基金重仓行业透视（display-only, 季报滞后~1季度）。"""

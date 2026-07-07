@@ -493,6 +493,13 @@ def main():
         from fund_sectors import refresh_if_stale
     refresh_if_stale(holdings)
 
+    # ── 清仓总账 P&L（每扫描重建; 失败不影响主扫描）──
+    try:
+        from fund_exit.fund_pnl import refresh_safe
+    except ImportError:
+        from fund_pnl import refresh_safe
+    refresh_safe()
+
     # ── 图 ──
     chart_dir = OUTDIR / "charts"
     chart_dir.mkdir(exist_ok=True)

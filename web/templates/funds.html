@@ -177,6 +177,14 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
     <div class="unavail">加载中…</div>
   </div>
 
+  <div id="pnl-wrap" class="trades-wrap" style="display:none">
+    <div class="trades-head">
+      <div class="section-label" style="margin:0">清仓总账（接手至今 · 含已清仓 · 在手盯市）</div>
+      <div id="pnl-fresh" class="page-meta"></div>
+    </div>
+    <div id="pnl-body"></div>
+  </div>
+
   <div id="trades-wrap" class="trades-wrap" style="display:none">
     <div class="trades-head">
       <div class="section-label" style="margin:0">减仓记录</div>
@@ -585,10 +593,56 @@ async function loadTrades() {
     </table>`;
 }
 
+async function loadPnl() {
+  let d; try { d = await (await fetch('/api/fund-exit/pnl')).json(); } catch(e) { return; }
+  if (!d.available) return;
+  const t = d.totals, b = d.baseline;
+  const wrap = document.getElementById('pnl-wrap');
+  wrap.style.display = '';
+  document.getElementById('pnl-fresh').textContent =
+    `重建于 ${d.generated_at?.slice(5,16).replace('T',' ') || '—'}${t.estimated ? ' · 含暂估结算净值' : ''}`;
+  const pnlColor = v => v > 0 ? 'var(--green)' : v < 0 ? 'var(--red)' : 'var(--text)';
+  const money = v => (v>=0?'+':'−') + '¥' + Math.abs(Math.round(v)).toLocaleString('zh-CN');
+  const rows = Object.entries(d.funds)
+    .sort((a,b2)=>a[1].pnl_total-b2[1].pnl_total)
+    .map(([code,f])=>{
+      const st = f.held_pct<=0.0001 ? '✅已清' : `在手${(f.held_pct*100).toFixed(0)}%`;
+      return `<tr>
+        <td style="color:var(--text)">${f.name}<span style="color:var(--text-2)"> ${code}</span></td>
+        <td>${st}</td>
+        <td>${fmt_cny(f.cost)}</td>
+        <td>${fmt_cny(f.proceeds)}</td>
+        <td>${f.current>0?fmt_cny(f.current):'—'}</td>
+        <td style="color:${pnlColor(f.pnl_total)}">${money(f.pnl_total)}</td>
+        <td style="color:${pnlColor(f.pnl_since)}">${money(f.pnl_since)}</td>
+      </tr>`;}).join('');
+  document.getElementById('pnl-body').innerHTML = `
+    <div class="acct-strip" style="grid-template-columns:repeat(4,1fr);margin-bottom:12px">
+      <div class="acct-cell"><div class="acct-label">接手成本</div>
+        <div class="acct-value">${fmt_cny(b.cost)}</div>
+        <div class="acct-sub" title="${b.note}">基线 ${b.date} App快照(摊薄口径)</div></div>
+      <div class="acct-cell"><div class="acct-label">已落袋 + 在手盯市</div>
+        <div class="acct-value">${fmt_cny(t.recovered)}</div>
+        <div class="acct-sub">落袋 ${fmt_cny(t.proceeds)} · 在手 ${fmt_cny(t.current)}</div></div>
+      <div class="acct-cell"><div class="acct-label">累计盈亏</div>
+        <div class="acct-value" style="color:${pnlColor(t.pnl_total)}">${money(t.pnl_total)}</div>
+        <div class="acct-sub">${(t.pnl_total_pct*100).toFixed(1)}% of 成本</div></div>
+      <div class="acct-cell"><div class="acct-label">拆分</div>
+        <div class="acct-value" style="font-size:0.78rem">旧账 ${money(t.pnl_pre_baseline)}</div>
+        <div class="acct-sub">清仓期(${b.date}→今) ${money(t.pnl_since_baseline)}</div></div>
+    </div>
+    <table class="trades-table">
+      <thead><tr><th>基金</th><th>状态</th><th>接手成本</th><th>已落袋</th><th>在手盯市</th><th>累计盈亏</th><th>其中清仓期</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p class="disclaimer" style="margin-top:10px">⚠️ ${d.caveats || ''}</p>`;
+}
+
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeRec(); });
 
 load();
 loadTrades();
+loadPnl();
 
 // nav date
 const nd = document.getElementById('nav-date');
