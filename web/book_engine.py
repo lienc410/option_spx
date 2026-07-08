@@ -436,7 +436,16 @@ def compute_book(data_dir: Path | None = None, force: bool = False) -> dict[str,
                 + (et_m["cost_basis"] if et_m else 0.0), 2),
             "distributions": round(
                 (sw_m["distributions"] if sw_m else 0.0), 2),
-            "dual_basis": bool(et_m and abs(et_m["contributed"] - et_m["cost_basis"]) > 0.01),
+            # any merge-basis member gets the convention marker — option B
+            # (basis reset to merge-date value) distorts the BLENDED simple
+            # return even when contributed == cost_basis (Lien's 3.6% case)
+            "dual_basis": bool(et_m),
+            "return_parts": ({
+                "sw_simple": (sw_m["simple_return"] if sw_m else None),
+                "et_since_merge": (((et_m["current_value"] - et_m["cost_basis"])
+                                    / et_m["cost_basis"])
+                                   if et_m and et_m["cost_basis"] > 1e-9 else None),
+            } if et_m else None),
             "pnl": m_pnl,
             "return_pct": (m_pnl / m_contrib) if m_contrib > 1e-9 else None,
         })

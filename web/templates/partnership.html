@@ -249,7 +249,7 @@ function renderMembers(b) {
       <td>${m.distributions ? '−' + fmtUSD(m.distributions) : '—'}</td>
       <td>${fmtUSD(m.contrib)}</td>
       <td class="${pnlClass(m.pnl)}">${fmtSignedUSD(m.pnl)}</td>
-      <td class="${pnlClass(m.return_pct)}">${fmtPct(m.return_pct)}</td>
+      <td class="${pnlClass(m.return_pct)}">${fmtPct(m.return_pct)}${m.return_parts ? `<div style="font-size:0.58rem;color:var(--text-2);font-family:var(--f-ui)">SW ${fmtPct(m.return_parts.sw_simple)} · ET 自并入 ${fmtPct(m.return_parts.et_since_merge)}</div>` : ''}</td>
     </tr>`).join('');
   const t = b.total || {};
   const totalRow = `
@@ -274,7 +274,7 @@ function renderMembers(b) {
       </tr></thead>
       <tbody>${rows}${totalRow}</tbody>
     </table></div>
-    <div class="note-block">恒等式：出资总额 − 分配 = 净投入。† = E*Trade 侧按个人成本基（CXZ 并入溢价 $90,644 计入盈亏）。* Return = Simple（盈亏÷净投入），与下方年度表的 TWR（纯投资业绩）口径不同——见页脚「收益率口径速查」。</div>`;
+    <div class="note-block">恒等式：出资总额 − 分配 = 净投入。† = 该成员含 E*Trade 并入约定（CXZ：个人成本基，并入溢价 $90,644 计入盈亏；Lien：option B 基数重置——并入前个人收益 35.4% 按约定不入家庭账本，且大额新基数会稀释综合 Simple，故综合值显著低于其 SW 单侧收益，属约定效应非账务错误）。* Return = Simple（盈亏÷净投入），与年度表 TWR 口径不同——见页脚「收益率口径速查」。</div>`;
 }
 
 function renderCCCByYear(b) {
