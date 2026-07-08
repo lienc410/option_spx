@@ -27,8 +27,14 @@ LOOKBACK_DAYS              = 10
 OUT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ── 1. 下载 VIX 全历史 ────────────────────────────────────────────────────────
-print("Downloading VIX history (max)...")
-raw = yf.download("^VIX", start="2006-01-01", end="2026-05-12", auto_adjust=False, progress=False)
+# End date was hard-coded "2026-05-12" (the original one-shot research run) —
+# that froze the whole q064→q072 flags chain at 5/11 and the Gov BT page
+# missed the June VIX-22 episode. Rolling end since the chain went on a
+# weekly cron (scripts/refresh_regime_flags.py, PM 2026-07-07 option B).
+from datetime import date as _date, timedelta as _td
+_END = (_date.today() + _td(days=1)).isoformat()
+print(f"Downloading VIX history (max, → {_END})...")
+raw = yf.download("^VIX", start="2006-01-01", end=_END, auto_adjust=False, progress=False)
 
 # flatten multi-index if present
 if isinstance(raw.columns, pd.MultiIndex):
@@ -37,7 +43,7 @@ if isinstance(raw.columns, pd.MultiIndex):
 vix = raw["Close"].dropna().sort_index()
 vix.index = pd.to_datetime(vix.index).tz_localize(None)
 
-# 截取 2007-01-01 ~ 2026-05-11（策略 backtest 起点）
+# 截取 2007-01-01 起（策略 backtest 起点）；end 随 cron 滚动
 vix = vix[vix.index >= "2007-01-01"]
 print(f"VIX range: {vix.index[0].date()} → {vix.index[-1].date()}  ({len(vix)} trading days)")
 
