@@ -1768,6 +1768,10 @@ async def _print_chat_id(token: str) -> None:
 
 
 def main() -> None:
+    # log hygiene: httpx logs every 10s getUpdates poll at INFO — 119MB
+    # err.log observed. Keep our own INFO, silence the pollers.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("apscheduler.executors.default").setLevel(logging.WARNING)
     token, chat_id = _get_env()
 
     # -- Helper mode: print chat_id --
@@ -1844,6 +1848,15 @@ def main() -> None:
         log.info("Scheduler started — daily push 09:35 ET, intraday monitor every 5 min, E-Trade renew 23:00 ET")
 
     app = Application.builder().token(token).post_init(post_init).build()
+
+    # Ops hardening (2026-07-07): two graceful self-exits in one evening from
+    # Telegram 502 bursts, each logged as "No error handlers are registered".
+    # A registered handler lets PTB treat transient network errors as handled
+    # (log-and-continue) instead of escalating to shutdown; KeepAlive remains
+    # the backstop.
+    async def _on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        log.warning("bot error handler: %s", context.error)
+    app.add_error_handler(_on_error)
     app.add_handler(CommandHandler("today",    cmd_today))
     app.add_handler(CommandHandler("entered",  cmd_entered))
     app.add_handler(CommandHandler("closed",   cmd_closed))

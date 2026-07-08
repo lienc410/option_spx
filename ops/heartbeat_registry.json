@@ -44,6 +44,9 @@
     {"label": "com.spxstrat.q085_s2bps.bcd_shadow", "kind": "marker",
      "freshness": {"path": "data/.q087_bcd_shadow_ran", "rule": "trading_day"},
      "note": "SPEC-122 BCD real-quote shadow runs inside the q085 16:50 job; it touches this marker EVERY run (the shadow JSONL itself only grows on BCD signal days, so it cannot carry a freshness rule)"},
+    {"label": "com.spxstrat.weekly_recycle", "kind": "calendar", "allow_exit": [0],
+     "freshness": {"path": "data/.last_weekly_recycle", "rule": "weekly_8d"},
+     "note": "Sunday 08:00 service recycle (bot + cloudflared) + log rotation; machine reboot explicitly declined by PM 2026-07-07"},
     {"label": "com.spxstrat.q085_s2bps.bcd_governance", "kind": "marker",
      "freshness": {"path": "data/.q087_bcd_gov_ran", "rule": "trading_day"},
      "note": "SPEC-123 D1/D2 governance daily driver (marks + gate evaluation + quote-gate) rides the q085 16:50 job; marker touched every run"}

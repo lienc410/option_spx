@@ -47,6 +47,7 @@ data/.last_l2_archive
 data/.q087_bcd_shadow_ran
 # SPEC-123 heartbeat marker (BCD governance daily driver)
 data/.q087_bcd_gov_ran
+data/.last_weekly_recycle
 # SPEC-126 gateway dedupe state
 data/.push_dedupe.json
 
