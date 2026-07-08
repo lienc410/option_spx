@@ -420,6 +420,7 @@ body {
 .settling-panel { margin-top:14px;padding:11px 13px;background:var(--theme-lit-127);border:1px solid var(--theme-lit-132);border-radius:8px; }
 .settling-header { display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px; }
 .settling-title { font-family:var(--f-ui);font-size:0.64rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-2); }
+.settling-desc { margin-bottom:7px;font-family:var(--f-ui);font-size:0.62rem;line-height:1.5;color:var(--text-2); }
 .settling-body { font-family:var(--f-ui);font-size:0.76rem;color:var(--text); }
 .settling-note { margin-top:5px;font-family:var(--f-mono);font-size:0.62rem;color:var(--text-2); }
 .settling-compare { display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px; }
@@ -948,6 +949,7 @@ body {
       <div class="settling-title">Signal 2 · Settled VIX</div>
       <span class="state-badge badge-readonly" id="settling-badge-spx">WAITING</span>
     </div>
+    <div class="settling-desc">开盘竞价噪音可能污染 09:35 的 Signal 1 — Signal 2 等 VIX 盘中稳定后用同一套选择器规则复评一次。CONFIRMED = 稳定后结论未变（开盘信号可信）；CHANGED = 结论翻转（今天开盘信号慎用）。比较对象是原始选择器信号，不含 governance 降级 — 主卡的 WAIT 可能来自治理门而非信号本身。</div>
     <div class="settling-body" id="settling-body-spx">Loading settled-VIX state…</div>
     <div class="settling-note" id="settling-note-spx">Forward-tracking observation only. Not an actionable trade recommendation.</div>
   </div>
@@ -2913,7 +2915,7 @@ function _shortRec(sig) {
   if (key.includes('iron_condor')) return 'IC';
   if (key.includes('bull_put_spread')) return 'BPS';
   if (key.includes('bear_call_spread')) return 'BCS';
-  if (key.includes('diagonal')) return 'DIAG';
+  if (key.includes('diagonal')) return 'BCD';
   if (key.includes('aftermath')) return 'AFTERMATH';
   return sig.strategy || key || '—';
 }
@@ -2946,10 +2948,12 @@ async function loadSettling() {
     }
     if (data.status === 'stable' || data.status === 'timeout') {
       const stableLabel = data.status === 'timeout'
-        ? `timeout (12:30 ET · ${_fmtNumS(data.current_vix, 1)} · ${elapsed}m)`
-        : `stable at VIX ${_fmtNumS(data.current_vix, 1)} · ${elapsed}m`;
+        ? `timeout (12:30 ET · VIX ${_fmtNumS(data.current_vix, 1)} · never settled)`
+        : `settled at VIX ${_fmtNumS(data.current_vix, 1)} (took ${elapsed}m)`;
       bodyEl.innerHTML = `
-        <div>${data.changed ? 'Signal 2 differs from Signal 1.' : 'Signal 2 confirms Signal 1.'}</div>
+        <div>${data.changed
+          ? 'Signal 2 differs from Signal 1 — treat today\'s opening read with caution.'
+          : 'Signal 2 confirms Signal 1 — the opening read held after VIX settled.'}</div>
         <div class="settling-compare">
           <div class="settling-box">
             <div class="settling-box-label">Signal 1 · Opening</div>

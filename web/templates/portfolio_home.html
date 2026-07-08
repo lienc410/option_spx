@@ -1608,7 +1608,7 @@ function shortRecLabel(sig) {
   if (key.includes('iron_condor')) return 'IC';
   if (key.includes('bull_put_spread')) return 'BPS';
   if (key.includes('bear_call_spread')) return 'BCS';
-  if (key.includes('diagonal')) return 'DIAG';
+  if (key.includes('diagonal')) return 'BCD';
   if (key.includes('aftermath')) return 'AFTERMATH';
   return sig.strategy || key || '—';
 }
@@ -3293,11 +3293,18 @@ function renderPositionBars() {
         Math.abs(netMv) / maxAbs * 100, 'var(--theme-lit-044)', nlv);
     }
     const nonCashET = nonSpxOpts.filter(p => !_CASH_SYMBOLS.has(p.symbol));
-    const rows = nonSpxOpts.map(pos => {
+    let rows = nonSpxOpts.map(pos => {
       const mv = pos.market_value || 0;
       return _posBarRow((pos.symbol || '—').substring(0, 10), mv, pos.unrealized_pnl ?? null,
         Math.abs(mv) / maxAbs * 100, _etradePosColor(pos, ref), nlv);
     }).join('');
+    // Sweep cash bar — ETrade reports it via balances, not positions; render
+    // it like Schwab's Cash row so the single-account views read the same.
+    const etCashRowMv = d.cash_balance || 0;
+    if (etCashRowMv > 1) {
+      rows += _posBarRow('Cash', etCashRowMv, null,
+        Math.min(100, Math.abs(etCashRowMv) / maxAbs * 100), 'var(--theme-lit-165)', nlv);
+    }
     // Summary: SPX options net + non-cash equities
     const spxNetMv  = spxOpts.reduce((s, p) => s + (p.market_value || 0), 0);
     const spxNetPnl = spxOpts.length > 0 && spxOpts.every(p => p.unrealized_pnl != null)
@@ -3397,8 +3404,24 @@ function renderPositionBars() {
       });
     }
 
+    // E-Trade cash arrives via the balances API, not as a positions row the
+    // way Schwab reports its sweep cash — synthesize a bar row so both
+    // brokers' idle cash reads the same way in the combined view.
+    const etCashBar = e?.cash_balance || 0;
+    if (etCashBar > 1) {
+      renderList.push({
+        symbol: 'Cash · ET',
+        market_value: etCashBar,
+        unrealized_pnl: null,
+        _acct: 'etrade',
+        _split: false,
+        _isCashSynth: true,
+      });
+    }
+
     const _allRank = pos => {
       if (pos._isSPXOpt) return 0;
+      if (pos._isCashSynth) return 2;
       if (pos._split) return 1;
       if (pos._acct === 'schwab') {
         if (pos.category === 'cash' || pos.sub_category === 'cash_etf' ||
@@ -3436,6 +3459,9 @@ function renderPositionBars() {
           _schwabPosColor(pos._schwab, sRef), _etradePosColor(pos._etrade, eRef),
           ratioL, combinedNlv);
       }
+      if (pos._isCashSynth) {
+        return _posBarRow('Cash · ET', mv, null, barW, 'var(--theme-lit-165)', combinedNlv);
+      }
       const label = (pos.symbol || '—').substring(0, 10);
       const color = pos._acct === 'etrade' ? _etradePosColor(pos, eRef) : _schwabPosColor(pos, sRef);
       return _posBarRow(label, mv, pos.unrealized_pnl ?? null, barW, color, combinedNlv);
@@ -3444,6 +3470,7 @@ function renderPositionBars() {
     // Summary: exclude cash positions
     const _isCashAll = pos => {
       if (pos._isSPXOpt) return false;
+      if (pos._isCashSynth) return true;
       if (pos._acct === 'schwab' || pos._schwab) {
         const p = pos._schwab || pos;
         return p.category === 'cash' || p.sub_category === 'cash_etf' ||

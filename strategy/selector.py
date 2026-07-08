@@ -1524,10 +1524,19 @@ def _apply_bcd_governance_live(rec: Recommendation, vix: VixSnapshot, iv: IVSnap
         from strategy import bcd_governance as gov
         halt = gov.is_halted()
         if halt:
-            gates = ", ".join(g.get("gate", "?") for g in (halt.get("gates") or []))
+            # Lead with what happened in plain language (the gate dict already
+            # carries a human-readable detail); the gate code is provenance
+            # and trails in parentheses. "SPEC-123 D1，门：G2_18m_combined"
+            # told PM nothing (2026-07-07 review).
+            reasons = "；".join(
+                f"{g.get('detail') or '?'}（{g.get('gate', '?')}）"
+                for g in (halt.get("gates") or [])
+            ) or "触发门未知"
             return _reduce_wait(
-                f"BCD 家族 D1 治理暂停中（{halt.get('at')}，门：{gates}）——例行复核事件，"
-                f"恢复需 PM 显式复审（python -m strategy.bcd_governance --pm-clear）",
+                f"BCD 新开仓暂停（{halt.get('at')} 起）— 收益复核门触发：{reasons}。"
+                f"这是预期内的例行复核（edge 真实时每窗口也有约 39-48% 概率触发），"
+                f"不是策略失效判定；持仓管理不受影响。"
+                f"PM 复核后解除：python -m strategy.bcd_governance --pm-clear（SPEC-123 D1）",
                 vix, iv, trend, macro_warn=False,
                 canonical_strategy=rec.strategy.value, params=params,
             )
