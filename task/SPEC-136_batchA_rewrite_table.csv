@@ -1,0 +1,36 @@
+id,surface,file,line,original,human_rewrite,ref_handling
+P1,push:ladder shadow,notify/telegram_bot.py,1555,"🪜 SPEC-108 ladder shadow / Stage 1 shadow only — no production order was placed.","🪜 Ladder 分层建仓 · 模拟入场记录（纸面） / 仅模拟记录——未下任何真实单。",SPEC-108 从主文案删除（代码注释保留）
+P2,push:ladder v1b shadow,notify/telegram_bot.py,1569,"🪜 SPEC-108.1 V1b ladder shadow (Wed) / V1b parallel shadow (weekly Wed anchor) — no production order was placed.","🪜 Ladder 周三锚定版 · 模拟入场记录（纸面） / 周三锚定并行模拟——未下任何真实单。",SPEC-108.1 删除；V1b 保留为尾注（研究溯源标识）
+P3,push:ladder shadow title,notify/telegram_bot.py,1601,"V1b ladder shadow 记录","Ladder 周三锚定版 shadow 记录",V1b 移入正文尾注
+P4,push:ES credit stop,notify/telegram_bot.py,355,"SPEC-061 credit stop line breached. Consider closing immediately.","Credit stop（权利金止损线）已突破——建议立即平仓。",SPEC-061 删除
+P5,push:ES HV paper signal,notify/telegram_bot.py,474,"Research-only / paper-only per SPEC-104. NO PRODUCTION EXECUTION.","纸面研究信号——不会下任何真实单。",SPEC-104 删除
+P6,push:broker mismatch,notify/telegram_bot.py,683,"Run /opened to register, or /sync to auto-import (after SPEC-100).","Run /opened to register, or /sync to auto-import.",(after SPEC-100) 删除
+P7,push:digest 持仓行,notify/telegram_bot.py,1684,"持仓 <id>（bull_call_diagonal · 10d）","持仓 <id>（Bull Call Diagonal · 还剩 10 天）",strategy_descriptor(key).name = label_human 单源；无语义 10d → 还剩 10 天
+P8,push:digest 治理行,notify/telegram_bot.py,1697,"BCD: halted（待 PM 复审）/ BCD: normal","Bull Call Diagonal（BCD）：已暂停开新仓（待 PM 复审）/ BCD（Bull Call Diagonal）：正常",BCD 首次出现全称括注
+P9,push:digest quote-gate,notify/telegram_bot.py,1700,"quote-gate 3/10","BCD 真实报价已积累 3/10 天（满 10 天才评估重开）",分子分母语义补全
+P10,push:governance decision,notify/telegram_bot.py,1527,"Layer: <n> <name>","Rule: <name>（第 <n> 优先层）",层号降级为括注
+P11,push:EOD morning label,notify/telegram_bot.py,726,"Morning → REDUCE_WAIT / EOD → WAIT REDUCE_WAIT","Morning → NO ENTRY / EOD → NO ENTRY",裸 strategy_key 大写 → 词表 NO ENTRY + descriptor 名
+P12,push:intraday 状态损坏,strategy/intraday_governance.py,358,"🚨 SPEC-107 state corruption — falling back to raw selector / WAIT-safe governance.","🚨 盘中治理状态文件损坏——已回退安全模式（按原始信号 + 保守不动作处理）。",SPEC-107 删除；WAIT 词表违规修复
+P13,push:intraday config override,strategy/intraday_governance.py,361,"⚠️ SPEC-107 config override: INTRADAY_HYS_LOWER_FORCE_CLOSE is not True. Q077 approval required.","⚠️ 盘中治理配置被改动：强制平仓开关（INTRADAY_HYS_LOWER_FORCE_CLOSE）未开——此改动需走预注册审批。",SPEC-107/Q077 删除；flag 名保留（操作标识）
+P14,push:sleeve cash alert,strategy/sleeve_governance.py,1174,"⚠️ Debit cash-utilization alert (SPEC-111)","⚠️ Debit 策略现金占用预警",SPEC-111 删除
+P15,push:cash review triggers,strategy/cash_budget_governance.py,539;560,"per SPEC-111 复审 §5.4:提请人工复审,不自动改参数。","按预注册复审规则：提请人工复审，系统不自动改参数。",SPEC-111 §5.4 删除
+P16,push:Q042 trigger,production/q042_executor.py,108;118,"title Q042 Drawdown Overlay 触发 / 🟢 Q042 [Sleeve A] | SPX","title Drawdown Overlay（回撤加仓）触发 / 🟢 Drawdown Overlay [Sleeve A] · SPX",Q042 删除（nav 已用 DD Overlay 名）
+P17,push:T3 earnings,notify/q041_t3_earnings_check.py,153;169;189;198,"📅 Q041 T3 Paper Signal: NVDA T-3 (earn_date …) / Q041 T3 Paper Close / Q041 <sym> T-3: blocked — VIX x < 15 / no candidate","📅 财报 IC 纸面信号：NVDA 财报前 3 天（财报日 …）/ 财报 IC 纸面平仓：… 财报后 1 天 / 财报 IC：… 不开仓——VIX x 低于 15 门槛 / 无候选（期权链或到期缺失）",Q041/T3 代号删除；T-3 → 财报前 3 天
+P18,push:T2 CSP paper,notify/q041_paper_telegram.py,90,"📋 Q041 T2 Paper Signal <date>","📋 CSP 纸面信号 <date>（sleeve 研究）",Q041/T2 删除
+P19,push:chain sanity,research/q041/daily_chain_sanity.py,193;202,"📋 Q041 Chain Sanity <date> / S1 symbol cov: 8/8 / S2 row anomaly / S3 IV complete / S4 EOD presence","📋 期权链数据体检 <date>（sleeves）/ 标的覆盖 / 行数异常 / IV 完整度 / 收盘数据",Q041 与 S1-S4 代号删除
+P20,push:DEFERRED digest,scripts/ops_heartbeat.py,138,"（每月首个周一自动推送，SPEC-124）","（每月首个周一自动推送）",SPEC-124 删除
+P21,push:structure progress,scripts/ops_heartbeat.py,149,"Q090 structure shadow: 已记 N 天 · S3 墙触发 n/6（正式测门槛）· S1s on-day n/8（重开门槛）","Structure Map 证据积累：已记 N 天 · 墙触发样本 n/6（攒满 6 个可正式检验）· 当日贴墙样本 n/8（攒满 8 个可重开研究）",Q090/S3/S1s 代号删除
+P22,push:skew BPS paper,notify/q085_s2bps_paper.py,443;485;531;547;559,"[S2-BPS PAPER] … missing_chain — skew/管理跳过（SPEC-114 sanity 会另行报警）/ trailing10 $x","[Skew-BPS 纸面] … 期权链缺失——今日 skew 信号与持仓管理跳过（链体检任务会另行报警）/ 近 10 笔合计 $x",S2-BPS→Skew-BPS 纸面；SPEC-114 删除
+P23,push:BCD trace G1 detail,strategy/bcd_governance.py,246,"（计数口径：整仓平仓与 roll 短腿周期各一笔，SPEC-127）","（计数口径：整仓平仓与 roll 短腿周期各计一笔）",SPEC-127 删除（code_ref 字段已带 SPEC-123 G1）
+P24,push:BCD 预注册复审,strategy/bcd_governance.py,577,"…累计 N 笔——SPEC-127 口径：…。请 PM+Quant 按 D1 预注册流程复审。","…累计 N 笔（计数口径：整仓平仓与 roll 短腿周期各计一笔）。请 PM+Quant 按预注册复审流程复核（报价对照 + 边际复核）。",SPEC-127/D1 删除
+P25,push:BCD halt message,strategy/bcd_governance.py,309,"[BCD 治理] 例行复核事件 — D1 门触发，BCD 格降级为 wait / G4 家族累计门触发，BCD 全停 / · G1_last6_realized: <detail>","[BCD 治理] 例行复核事件 — 安全刹车触发，BCD 暂停开新仓 / 家族累计亏损门触发（18 个月合计转负），BCD 全线暂停 / · 最近 6 笔合计门：<detail>",D1/G4 删除；gate id → GATE_LABEL_HUMAN 映射（与门逻辑同文件）
+P26,push:BCD quote-gate 解锁,strategy/bcd_governance.py,392,"[BCD 治理] D2 前置门解锁（date）：LOW_VOL 报价 X 天 ≥ 10，CALIB 偏移复核通过（…）。解锁后首 5 笔 1 张锁定（advisory，PM 手动执行自律）。","[BCD 治理] 重开前置条件已满足（date）：LOW_VOL 环境真实报价已积累 X 天（≥ 10），报价-模型偏移复核通过（…）。重开后前 5 笔每笔限 1 张（提示性纪律，PM 手动执行）。",D2/CALIB 代号删除
+P27,rationale:quote-gate,strategy/selector.py,1813,"　[D2 quote-gate: 0/10 天，未解锁前主格开仓将触发即时复审]","　[BCD 重开前置：真实报价已积累 0/10 天——未满前开 BCD 将触发即时复审（提示不拦）]",D2/主格 删除；晨报与卡片同源 rationale
+P28,rationale:first5,strategy/selector.py,1822,"　[D2 <adv>]","　[BCD 纪律：<adv>]",D2 删除
+P29,push:manual open advisory,web/server.py,5687,"D2 前置门未解锁（3/10 天）— 本单触发即时复审（预注册条件）","BCD 重开前置条件未满足（真实报价 3/10 天）——本单会触发即时复审（预注册条件）",D2 删除
+W1,web:governance chip,web/templates/portfolio_home.html,3649,"SPEC-103 R5 Stress Cap / SPEC-103 R6 Second-Leg Block","Stress Cap（压力市敞口上限）/ Second-Leg Block（第二腿禁开）",SPEC-103 R5/R6 删除（label map 与 chip 逻辑同居）
+W2,web:HV ladder mode note,web/templates/portfolio_home.html,2800,"0% production · paper signals continue (SPEC-104)","0% production · paper signals continue",SPEC-104 删除
+W3,web:BP legend,web/templates/portfolio_home.html,2421;2490,"Q041 <x>%","Sleeves <x>%",Q041 → nav 同名 Sleeves
+W4,web:tgt profit hover,web/templates/portfolio_home.html,1900,"Target exceeds theoretical max profit — unreachable for this debit structure. Engine pnl_ratio convention needs a debit-structure review (SPEC-125 C1).","目标超过该 debit 结构的理论最大盈利，无法达成（盈利口径对 debit 结构的换算待复核）。",hover 层允许溯源：SPEC-125 C1 保留在句尾括注
+W5,web:open button hover,web/templates/spx.html,1370,"Outside the scheduled intraday-governance window (SPEC-107) — proceed with caution","当前不在盘中治理决策窗口——手动开仓属窗口外操作（提示不拦）",SPEC-107 删除（hover 已是次级层，无需再溯源）
+W6,web:structure badge,web/templates/spx.html,2710,"Q090 无验证边际，仅描述","无验证边际，仅描述",Q090 移入 title 悬停（溯源 Q090）

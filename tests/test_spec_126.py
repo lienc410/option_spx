@@ -151,7 +151,8 @@ class TestDigest(unittest.TestCase):
         self.assertNotIn("WAIT", body.replace("NO ENTRY", ""))
         self.assertIn("持仓 2026-06-03_bcd_001", body)
         self.assertIn("治理", body)
-        self.assertIn("quote-gate 3/10", body)
+        # SPEC-136：quote-gate 缩写 → 人话（分子分母语义完整）
+        self.assertIn("真实报价已积累 3/10 天", body)
         self.assertNotIn("异常", body)           # clean day → zone omitted
         self.assertEqual(category, "FYI")        # nothing actionable
 
@@ -173,7 +174,7 @@ class TestDigest(unittest.TestCase):
         self.assertEqual(category, "ACTION")
         self.assertIn("异常", body)
         self.assertIn("Schwab 需要重新授权", body)
-        self.assertIn("halted", body)
+        self.assertIn("已暂停开新仓", body)  # SPEC-136：halted → 人话
 
     def test_non_trading_day_sends_nothing(self):
         import asyncio

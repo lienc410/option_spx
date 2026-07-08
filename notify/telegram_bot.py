@@ -186,7 +186,10 @@ def _format_recommendation(rec: Recommendation) -> str:
 
     iv_note = ""
     if abs(rec.iv_snapshot.iv_rank - rec.iv_snapshot.iv_percentile) > 15:
-        iv_note = f" (IVP {rec.iv_snapshot.iv_percentile:.0f} used — IVR distorted)"
+        # SPEC-136 #2 — 数字带语义，贵贱刻度与 trace 同源（ivp_phrase）
+        from strategy.decision_trace import ivp_phrase
+        iv_note = (f"（IVR 本期失真，改用 IVP："
+                   f"{ivp_phrase(rec.iv_snapshot.iv_percentile)}）")
 
     ts_note = ""
     if rec.vix_snapshot.vix3m is not None:
@@ -215,7 +218,16 @@ def _format_recommendation(rec: Recommendation) -> str:
     if rec.position_action in ("OPEN", "CLOSE_AND_OPEN"):
         entered_hint = "\n\n<i>After executing: send /entered to record your position.</i>"
 
+    # SPEC-136 #1 — 首行 = trace final verdict 人话锚点，与
+    # /api/decision-trace final 节点逐字同源（单源原则，禁止手写第二套）
+    verdict_line = ""
+    _fv = next((n.get("label_human") for n in (getattr(rec, "trace", None) or [])
+                if n.get("kind") == "final"), None)
+    if _fv:
+        verdict_line = f"<b>{_h(_fv)}</b>\n"
+
     return (
+        f"{verdict_line}"
         f"{action_emoji} {emoji} <b>Options Recommendation — {_h(date)}</b>\n"
         f"{'─' * 32}\n"
         f"<b>Action:</b>    <code>{_h(rec.position_action)}</code>\n"
@@ -241,10 +253,11 @@ def _esc(text: str) -> str:
 
 def _format_spike_alert(spike: VixSpikeAlert) -> str:
     icon = "🚨" if spike.level == SpikeLevel.ALERT else "⚠️"
+    # SPEC-136 #6 — advice 文案为完整中文句（英文骨架行保留，数字带上下文）
     advice = (
-        "🚨 VIX surging — consider closing or hedging short vol positions."
+        "🚨 VIX 快速拉升——考虑平掉或对冲短 vol 仓位。"
         if spike.level == SpikeLevel.ALERT
-        else "⚠️ VIX rising fast — monitor closely."
+        else "⚠️ VIX 上行加速——盯紧，暂不动作。"
     )
     timing = _alert_timing_label(spike.timestamp, spike.realtime)
     return (
@@ -257,10 +270,11 @@ def _format_spike_alert(spike: VixSpikeAlert) -> str:
 
 def _format_stop_alert(stop: IntradayStopTrigger) -> str:
     icon = "🚨" if stop.level == StopLevel.TRIGGER else "⚠️"
+    # SPEC-136 #6 — advice 文案为完整中文句
     advice = (
-        "🚨 -2% trigger: close or reduce credit spreads immediately."
+        "🚨 日内跌破 -2% 触发线：立即平掉或减仓 credit spread。"
         if stop.level == StopLevel.TRIGGER
-        else "⚠️ -1% caution: tighten mental stops."
+        else "⚠️ 日内跌破 -1% 警戒线：收紧心理止损，准备行动。"
     )
     timing = _alert_timing_label(stop.timestamp, stop.realtime)
     return (
@@ -347,26 +361,29 @@ def _format_es_stop_alert(result: EsStopResult) -> str:
     ratio    = result.ratio or 0.0
     _trigger = _ES_P.stop_mult
     _warn    = ES_STOP_WARN_MULT
+    # SPEC-136 #3 — 数字带语义（入场 → 现在几倍）；标题保留英文 token
+    # （_classify_intraday 按 TRIGGERED / Stop Watch / cleared 路由类别）
     if result.level == EsStopLevel.TRIGGER:
         return (
             f"🚨 <b>/ES Short Put — Credit Stop TRIGGERED [×{_trigger:.0f} mark]</b>\n"
-            f"Entry premium: <code>{entry:.2f}</code> → Current mark: <code>{mark:.2f}</code>  "
-            f"(<code>×{ratio:.2f}</code>)\n"
-            "SPEC-061 credit stop line breached. Consider closing immediately.\n"
+            f"止损触发：权利金已翻至入场价 {ratio:.1f} 倍"
+            f"（入场 <code>{entry:.2f}</code> → 现在 <code>{mark:.2f}</code>，"
+            f"触发线 ×{_trigger:.0f}）——规则要求平仓。\n"
             "<i>/closed after exiting.</i>"
         )
     if result.level == EsStopLevel.WARNING:
         stop_mark = entry * _trigger
         return (
             f"⚠️ <b>/ES Short Put — Stop Watch [×{_warn:.0f} mark]</b>\n"
-            f"Entry premium: <code>{entry:.2f}</code> → Current mark: <code>{mark:.2f}</code>  "
-            f"(<code>×{ratio:.2f}</code>)\n"
-            f"Credit stop fires at ×{_trigger:.0f} (mark ≥ <code>{stop_mark:.2f}</code>).\n"
-            "Monitor closely and prepare to close if mark continues rising."
+            f"接近止损线：权利金已到入场价 {ratio:.2f} 倍"
+            f"（入场 <code>{entry:.2f}</code> → 现在 <code>{mark:.2f}</code>）。\n"
+            f"权利金到 ×{_trigger:.0f}（mark ≥ <code>{stop_mark:.2f}</code>）即触发止损——"
+            "盯紧，继续上行就准备平仓。"
         )
     return (
         f"✅ <b>/ES Short Put — Stop watch cleared</b>\n"
-        f"Mark has fallen back below ×{_warn:.0f} threshold. Current mark: <code>{mark:.2f}</code>"
+        f"止损观察解除：权利金已回落到 ×{_warn:.0f} 观察线以下"
+        f"（现在 <code>{mark:.2f}</code>）。"
     )
 
 
@@ -471,7 +488,7 @@ def _format_es_hv_paper_signal(record: dict) -> str:
         f"Active slots: <code>{record['active_slots']}/{_ES_HV_MAX_SLOTS}</code>\n"
         f"Entry DTE: <code>{_ES_HV_ENTRY_DTE}</code> · target |delta| <code>{_ES_HV_TARGET_DELTA:.2f}</code>\n"
         f"Est. strike: <code>{record['est_strike']:.0f}</code> · est. premium: <code>{record['est_premium']:.2f}</code>\n"
-        "Research-only / paper-only per SPEC-104. NO PRODUCTION EXECUTION."
+        "纸面研究信号——不会下任何真实单。"
     )
 
 
@@ -680,7 +697,7 @@ def _check_broker_state_mismatch() -> str | None:
             "⚠️ <b>Broker-State Mismatch</b>\n"
             f"Schwab shows {len(spx_options)} open SPX option leg(s) but "
             f"local state has no open position recorded.\n"
-            f"<i>Run /opened to register, or /sync to auto-import (after SPEC-100).</i>"
+            f"<i>Run /opened to register, or /sync to auto-import.</i>"
         )
     return None
 
@@ -724,11 +741,17 @@ def _position_tenor(state: dict | None) -> str | None:
 
 
 def _morning_label(morning: dict) -> str:
+    # SPEC-136 词表合规：WAIT 不在 Action State 词表 → NO ENTRY；
+    # 裸 strategy_key 大写 → catalog 人话名（label_human 单源）
     action = str(morning.get("position_action") or "").upper()
-    strategy_key = str(morning.get("strategy_key") or "").upper()
-    if action == "WAIT":
-        return strategy_key or action
-    return " ".join(part for part in (action, strategy_key) if part)
+    key = str(morning.get("strategy_key") or "")
+    if action == "WAIT" or key == "reduce_wait":
+        return "NO ENTRY"
+    try:
+        name = strategy_descriptor(key).name
+    except Exception:
+        name = key.upper()
+    return " ".join(part for part in (action, name) if part)
 
 
 def _format_eod_snapshot(
@@ -747,7 +770,7 @@ def _format_eod_snapshot(
         comparison = (
             "⚠️ Signal changed from morning:\n"
             f"  Morning → {_h(_morning_label(morning))}  [VIX Trend {_h(morning.get('vix_trend', '?'))}]\n"
-            f"  EOD     → {_h(rec.position_action)} {_h(rec.strategy_key.upper())}  "
+            f"  EOD     → {_h(_morning_label({'position_action': rec.position_action, 'strategy_key': rec.strategy_key}))}  "
             f"[VIX Trend {_h(rec.vix_snapshot.trend.value)}]\n"
             "  Re-evaluate before tomorrow's open."
         )
@@ -1524,7 +1547,7 @@ def _format_governance_decision(rec: Recommendation, decision) -> str:
         f"{'─' * 32}\n"
         f"<b>Final:</b> <code>{_h(decision.governed_position_action)}</code> "
         f"{_h(decision.governed_strategy)}{override}\n"
-        f"<b>Layer:</b> <code>{decision.final_priority_layer}</code> {_h(decision.final_priority_name)}\n"
+        f"<b>Rule:</b> {_h(decision.final_priority_name)}（第 {decision.final_priority_layer} 优先层）\n"
         f"<b>Signals:</b> VIX <code>{decision.vix}</code> · IVP <code>{decision.ivp252}</code> · "
         f"Regime <code>{_h(decision.regime)}</code>\n"
         f"<b>Why:</b> <i>{_h(getattr(rec, 'rationale', '') or '')}</i>"
@@ -1551,29 +1574,30 @@ async def scheduled_intraday_governance_push(bot: Bot, chat_id: str) -> None:
 
 
 def _format_ladder_shadow_message(payload: dict) -> str:
+    # SPEC-136：主文案零 SPEC 代号（原 SPEC-108 标题）
     return (
-        "🪜 <b>SPEC-108 ladder shadow</b>\n"
+        "🪜 <b>Ladder 分层建仓 · 模拟入场记录（纸面）</b>\n"
         f"{'─' * 32}\n"
         f"<b>Would enter:</b> <code>{_h(payload.get('selector_strategy') or '—')}</code>\n"
         f"<b>Sizing:</b> <code>{payload.get('sizing_contracts')} contracts</code>\n"
         f"<b>Max loss:</b> <code>${payload.get('theoretical_max_loss')}</code> "
         f"({payload.get('theoretical_max_loss_pct_nlv')}% NLV)\n"
         f"<b>BP now:</b> <code>{payload.get('current_bp_pct_nlv')}%</code>\n"
-        "Stage 1 shadow only — no production order was placed."
+        "仅模拟记录——未下任何真实单。"
     )
 
 
 def _format_ladder_v1b_shadow_message(payload: dict) -> str:
-    """SPEC-108.1 R2: V1b weekly-anchor shadow alert (mirror of V3)."""
+    """V1b weekly-anchor shadow alert (mirror of V3) — V1b 仅作尾注溯源标识。"""
     return (
-        "🪜 <b>SPEC-108.1 V1b ladder shadow (Wed)</b>\n"
+        "🪜 <b>Ladder 周三锚定版 · 模拟入场记录（纸面）</b>\n"
         f"{'─' * 32}\n"
         f"<b>Would enter:</b> <code>{_h(payload.get('selector_strategy') or '—')}</code>\n"
         f"<b>Sizing:</b> <code>{payload.get('sizing_contracts')} contracts</code>\n"
         f"<b>Max loss:</b> <code>${payload.get('theoretical_max_loss')}</code> "
         f"({payload.get('theoretical_max_loss_pct_nlv')}% NLV)\n"
         f"<b>BP now:</b> <code>{payload.get('current_bp_pct_nlv')}%</code>\n"
-        "V1b parallel shadow (weekly Wed anchor) — no production order was placed."
+        "周三锚定并行 shadow——未下任何真实单。（V1b）"
     )
 
 
@@ -1598,7 +1622,7 @@ async def scheduled_ladder_shadow_push(bot: Bot, chat_id: str) -> None:
         v1b_payload = state.get("ladder_v1b_shadow_payload") or {}
         if v1b_payload.get("shadow_log_written") and v1b_payload.get("would_enter") and v1b_payload.get("ladder_v1b_mode") == "shadow":
             from notify.gateway import apush
-            await apush(bot, chat_id, "FYI", "系统状态", "V1b ladder shadow 记录",
+            await apush(bot, chat_id, "FYI", "系统状态", "Ladder 周三锚定版 shadow 记录",
                         _format_ladder_v1b_shadow_message(v1b_payload))
             log.info("SPEC-108.1 V1b ladder shadow alert sent.")
 
@@ -1623,13 +1647,21 @@ async def scheduled_eod_push(bot: Bot, chat_id: str) -> None:
             from strategy.q078_ladder_monitors import strategy_distribution_check
             drift = strategy_distribution_check()
             if drift.get("drift_alert"):
+                # SPEC-136 #5 — 数字带语义 + 策略人话名（catalog 单源）
+                def _drift_label(k: str, v: dict) -> str:
+                    try:
+                        name = strategy_descriptor(k).name
+                    except Exception:
+                        name = k
+                    return (f"{name} 占比高出 90 天常态 "
+                            f"{v['deviation_pp']:+.0f} 个百分点")
                 worst = next(
-                    (f"{k} {v['deviation_pp']:+.0f}pp" for k, v in (drift.get("drift_detail") or {}).items() if v.get("alert")),
-                    "drift detected",
+                    (_drift_label(k, v) for k, v in (drift.get("drift_detail") or {}).items() if v.get("alert")),
+                    "检测到分布漂移",
                 )
-                eod_text += f"\n📊 <b>Ladder drift alert</b>: {_h(worst)} — review strategy distribution"
+                eod_text += f"\n📊 <b>策略分布漂移提醒</b>：{_h(worst)}——建议看一眼分布"
             else:
-                eod_text += f"\n📊 <b>Ladder drift</b>: none (90d distribution normal)"
+                eod_text += f"\n📊 <b>策略分布</b>：正常（90 天占比无漂移）"
         except Exception:
             pass
 
@@ -1676,12 +1708,17 @@ def build_preclose_digest() -> tuple[str, str, str]:
                     try:
                         d = (datetime.strptime(p["expiry"], "%Y-%m-%d").date()
                              - datetime.now(ET).date()).days
-                        dte = f" · {d}d"
+                        dte = f" · 还剩 {d} 天"
                         if d <= 7:
                             actionable = True
                     except ValueError:
                         pass
                 _sk = p.get("strategy_key") or p.get("strategy") or _state_sk or "?"
+                # SPEC-136 — 裸 strategy_key → catalog 人话名（label_human 单源）
+                try:
+                    _sk = strategy_descriptor(_sk).name
+                except Exception:
+                    pass
                 lines.append(f"  · 持仓 {_h(p.get('trade_id', '?'))}"
                              f"（{_h(_sk)}{dte}）")
         else:
@@ -1694,10 +1731,13 @@ def build_preclose_digest() -> tuple[str, str, str]:
     try:
         from strategy.bcd_governance import is_halted, quote_gate_status
         halt = is_halted()
-        gov_bits.append("BCD: halted（待 PM 复审）" if halt else "BCD: normal")
+        gov_bits.append("Bull Call Diagonal（BCD）：已暂停开新仓（待 PM 复审）"
+                        if halt else "BCD（Bull Call Diagonal）：正常")
         qg = quote_gate_status()
         if not qg["unlocked"]:
-            gov_bits.append(f"quote-gate {qg['days']}/{qg['needed']}")
+            # SPEC-136 单源：文案来自 quote_gate_status().label_human
+            gov_bits.append(qg.get("label_human")
+                            or f"真实报价已积累 {qg['days']}/{qg['needed']} 天")
         if halt:
             actionable = True
     except Exception:

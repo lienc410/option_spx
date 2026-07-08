@@ -1367,7 +1367,7 @@ function renderPosition(p) {
     // block — PM has final discretion).
     actions.innerHTML = canOpen
       ? `<button class="action-btn primary" onclick="openTradeModal('open')">+ Open Position</button>`
-      : `<button class="action-btn primary" onclick="openTradeModal('open')" title="Outside the scheduled intraday-governance window (SPEC-107) — proceed with caution">+ Open Position</button>
+      : `<button class="action-btn primary" onclick="openTradeModal('open')" title="当前不在盘中治理决策窗口——手动开仓属窗口外操作（提示不拦）">+ Open Position</button>
          <span class="modal-hint" style="margin-left:10px;color:var(--text-2);font-size:0.66rem">(off-schedule · next scheduled ${nextText})</span>`;
     return;
   }
@@ -2707,7 +2707,7 @@ function renderStructureMap(d) {
   const prog = d.progress || {};
   // Badge 词汇表（SPEC-132 强制）：墙 = 前瞻收集中 n=X/60；其余 = Q090 无验证边际，仅描述
   const wallBadge = `<span class="structure-badge open">前瞻收集中 n=${prog.s3_n ?? 0}/${d.targets?.s3 ?? 60}</span>`;
-  const nullBadge = '<span class="structure-badge null">Q090 无验证边际，仅描述</span>';
+  const nullBadge = '<span class="structure-badge null" title="溯源 Q090">无验证边际，仅描述</span>';
   const fmtK = (v) => v == null ? '—' : Number(v).toLocaleString();
   const wallRows = (arr) => (arr && arr.length)
     ? arr.map((w) => `<div class="wall-row"><strong>${fmtK(w.strike)}</strong><span class="oi">OI ${Number(w.oi).toLocaleString()}</span><span class="dist">${w.dist_pct >= 0 ? '+' : ''}${w.dist_pct}%</span></div>`).join('')

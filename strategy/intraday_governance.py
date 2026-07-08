@@ -355,11 +355,12 @@ def evaluate_recommendation(
     baseline_action = str(getattr(rec, "position_action", "") or "")
 
     if corrupt:
-        _telegram_alert("🚨 <b>SPEC-107 state corruption</b> — falling back to raw selector / WAIT-safe governance.")
+        _telegram_alert("🚨 <b>盘中治理状态文件损坏</b>——已回退安全模式（按原始 selector 信号 + 保守不动作处理）。")
 
     if INTRADAY_HYS_LOWER_FORCE_CLOSE is not True and not state_payload.get("flag_override_alerted"):
         _telegram_alert(
-            "⚠️ <b>SPEC-107 config override</b>: INTRADAY_HYS_LOWER_FORCE_CLOSE is not True. Q077 approval required."
+            "⚠️ <b>盘中治理配置被改动</b>：强制平仓开关 "
+            "<code>INTRADAY_HYS_LOWER_FORCE_CLOSE</code> 未开——此改动需走预注册审批。"
         )
         _append_jsonl(DECISION_LOG_PATH, {
             "timestamp": now.isoformat(timespec="seconds"),

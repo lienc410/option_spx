@@ -240,10 +240,11 @@ def evaluate_gates_detailed(today: str) -> tuple[list[dict], list[dict]]:
         g1_hit = s < 0
         if g1_hit:
             fired.append({"gate": "G1_last6_realized",
+                          "label_human": f"最近 {GATE1_LAST_N} 笔合计门（安全刹车）",
                           "detail": f"最近 {GATE1_LAST_N} 笔实现和 ${s:,.0f} < 0"})
         _node("g1_last6",
               f"最近 {GATE1_LAST_N} 笔实现结果合计是否转负（转负 = 例行复核，非失效判定）",
-              f"合计 ${s:,.0f} vs 0（计数口径：整仓平仓与 roll 短腿周期各一笔，SPEC-127）",
+              f"合计 ${s:,.0f} vs 0（计数口径：整仓平仓与 roll 短腿周期各计一笔）",
               g1_hit, {"last_n_sum": round(s, 2), "n": GATE1_LAST_N}, "SPEC-123 G1")
     else:
         _node("g1_last6",
@@ -259,6 +260,7 @@ def evaluate_gates_detailed(today: str) -> tuple[list[dict], list[dict]]:
     g2_hit = bool(n2 >= GATE2_MIN_TRADES and s2 < 0)
     if g2_hit:
         fired.append({"gate": "G2_18m_combined",
+                      "label_human": "18 个月合计门",
                       "detail": f"18 个月实现+标记和 ${s2:,.0f} < 0（n={n2}）"})
     _node("g2_18m",
           "该策略家族 18 个月合计（已实现 + 持仓按市价折算）是否转负",
@@ -284,6 +286,7 @@ def evaluate_gates_detailed(today: str) -> tuple[list[dict], list[dict]]:
     g3_hit = month_dd <= GATE3_MONTH_MARK_DD_USD
     if g3_hit:
         fired.append({"gate": "G3_month_mark_dd",
+                      "label_human": "单月标记回撤门",
                       "detail": f"{month} 标记回撤 ${month_dd:,.0f} ≤ ${GATE3_MONTH_MARK_DD_USD:,.0f}"})
     _node("g3_month_dd",
           "本月持仓按市价折算的回撤是否超过单月上限",
@@ -296,6 +299,7 @@ def evaluate_gates_detailed(today: str) -> tuple[list[dict], list[dict]]:
     g4_hit = cum < GATE4_FAMILY_CUM_USD
     if g4_hit:
         fired.append({"gate": "G4_family_cum", "full_halt": True,
+                      "label_human": "家族累计全停门",
                       "detail": f"家族累计（实现+标记）${cum:,.0f} < ${GATE4_FAMILY_CUM_USD:,.0f}"})
     _node("g4_family_cum",
           "该策略家族开账以来累计（实现 + 标记）是否击穿全停线（击穿 = 全停 + PM 复审）",
@@ -311,16 +315,18 @@ def _halt_message(fired: list[dict], today: str) -> str:
     # happens once, whole-body, in daily_update's push() — the 7/6 fix escaped
     # only the gate details and the 背景 line's raw "<0" below killed the 7/7
     # push all over again. Never escape fragments.
-    lines = "\n".join(f"  · {f['gate']}: {f['detail']}" for f in fired)
+    lines = "\n".join(f"  · {f.get('label_human', f['gate'])}: {f['detail']}"
+                      for f in fired)
     full = any(f.get("full_halt") for f in fired)
-    head = "[BCD 治理] 例行复核事件 — D1 门触发，BCD 格降级为 wait"
+    head = "[BCD 治理] 例行复核事件 — 安全刹车触发，BCD 暂停开新仓"
     if full:
-        head = "[BCD 治理] 例行复核事件 — G4 家族累计门触发，BCD 全停，请 PM 复审"
+        head = ("[BCD 治理] 例行复核事件 — 家族累计亏损击穿全停线，"
+                "BCD 全线暂停，请 PM 复审")
     return (
         f"{head}（{today}）\n{lines}\n"
-        "背景：P(6 笔和<0 | 边际为真) ≈ 39-48%/窗口——本事件是预期内的例行复核，"
-        "不构成告警。恢复需 PM 显式复审 + fresh 报价对照："
-        "python -m strategy.bcd_governance --pm-clear \"...\""
+        "背景：即使策略边际为真，6 笔合计转负的概率也有约 39-48%/窗口——"
+        "本事件是预期内的例行复核，不构成告警。恢复需 PM 显式复审 + "
+        "fresh 报价对照：python -m strategy.bcd_governance --pm-clear \"...\""
     )
 
 
@@ -345,6 +351,8 @@ def _lowvol_quote_days() -> list[str]:
 
 
 def quote_gate_status() -> dict:
+    # label_human 与门逻辑同居（SPEC-136 单源原则）：digest / selector
+    # rationale / 手动开仓 advisory 一律取此字段，禁止各处手写第二套。
     st = read_state()
     days = _lowvol_quote_days()
     return {
@@ -352,6 +360,8 @@ def quote_gate_status() -> dict:
         "unlocked_at": st.get("quote_gate_unlocked_at"),
         "days": len(days),
         "needed": QUOTE_GATE_DAYS,
+        "label_human": (f"真实报价已积累 {len(days)}/{QUOTE_GATE_DAYS} 天"
+                        f"（满 {QUOTE_GATE_DAYS} 天才评估 BCD 重开）"),
     }
 
 
@@ -390,9 +400,9 @@ def check_quote_gate_unlock(today: str) -> str | None:
     st["quote_gate_unlocked"] = True
     st["quote_gate_unlocked_at"] = today
     _write_state(st)
-    return (f"[BCD 治理] D2 前置门解锁（{today}）：LOW_VOL 报价 {len(days)} 天 ≥ "
-            f"{QUOTE_GATE_DAYS}，CALIB 偏移复核通过（{detail}）。"
-            f"解锁后首 {FIRST_TRADES_ONE_LOT} 笔 1 张锁定（advisory，PM 手动执行自律）。")
+    return (f"[BCD 治理] 重开前置条件已满足（{today}）：LOW_VOL 环境真实报价已积累 "
+            f"{len(days)} 天（≥ {QUOTE_GATE_DAYS}），报价-模型偏移复核通过（{detail}）。"
+            f"重开后前 {FIRST_TRADES_ONE_LOT} 笔每笔限 1 张（提示性纪律，PM 手动执行）。")
 
 
 def first5_advisory() -> str | None:
@@ -575,8 +585,8 @@ def daily_update(today: str, calls=None, regime: str | None = None,
         st["realized_seen"] = n_realized
         _write_state(st)
         push(f"[BCD 治理] 预注册复审触发：BCD 实现事件落 ledger（累计 {n_realized} 笔——"
-             "SPEC-127 口径：整仓平仓与 roll 短腿周期各计一笔）。"
-             "请 PM+Quant 按 D1 预注册流程复审。")
+             "计数口径：整仓平仓与 roll 短腿周期各计一笔）。"
+             "请 PM+Quant 按预注册复审流程复核（报价对照 + 边际复核）。")
 
     # 3. D1 gates
     try:

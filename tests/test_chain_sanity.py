@@ -144,7 +144,7 @@ class TestAC2_MissingSymbols(unittest.TestCase):
         alert = _build_alert(rec)
         self.assertIn("SPX", alert)
         self.assertIn("QQQ", alert)
-        self.assertIn("S1", alert)
+        self.assertIn("标的缺失", alert)  # SPEC-136：S1 代号移出主文案
 
 
 class TestReportFormat(unittest.TestCase):
@@ -159,7 +159,7 @@ class TestReportFormat(unittest.TestCase):
             alert_fired=False, notes="",
         )
         report = _build_report(rec)
-        self.assertIn("📋 Q041 Chain Sanity", report)
+        self.assertIn("📋 期权链数据体检", report)  # SPEC-136：主文案零内部代号
         self.assertIn("17/17", report)
         self.assertIn("✅", report)
         self.assertNotIn("❌", report)

@@ -1935,7 +1935,7 @@ async function loadSpx() {
           // (60% × $38.3k debit = $23k tgt vs $12.6k BS max). An unreachable
           // target silently disables the exit discipline; surface it.
           const unreachable = isDebitAll && totalMaxProfit > 0 && tgtProfitAll > totalMaxProfit;
-          tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Profit (${profitTargetPct})${unreachable ? ' ⚠' : ''}</div><div class="pos-value ${unreachable ? '' : 'profit'}" ${unreachable ? 'style="color:var(--orange)" title="Target exceeds theoretical max profit — unreachable for this debit structure. Engine pnl_ratio convention needs a debit-structure review (SPEC-125 C1)."' : ''}>+$${Math.round(tgtProfitAll).toLocaleString()}</div></div>`;
+          tgtHtml = `<div class="pos-item"><div class="pos-label">Tgt Profit (${profitTargetPct})${unreachable ? ' ⚠' : ''}</div><div class="pos-value ${unreachable ? '' : 'profit'}" ${unreachable ? 'style="color:var(--orange)" title="目标超过该 debit 结构的理论最大盈利，无法达成——盈利口径对 debit 结构的换算待复核（溯源 SPEC-125 C1）"' : ''}>+$${Math.round(tgtProfitAll).toLocaleString()}</div></div>`;
         }
         if (isDebitAll && totalMaxProfit > 0) {
           maxProfitHtml = `<div class="pos-item"><div class="pos-label">Max Profit</div><div class="pos-value" style="color:var(--text-2)">+$${Math.round(totalMaxProfit).toLocaleString()}</div></div>`;
@@ -2456,7 +2456,7 @@ function _renderMarginAllocation(data) {
     legendItems = `
       <div class="bp-legend-item"><div class="bp-legend-dot dot-spx"></div>SPX ${spxWs.toFixed(1)}%</div>
       <div class="bp-legend-item"><div class="bp-legend-dot dot-equity"></div>Equity ${eqWs.toFixed(1)}%</div>
-      <div class="bp-legend-item"><div class="bp-legend-dot dot-q041"></div>Q041 ${q041W.toFixed(1)}%</div>
+      <div class="bp-legend-item" title="财报 IC / CSP sleeves（溯源 Q041）"><div class="bp-legend-dot dot-q041"></div>Sleeves ${q041W.toFixed(1)}%</div>
       <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>`;
     const doBp_s = _q042Cache?.combined_bp_pct ?? 0;
     const sT2 = buckets.q041_tier2_bp_pct || 0;
@@ -2525,7 +2525,7 @@ function _renderMarginAllocation(data) {
     legendItems = `
       <div class="bp-legend-item"><div class="bp-legend-dot dot-spx"></div>Options ${optionsW.toFixed(1)}%</div>
       <div class="bp-legend-item"><div class="bp-legend-dot dot-equity"></div>Equity ${equityW.toFixed(1)}%</div>
-      <div class="bp-legend-item"><div class="bp-legend-dot dot-q041"></div>Q041 ${q041W.toFixed(1)}%</div>
+      <div class="bp-legend-item" title="财报 IC / CSP sleeves（溯源 Q041）"><div class="bp-legend-dot dot-q041"></div>Sleeves ${q041W.toFixed(1)}%</div>
       <div class="bp-legend-item"><div class="bp-legend-dot dot-idle"></div>Idle ${idleW.toFixed(1)}%</div>`;
     const doBp_a = _q042Cache?.combined_bp_pct ?? 0;
     const optionsNote = etOptW > 0 ? 'SPX spread + E-Trade options' : 'SPX spread';
@@ -2835,7 +2835,7 @@ function _renderGovernance() {
 
   // Stress Put Ladder — research-only globally per SPEC-104 (production allocation = 0%)
   function hvContent(r) {
-    return `<div class="rm-val v-wait">○ RESEARCH-ONLY</div><div class="rm-note">0% production · paper signals continue (SPEC-104)</div>`;
+    return `<div class="rm-val v-wait">○ RESEARCH-ONLY</div><div class="rm-note" title="溯源 SPEC-104">0% production · paper signals continue</div>`;
   }
 
   // Fix 4: DD Overlay — show entry conditions explicitly
@@ -3684,8 +3684,8 @@ const _BYPASS_LABELS = {
   manual_override:     'Manual Override',
   broker_stop_loss:    'Broker Stop-Loss',
   lifecycle_exit:      'Lifecycle Exit (Roll / TP / DTE 21)',
-  spec_103_r5:         'SPEC-103 R5 Stress Cap',
-  spec_103_r6:         'SPEC-103 R6 Second-Leg Block',
+  spec_103_r5:         'Stress Cap（压力市敞口上限）',
+  spec_103_r6:         'Second-Leg Block（第二腿禁开）',
   extreme_vol:         'EXTREME_VOL (VIX ≥ 40)',
   selector_hard_exit:  'Selector Hard Exit',
   stale_data_failsafe: 'Stale Data Failsafe',

@@ -87,8 +87,9 @@ class TelegramBotSpec041Tests(unittest.TestCase):
         }
         text = bot_mod._format_eod_snapshot(rec, morning, state)
         self.assertIn("⚠️ Signal changed from morning:", text)
-        self.assertIn("Morning → REDUCE_WAIT", text)
-        self.assertIn("EOD     → OPEN BULL_PUT_SPREAD_HV", text)
+        # SPEC-136 词表：WAIT/裸 strategy_key → NO ENTRY / catalog 人话名
+        self.assertIn("Morning → NO ENTRY", text)
+        self.assertIn("EOD     → OPEN Bull Put Spread (High Vol)", text)
         self.assertIn("📋 Open Position: Bull Put Spread (High Vol) | SPX |", text)
         self.assertIn("SPX options tradeable until 4:15pm ET", text)
 

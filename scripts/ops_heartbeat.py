@@ -135,7 +135,7 @@ def _deferred_digest(now: datetime, path: Path | None = None) -> str | None:
             upcoming += 1
     if not (overdue or upcoming or conditional):
         return None
-    head = f"📒 DEFERRED 台账月度摘要 {now:%Y-%m}（每月首个周一自动推送，SPEC-124）"
+    head = f"📒 DEFERRED 台账月度摘要 {now:%Y-%m}（每月首个周一自动推送）"
     lines = [head]
     if overdue:
         lines.append(f"逾期未复核 {len(overdue)} 项（置顶）：")
@@ -146,9 +146,9 @@ def _deferred_digest(now: datetime, path: Path | None = None) -> str | None:
         from strategy.structure_map import progress
         p = progress()
         lines.append(
-            f"Q090 structure shadow: 已记 {p['days_logged']} 天 · "
-            f"S3 墙触发 {p['s3_n']}/{p['s3_target']}（正式测门槛）· "
-            f"S1s on-day {p['s1s_n']}/{p['s1s_target']}（重开门槛）")
+            f"Structure Map 证据积累: 已记 {p['days_logged']} 天 · "
+            f"墙触发样本 {p['s3_n']}/{p['s3_target']}（攒满可正式检验）· "
+            f"当日贴墙样本 {p['s1s_n']}/{p['s1s_target']}（攒满可重开研究）")
     except Exception:
         pass  # non-fatal — digest 主体照发
     return "\n".join(lines)

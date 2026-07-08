@@ -150,7 +150,7 @@ def _format_t_minus_3(cand: dict, decision: dict) -> str:
     )
     vix_ok = "✅" if cand["vix_entry"] >= VIX_GATE else "❌"
     return (
-        f"📅 Q041 T3 Paper Signal: {cand['underlying']} T-3 (earn_date {cand['earn_date']})\n"
+        f"📅 财报 IC 纸面信号：{cand['underlying']} 财报前 3 天（财报日 {cand['earn_date']}）\n"
         f"  Spot: ${cand['spot']:.2f}  VIX: {cand['vix_entry']:.1f} {vix_ok} (≥15)\n"
         f"  ATM straddle: ${cand['implied_move_usd']:.2f} "
         f"(IV-implied move: {cand['implied_move_pct']*100:.2f}%)\n"
@@ -166,7 +166,7 @@ def _format_t_minus_3(cand: dict, decision: dict) -> str:
 def _format_t_plus_1(cand: dict, close: dict) -> str:
     held = "✅ both strikes held" if close["strikes_held"] else f"❌ {close['breached']} breached"
     return (
-        f"📅 Q041 T3 Paper Close: {cand['underlying']} T+1 (earn {cand['earn_date']})\n"
+        f"📅 财报 IC 纸面平仓：{cand['underlying']} 财报后 1 天（财报日 {cand['earn_date']}）\n"
         f"  S_exit: ${close['s_exit']:.2f}  "
         f"[K_put {cand['K_short_put']:.0f}, K_call {cand['K_short_call']:.0f}] {held}\n"
         f"  Paper PnL: {'+' if close['paper_pnl_usd'] >= 0 else ''}${close['paper_pnl_usd']:.0f} "
@@ -186,8 +186,8 @@ def _handle_t_minus_3(sym: str, earn_date: date, vix: float | None,
         decision = {"accepted": False, "reason": f"vix_gate: {vix} < {VIX_GATE}"}
         if not dry_run:
             _emit_log("blocked", sk, None, decision, asof=asof, earn_date=earn_date.isoformat())
-        msg = (f"📅 Q041 {sym} T-3 ({earn_date.isoformat()}): "
-               f"blocked — VIX {vix} < {VIX_GATE}")
+        msg = (f"📅 财报 IC：{sym} 财报前 3 天（{earn_date.isoformat()}）"
+               f"不开仓——VIX {vix} 低于 {VIX_GATE} 门槛")
         return {"underlying": sym, "candidate": None, "decision": decision, "msg": msg}
 
     cand = select_t3_earnings_ic(sk, asof, earn_date, vix)
@@ -195,7 +195,8 @@ def _handle_t_minus_3(sym: str, earn_date: date, vix: float | None,
         decision = {"accepted": False, "reason": "no_candidate (chain/expiry/strike/credit missing)"}
         if not dry_run:
             _emit_log("blocked", sk, None, decision, asof=asof, earn_date=earn_date.isoformat())
-        msg = f"📅 Q041 {sym} T-3 ({earn_date.isoformat()}): no candidate (chain/expiry missing)"
+        msg = (f"📅 财报 IC：{sym} 财报前 3 天（{earn_date.isoformat()}）"
+               f"无候选（期权链或到期缺失）")
         return {"underlying": sym, "candidate": None, "decision": decision, "msg": msg}
 
     dec = evaluate_candidate(cand)

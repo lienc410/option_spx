@@ -194,7 +194,8 @@ class TestSelectorHalt(GovBase):
         rec = select_strategy(vix, iv, trend)
         wrapped = _apply_bcd_governance_live(rec, vix, iv, trend)
         self.assertEqual(wrapped.strategy_key, "bull_call_diagonal")
-        self.assertIn("quote-gate: 0/10", wrapped.rationale)
+        # SPEC-136：rationale 与 quote_gate_status().label_human 单源
+        self.assertIn("真实报价已积累 0/10 天", wrapped.rationale)
 
 
 class TestD2QuoteGate(GovBase):
@@ -221,8 +222,9 @@ class TestD2QuoteGate(GovBase):
             self.assertFalse(gov.quote_gate_status()["unlocked"])
         with patch.object(gov, "_calib_drift_ok", return_value=(True, "ok")):
             msg = gov.check_quote_gate_unlock("2026-08-11")
-        self.assertIn("解锁", msg)
-        self.assertIn("首 5 笔 1 张", msg)
+        # SPEC-136：D2 代号移出主文案
+        self.assertIn("前置条件已满足", msg)
+        self.assertIn("前 5 笔每笔限 1 张", msg)
         self.assertTrue(gov.quote_gate_status()["unlocked"])
         # idempotent
         with patch.object(gov, "_calib_drift_ok", return_value=(True, "ok")):

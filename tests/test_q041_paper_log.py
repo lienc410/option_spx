@@ -106,7 +106,7 @@ class TestPaperLog(unittest.TestCase):
             "decision": {"accepted": False, "reason": "cash_collateral: post-entry cash $36,600 ..."},
         }]
         msg = job._format_telegram("2026-06-05", results)
-        self.assertIn("📋 Q041 T2 Paper Signal", msg)
+        self.assertIn("📋 CSP 纸面信号", msg)  # SPEC-136：主文案零内部代号
         self.assertIn("GOOGL", msg)
         self.assertIn("blocked", msg)
         self.assertIn("36,600", msg)

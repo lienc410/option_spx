@@ -189,28 +189,29 @@ def _build_report(rec: SanityRecord) -> str:
     s3_ok = "✅" if (rec.s3_iv_completeness_pct is not None and rec.s3_iv_completeness_pct >= S3_IV_MIN_PCT) else "❌"
     s4_ok = "✅" if rec.s4_eod_present == rec.s4_eod_total else "❌"
     s3_str = f"{rec.s3_iv_completeness_pct:.1f}%" if rec.s3_iv_completeness_pct is not None else "—"
+    # SPEC-136 — S1-S4 内部代号移出主文案（代码/日志层标识保留）
     return (
-        f"📋 Q041 Chain Sanity {rec.date}\n"
-        f"S1 symbol cov:   {rec.s1_present}/{rec.s1_total} {s1_ok}\n"
-        f"S2 row anomaly:  {rec.s2_anomaly_count} sym out of band {s2_ok}\n"
-        f"S3 IV complete: {s3_str} {s3_ok}\n"
-        f"S4 EOD presence: {rec.s4_eod_present}/{rec.s4_eod_total} {s4_ok}"
+        f"📋 期权链数据体检 {rec.date}（sleeves）\n"
+        f"标的覆盖:   {rec.s1_present}/{rec.s1_total} {s1_ok}\n"
+        f"行数异常:   {rec.s2_anomaly_count} 个标的越界 {s2_ok}\n"
+        f"IV 完整度: {s3_str} {s3_ok}\n"
+        f"收盘数据:   {rec.s4_eod_present}/{rec.s4_eod_total} {s4_ok}"
     )
 
 
 def _build_alert(rec: SanityRecord) -> str:
-    lines = [f"⚠ Q041 Chain Sanity Alert {rec.date}"]
+    lines = [f"⚠ 期权链数据体检告警 {rec.date}（sleeves）"]
     if rec.s1_missing:
-        lines.append(f"S1: missing symbols: {rec.s1_missing}")
+        lines.append(f"标的缺失: {rec.s1_missing}")
     for a in rec.s2_anomalies:
         lines.append(
-            f"S2: row anomaly: {a['symbol']} n={a['rows']} "
-            f"vs median {a['median']:.0f} ({a['pct_of_median']:.0f}% of median)"
+            f"行数异常: {a['symbol']} 今日 {a['rows']} 行 "
+            f"vs 常态中位 {a['median']:.0f} 行（{a['pct_of_median']:.0f}%）"
         )
     if rec.s3_iv_completeness_pct is not None and rec.s3_iv_completeness_pct < S3_IV_MIN_PCT:
-        lines.append(f"S3: IV completeness {rec.s3_iv_completeness_pct:.1f}% < {S3_IV_MIN_PCT:.0f}%")
+        lines.append(f"IV 完整度 {rec.s3_iv_completeness_pct:.1f}% 低于 {S3_IV_MIN_PCT:.0f}% 门槛")
     if rec.s4_eod_present < rec.s4_eod_total:
-        lines.append(f"S4: EOD underlying {rec.s4_eod_present}/{rec.s4_eod_total} symbols")
+        lines.append(f"收盘数据仅 {rec.s4_eod_present}/{rec.s4_eod_total} 个标的齐全")
     return "\n".join(lines)
 
 

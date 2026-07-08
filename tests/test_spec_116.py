@@ -303,7 +303,7 @@ class TestAC4_Silence(unittest.TestCase):
                 out = job.run("2099-01-01", dry_run=False)
             self.assertTrue(out.get("missing_chain"))
             tg.assert_called_once()
-            self.assertIn("missing_chain", tg.call_args[0][0])
+            self.assertIn("期权链缺失", tg.call_args[0][0])  # SPEC-136 人话化
 
 
 class TestAC6_ZeroPerturbation(unittest.TestCase):

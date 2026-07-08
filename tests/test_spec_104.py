@@ -110,7 +110,8 @@ class Spec104Tests(unittest.TestCase):
             "est_premium": 25.0,
         })
         self.assertNotIn("Entry Signal", text)
-        self.assertIn("NO PRODUCTION EXECUTION", text)
+        # SPEC-136：同一约束（不下真实单）人话化为中文完整句
+        self.assertIn("不会下任何真实单", text)
 
     def test_hvladder_page_banner_is_research_only(self):
         template = (REPO_ROOT / "web/templates/hvladder.html").read_text()

@@ -31,7 +31,7 @@ class TestAC11_TMinus3Format(unittest.TestCase):
     def test_ac11_format_blocked(self):
         decision = {"accepted": False, "reason": "cash_floor: liquid $16,918 < $30,000 floor"}
         msg = chk._format_t_minus_3(_cand(), decision)
-        self.assertIn("📅 Q041 T3 Paper Signal: COST T-3", msg)
+        self.assertIn("📅 财报 IC 纸面信号：COST 财报前 3 天", msg)  # SPEC-136
         self.assertIn("VIX: 16.4 ✅", msg)
         self.assertIn("ATM straddle: $41.08", msg)
         self.assertIn("Net credit: $1420", msg)
@@ -48,7 +48,7 @@ class TestAC12_TPlus1Format(unittest.TestCase):
         close = {"s_exit": 1000.85, "breached": None, "strikes_held": True,
                  "paper_pnl_usd": 1420.0, "net_credit_usd": 1420.0, "max_loss_usd": 2680.0}
         msg = chk._format_t_plus_1(_cand(), close)
-        self.assertIn("📅 Q041 T3 Paper Close: COST T+1", msg)
+        self.assertIn("📅 财报 IC 纸面平仓：COST 财报后 1 天", msg)  # SPEC-136
         self.assertIn("both strikes held", msg)
         self.assertIn("+$1420", msg)
 

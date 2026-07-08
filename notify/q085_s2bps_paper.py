@@ -440,7 +440,7 @@ def run(today: str | None = None, *, dry_run: bool = False) -> dict:
 
     puts = load_today_chain(today)
     if puts is None:
-        msg = f"[S2-BPS PAPER] {today} missing_chain — skew/管理跳过（SPEC-114 sanity 会另行报警）"
+        msg = f"[Skew-BPS 纸面] {today} 期权链缺失——今日 skew 信号与持仓管理跳过（链体检任务会另行报警）"
         log.warning(msg)
         if not dry_run:
             _telegram_send(msg, category="ACTION")
@@ -482,7 +482,7 @@ def run(today: str | None = None, *, dry_run: bool = False) -> dict:
         log.exception("q085 skew measurement failed")
         summary["skew_error"] = str(exc)
         if not dry_run:
-            _telegram_send(f"[S2-BPS PAPER] {today} skew 测量失败: {exc}", category="ACTION")
+            _telegram_send(f"[Skew-BPS 纸面] {today} skew 测量失败: {exc}", category="ACTION")
 
     # A2. SPEC-122 BCD real-quote shadow (pure recording, Telegram silent;
     # reuses the SAME production rec — AC-1 forbids recomputing the signal).
@@ -528,7 +528,7 @@ def run(today: str | None = None, *, dry_run: bool = False) -> dict:
         stop_tag = " STOP" if c["reason"] == "stop" else ""
         if not dry_run:
             _telegram_send(
-                f"[S2-BPS PAPER] 平仓 · {c['open_date']} 仓位 · "
+                f"[Skew-BPS 纸面] 平仓 · {c['open_date']} 仓位 · "
                 f"PnL mid ${c['pnl_mid']:,.0f} / natural ${c['pnl_natural']:,.0f} · "
                 f"hold {c['hold_days']}d{stop_tag}"
             )
@@ -544,7 +544,7 @@ def run(today: str | None = None, *, dry_run: bool = False) -> dict:
         summary["open"] = opened
         if not dry_run:
             _telegram_send(
-                f"[S2-BPS PAPER] 信号日 · SPX {opened['entry_spx']:,.0f} · VIX {vix:.1f} · "
+                f"[Skew-BPS 纸面] 信号日 · SPX {opened['entry_spx']:,.0f} · VIX {vix:.1f} · "
                 f"{opened['dte']}DTE {opened['k_short']:,.0f}/{opened['k_long']:,.0f} "
                 f"credit mid ${opened['credit_mid']:.2f} / natural ${opened['credit_natural']:.2f}"
             )
@@ -556,8 +556,8 @@ def run(today: str | None = None, *, dry_run: bool = False) -> dict:
             summary["degradation"] = note
             if not dry_run:
                 _telegram_send(
-                    f"[S2-BPS PAPER] ⚠ WARNING 降级注记 · trailing10 ${note['trailing10_pnl_mid']:,.0f} · "
-                    f"cum ${note['cum_pnl_mid']:,.0f}（paper 阶段仅记录，不停机）"
+                    f"[Skew-BPS 纸面] ⚠ WARNING 降级注记 · 近 10 笔合计 ${note['trailing10_pnl_mid']:,.0f} · "
+                    f"累计 ${note['cum_pnl_mid']:,.0f}（纸面阶段仅记录，不停机）"
                 )
     return summary
 

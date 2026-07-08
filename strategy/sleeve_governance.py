@@ -1171,7 +1171,7 @@ def evaluate_candidate(candidate: dict, state: dict | None = None) -> Governance
                     reason = cash_decision["reason"]
                 elif cash_decision.get("alert"):
                     _send_alert(
-                        "⚠️ <b>Debit cash-utilization alert (SPEC-111)</b>\n"
+                        "⚠️ <b>Debit 策略现金占用预警</b>\n"
                         f"Post-entry debit: <code>${cash_decision['stats']['post_entry_total_debit']:,.0f}</code> "
                         f"= <code>{cash_decision['stats']['post_entry_utilization_pct']:.1f}%</code> of liquid cash\n"
                         f"Cap: {int(cash_decision['stats']['cap_pct']*100)}% · Alert: {int(cash_decision['stats']['alert_pct']*100)}%\n"

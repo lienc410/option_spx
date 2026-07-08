@@ -268,7 +268,9 @@ class TestH4PushDelivery(unittest.TestCase):
             [{"gate": "G4_family_cum", "full_halt": True,
               "detail": "家族累计（实现+标记）$-175,460 < $-15,000"}], "2026-07-06")
         self.assertIn(" < ", msg)      # plain text preserved for state/summary
-        self.assertIn("和<0", msg)     # the 7/7 背景-line landmine…
+        # SPEC-136 改写后背景行不再含裸 "和<0"（gate detail 的裸 '<' 仍在，
+        # 整体转义约束不变）
+        self.assertIn("合计转负的概率", msg)
         body = escape(msg)
         self.assertNotIn("<", body.replace("&lt;", ""))   # …fully escaped
         self.assertNotIn("&amp;lt;", body)                # no double-escape

@@ -5682,7 +5682,10 @@ def _manual_open_governance_advisory(strategy_key: str, body: dict, trade_id: st
                 from strategy.bcd_governance import quote_gate_status
                 qg = quote_gate_status()
                 if not qg["unlocked"]:
-                    notes.append(f"D2 前置门未解锁（{qg['days']}/{qg['needed']} 天）— 本单触发即时复审（预注册条件）")
+                    # SPEC-136 单源：quote_gate_status().label_human
+                    _qg_label = qg.get("label_human") or (
+                        f"真实报价已积累 {qg['days']}/{qg['needed']} 天")
+                    notes.append(f"BCD 重开前置条件未满足（{_qg_label}）— 本单触发即时复审（预注册条件）")
         except Exception:
             pass
 

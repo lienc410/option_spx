@@ -87,7 +87,7 @@ def _emit_log(event_type: str, strategy_key: str, candidate: dict, decision: dic
 
 
 def _format_telegram(date_str: str, results: list[dict]) -> str:
-    lines = [f"📋 Q041 T2 Paper Signal {date_str}"]
+    lines = [f"📋 CSP 纸面信号 {date_str}（sleeve 研究）"]
     for r in results:
         sym = r["underlying"]
         c = r["candidate"]

@@ -536,7 +536,7 @@ def _review_trigger_messages(util, prev_state: dict) -> list[tuple[str, str, str
             msgs.append(("ACTION", "review_tighten",
                 f"[现金池] 复审触发(收紧向):站立利用率连续 {REVIEW_TIGHTEN_DAYS} 个记录日 "
                 f"> {REVIEW_TIGHTEN_UTIL:.0f}%(今日 {util:.1f}%)。"
-                f"per SPEC-111 复审 §5.4:提请人工复审,不自动改参数。"))
+                f"按预注册复审规则:提请人工复审,系统不自动改参数。"))
 
     # 放宽向
     if util is not None and util < REVIEW_LOOSEN_MAX_UTIL and not _suppressed("review_loosen"):
@@ -557,7 +557,7 @@ def _review_trigger_messages(util, prev_state: dict) -> list[tuple[str, str, str
                 f"[现金池] 复审触发(放宽向):最近 {REVIEW_LOOSEN_DAYS} 个记录日每日 "
                 f"≥{REVIEW_LOOSEN_MIN_REJECTS} 笔 cap 拒绝,而站立利用率仅 {util:.1f}% "
                 f"(<{REVIEW_LOOSEN_MAX_UTIL:.0f}%)——cap 可能与池规模脱钩。"
-                f"per SPEC-111 复审 §5.4:提请人工复审,不自动改参数。"))
+                f"按预注册复审规则:提请人工复审,系统不自动改参数。"))
     return msgs
 
 

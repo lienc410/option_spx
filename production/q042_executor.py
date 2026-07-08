@@ -105,7 +105,7 @@ def _send_telegram(text: str, log: logging.Logger, *, sleeve: str = "?") -> bool
         from notify.gateway import escape, push as gw_push
         from datetime import date as _date
         # plain-text body → whole-body escape at the boundary (H-4)
-        return gw_push("ACTION", "新开仓", "Q042 Drawdown Overlay 触发", escape(text),
+        return gw_push("ACTION", "新开仓", "Drawdown Overlay（回撤加仓）触发", escape(text),
                        dedupe_key=f"q042_trigger_{sleeve}_{_date.today().isoformat()}")
     except Exception:
         log.exception("telegram send failed")
@@ -115,7 +115,7 @@ def _send_telegram(text: str, log: logging.Logger, *, sleeve: str = "?") -> bool
 def _format_alert(spec: PendingOrderSpec) -> str:
     """Build the F5 Telegram alert (AC14)."""
     return (
-        f"\U0001f7e2 Q042 [Sleeve {spec.sleeve_id}] | SPX\n"
+        f"\U0001f7e2 Drawdown Overlay [Sleeve {spec.sleeve_id}] · SPX\n"
         f"Entry: T+1 open (manual) — {spec.entry_target_date}\n"
         f"Strikes: long K={spec.long_strike} / short K={spec.short_strike}\n"
         f"DTE: {30 if spec.sleeve_id == 'A' else 90}\n"
