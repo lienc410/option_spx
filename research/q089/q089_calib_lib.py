@@ -5,9 +5,10 @@ CALIB sigma. P6's calendar basis MATCHES the offset measurement convention
 (r045_q0_act365) so offsets are used RAW — the x0.831 tconv correction applies
 only to the 252-basis matrix engine (Q087 C4). Asserted below.
 
-H-1 quarantine: production skew-monitor rows dated >= 2026-07-06 are excluded
-(SPEC-122 integration field-crossing puts call values in put moff fields;
-hotfix in flight). Re-widen after dev confirms the first clean row.
+H-1 quarantine: EXACTLY 2026-07-06 is excluded — the single field-crossing
+polluted day (SPEC-122 integration bug). Fix verified 2026-07-07: first clean
+row d30_moff=-0.98 (expected -0.8±0.5), spx_source=chain_parity, call-side
+values back in call fields (c30_moff=-4.52). Later rows are clean.
 
 Friction: per-leg half-spread measured from the REAL 2026-07-06 chain
 (script-measured medians, methodology "数据采集脚本化"):
@@ -37,7 +38,7 @@ from pricing.sigma import SigmaMode, sigma_for  # noqa: E402
 
 LONG_FRICTION = 0.002   # measured 2026-07-06 chain, deep-ITM call
 SHORT_FRICTION = 0.010  # measured 2026-07-06 chain, OTM call
-H1_QUARANTINE_FROM = "2026-07-06"
+H1_POLLUTED_DATES = {"2026-07-06"}
 
 OFFSET_SOURCES = [
     ROOT / "data" / "q085_skew_monitor.jsonl",
@@ -53,7 +54,7 @@ def build_offsets(scratch: Path) -> dict:
         if not src.exists():
             continue
         rows = [json.loads(l) for l in src.read_text().splitlines() if l.strip()]
-        kept = [r for r in rows if str(r.get("date", "")) < H1_QUARANTINE_FROM]
+        kept = [r for r in rows if str(r.get("date", "")) not in H1_POLLUTED_DATES]
         p = scratch / f"h1q_{src.parent.name}_{src.name}"
         p.write_text("\n".join(json.dumps(r) for r in kept))
         print(f"offsets source {src}: {len(rows)} rows, {len(rows)-len(kept)} H-1-quarantined")
