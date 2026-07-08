@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last Updated: 2026-07-06 (**Q087 全系统优化完结（五 Track）+ Q088 T1 考古 + SPEC 117-125 交付完毕**；ES 止损 10×、CALIB 主 BCD $26.8k、裸注记死禁令、心跳 25/25、SPEC-125 前端三方审核修复 P1 真 bug 6 项 + P2 一致性 7 项 + P3 决策注入、oldair 部署 6a2252c 全 200、缓存 5/5 重建绿）。JPM T-3（7/9）/ moff 7/17 / DEFERRED 8/3；PM Q087 优先级待指示 — `See: SPEC-117~125`）
+Last Updated: 2026-07-07 (**Q089 择时双 kill 封账（7/6）+ Q090 当日完成（7/7）+ 9 批 SPEC 验收（127/129/130/131×2/132×2/134/135×2）+ 新产品：蜡烛图决策管道 ready→production + 一次事故根除**；事故场景已灭，晨报四首次 09:35 day-1 预算已核；待处：6/3 双仓−$11.8k 处置登记、G2 复核（建议并入 7/17 moff）— `See: SPEC-127~135 + Q089 + Q090`）
 Owner: Planner or PM
 
 ## Current Phase
