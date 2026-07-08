@@ -1953,10 +1953,23 @@ function updateOpenRiskRow() {
       + ` · Schwab option BP ${usd(rp.schwab_option_bp_usd)}`
       + ` · maint margin ${rp.schwab_maint_pct_nlv != null ? Number(rp.schwab_maint_pct_nlv).toFixed(1) + '% of NLV' : '—'}`;
   }
+  // SPEC-135.2 — 账户级 crash-day defined-risk 容量（Q091 定稿；display-only）：
+  // 本单成交后 已用/容量（数值来自 /api/position/entry-risk 的 capacity 真值，
+  // 本单增量用同源 orderMaxLoss 本地合成）
+  const adr = ENTRY_RISK_CTX?.account_dr;
+  let capLine = '';
+  if (adr && adr.capacity_usd) {
+    const postUsed = orderMaxLoss != null ? Number(adr.used_usd || 0) + orderMaxLoss : Number(adr.used_usd || 0);
+    const postPct = postUsed / Number(adr.capacity_usd) * 100;
+    capLine = `<br>账户级 defined-risk（本单成交后）: <strong>${usd(postUsed)}</strong>`
+      + ` / 可部署 <strong>${usd(adr.capacity_usd)}</strong>`
+      + ` <strong class="${postPct >= 80 ? 'risk-warn' : ''}">(${postPct.toFixed(0)}%)</strong>`
+      + ` · 崩盘日安全垫 ${usd(adr.buffer_usd)} 已预留 <span class="spec-ref">Q091</span>`;
+  }
   el.innerHTML = `
     Max loss (this order): <strong>${usd(orderMaxLoss)}</strong>
     · Family concurrent${famN ? ` (+${famN} open)` : ''}: <strong>${usd(concurrent)}</strong>
-    · Of liquid cash: <strong class="${pct != null && pct >= 25 ? 'risk-warn' : ''}">${pct == null ? 'n/a' : pct.toFixed(1) + '%'}</strong>${cash ? ` (${usd(cash)})` : ''}${resLine}`;
+    · Of liquid cash: <strong class="${pct != null && pct >= 25 ? 'risk-warn' : ''}">${pct == null ? 'n/a' : pct.toFixed(1) + '%'}</strong>${cash ? ` (${usd(cash)})` : ''}${resLine}${capLine}`;
 }
 
 function updatePremiumDiff() {

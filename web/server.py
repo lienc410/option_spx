@@ -5722,6 +5722,25 @@ def api_position_entry_risk():
     if concurrent is not None and liquid_cash and liquid_cash > 0:
         pct = round(concurrent / liquid_cash * 100.0, 2)
 
+    # SPEC-135.2 — 账户级 crash-day defined-risk 容量（Q091 定稿，display-only）
+    account_dr = None
+    try:
+        from strategy.capacity import used_defined_risk
+        cap = used_defined_risk()
+        post_used = (round(cap["used_usd"] + order_max_loss, 2)
+                     if order_max_loss is not None else None)
+        account_dr = {
+            "used_usd": cap["used_usd"],
+            "capacity_usd": cap["capacity_usd"],
+            "buffer_usd": cap["buffer_usd"],
+            "pct": cap["pct"],
+            "post_entry_used_usd": post_used,
+            "post_entry_pct": (round(post_used / cap["capacity_usd"] * 100.0, 1)
+                               if post_used is not None and cap["capacity_usd"] else None),
+        }
+    except Exception as exc:
+        app.logger.warning("entry-risk: account capacity unavailable: %s", exc)
+
     payload = {
         "strategy_key": strategy_key,
         "family": family,
@@ -5732,6 +5751,7 @@ def api_position_entry_risk():
         "liquid_cash_usd": liquid_cash,
         "cash_source": cash_source,
         "concurrent_pct_of_cash": pct,
+        "account_dr": account_dr,
         "resource_profile": _entry_resource_profile(strategy_key, liquid_cash),
     }
     # NaN/Inf 禁入浏览器 JSON（strict-JSON AC）

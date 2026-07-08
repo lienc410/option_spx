@@ -285,7 +285,9 @@ class StorageApiTests(unittest.TestCase):
         with patch("strategy.cash_budget_governance.get_current_liquid_cash",
                    side_effect=RuntimeError("broker down")), \
              patch("strategy.exposure.evaluate_exposure_degrade",
-                   side_effect=RuntimeError("also down")):
+                   side_effect=RuntimeError("also down")), \
+             patch("strategy.capacity.used_defined_risk",
+                   side_effect=RuntimeError("down too")):     # SPEC-135.2 容量节点
             nodes = funding_trace("bull_put_spread")
         self.assertTrue(nodes)
         self.assertTrue(all(n["outcome"] == "info" for n in nodes))  # 不拦

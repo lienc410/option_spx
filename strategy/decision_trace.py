@@ -201,6 +201,32 @@ def funding_trace(strategy_key: str) -> list[dict]:
                       "detail": str(exc), "inputs": {}, "outcome": "info",
                       "code_ref": "SPEC-131 v2", "branch_taken": True,
                       "kind": "evidence", "stage": "capital"})
+    # SPEC-135.2 — 账户级 crash-day defined-risk 容量线（Q091 定稿，display-only）
+    try:
+        from strategy.capacity import (Q091_CRASH_EXCESS_USD, capacity_copy,
+                                       used_defined_risk)
+        cap = used_defined_risk()
+        nodes.append({
+            "layer": "funding", "check": "account_dr_capacity",
+            "label_human": capacity_copy(cap["used_usd"], cap["pct"] or 0.0),
+            "detail": (f"全账户 defined-risk max loss 合计 ${cap['used_usd']:,.0f} vs "
+                       f"crash-day 可部署容量 ${cap['capacity_usd']:,.0f}"
+                       f"（= excess ${Q091_CRASH_EXCESS_USD:,.0f} − buffer "
+                       f"${cap['buffer_usd']:,.0f}，Q091 P0 RATIFIED；"
+                       "display-only，不做门）"),
+            "inputs": {"used_usd": cap["used_usd"], "capacity_usd": cap["capacity_usd"],
+                       "pct": cap["pct"],
+                       "positions": [p["trade_id"] for p in cap["positions"]]},
+            "outcome": "pass",
+            "code_ref": "Q091", "branch_taken": True,
+            "kind": "evidence", "stage": "capital",
+        })
+    except Exception as exc:
+        nodes.append({"layer": "funding", "check": "account_dr_capacity",
+                      "label_human": "账户级容量检查不可用（fail-soft，不拦）",
+                      "detail": str(exc), "inputs": {}, "outcome": "info",
+                      "code_ref": "Q091", "branch_taken": True,
+                      "kind": "evidence", "stage": "capital"})
     return nodes
 
 
