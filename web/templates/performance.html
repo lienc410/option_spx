@@ -609,11 +609,12 @@ function renderRecon(summary, closedTrades) {
   const el = document.getElementById('ledger-recon');
   if (!el) return;
   const legs = (closedTrades || []).filter(t => t.realized_pnl != null);
-  if (!legs.length || summary.total_pnl == null) { el.textContent = ''; return; }
+  const logTotal = summary.total_realized_pnl;
+  if (!legs.length || logTotal == null) { el.textContent = ''; return; }
   const legTotal = legs.reduce((a, t) => a + Number(t.realized_pnl), 0);
-  const diff = Number(summary.total_pnl) - legTotal;
+  const diff = Number(logTotal) - legTotal;
   const ok = Math.abs(diff) < 50;
-  el.innerHTML = `台账对账：trade_log（campaign 层）$${Math.round(summary.total_pnl).toLocaleString()} vs closed_trades（per-leg 净额）$${Math.round(legTotal).toLocaleString()} · Δ $${Math.abs(Math.round(diff)).toLocaleString()} ${ok ? '<span class="pos">✓ ≈ 佣金差</span>' : '<span class="neg">⚠ 超出佣金可解释范围 — 查两本台账</span>'}`;
+  el.innerHTML = `台账对账：trade_log（campaign 层）$${Math.round(logTotal).toLocaleString()} vs closed_trades（per-leg 净额）$${Math.round(legTotal).toLocaleString()} · Δ $${Math.abs(Math.round(diff)).toLocaleString()} ${ok ? '<span class="pos">✓ ≈ 佣金差</span>' : '<span class="neg">⚠ 超出佣金可解释范围 — 查两本台账</span>'}`;
 }
 
 async function loadPerformance() {
