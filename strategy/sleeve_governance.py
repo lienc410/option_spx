@@ -24,6 +24,21 @@ RUNTIME_STATE_PATH = DATA_DIR / "sleeve_governance_runtime.json"
 BOOSTER_SHADOW_LOG_PATH = DATA_DIR / "q074_booster_shadow.jsonl"
 Q072_DIR = REPO_ROOT / "research" / "q072"
 Q072_DAILY_FLAGS = Q072_DIR / "q072_p1_daily_flags.csv"
+# Weekly-refreshed runtime copy (scripts/refresh_regime_flags.py, gitignored).
+# The tracked research CSV stays frozen as reproducibility truth; readers use
+# q072_daily_flags_path() to prefer the fresher runtime file.
+Q072_DAILY_FLAGS_RUNTIME = DATA_DIR / "q072_daily_flags_runtime.csv"
+
+
+def q072_daily_flags_path():
+    try:
+        if (Q072_DAILY_FLAGS_RUNTIME.exists()
+                and Q072_DAILY_FLAGS_RUNTIME.stat().st_mtime
+                >= Q072_DAILY_FLAGS.stat().st_mtime):
+            return Q072_DAILY_FLAGS_RUNTIME
+    except OSError:
+        pass
+    return Q072_DAILY_FLAGS
 Q072_PORTFOLIO_STATE = Q072_DIR / "q072_p4c0_portfolio_state.csv"
 Q072_ALLOCATOR_RESULTS = Q072_DIR / "q072_p4c4_allocator_results.csv"
 

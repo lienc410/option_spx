@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.spxstrat.regime_flags_refresh</string>
+  <key>WorkingDirectory</key>
+  <string>/Users/macbook/SPX_strat</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/macbook/SPX_strat/venv/bin/python</string>
+    <string>/Users/macbook/SPX_strat/scripts/refresh_regime_flags.py</string>
+  </array>
+  <!-- Weekly, Saturday 10:00 ET — after Friday's daily bars are final; the
+       Gov BT current-episode card depends on fresh flags (PM 2026-07-07 B). -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key>
+    <integer>6</integer>
+    <key>Hour</key>
+    <integer>10</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/macbook/Library/Logs/spx-strat/regime_flags_refresh.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/macbook/Library/Logs/spx-strat/regime_flags_refresh.err.log</string>
+</dict>
+</plist>

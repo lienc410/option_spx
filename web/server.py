@@ -1805,7 +1805,7 @@ def api_governance_backtest():
     try:
         import pandas as pd
         from strategy.sleeve_governance import (
-            Q072_DAILY_FLAGS,
+            q072_daily_flags_path,
             DECISION_LOG_PATH,
             _read_jsonl,
             stress_episode_from_flags,
@@ -1813,7 +1813,7 @@ def api_governance_backtest():
             governance_caps,
         )
 
-        daily = pd.read_csv(Q072_DAILY_FLAGS, parse_dates=["date"]).set_index("date")
+        daily = pd.read_csv(q072_daily_flags_path(), parse_dates=["date"]).set_index("date")
         stress = stress_episode_from_flags(daily)
         second_leg = detect_second_leg_state(daily)
 
@@ -1935,11 +1935,11 @@ def api_governance_timeline():
     try:
         import pandas as pd
         from strategy.sleeve_governance import (
-            Q072_DAILY_FLAGS, DECISION_LOG_PATH, _read_jsonl,
+            q072_daily_flags_path, DECISION_LOG_PATH, _read_jsonl,
             stress_episode_from_flags, detect_second_leg_state,
         )
 
-        daily = pd.read_csv(Q072_DAILY_FLAGS, parse_dates=["date"]).set_index("date")
+        daily = pd.read_csv(q072_daily_flags_path(), parse_dates=["date"]).set_index("date")
         stress = stress_episode_from_flags(daily)
         second_leg = detect_second_leg_state(daily)
 

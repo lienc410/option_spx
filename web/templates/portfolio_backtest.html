@@ -212,6 +212,12 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     </div>
   </div>
 
+  <!-- Current episode vs history (activates during stress; idle otherwise) -->
+  <div class="section-label">Current Episode vs History</div>
+  <div class="regime-chart-wrap" id="current-episode-card" style="margin-bottom:18px">
+    <div class="unavail">重建 20 年 daily flags（约 2-5s）…</div>
+  </div>
+
   <!-- Regime Timeline Chart -->
   <div class="section-label">Regime &amp; Trade Signal Timeline</div>
   <div class="regime-chart-wrap">
@@ -523,6 +529,60 @@ function fmtPct1(v) { return typeof v === 'number' ? v.toFixed(1) + '%' : '—';
 // API caps are already in percent form (80.0 means 80%) per SPEC-104; no *100.
 function capPct(v)  { return v != null ? fmtPct1(v) : '—'; }
 
+// 当前 episode vs 历史对比——这页作为工具存在的核心理由（PM 2026-07-07 B）：
+// 身处 stress 时回答"这次处于历史什么位置"。无进行中 episode 时显示 idle。
+function _renderCurrentEpisode(episodes, tl, dr) {
+  const el = document.getElementById('current-episode-card');
+  if (!el) return;
+  const pctile = (sorted, v) => {
+    if (!sorted.length || v == null) return null;
+    let c = 0;
+    for (const x of sorted) if (x <= v) c++;
+    return c / sorted.length * 100;
+  };
+  const closed = episodes.filter(ep => !ep.ongoing && ep.trading_days != null);
+  const days   = closed.map(ep => ep.trading_days).sort((a, b) => a - b);
+  const vixes  = closed.map(ep => ep.max_vix).filter(v => v != null).sort((a, b) => a - b);
+  const dds    = closed.map(ep => ep._max_dd).filter(v => v != null).sort((a, b) => a - b);
+  const med = arr => arr.length ? arr[Math.floor(arr.length / 2)] : null;
+  const p75 = arr => arr.length ? arr[Math.floor(arr.length * 0.75)] : null;
+  const r6Rate = episodes.length
+    ? episodes.filter(ep => ep.second_leg_triggered).length / episodes.length * 100 : null;
+
+  const cur = episodes.find(ep => ep.ongoing);
+  if (!cur) {
+    const last = episodes[0];
+    el.innerHTML = `<div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;font-family:var(--f-mono);font-size:0.68rem;color:var(--text-2)">
+        <span class="rh-rule-badge" style="background:var(--gray-bg);border-color:var(--gray-border);color:var(--text-2)">IDLE · 当前无 stress episode</span>
+        <span>历史基率：episode 中位 ${med(days) ?? '—'}d · P75 ${p75(days) ?? '—'}d · 升级 R6 ${r6Rate != null ? r6Rate.toFixed(0) + '%' : '—'} (${episodes.filter(ep => ep.second_leg_triggered).length}/${episodes.length})</span>
+        ${last ? `<span>上一次：${last.start} → ${last.end} · ${last.trading_days}d · max VIX ${last.max_vix?.toFixed(1) ?? '—'}${last._max_dd != null ? ' · DD ' + last._max_dd.toFixed(1) + '%' : ''}</span>` : ''}
+      </div>`;
+    return;
+  }
+
+  const dayP  = pctile(days, cur.trading_days);
+  const vixP  = pctile(vixes, cur.max_vix);
+  const ddP   = cur._max_dd != null ? pctile(dds, cur._max_dd) : null;
+  // drawdown 越深越极端 → 分位取反向
+  const ddPct = ddP != null ? (100 - ddP) : null;
+  const cell = (k, v, sub) => `<div style="min-width:140px">
+      <div style="font-family:var(--f-ui);font-size:0.58rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-2);margin-bottom:3px">${k}</div>
+      <div style="font-family:var(--f-mono);font-size:1.05rem;font-weight:600;color:var(--text)">${v}</div>
+      <div style="font-family:var(--f-mono);font-size:0.60rem;color:var(--text-2);margin-top:2px">${sub}</div>
+    </div>`;
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <span class="rh-rule-badge rb-warn">ONGOING · ${cur.start} 起</span>
+      <span style="font-family:var(--f-ui);font-size:0.62rem;color:var(--text-2)">与历史 ${closed.length} 次已结束 episode 对比</span>
+    </div>
+    <div style="display:flex;gap:26px;flex-wrap:wrap">
+      ${cell('已持续', `${cur.trading_days}d`, `历史中位 ${med(days)}d · P75 ${p75(days)}d · 超过 ${dayP != null ? dayP.toFixed(0) : '—'}% 的历史 episode`)}
+      ${cell('Max VIX', cur.max_vix != null ? cur.max_vix.toFixed(1) : '—', `历史分位 ${vixP != null ? vixP.toFixed(0) + '%' : '—'}`)}
+      ${cell('Max DD', cur._max_dd != null ? cur._max_dd.toFixed(1) + '%' : '—', `深于 ${ddPct != null ? ddPct.toFixed(0) + '%' : '—'} 的历史 episode`)}
+      ${cell('R6 升级基率', r6Rate != null ? r6Rate.toFixed(0) + '%' : '—', `${episodes.filter(ep => ep.second_leg_triggered).length}/${episodes.length} 次历史 episode 升级`)}
+    </div>`;
+}
+
 // Stress 天的触发分支归因：VIX≥22 天 vs 仅回撤(VIX<22) 天。stress 占比
 // 51.9% 的解释权在这里——回撤分支把"stress"从尾部事件拉成了半常态，
 // R5 紧缩 cap 的实际生效时长由此决定。
@@ -743,6 +803,7 @@ async function loadGovernanceBT() {
         ep._max_dd = worst;
       }
     }
+    _renderCurrentEpisode(_allEpisodes, tlVal, dr);
 
     function _epRow(ep) {
       return `<tr>
