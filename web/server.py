@@ -5420,6 +5420,9 @@ def api_position_open():
         "trend_signal": body.get("trend_signal"),
         "paper_trade": paper_trade,
         "short_entry_price": short_entry_price,
+        # SPEC slippage capture: spread mid at order time (optional). Analysis
+        # activates once enough closes carry both fill and mid.
+        "entry_mid": body.get("entry_mid"),
     }
     account = str(body.get("account") or "schwab").strip().lower()
     add_tranche = bool(body.get("add_tranche", False))
@@ -6123,10 +6126,12 @@ def api_position_close():
                 any_pnl = True
             except (TypeError, ValueError):
                 pnl = None
+            exit_mid = spec.get("exit_mid")
             close_position(
                 note=body.get("note"),
                 trade_id=tid,
                 exit_premium=exit_p,
+                exit_mid=exit_mid,
                 exit_spx=body.get("exit_spx"),
                 exit_reason=body.get("exit_reason"),
                 actual_pnl=pnl,

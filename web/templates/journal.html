@@ -312,6 +312,11 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
     <div class="warmup-body" id="warmup-body">— records captured. Charts and analytics activate once 5+ days of data exist. Snapshot runs daily at 17:00 ET.</div>
   </div>
 
+  <div style="display:flex;gap:4px;margin:-6px 0 14px">
+    <span style="font-family:var(--f-ui);font-size:0.68rem;padding:4px 12px;border-radius:5px;color:var(--gold);background:var(--gold-bg);border:1px solid var(--gold-border)">Journal</span>
+    <a href="/performance" style="font-family:var(--f-ui);font-size:0.68rem;padding:4px 12px;border-radius:5px;color:var(--text-2);text-decoration:none;border:1px solid var(--border-2)">Performance</a>
+  </div>
+
   <!-- Account view selector -->
   <div class="acct-view-bar">
     <div class="acct-view-tabs">
@@ -1785,7 +1790,7 @@ function _renderDayRecords() {
       }
     }
 
-    return `<div class="day-row" onclick="_toggleDayRaw(${idx})">
+    return `<div class="day-row" id="day-${r.date}" onclick="_toggleDayRaw(${idx})">
         <span class="day-date">${r.date}</span>
         <span><span class="day-regime-chip r-${regimeName}">${regimeName.toUpperCase()}</span></span>
         <span class="day-meta">${meta}</span>
@@ -1795,6 +1800,14 @@ function _renderDayRecords() {
       </div>
       <div class="day-raw" id="day-raw-${idx}">${JSON.stringify(r, null, 2)}</div>`;
   }).join('');
+  // Re-renders (account switch, cum-pnl arrival) rebuild rows — keep the
+  // deep-linked day expanded without re-scrolling.
+  const hm = (location.hash || '').match(/^#day-(\d{4}-\d{2}-\d{2})$/);
+  if (hm) {
+    const row = document.getElementById('day-' + hm[1]);
+    const idx2 = row && (row.getAttribute('onclick') || '').match(/_toggleDayRaw\((\d+)\)/)?.[1];
+    if (idx2 != null) document.getElementById('day-raw-' + idx2)?.classList.add('open');
+  }
 }
 
 function _toggleDayRaw(idx) {
@@ -1842,8 +1855,30 @@ document.getElementById('nav-date').textContent = now.toLocaleDateString('en-US'
 // Restore persisted account view selection
 document.querySelectorAll('.acct-view-tab').forEach(b => b.classList.toggle('active', b.dataset.acct === _accountView));
 
-loadJournal();
+// Deep-link from the Performance calendar: /journal#day-YYYY-MM-DD expands
+// that day's raw record, scrolls to it and flashes the row.
+function _handleDayDeepLink() {
+  const m = (location.hash || '').match(/^#day-(\d{4}-\d{2}-\d{2})$/);
+  if (!m) return;
+  const row = document.getElementById('day-' + m[1]);
+  if (!row) return;
+  const idx = (row.getAttribute('onclick') || '').match(/_toggleDayRaw\((\d+)\)/)?.[1];
+  if (idx != null) {
+    const raw = document.getElementById('day-raw-' + idx);
+    if (raw && !raw.classList.contains('open')) raw.classList.add('open');
+  }
+  row.scrollIntoView({ block: 'center' });
+  row.style.transition = 'background 1.2s';
+  row.style.background = 'var(--gold-bg)';
+  setTimeout(() => { row.style.background = ''; }, 1600);
+}
+
+(async () => {
+  await loadJournal();
+  _handleDayDeepLink();
+})();
 _loadCapitalFlows();
+window.addEventListener('hashchange', _handleDayDeepLink);
 </script>
 </body>
 </html>

@@ -65,7 +65,8 @@ _STRATEGY_BUCKET = {
 
 
 def _append_closed_trade_rows(legs_to_close, *, exit_premium, exit_reason,
-                              close_note, strategy_key, underlying):
+                              close_note, strategy_key, underlying,
+                              exit_mid=None):
     """Best-effort auto-hook: append one row per closing leg to
     data/closed_trades.jsonl so Journal Cum P&L picks up realized PnL
     without manual seeding. Per-leg fills aren't captured (broker only
@@ -113,6 +114,10 @@ def _append_closed_trade_rows(legs_to_close, *, exit_premium, exit_reason,
                     "closed_at":    closed_at_iso,
                     "entry_credit_per_share": entry_credit,
                     "exit_debit_per_share":   exit_debit,
+                    # Slippage tracking: entry/exit spread mid at order time
+                    # (optional inputs; None when PM didn't record them).
+                    "entry_mid_per_share": _num_or_none(leg.get("entry_mid")),
+                    "exit_mid_per_share":  _num_or_none(exit_mid),
                     "realized_pnl":           realized,
                     "close_reason": exit_reason or close_note,
                     "seeded_from":  "auto_hook_close_position",
@@ -121,6 +126,13 @@ def _append_closed_trade_rows(legs_to_close, *, exit_premium, exit_reason,
     except Exception as exc:
         import sys
         print(f"[close_position] closed_trades append failed: {exc}", file=sys.stderr)
+
+def _num_or_none(v):
+    try:
+        return float(v) if v not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
 
 # Fields that belong to the strategy envelope, not to individual positions.
 _META_KEYS = frozenset({
@@ -362,6 +374,7 @@ def close_position(
         close_note=note,
         strategy_key=data.get("strategy_key"),
         underlying=data.get("underlying"),
+        exit_mid=extra_fields.get("exit_mid"),
     )
 
     if "positions" in data:
