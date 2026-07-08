@@ -261,6 +261,45 @@ def _load_stats_disk() -> dict:
     return {}
 
 
+_STATS_RECOMPUTE_LOCK = threading.Lock()
+
+
+def _stats_from_warm_caches() -> dict:
+    """Warm-cache-only view of /api/backtest/stats — NEVER recomputes.
+
+    A cold cache means three full backtests (~5 min). Endpoints that only
+    want historical reference columns (strategy-matrix) must degrade to
+    empty stats instead of paying — or triggering — that recompute.
+    """
+    result: dict = {}
+    today = date.today().isoformat()
+    phash = _params_hash()
+    disk = _load_stats_disk()
+    periods = [
+        ("3y",  (date.today() - timedelta(days=365 * 3)).isoformat()),
+        ("10y", (date.today() - timedelta(days=365 * 10)).isoformat()),
+        ("all", "2000-01-01"),
+    ]
+    for period, start in periods:
+        cache_key = f"stats_{start}_{_algo_hash()}"
+        payload = None
+        mem = _backtest_cache.get(cache_key)
+        if mem and (time.time() - mem[0]) < _CACHE_TTL:
+            payload = mem[1]
+        else:
+            entry = disk.get(cache_key, {})
+            if (entry.get("date") == today
+                    and entry.get("params_hash") == phash
+                    and entry.get("schema") == _STATS_SCHEMA_VERSION
+                    and _stats_payload_has_avg(entry.get("payload", {}))):
+                payload = entry["payload"]
+                _backtest_cache[cache_key] = (time.time(), payload)
+        if payload:
+            result[period] = {k: v for k, v in payload.items() if not k.startswith("_")}
+            result[f"{period}_cell"] = payload.get("_cell", {})
+    return result
+
+
 def _stats_payload_has_avg(payload: dict) -> bool:
     for key, value in payload.items():
         if key.startswith("_"):
@@ -1375,15 +1414,13 @@ def api_strategy_matrix():
     iv_buckets = ("HIGH", "NEUTRAL", "LOW")
     trends = ("BULLISH", "NEUTRAL", "BEARISH")
 
-    # Historical reference stats (best-effort; if cache unavailable, set None)
-    stats_payload: dict = {}
-    try:
-        with app.test_client() as c:
-            resp = c.get("/api/backtest/stats")
-            if resp.status_code == 200:
-                stats_payload = resp.get_json() or {}
-    except Exception:
-        stats_payload = {}
+    # Historical reference stats — WARM CACHES ONLY. This endpoint must never
+    # trigger a stats recompute: a cold cache means three full backtests
+    # (~5 min), and routing that through here made /api/strategy-matrix hang
+    # 60-300s and pile up concurrent recomputes behind abandoned requests
+    # (2026-07-07 incident). Cells degrade to no historical stats until the
+    # nightly/manual refresh warms the cache.
+    stats_payload: dict = _stats_from_warm_caches()
 
     live_active = _live_active_cell()
 
@@ -7104,8 +7141,19 @@ def api_backtest_stats():
             result[f"{period}_cell"] = payload.get("_cell", {})
             continue
 
-        # 3. Run backtest and populate both caches
-        try:
+        # 3. Run backtest and populate both caches. Single-flight: without
+        # the lock, every request that arrives during the ~5-min recompute
+        # (browsers retrying, abandoned curls) starts ANOTHER full backtest
+        # and the GIL-saturated server stops answering everything
+        # (2026-07-07 incident).
+        with _STATS_RECOMPUTE_LOCK:
+          mem = _backtest_cache.get(cache_key)
+          if mem and (time.time() - mem[0]) < _CACHE_TTL:
+            payload = mem[1]
+            result[period]           = {k: v for k, v in payload.items() if not k.startswith("_")}
+            result[f"{period}_cell"] = payload.get("_cell", {})
+            continue
+          try:
             trades, _, signals = run_backtest(start_date=start, verbose=False, account_size=_BACKTEST_ACCOUNT_SIZE)
             sig_by_date = {s["date"]: s for s in signals}
 
@@ -7149,7 +7197,7 @@ def api_backtest_stats():
 
             result[period]           = strat_stats
             result[f"{period}_cell"] = cell_stats
-        except Exception as exc:
+          except Exception as exc:
             return jsonify({"error": str(exc)}), 500
 
     if disk_dirty:
