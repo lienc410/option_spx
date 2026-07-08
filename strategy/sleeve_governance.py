@@ -30,14 +30,27 @@ Q072_DAILY_FLAGS = Q072_DIR / "q072_p1_daily_flags.csv"
 Q072_DAILY_FLAGS_RUNTIME = DATA_DIR / "q072_daily_flags_runtime.csv"
 
 
-def q072_daily_flags_path():
+def _flags_last_row_date(path) -> str:
+    """Last data-row date (ISO prefix) of a flags CSV; '' on any failure."""
     try:
-        if (Q072_DAILY_FLAGS_RUNTIME.exists()
-                and Q072_DAILY_FLAGS_RUNTIME.stat().st_mtime
-                >= Q072_DAILY_FLAGS.stat().st_mtime):
-            return Q072_DAILY_FLAGS_RUNTIME
+        with open(path, "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(max(0, size - 4096))
+            tail = f.read().decode(errors="ignore").strip().rsplit("\n", 1)[-1]
+        return tail.split(",", 1)[0][:10]
     except OSError:
-        pass
+        return ""
+
+
+def q072_daily_flags_path():
+    """Prefer whichever copy carries the LATER last row. mtime is useless
+    here: the refresh wrapper git-restores the tracked CSV after taking the
+    runtime copy, which stamps the tracked file with a newer mtime every run
+    (2026-07-07: page kept serving the frozen 5/11 artifact)."""
+    if Q072_DAILY_FLAGS_RUNTIME.exists():
+        if _flags_last_row_date(Q072_DAILY_FLAGS_RUNTIME) >= _flags_last_row_date(Q072_DAILY_FLAGS):
+            return Q072_DAILY_FLAGS_RUNTIME
     return Q072_DAILY_FLAGS
 Q072_PORTFOLIO_STATE = Q072_DIR / "q072_p4c0_portfolio_state.csv"
 Q072_ALLOCATOR_RESULTS = Q072_DIR / "q072_p4c4_allocator_results.csv"
