@@ -461,12 +461,13 @@ def _build_recommendation(
     # 纯附加：不影响任何字段/路由）
     if strategy == StrategyName.REDUCE_WAIT:
         T.add("output", "final_verdict", "今日结论：不开新仓（观望）",
-              detail=rationale, outcome="wait", code_ref="selector._reduce_wait")
+              detail=rationale, outcome="wait", code_ref="selector._reduce_wait",
+              kind="final", stage="final")
     else:
         T.add("output", "final_verdict",
               f"今日结论：开仓候选 — {strategy.value}（动作 {position_action}）",
               detail=rationale, outcome="accept",
-              code_ref="selector._build_recommendation")
+              code_ref="selector._build_recommendation", kind="final", stage="final")
     _trace_nodes = T.drain()
     return Recommendation(
         trace           = _trace_nodes,
@@ -730,25 +731,25 @@ def select_strategy(
     T.add("data", "vix_regime", T.vix_phrase(vix.vix, T.ev(r)),
           detail=f"5日均 {vix.vix_5d_avg} vs 前5日 {vix.vix_5d_ago} → 动量 {T.ev(vix.trend)}",
           inputs={"vix": round(vix.vix, 2), "regime": T.ev(r), "vix_trend": T.ev(vix.trend)},
-          code_ref="signals/vix_regime.py")
+          code_ref="signals/vix_regime.py", stage="market_read")
     T.add("data", "iv_percentile", f"期权贵贱：{T.ivp_phrase(iv.iv_percentile)}",
           detail=f"IVR {iv.iv_rank:.0f} / IVP {iv.iv_percentile:.0f}"
                  + ("（两者分歧 >15，以 IVP 为准重分类）" if abs(iv.iv_rank - iv.iv_percentile) > 15 else ""),
           inputs={"iv_rank": round(iv.iv_rank, 1), "iv_percentile": round(iv.iv_percentile, 1),
                   "effective_signal": T.ev(iv_s)},
-          code_ref="selector._effective_iv_signal")
+          code_ref="selector._effective_iv_signal", stage="market_read")
     T.add("data", "trend", T.trend_phrase(T.ev(t), trend.ma_gap_pct),
           detail=("价格在 200 日均线上方（宏观环境正常）" if trend.above_200
                   else "价格跌破 200 日均线（宏观逆风警示）"),
           inputs={"signal": T.ev(t), "ma_gap_pct": round(trend.ma_gap_pct, 4),
                   "above_200": trend.above_200},
-          code_ref="signals/trend.py")
+          code_ref="signals/trend.py", stage="market_read")
     T.add("data", "term_structure",
           "VIX 期限结构：" + ("倒挂（近月恐慌高于远月 — 短期极度紧张）" if vix.backwardation
                              else "正常 contango（近月低于远月）"),
           detail=f"VIX {vix.vix:.1f} vs VIX3M {vix.vix3m if vix.vix3m is not None else '—'}",
           inputs={"backwardation": vix.backwardation, "vix3m": vix.vix3m},
-          code_ref="signals/vix_regime.py")
+          code_ref="signals/vix_regime.py", stage="market_read")
 
     # ── EXTREME_VOL: VIX above extreme threshold → always wait ───────
     _extreme = (r == Regime.HIGH_VOL and vix.vix >= params.extreme_vix)
@@ -774,7 +775,7 @@ def select_strategy(
               f"查策略手册：高波动区 × {T.trend_phrase(T.ev(t), trend.ma_gap_pct)}"
               "（高波动格用收紧参数：更小 delta、更小仓位）",
               inputs={"regime": T.ev(r), "trend": T.ev(t), "iv_signal": T.ev(iv_s)},
-              outcome="route", code_ref="selector HIGH_VOL matrix")
+              outcome="route", code_ref="selector HIGH_VOL matrix", stage="routing")
         if t == TrendSignal.BEARISH:
             _aftermath_ok = (iv_s == IVSignal.HIGH and is_aftermath(vix))
             T.add("gate", "hv_bearish_aftermath",
@@ -784,7 +785,7 @@ def select_strategy(
                           + ("，满足余波条件" if _aftermath_ok else "，不满足（走常规门链）")),
                   inputs={"iv_signal": T.ev(iv_s), "vix_peak_10d": vix.vix_peak_10d},
                   outcome="pass" if _aftermath_ok else "info",
-                  code_ref="SPEC-064 aftermath")
+                  code_ref="SPEC-064 aftermath", stage="gates")
             if _aftermath_ok:
                 peak = vix.vix_peak_10d or vix.vix
                 drop_pct = max(0.0, (1.0 - (vix.vix / peak)) * 100.0) if peak else 0.0
@@ -917,7 +918,8 @@ def select_strategy(
                   detail=(f"10日VIX峰值 {vix.vix_peak_10d or vix.vix:.1f} → 现在 {vix.vix:.1f}"
                           + ("，满足" if _aftermath_ok else "，不满足（走常规门链）")),
                   inputs={"iv_signal": T.ev(iv_s), "vix_peak_10d": vix.vix_peak_10d},
-                  outcome="pass" if _aftermath_ok else "info", code_ref="SPEC-064 aftermath")
+                  outcome="pass" if _aftermath_ok else "info", code_ref="SPEC-064 aftermath",
+                  stage="gates")
             if _aftermath_ok:
                 _bw = vix.backwardation
                 if not T.gate(not _bw, "hv_neutral_aftermath_backwardation",
@@ -1116,7 +1118,7 @@ def select_strategy(
         T.add("cell", "route_low_vol",
               f"查策略手册：低波动区 × {T.trend_phrase(T.ev(t), trend.ma_gap_pct)}",
               inputs={"regime": T.ev(r), "trend": T.ev(t), "iv_signal": T.ev(iv_s)},
-              outcome="route", code_ref="selector LOW_VOL matrix")
+              outcome="route", code_ref="selector LOW_VOL matrix", stage="routing")
         if t == TrendSignal.NEUTRAL:
             # P3: VIX rising in low-vol env = regime about to shift; skip condor
             _rising = (vix.trend == Trend.RISING)
@@ -1260,7 +1262,7 @@ def select_strategy(
           f"查策略手册：正常波动区 × 期权{T.ev(iv_s)}贵贱档 × "
           f"{T.trend_phrase(T.ev(t), trend.ma_gap_pct)}",
           inputs={"regime": T.ev(r), "iv_signal": T.ev(iv_s), "trend": T.ev(t)},
-          outcome="route", code_ref="selector NORMAL matrix")
+          outcome="route", code_ref="selector NORMAL matrix", stage="routing")
     if iv_s == IVSignal.HIGH:
         if t == TrendSignal.BULLISH:
             # Backwardation filter: skip if near-term panic elevated
@@ -1770,7 +1772,8 @@ def _apply_bcd_governance_live(rec: Recommendation, vix: VixSnapshot, iv: IVSnap
                   detail="；".join(f"{g.get('detail') or '?'}" for g in (halt.get("gates") or [])),
                   inputs={"halted_at": halt.get("at"),
                           "gates": [g.get("gate") for g in (halt.get("gates") or [])]},
-                  outcome="halt", code_ref="SPEC-123 D1")
+                  outcome="halt", code_ref="SPEC-123 D1",
+                  kind="verdict", stage="governance")
             # Lead with what happened in plain language (the gate dict already
             # carries a human-readable detail); the gate code is provenance
             # and trails in parentheses. "SPEC-123 D1，门：G2_18m_combined"
@@ -1788,13 +1791,20 @@ def _apply_bcd_governance_live(rec: Recommendation, vix: VixSnapshot, iv: IVSnap
                 canonical_strategy=rec.strategy.value, params=params,
             )
             # 治理截断：保留 selector 原 trace（走到开仓候选的完整路径）+
-            # 追加治理节点与最终观望结论——PM 看到"本来会开、被刹车拦下"全程
-            halted_rec.trace = (rec.trace or []) + halted_rec.trace
+            # 追加治理节点与最终观望结论——PM 看到"本来会开、被刹车拦下"全程。
+            # SPEC-135.1：原 final(accept) 锚点降级为 verdict（阶段结论"候选"），
+            # 只改新增的 kind/stage 字段，既有字段逐字节不变
+            prior = list(rec.trace or [])
+            for _n in prior:
+                if _n.get("check") == "final_verdict":
+                    _n["kind"] = "verdict"
+                    _n["stage"] = "routing"
+            halted_rec.trace = prior + halted_rec.trace
             return halted_rec
         T.add("governance", "bcd_family_halt",
               "安全刹车：策略家族收益复核门（本日未触发）",
               detail="家族累计/月度/18个月合并各门均在允许区",
-              outcome="pass", code_ref="SPEC-123 D1")
+              outcome="pass", code_ref="SPEC-123 D1", stage="governance")
         regime_val = getattr(vix.regime, "value", str(vix.regime))
         if regime_val == "LOW_VOL":
             qg = gov.quote_gate_status()
@@ -1804,7 +1814,8 @@ def _apply_bcd_governance_live(rec: Recommendation, vix: VixSnapshot, iv: IVSnap
                 T.add("governance", "bcd_quote_gate",
                       f"报价前置门：已记录 {qg['days']} 天 / 需 {qg['needed']} 天真实报价"
                       "（未解锁前主格开仓触发即时复审，不拦）",
-                      inputs=qg, outcome="info", code_ref="SPEC-123 D2")
+                      inputs=qg, outcome="info", code_ref="SPEC-123 D2",
+                      stage="governance")
             else:
                 adv = gov.first5_advisory()
                 if adv:

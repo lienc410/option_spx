@@ -38,11 +38,17 @@ def reset() -> None:
 
 def add(layer: str, check: str, label_human: str, *, detail: str = "",
         inputs: dict | None = None, outcome: str = "info", code_ref: str = "",
-        branch_taken: bool = True) -> None:
+        branch_taken: bool = True, kind: str = "evidence",
+        stage: str = "") -> None:
     """追加一个 trace 节点（纯记录，永不影响控制流）。
 
     layer: data|cell|gate|governance|funding|exposure|output
     outcome: info|route|pass|veto|halt|accept|wait
+    SPEC-135.1（纯附加两字段，层级由代码吐、前端零硬编码）：
+      kind:  verdict（阶段结论，常显锚点）| evidence（支撑检查，缩进可折叠）
+             | final（今日结论，最大锚点）
+      stage: market_read | routing | gates | capital | governance | final
+             （evidence 归属其锚点的 stage）
     """
     _buf().append({
         "layer": layer,
@@ -53,12 +59,15 @@ def add(layer: str, check: str, label_human: str, *, detail: str = "",
         "outcome": outcome,
         "code_ref": code_ref,
         "branch_taken": bool(branch_taken),
+        "kind": kind,
+        "stage": stage,
     })
 
 
 def gate(passed: bool, check: str, label_human: str, *, detail: str = "",
          inputs: dict | None = None, code_ref: str = "",
-         layer: str = "gate") -> bool:
+         layer: str = "gate", kind: str = "evidence",
+         stage: str = "gates") -> bool:
     """门节点：记录 pass/veto 并**原样返回** passed（行为零变更的机械保证）。
     调用方式（评估一次、记录、再分支）：
         _blocked = <原判定表达式>
@@ -66,7 +75,8 @@ def gate(passed: bool, check: str, label_human: str, *, detail: str = "",
         if _blocked: return _reduce_wait(...)
     """
     add(layer, check, label_human, detail=detail, inputs=inputs,
-        outcome="pass" if passed else "veto", code_ref=code_ref)
+        outcome="pass" if passed else "veto", code_ref=code_ref,
+        kind=kind, stage=stage)
     return passed
 
 
@@ -140,6 +150,7 @@ def funding_trace(strategy_key: str) -> list[dict]:
             "outcome": ("pass" if (available and total >= CASH_FLOOR_USD)
                         else ("veto" if available else "info")),
             "code_ref": "SPEC-115 cash floor", "branch_taken": True,
+            "kind": "evidence", "stage": "capital",
         })
         if available:
             open_cash = float(get_open_cash_collateral_total_usd().get("total") or 0.0)
@@ -156,12 +167,14 @@ def funding_trace(strategy_key: str) -> list[dict]:
                            "headroom": round(headroom, 2)},
                 "outcome": "pass" if headroom > 0 else "veto",
                 "code_ref": "SPEC-111/115 cash budget", "branch_taken": True,
+                "kind": "evidence", "stage": "capital",
             })
     except Exception as exc:
         nodes.append({"layer": "funding", "check": "cash_budget",
                       "label_human": "资金预算检查不可用（fail-soft，不拦）",
                       "detail": str(exc), "inputs": {}, "outcome": "info",
-                      "code_ref": "SPEC-111/115", "branch_taken": True})
+                      "code_ref": "SPEC-111/115", "branch_taken": True,
+                      "kind": "evidence", "stage": "capital"})
     try:
         from strategy.exposure import evaluate_exposure_degrade
         deg = evaluate_exposure_degrade(strategy_key)
@@ -180,12 +193,14 @@ def funding_trace(strategy_key: str) -> list[dict]:
                         "pct_of_pool", "threshold_pct", "degraded")},
             "outcome": "veto" if deg.get("degraded") else "pass",
             "code_ref": "SPEC-131 v2", "branch_taken": True,
+            "kind": "evidence", "stage": "capital",
         })
     except Exception as exc:
         nodes.append({"layer": "exposure", "check": "family_exposure_degrade",
                       "label_human": "敞口检查不可用（fail-soft，照常推荐）",
                       "detail": str(exc), "inputs": {}, "outcome": "info",
-                      "code_ref": "SPEC-131 v2", "branch_taken": True})
+                      "code_ref": "SPEC-131 v2", "branch_taken": True,
+                      "kind": "evidence", "stage": "capital"})
     return nodes
 
 

@@ -591,6 +591,39 @@ body {
   margin: 2px 0 2px 16px; font-size: 0.7rem; color: var(--text-2);
   font-style: italic; opacity: 0.65;
 }
+/* ── SPEC-135.1 层级化：锚点常显、evidence 缩进折叠 ─────────── */
+.trace-market {
+  font-size: 0.72rem; color: var(--text-2); line-height: 1.6;
+  padding: 4px 0 8px; border-bottom: 1px solid var(--border); margin-bottom: 8px;
+}
+.trace-market .m-sep { color: var(--text-2); opacity: 0.6; }
+.trace-anchor-block { margin-bottom: 6px; }
+.trace-anchor {
+  display: flex; gap: 9px; align-items: baseline;
+  padding: 5px 0; cursor: pointer;
+  font-size: 0.88rem; font-weight: 600; color: var(--text);
+}
+.trace-anchor .a-icon { flex-shrink: 0; width: 1.2em; text-align: center; }
+.trace-anchor.a-ok .a-icon { color: var(--green); }
+.trace-anchor.a-blocked .a-icon { color: var(--red); }
+.trace-anchor.a-blocked .a-label { color: var(--red); }
+.trace-anchor.is-final {
+  font-size: 0.98rem; font-weight: 700;
+  border-top: 2px solid var(--blue-border);
+  padding-top: 9px; margin-top: 6px; cursor: default;
+}
+.trace-anchor.is-final .a-icon { color: var(--blue); }
+.trace-ev-group { margin-left: 22px; }
+.trace-ev-inline {
+  font-size: 0.7rem; color: var(--text-2);
+  padding: 3px 0 3px 10px; border-left: 2px solid var(--border-2); margin-left: 6px;
+}
+.trace-postnote { margin-top: 4px; }
+.trace-postnote-label {
+  font-family: var(--f-ui); font-size: 0.58rem; font-weight: 700;
+  letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-2);
+  padding: 3px 0 1px 10px;
+}
 .trace-disclaimer {
   font-size: 0.66rem; color: var(--text-2); font-style: italic; margin-top: 3px;
 }
@@ -2959,12 +2992,93 @@ function traceNodeHtml(n) {
     </details>`;
 }
 
+// SPEC-135.1 — Lane A 层级化：verdict/final 常显锚点，evidence 缩进可折叠。
+// 层级纯由代码吐的 kind/stage 字段驱动（前端零硬编码 stage/gate 清单）；
+// 历史行无 kind → 按 evidence 降级（向后兼容）。
+
+const TRACE_ANCHOR_ICONS = { accept: '●', pass: '●', route: '●',
+                             veto: '⛔', halt: '⛔', wait: '▶', info: '●' };
+
+function traceKindOf(n) { return n.kind || 'evidence'; }
+
+function traceEvidenceGroupHtml(evs, groupId, collapsed) {
+  if (!evs.length) return '';
+  // 短 evidence（≤20 字且通过）连续段同行并列；其余每行一条（保留三件套）
+  const rows = [];
+  let shortRun = [];
+  const flushShort = () => {
+    if (shortRun.length > 1) {
+      rows.push(`<div class="trace-ev-inline">${shortRun.map((n) =>
+        `<span title="${(n.detail || '').replace(/"/g, '&quot;')}">✓ ${n.label_human}</span>`).join(' · ')}</div>`);
+    } else if (shortRun.length === 1) {
+      rows.push(traceNodeHtml(shortRun[0]));
+    }
+    shortRun = [];
+  };
+  for (const n of evs) {
+    if (n.outcome === 'pass' && (n.label_human || '').length <= 20) {
+      shortRun.push(n);
+    } else {
+      flushShort();
+      rows.push(traceNodeHtml(n));
+    }
+  }
+  flushShort();
+  return `<div class="trace-ev-group" id="${groupId}" ${collapsed ? 'style="display:none"' : ''}>${rows.join('')}</div>`;
+}
+
+function traceAnchorHtml(anchor, idx, collapsed) {
+  const n = anchor.node;
+  const kind = traceKindOf(n);
+  const icon = TRACE_ANCHOR_ICONS[n.outcome] || '●';
+  const cls = (n.outcome === 'veto' || n.outcome === 'halt') ? 'blocked'
+    : (kind === 'final' ? 'final' : 'ok');
+  const groupId = `trace-ev-${idx}`;
+  const hasEv = anchor.pre.length > 0;
+  const evHtml = traceEvidenceGroupHtml(anchor.pre, groupId, collapsed);
+  const postHtml = anchor.post && anchor.post.length
+    ? `<div class="trace-ev-group trace-postnote"><div class="trace-postnote-label">附注</div>${anchor.post.map(traceNodeHtml).join('')}</div>`
+    : '';
+  return `
+    <div class="trace-anchor-block">
+      <div class="trace-anchor ${kind === 'final' ? 'is-final' : ''} a-${cls}"
+           ${hasEv ? `onclick="const g=document.getElementById('${groupId}'); if(g) g.style.display = g.style.display==='none' ? '' : 'none';" title="点击折叠/展开支撑检查"` : ''}>
+        <span class="a-icon">${icon}</span>
+        <span class="a-label">${n.label_human || n.check}</span>
+        <span class="t-ref">${n.code_ref || ''}</span>
+      </div>
+      ${evHtml}${postHtml}
+    </div>`;
+}
+
 function traceLaneAHtml(d) {
   const nodes = d.lane_a || [];
   if (!nodes.length) {
     return `<div class="trace-ghost">${d.lane_a_note || d.lane_a_error || '无 trace 数据'}</div>`;
   }
-  let html = nodes.map(traceNodeHtml).join('');
+  // ① 市场读数 stage：单行汇总（spec 钦定渲染特例），不折叠
+  const market = nodes.filter((n) => (n.stage || '') === 'market_read');
+  const rest = nodes.filter((n) => (n.stage || '') !== 'market_read');
+  let html = '';
+  if (market.length) {
+    html += `<div class="trace-market">${market.map((n) =>
+      `<span title="${(n.detail || '').replace(/"/g, '&quot;')}">${n.label_human}</span>`).join('<span class="m-sep"> · </span>')}</div>`;
+  }
+  // ② 锚点分组：evidence 归其后最近的 verdict/final；final 后残余 = 附注
+  const anchors = [];
+  let pending = [];
+  for (const n of rest) {
+    if (traceKindOf(n) === 'evidence') { pending.push(n); continue; }
+    anchors.push({ node: n, pre: pending, post: [] });
+    pending = [];
+  }
+  if (pending.length) {
+    if (anchors.length) anchors[anchors.length - 1].post = pending;
+    else return html + pending.map(traceNodeHtml).join('')   // 历史行降级：全 evidence 平铺
+      + (d.lane_a_note ? `<div class="trace-ghost">${d.lane_a_note}</div>` : '');
+  }
+  const collapsedDefault = window.innerWidth < 720;   // 移动端默认折叠
+  html += anchors.map((a, i) => traceAnchorHtml(a, i, collapsedDefault)).join('');
   const truncated = nodes.some((n) => n.outcome === 'veto' || n.outcome === 'halt');
   if (truncated) {
     html += `<div class="trace-ghost">…后续未走到的门不再评估（被上方 ⛔ 截断）——ghost 分支</div>`;

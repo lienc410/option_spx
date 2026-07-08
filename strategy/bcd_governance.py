@@ -230,7 +230,8 @@ def evaluate_gates_detailed(today: str) -> tuple[list[dict], list[dict]]:
         trace.append({"layer": "governance", "check": check,
                       "label_human": label_human, "detail": detail,
                       "inputs": inputs, "outcome": "veto" if hit else "pass",
-                      "code_ref": code_ref, "branch_taken": True})
+                      "code_ref": code_ref, "branch_taken": True,
+                      "kind": "evidence", "stage": "governance"})
 
     # Gate 1 — last 6 realized sum < 0 (needs a full window)
     g1_hit = False
