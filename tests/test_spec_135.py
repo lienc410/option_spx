@@ -151,7 +151,12 @@ class G2HaltFixtureTests(unittest.TestCase):
         self.assertLess(accept_idx, halt_idx)
         halt = final.trace[halt_idx]
         self.assertEqual(halt["outcome"], "halt")
-        self.assertIn("四成概率误踩", halt["label_human"])   # 运行特性披露人话版
+        # SPEC-135.4：主行只留一句人话；预注册概率说明（运行特性披露）与
+        # pm-clear 解除命令收进 detail（展开/hover 承载）
+        self.assertEqual(halt["label_human"],
+                         "安全刹车：该策略家族近期合计收益转负 → 暂停开新仓，等待复核")
+        self.assertIn("四成概率误踩", halt["detail"])
+        self.assertIn("--pm-clear", halt["detail"])
         self.assertEqual(final.trace[-1]["outcome"], "wait")
 
     def test_not_halted_adds_silent_pass_node(self) -> None:
@@ -225,7 +230,9 @@ class StorageApiTests(unittest.TestCase):
             raise AssertionError(f"non-finite literal: {s}")
         ev = json.loads(raw.splitlines()[0], parse_constant=_bad)
         self.assertEqual(ev["trace"], rec.trace)
-        self.assertEqual(len(self.rlog.read_events({"2026-07-07"})), 1)
+        # 事件 date = rec.vix_snapshot.date（fixture 用 TODAY）——原硬编码
+        # "2026-07-07" 在日期翻页后即挂（date-rollover flake，2026-07-08 修）
+        self.assertEqual(len(self.rlog.read_events({rec.vix_snapshot.date})), 1)
 
     def test_non_finite_trace_rejected(self) -> None:
         rec = sel.select_strategy(*_nnb_snapshots(50.0))

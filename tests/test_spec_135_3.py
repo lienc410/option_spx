@@ -191,9 +191,13 @@ class UiAuditTests(unittest.TestCase):
         self.assertIn("TraceRender.legendHtml()", self.spx)
         self.assertIn("TraceRender.legendHtml()", self.home)
 
-    def test_homepage_summary_card_and_expand(self) -> None:
-        for token in ("trace-summary", "loadTraceSummary",
-                      "展开完整决策链", "anchorSummaryHtml"):
+    def test_homepage_anchor_home_and_expand(self) -> None:
+        """SPEC-135.4 §1 改版：独立摘要卡已删（同页两处渲染点是 135.3 的
+        spec 设计错误），锚点故事唯一的家 = SPX 卡理由区 + 展开入口。"""
+        self.assertNotIn('id="trace-summary"', self.home)
+        self.assertNotIn("loadTraceSummary", self.home)
+        self.assertEqual(self.home.count("TraceRender.anchorSummaryHtml("), 1)
+        for token in ("展开完整决策链", "expandFullTrace"):
             self.assertIn(token, self.home)
 
     def test_spx_card_rationale_uses_trace_anchors_not_bare_text(self) -> None:
@@ -207,8 +211,10 @@ class UiAuditTests(unittest.TestCase):
         self.assertIn("} else if (rec.rationale) {", self.home)
 
     def test_hover_carries_full_detail(self) -> None:
-        # 锚点摘要 hover title = detail（pm-clear 命令等完整文本由此承载）
-        self.assertIn('title="${_esc(n.detail)}"', self.tr)
+        # 锚点摘要 hover title = detail + 溯源（pm-clear 命令等完整文本由此
+        # 承载；SPEC-135.4 起 code_ref 也只活在 tooltip/三件套）
+        self.assertIn('title="${_esc(n.detail)}"', self.tr)      # evidence 同行段
+        self.assertIn("' — 溯源: ' + (n.code_ref || '—')", self.tr)  # 锚点 tip
 
 
 if __name__ == "__main__":

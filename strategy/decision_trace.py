@@ -311,6 +311,18 @@ def lane_c_terrain(date_str: str) -> dict:
         out["narrative"] = "；".join(parts) + "。"
         out["available"] = True
         out["row_date"] = r.get("date")
+        # SPEC-135.4 §3：首页 SPX 卡底一行地形摘要（同一 shadow row 派生，
+        # 代码自吐——前端只拼"地形（只描述，不进决策）：{summary_line}"外壳，
+        # 零地形文案/阈值硬编码）。无墙位数据时不发（首页行 fail-soft 隐藏）。
+        sl_bits = []
+        if r.get("s3_flag"):
+            sl_bits.append(f"贴 call 墙（<0.5%）已记 {prog['s3_n']} 天")
+        if walls:
+            wall_str = " · ".join(
+                f"{int(w['strike'])}/{w['dist_pct']:+.1f}%" for w in walls[:2])
+            sl_bits.append(wall_str if sl_bits else f"call 墙 {wall_str}")
+        if sl_bits:
+            out["summary_line"] = "——".join(sl_bits)
     except Exception as exc:
         out["narrative"] = f"地形数据不可用（fail-soft）: {exc}"
     return out

@@ -1,9 +1,11 @@
-// SPEC-135.3 — Decision Trace 共享渲染器（/spx 与 Portfolio Command Center 共用）。
+// SPEC-135.3/135.4 — Decision Trace 共享渲染器（/spx 与 Portfolio Command Center 共用）。
 // 单一 copy 源：所有文案来自 API trace 节点（label_human/detail/code_ref），
 // 渲染层零硬编码 gate/stage 清单（层级纯由 kind/stage 字段驱动）。
 // Outcome 词汇表（SPEC-135.3）：
 //   ● 通过(pass/accept/route) · ⚠ advisory 提示（不拦，琥珀） ·
 //   ⛔ 拦截(veto/halt，红色只留真拦截) · ▶ 今日结论(final/wait)
+// SPEC-135.4 溯源降级铁律：selector.xxx / SPEC-xxx 等溯源标识一律不进主行
+// 可见文本——只出现在 title tooltip 与展开三件套的"代码溯源"行（PM 主行纯人话）。
 (function () {
   'use strict';
 
@@ -36,12 +38,12 @@
     const inputsStr = n.inputs && Object.keys(n.inputs).length
       ? JSON.stringify(n.inputs) : '—';
     // hover/点击三件套：{检查了什么数据, 实际值 vs 阈值, code_ref}（SPEC-135 §0）
+    // 溯源只在三件套"代码溯源"行与 tooltip，不进主行（SPEC-135.4）
     return `
       <details class="trace-node t-${n.outcome}">
-        <summary title="点击展开：检查数据 · 实际值 vs 阈值 · 代码溯源">
+        <summary title="点击展开：检查数据 · 实际值 vs 阈值 · 代码溯源${n.code_ref ? _esc('（' + n.code_ref + '）') : ''}">
           <span class="t-icon" style="color:${iconColor}">${icon}</span>
           <span>${n.label_human || n.check}</span>
-          <span class="t-ref">${n.code_ref || ''}</span>
         </summary>
         <div class="trace-triple">
           <div><strong>检查数据:</strong> <code>${inputsStr}</code></div>
@@ -95,13 +97,16 @@
     const postHtml = anchor.post && anchor.post.length
       ? `<div class="trace-ev-group trace-postnote"><div class="trace-postnote-label">附注</div>${anchor.post.map(traceNodeHtml).join('')}</div>`
       : '';
+    // 主行零溯源（SPEC-135.4）：code_ref 收进 title tooltip
+    const tip = _esc((n.detail ? n.detail + ' — ' : '')
+      + (hasEv ? '点击折叠/展开支撑检查 — ' : '')
+      + '溯源: ' + (n.code_ref || '—'));
     return `
       <div class="trace-anchor-block">
         <div class="trace-anchor ${kind === 'final' ? 'is-final' : ''} a-${cls}"
-             ${hasEv ? `onclick="const g=document.getElementById('${groupId}'); if(g) g.style.display = g.style.display==='none' ? '' : 'none';" title="点击折叠/展开支撑检查"` : ''}>
+             ${hasEv ? `onclick="const g=document.getElementById('${groupId}'); if(g) g.style.display = g.style.display==='none' ? '' : 'none';"` : ''} title="${tip}">
           <span class="a-icon">${icon}</span>
           <span class="a-label">${n.label_human || n.check}</span>
-          <span class="t-ref">${n.code_ref || ''}</span>
         </div>
         ${evHtml}${postHtml}
       </div>`;
@@ -115,8 +120,9 @@
     });
   }
 
-  // 锚点摘要（首页 Command Center / SPX 卡理由区）：只渲染锚点行，
-  // hover title = detail（完整长文本含 pm-clear 命令由此承载）
+  // 锚点摘要（首页 SPX 卡理由区——首页唯一锚点渲染点，SPEC-135.4 §1）：
+  // 只渲染锚点行；hover title = detail + 溯源（完整长文本含 pm-clear 命令
+  // 与 code_ref 全部由此承载，主行纯人话零溯源 token）
   function traceAnchorSummaryHtml(nodes) {
     const anchors = traceAnchorsOf(nodes);
     if (!anchors.length) return '';
@@ -124,11 +130,11 @@
       const kind = traceKindOf(n);
       const cls = _anchorCls(n, kind);
       const icon = TRACE_ANCHOR_ICONS[n.outcome] || '●';
+      const tip = _esc((n.detail || '') + ' — 溯源: ' + (n.code_ref || '—'));
       return `<div class="trace-anchor trace-anchor-compact ${kind === 'final' ? 'is-final' : ''} a-${cls}"
-                   title="${_esc(n.detail)}">
+                   title="${tip}">
         <span class="a-icon">${icon}</span>
         <span class="a-label">${n.label_human || n.check}</span>
-        <span class="t-ref">${n.code_ref || ''}</span>
       </div>`;
     }).join('');
   }
@@ -175,10 +181,9 @@
       const icon = it.state === 'action' ? '⛔' : it.state === 'hold' ? '✓' : '·';
       const color = it.state === 'action' ? 'var(--orange)' : it.state === 'hold' ? 'var(--green)' : 'var(--text-2)';
       return `<div class="trace-node t-${it.state === 'action' ? 'halt' : 'pass'}">
-        <summary style="cursor:default">
+        <summary style="cursor:default" title="${_esc('溯源: ' + (it.code_ref || '—'))}">
           <span class="t-icon" style="color:${color}">${icon}</span>
           <span>${it.trade_id ? `<span style="font-family:var(--f-mono);font-size:0.66rem;color:var(--text-2)">${it.trade_id}</span> · ` : ''}${it.label_human}</span>
-          <span class="t-ref">${it.code_ref || ''}</span>
         </summary>
       </div>`;
     }).join('');

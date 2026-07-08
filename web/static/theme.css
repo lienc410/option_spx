@@ -526,7 +526,8 @@ button, select, input, textarea, optgroup {
 .trace-node > summary {
   cursor: pointer; list-style: none;
   display: flex; gap: 8px; align-items: baseline;
-  padding: 4px 0 4px 10px; font-size: 0.76rem; color: var(--text);
+  padding: 4px 0 4px 10px; font-size: 0.72rem; color: var(--text);
+  /* SPEC-135.4 层级：evidence 0.72rem（锚点 1.0rem / final 1.2rem） */
 }
 .trace-node > summary::-webkit-details-marker { display: none; }
 .trace-node .t-icon { flex-shrink: 0; width: 1.2em; text-align: center; }
@@ -535,10 +536,8 @@ button, select, input, textarea, optgroup {
 .trace-node.t-halt  { border-left-color: var(--red-border); }
 .trace-node.t-advisory { border-left-color: var(--orange-border); }
 .trace-node.t-accept, .trace-node.t-wait { border-left-color: var(--blue-border); }
-.trace-node .t-ref {
-  margin-left: auto; font-family: var(--f-mono); font-size: 0.58rem;
-  color: var(--text-2); white-space: nowrap; flex-shrink: 0;
-}
+/* SPEC-135.4：.t-ref 主行溯源后缀已废除——code_ref 只活在 tooltip 与
+   展开三件套"代码溯源"行（主行纯人话）。 */
 .trace-triple {
   margin: 2px 0 6px 22px; padding: 7px 9px;
   background: var(--surface-hi); border: 1px solid var(--border-2);
@@ -566,7 +565,7 @@ button, select, input, textarea, optgroup {
 .trace-anchor {
   display: flex; gap: 9px; align-items: baseline;
   padding: 5px 0; cursor: pointer;
-  font-size: 0.88rem; font-weight: 600; color: var(--text);
+  font-size: 1.0rem; font-weight: 600; color: var(--text);
 }
 .trace-anchor .a-icon { flex-shrink: 0; width: 1.2em; text-align: center; }
 .trace-anchor.a-ok .a-icon { color: var(--green); }
@@ -574,16 +573,16 @@ button, select, input, textarea, optgroup {
 .trace-anchor.a-blocked .a-label { color: var(--red); }
 .trace-anchor.a-advisory .a-icon { color: var(--orange); }
 .trace-anchor.a-advisory .a-label { color: var(--orange); }
+/* SPEC-135.4 视觉锚：final verdict 升卡内 headline 级——1.2rem Newsreader
+   （--f-display）+ 左侧色条 */
 .trace-anchor.is-final {
-  font-size: 0.98rem; font-weight: 700;
-  border-top: 2px solid var(--blue-border);
-  padding-top: 9px; margin-top: 6px; cursor: default;
+  font-size: 1.2rem; font-weight: 600;
+  font-family: var(--f-display);
+  border-left: 3px solid var(--blue);
+  padding-left: 10px; padding-top: 8px; margin-top: 6px; cursor: default;
 }
 .trace-anchor.is-final .a-icon { color: var(--blue); }
-.trace-anchor-compact {
-  font-size: 0.8rem; padding: 3px 0; cursor: default;
-}
-.trace-anchor-compact.is-final { font-size: 0.86rem; padding-top: 6px; margin-top: 3px; }
+.trace-anchor-compact { padding: 3px 0; cursor: default; }
 .trace-ev-group { margin-left: 22px; }
 .trace-ev-inline {
   font-size: 0.7rem; color: var(--text-2);
@@ -595,11 +594,13 @@ button, select, input, textarea, optgroup {
   letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-2);
   padding: 3px 0 1px 10px;
 }
-/* 图例常显（SPEC-135.3 §3） */
+/* 图例常显（SPEC-135.3 §3）——SPEC-135.4 收进锚点区右上角：
+   0.6rem，项间 8px（spacing scale），右对齐不占叙事主列 */
 .trace-legend {
-  display: flex; gap: 14px; flex-wrap: wrap;
-  font-size: 0.66rem; color: var(--text-2);
-  padding: 4px 0 8px;
+  display: flex; gap: 8px; flex-wrap: wrap;
+  justify-content: flex-end;
+  font-size: 0.6rem; color: var(--text-2);
+  padding: 2px 0 6px;
 }
 .trace-legend .lg-ok { color: var(--green); }
 .trace-legend .lg-adv { color: var(--orange); }

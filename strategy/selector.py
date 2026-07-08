@@ -460,7 +460,9 @@ def _build_recommendation(
     # SPEC-135 — 最终输出节点 + 把本轮 trace 附到 rec（drain 清空收集器，
     # 纯附加：不影响任何字段/路由）
     if strategy == StrategyName.REDUCE_WAIT:
-        T.add("output", "final_verdict", "今日结论：不开新仓（观望）",
+        # SPEC-135.4：词表合规——状态词用 NO ENTRY（DESIGN.md 词表；WAIT/观望
+        # 不在词表），叙事行"今日结论：不开新仓"
+        T.add("output", "final_verdict", "今日结论：不开新仓",
               detail=rationale, outcome="wait", code_ref="selector._reduce_wait",
               kind="final", stage="final")
     else:
@@ -1765,11 +1767,15 @@ def _apply_bcd_governance_live(rec: Recommendation, vix: VixSnapshot, iv: IVSnap
         # 会走 _reduce_wait → 新 trace 从这些节点开始重建，故先 reset 再记。
         if halt:
             T.reset()
+            # SPEC-135.4：主行只留一句人话；预注册概率说明与 pm-clear 解除命令
+            # 全部收进 detail（展开/hover 承载），不在锚点主行刷屏
             T.add("governance", "bcd_family_halt",
-                  "安全刹车：该策略家族近期合计收益转负 → 暂停开新仓等复核"
-                  "（预注册说明：策略良好时每周期也有约四成概率误踩此门，"
-                  "是『要求复核』不是『宣布失效』）",
-                  detail="；".join(f"{g.get('detail') or '?'}" for g in (halt.get("gates") or [])),
+                  "安全刹车：该策略家族近期合计收益转负 → 暂停开新仓，等待复核",
+                  detail=("；".join(f"{g.get('detail') or '?'}"
+                                    for g in (halt.get("gates") or []))
+                          + "。预注册说明：策略良好时每周期也有约四成概率误踩此门"
+                            "——是『要求复核』不是『宣布失效』。"
+                            "PM 复核后解除：python -m strategy.bcd_governance --pm-clear"),
                   inputs={"halted_at": halt.get("at"),
                           "gates": [g.get("gate") for g in (halt.get("gates") or [])]},
                   outcome="halt", code_ref="SPEC-123 D1",
