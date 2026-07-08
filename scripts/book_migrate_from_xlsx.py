@@ -199,13 +199,13 @@ def _cmp(path: str, a, b, errs: list[str], tol_override: float | None = None):
 
 def parity(native: dict, oracle: dict) -> list[str]:
     errs: list[str] = []
+    # compare ORACLE keys only — the native payload may carry extra fields
+    # (contributions_gross/distributions/dual_basis etc.) with no Excel
+    # counterpart; the workbook is the reference, not a ceiling
     for i, (nm, om) in enumerate(zip(native["members"], oracle["members"])):
-        for k in nm:
-            if k == "name":
-                _cmp(f"members[{i}].name", nm[k], om[k], errs)
-            else:
-                _cmp(f"members[{i}].{k}", nm.get(k), om.get(k), errs)
-    for k in native["total"]:
+        for k in om:
+            _cmp(f"members[{i}].{k}", nm.get(k), om.get(k), errs)
+    for k in oracle["total"]:
         _cmp(f"total.{k}", native["total"].get(k), oracle["total"].get(k), errs)
     _cmp("aum.total", native["aum"]["total"], oracle["aum"]["total"], errs)
     for side in ("schwab", "etrade"):
@@ -218,7 +218,7 @@ def parity(native: dict, oracle: dict) -> list[str]:
         for pname, pv in (oy.get("partners") or {}).items():
             _cmp(f"by_year[{i}].partners.{pname}", (ny.get("partners") or {}).get(pname), pv, errs)
     for i, (np_, op_) in enumerate(zip(native["etrade_pool"], oracle["etrade_pool"])):
-        for k in np_:
+        for k in op_:
             _cmp(f"etrade_pool[{i}].{k}", np_.get(k), op_.get(k), errs)
     for who in ("lien", "cxz"):
         for i, oy in enumerate(oracle["etrade_by_year"][who]):

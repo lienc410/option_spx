@@ -428,7 +428,15 @@ def compute_book(data_dir: Path | None = None, force: bool = False) -> dict[str,
             "total_value": tot,
             "schwab_pct": (sw_val / tot) if tot > 1e-9 else 0.0,
             "etrade_pct": (et_val / tot) if tot > 1e-9 else 0.0,
-            "contrib": round(m_contrib, 2),
+            "contrib": round(m_contrib, 2),        # 净投入口径（SW 净 + ET 个人成本基）
+            # 基金对账单标准分列：出资总额 / 分配 —— 恒等式
+            # contributions_gross − distributions = contrib（净投入）
+            "contributions_gross": round(
+                (sw_m["contributions"] if sw_m else 0.0)
+                + (et_m["cost_basis"] if et_m else 0.0), 2),
+            "distributions": round(
+                (sw_m["distributions"] if sw_m else 0.0), 2),
+            "dual_basis": bool(et_m and abs(et_m["contributed"] - et_m["cost_basis"]) > 0.01),
             "pnl": m_pnl,
             "return_pct": (m_pnl / m_contrib) if m_contrib > 1e-9 else None,
         })
@@ -442,6 +450,8 @@ def compute_book(data_dir: Path | None = None, force: bool = False) -> dict[str,
         "schwab_pct": (sw_total / grand) if grand > 1e-9 else 0.0,
         "etrade_pct": (et_total / grand) if grand > 1e-9 else 0.0,
         "contrib": round(total_contrib, 2), "pnl": total_pnl,
+        "contributions_gross": round(sum(m["contributions_gross"] for m in members), 2),
+        "distributions": round(sum(m["distributions"] for m in members), 2),
         "return_pct": (total_pnl / total_contrib) if total_contrib > 1e-9 else None,
     }
     aum = {"total": grand,
@@ -565,6 +575,12 @@ def compute_book(data_dir: Path | None = None, force: bool = False) -> dict[str,
         },
         "pending_flows": sw.get("pending_flows", []) + et.get("pending_flows", []),
         "subaccounts": sub_pending,
+        # (17) 在途构成：组成子账户 pending 的中转腿
+        "transit_legs": [f for f in all_flow_rows if f["counts"] != "Yes"],
+        "fees": {
+            "sw": round(sum(float(f.get("fee") or 0) for f in all_flow_rows if f["pool"] == "SW"), 2),
+            "et": round(sum(float(f.get("fee") or 0) for f in all_flow_rows if f["pool"] == "ET"), 2),
+        },
     }
 
     payload = {
@@ -587,6 +603,8 @@ def compute_book(data_dir: Path | None = None, force: bool = False) -> dict[str,
             "etrade_pm": ({"date": et["last_date"], "value": et_total}
                           if et["last_date"] else None),
         },
+        # (11) 期间明细：每快照期的 总值/净流/倒挤盈亏/期间收益/NAV/关账
+        "pool_periods": {"sw": sw["periods"], "et": et["periods"]},
         "recon_checks": recon_checks,
         "recon_all_green": all(c["ok"] for c in recon_checks),
         "guarantees": guarantees,
@@ -599,6 +617,8 @@ def compute_book(data_dir: Path | None = None, force: bool = False) -> dict[str,
 
 
 def _rollforward(pool: dict, partners: list[str], display: dict) -> list[dict]:
+    last_date = pool.get("last_date") or ""
+    open_year = last_date[:4]
     """Capital account rollforward (基金会计标准表): per year × partner —
     opening capital + contributions − distributions + allocated P&L = closing.
     The identity is asserted per cell (engine-level integrity, ±$0.01)."""
@@ -619,7 +639,9 @@ def _rollforward(pool: dict, partners: list[str], display: dict) -> list[dict]:
                          "closing": closing, "identity_ok": identity_ok})
             prev_close[p] = closing
         out.append({
-            "year": y, "rows": rows,
+            "year": y,
+            "label": (f"{y} YTD（至 {last_date[5:]}）" if y == open_year else y),
+            "rows": rows,
             "totals": {k: sum(r[k] for r in rows)
                        for k in ("opening", "contributions", "distributions",
                                  "pnl", "closing")},

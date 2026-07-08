@@ -74,6 +74,16 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .live-caveat { font-size:0.62rem;color:var(--orange);margin-top:6px;line-height:1.5; }
 
 /* tables */
+/* SPEC-128 review item 15: printable member statement (family-office
+   deliverable). Print = light paper mode, chrome hidden. */
+@media print {
+  body { background: #fff !important; color: #111 !important; }
+  .nav, .page-tabs, .refresh-btn, button, details, #live-slot { display: none !important; }
+  .page-hero { border: none; }
+  * { color: #111 !important; background: transparent !important; border-color: #999 !important; }
+  .book-table td, .book-table th { border-bottom: 1px solid #ccc; }
+  .pos { color: #0a6 !important; } .neg { color: #c33 !important; }
+}
 .form-row input, .form-row select { background:var(--surface-hi);border:1px solid var(--border-2);border-radius:5px;color:var(--text);font-family:var(--f-mono);font-size:0.7rem;padding:3px 7px;margin-right:8px;max-width:150px; }
 .book-table { width:100%;border-collapse:collapse;margin-bottom:6px; }
 .book-table th { font-size:0.56rem;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-2);padding:6px 8px;text-align:right;border-bottom:1px solid var(--border-2);white-space:nowrap; }
@@ -172,7 +182,12 @@ function renderAUM(b) {
           <div class="aum-label">家庭总现值 · Family AUM</div>
           <div class="aum-value">${fmtUSD(aum.total)}</div>
         </div>
-        <div class="aum-asof">对账截至 ${(b.reconciled?.schwab_ccc354?.date) || '—'} · 投入 ${fmtUSD(b.total?.contrib)} · 盈亏 <span class="${pnlClass(b.total?.pnl)}">${fmtSignedUSD(b.total?.pnl)}</span> · ${fmtPct(b.total?.return_pct)}</div>
+        <div class="aum-asof">${(() => {
+          const swD = b.reconciled?.schwab_ccc354?.date, etD = b.reconciled?.etrade_pm?.date;
+          const dateStr = swD === etD ? `对账截至 ${swD || '—'}`
+            : `<span style="color:var(--orange)">对账日不一致：Schwab ${swD || '—'} / E*Trade ${etD || '—'}（AUM 为混合 as-of）</span>`;
+          return `${dateStr} · 出资 ${fmtUSD(b.total?.contributions_gross)} − 分配 ${fmtUSD(b.total?.distributions)} = 净投入 ${fmtUSD(b.total?.contrib)} · 盈亏 <span class="${pnlClass(b.total?.pnl)}">${fmtSignedUSD(b.total?.pnl)}</span> · ${fmtPct(b.total?.return_pct)}`;
+        })()}</div>
       </div>
       <div class="split-bar">
         <div class="split-seg seg-schwab" style="width:${swPct}%"></div>
@@ -225,11 +240,13 @@ function memberSplit(schwab, etrade) {
 function renderMembers(b) {
   const rows = (b.members || []).map(m => `
     <tr>
-      <td>${m.name}</td>
+      <td>${m.name}${m.dual_basis ? ' <span title="E*Trade 侧按个人成本基（并入溢价计入盈亏而非出资）——见页脚口径说明" style="cursor:help;color:var(--orange)">†</span>' : ''}</td>
       <td>${fmtUSD(m.schwab_value)}</td>
       <td>${fmtUSD(m.etrade_value)}</td>
       <td>${fmtUSD(m.total_value)}</td>
       <td>${memberSplit(m.schwab_value, m.etrade_value)}</td>
+      <td>${fmtUSD(m.contributions_gross)}</td>
+      <td>${m.distributions ? '−' + fmtUSD(m.distributions) : '—'}</td>
       <td>${fmtUSD(m.contrib)}</td>
       <td class="${pnlClass(m.pnl)}">${fmtSignedUSD(m.pnl)}</td>
       <td class="${pnlClass(m.return_pct)}">${fmtPct(m.return_pct)}</td>
@@ -242,19 +259,22 @@ function renderMembers(b) {
       <td>${fmtUSD(t.etrade_value)}</td>
       <td>${fmtUSD(t.total_value)}</td>
       <td></td>
+      <td>${fmtUSD(t.contributions_gross)}</td>
+      <td>${t.distributions ? '−' + fmtUSD(t.distributions) : '—'}</td>
       <td>${fmtUSD(t.contrib)}</td>
       <td class="${pnlClass(t.pnl)}">${fmtSignedUSD(t.pnl)}</td>
       <td class="${pnlClass(t.return_pct)}">${fmtPct(t.return_pct)}</td>
     </tr>`;
   return `
     <div class="section-label">Members · 每人跨账户现值</div>
-    <table class="book-table">
+    <div style="overflow-x:auto"><table class="book-table">
       <thead><tr>
         <th>Member</th><th>Schwab</th><th>E*Trade</th><th>Total Value</th>
-        <th>Split</th><th>Contributed</th><th>P&amp;L</th><th>Return</th>
+        <th>Split</th><th>出资总额</th><th>分配</th><th>净投入</th><th>P&amp;L</th><th>Return<span title="Simple 口径 = 累计盈亏 ÷ 净投入" style="cursor:help">*</span></th>
       </tr></thead>
       <tbody>${rows}${totalRow}</tbody>
-    </table>`;
+    </table></div>
+    <div class="note-block">恒等式：出资总额 − 分配 = 净投入。† = E*Trade 侧按个人成本基（CXZ 并入溢价 $90,644 计入盈亏）。* Return = Simple（盈亏÷净投入），与下方年度表的 TWR（纯投资业绩）口径不同——见页脚「收益率口径速查」。</div>`;
 }
 
 function renderCCCByYear(b) {
@@ -329,12 +349,75 @@ function renderETPool(b) {
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <div class="note-block">份额按并入当日市值设定；收益率分母 = 成本基数（CXZ 用实际净投入 $207,907，含并入前收益；Lien 用并入当日市值 option B + 自 2025 起时间加权 35.4%）。</div>`;
+    <div class="note-block">份额按并入当日市值设定；收益率分母 = 成本基数（CXZ 用实际净投入 $207,907，含并入前收益；Lien 用并入当日市值 option B + 自 2025 起时间加权——注：2024 对账单不全，Lien 累计收益率不含 2024 及更早）。</div>`;
+}
+
+function renderNav(b) {
+  const nav = b.nav_unit;
+  if (!nav) return '';
+  const cell = (label, v) => `<div><div style="font-family:var(--f-ui);font-size:0.6rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-2);margin-bottom:3px">${label}</div>
+    <span style="font-family:var(--f-mono);font-size:1.1rem">${v.toFixed(2)}</span>
+    <span class="${pnlClass(v - 100)}" style="font-family:var(--f-mono);font-size:0.7rem;margin-left:6px">${fmtSignedPct((v - 100) / 100)} 自始</span></div>`;
+  return `
+    <div class="section-label">NAV / Unit · 单位净值（基 100，审计级业绩线）</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;background:var(--surface);border:1px solid var(--border-2);border-radius:9px;padding:12px 14px;margin-bottom:14px">
+      ${cell('Schwab CCC-354', nav.sw)}${cell('E*Trade PM（自并入）', nav.et)}
+    </div>`;
+}
+
+function renderGuarantees(b) {
+  const gs = b.guarantees || [];
+  if (!gs.length) return '';
+  const rows = gs.map(g => `
+    <tr>
+      <td>${g.beneficiary} ← ${g.guarantor}</td>
+      <td>${(g.hurdle * 100).toFixed(0)}%</td>
+      <td>${g.period}</td>
+      <td>${fmtUSD(g.basis)}</td>
+      <td>${fmtUSD(g.floor)}</td>
+      <td>${g.actual == null ? '—' : fmtUSD(g.actual)}</td>
+      <td class="${g.met ? 'pos' : 'neg'}">${g.met ? '达标 ✓' : '未达标 ✗'}</td>
+    </tr>`).join('');
+  const years = new Set(gs.map(g => String(g.period)));
+  const thisYear = String(new Date().getFullYear());
+  const openNote = years.has(thisYear) ? '' :
+    `<div class="note-block" style="color:var(--orange)">当前年度（${thisYear}）保底条款未设定——如需续期请在 config 增补（负债承诺应显式，不应沉默）。</div>`;
+  return `
+    <div class="section-label">Guarantees · 保底/优先回报承诺</div>
+    <div style="overflow-x:auto"><table class="book-table">
+      <thead><tr><th>受益 ← 担保</th><th>门槛</th><th>期间</th><th>资本基数</th><th>地板值</th><th>实际值</th><th>状态</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>${openNote}`;
+}
+
+function renderPendingHint(b) {
+  const pend = (b.capital_activity || {}).pending_flows || [];
+  if (!pend.length) return '';
+  const s = pend.reduce((a, f) => a + (f.amount || 0), 0);
+  return `<div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:9px;padding:8px 13px;margin-bottom:12px;font-family:var(--f-ui);font-size:0.7rem;color:var(--text-2)">
+    ⏳ 有 ${pend.length} 笔在途资金（合计 ${fmtUSD(s)}）等待未来快照期生效——本页净投入尚未包含。详见 Capital Flows tab。</div>`;
+}
+
+function renderConventionFooter() {
+  return `
+    <details style="margin-top:16px">
+      <summary style="font-family:var(--f-ui);font-size:0.66rem;color:var(--text-2);cursor:pointer">收益率口径速查（四种口径各回答什么问题）</summary>
+      <div style="overflow-x:auto"><table class="book-table" style="margin-top:6px">
+        <thead><tr><th>口径</th><th>定义</th><th>回答的问题</th><th>本页出现位置</th></tr></thead>
+        <tbody>
+          <tr><td>Simple</td><td>累计盈亏 ÷ 净投入</td><td>「我的钱涨了百分之多少」</td><td>Members 表 Return 列 / Member Statement</td></tr>
+          <tr><td>TWR（时间加权）</td><td>各期间收益连乘</td><td>纯投资业绩（同池每人相同，剔除出入金时点影响）</td><td>CCC-354 年度表 / NAV 单位线</td></tr>
+          <tr><td>XIRR（货币加权）</td><td>考虑出资时点的年化</td><td>「按我实际的钱进出算年化」（按快照期计时）</td><td>Member Statement CCC 面板</td></tr>
+          <tr><td>NAV/Unit</td><td>单位净值增长（基 100）</td><td>审计级业绩记录</td><td>Overview NAV 区</td></tr>
+        </tbody>
+      </table></div>
+    </details>`;
 }
 
 function renderOverview(b) {
-  return renderAUM(b) + `<div id="live-slot"></div>` + renderMembers(b)
-    + renderCCCByYear(b) + renderETByYear(b) + renderETPool(b);
+  return renderAUM(b) + renderPendingHint(b) + `<div id="live-slot"></div>` + renderMembers(b)
+    + renderNav(b) + renderCCCByYear(b) + renderETByYear(b) + renderETPool(b)
+    + renderGuarantees(b) + renderConventionFooter();
 }
 
 /* ---------------- Member Statement ---------------- */
@@ -345,6 +428,7 @@ function renderMemberSelect(b) {
     <div class="member-select-row">
       <label>Member</label>
       <select class="member-select" id="member-select" onchange="renderMemberStatement(this.value)">${opts}</select>
+    <button class="refresh-btn" onclick="window.print()" style="margin-left:10px">打印对账单</button>
     </div>
     <div id="ms-body"></div>`;
 }
@@ -554,8 +638,9 @@ function renderFlowsTab() {
         ${['sw','et'].map(k => {
           const c = tot[k].contributions, d = tot[k].distributions;
           const label = k === 'sw' ? 'Schwab CCC-354' : 'E*Trade PM';
+          const fee = (ca.fees || {})[k] || 0;
           return `<div><div style="font-family:var(--f-ui);font-size:0.6rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-2);margin-bottom:4px">${label}</div>
-            流入 <span class="pos">${fmtUSD(c)}</span> · 流出 <span class="${d>0?'neg':''}">${fmtUSD(d)}</span><br>净投入 <strong>${fmtUSD(c-d)}</strong></div>`;
+            流入 <span class="pos">${fmtUSD(c)}</span> · 流出 <span class="${d>0?'neg':''}">${fmtUSD(d)}</span><br>净投入 <strong>${fmtUSD(c-d)}</strong>${fee ? ` · 累计费用 ${fmtUSD(fee)}` : ''}</div>`;
         }).join('')}
       </div>
     </div>`;
@@ -570,14 +655,14 @@ function renderFlowsTab() {
         <tr><th>年度 / 合伙人</th><th>期初资本</th><th>出资 +</th><th>分配 −</th><th>损益分摊 ±</th><th>期末资本</th></tr>
         ${rf.map(yblk => yblk.rows.filter(r => r.opening || r.contributions || r.distributions || r.pnl || r.closing).map((r, i) => `
           <tr>
-            <td>${i === 0 ? `<strong>${yblk.year}</strong> · ` : ''}${r.partner}${r.identity_ok ? '' : ' ⚠'}</td>
+            <td>${i === 0 ? `<strong>${yblk.label || yblk.year}</strong> · ` : ''}${r.partner}${r.identity_ok ? '' : ' ⚠'}</td>
             <td>${fmtUSD(r.opening)}</td>
             <td class="pos">${r.contributions ? '+' + fmtUSD(r.contributions) : '—'}</td>
             <td class="${r.distributions ? 'neg' : ''}">${r.distributions ? '−' + fmtUSD(r.distributions) : '—'}</td>
             <td class="${pnlClass(r.pnl)}">${fmtSignedUSD(r.pnl)}</td>
             <td><strong>${fmtUSD(r.closing)}</strong></td>
           </tr>`).join('') + `
-          <tr class="total-row"><td>${yblk.year} 合计${yblk.identity_ok ? '' : ' ⚠ 恒等式不平'}</td>
+          <tr class="total-row"><td>${yblk.label || yblk.year} 合计${yblk.identity_ok ? '' : ' ⚠ 恒等式不平'}</td>
             <td>${fmtUSD(yblk.totals.opening)}</td>
             <td class="pos">+${fmtUSD(yblk.totals.contributions)}</td>
             <td>${yblk.totals.distributions ? '−' + fmtUSD(yblk.totals.distributions) : '—'}</td>
@@ -615,7 +700,10 @@ function renderFlowsTab() {
   const ledger = `
     <div style="overflow-x:auto"><table class="book-table">
       <tr><th>快照期</th><th>到账日</th><th>池</th><th>合伙人</th><th>From → To</th><th>金额</th><th>类型</th><th>工具</th><th>备注</th><th></th></tr>
-      ${rows.map(f => {
+      ${rows.map((f, idx) => {
+        const prevPeriod = idx > 0 ? rows[idx-1].snapshot_date : null;
+        const sep = (f.snapshot_date !== prevPeriod && idx > 0)
+          ? `<tr><td colspan="10" style="border-bottom:2px solid var(--border-2);padding:2px"></td></tr>` : '';
         const isCap = f.counts === 'Yes';
         const isOut = f.type === 'Distribution';
         const amtCls = !isCap ? '' : (isOut ? 'neg' : 'pos');
@@ -623,7 +711,7 @@ function renderFlowsTab() {
         const typeBadge = isCap
           ? `<span style="font-size:0.58rem;padding:1px 6px;border-radius:4px;background:${isOut ? 'var(--red-bg)' : 'var(--green-bg)'};color:${isOut ? 'var(--red)' : 'var(--green)'}">${isOut ? '分配' : '出资'}</span>`
           : `<span style="font-size:0.58rem;padding:1px 6px;border-radius:4px;background:var(--gray-bg);color:var(--text-2)">中转</span>`;
-        return `<tr style="${isCap ? '' : 'opacity:0.65'}">
+        return sep + `<tr style="${isCap ? '' : 'opacity:0.65'}">
           <td>${f.snapshot_date || '—'}</td><td>${f.bank_date || '—'}</td>
           <td>${f.pool}</td><td>${f.partner}</td>
           <td style="font-size:0.66rem">${f.from} → ${f.to}</td>
@@ -650,7 +738,45 @@ function renderFlowsTab() {
       ${Object.entries(subs).map(([k, v]) => `${k}: <strong class="${v < 0 ? 'neg' : ''}">${fmtUSD(v)}</strong>${Math.abs(v) < 0.01 ? ' ✓ 已全部转入' : ' — 在途'}`).join('　·　')}
     </div>` : '';
 
-  el.innerHTML = sumStrip + rollTables + filters + ledger + pendingHtml + subHtml;
+  const periodDetail = ['sw','et'].map(k => {
+    const per = (BOOK.pool_periods || {})[k] || [];
+    if (!per.length) return '';
+    const label = k === 'sw' ? 'Schwab CCC-354' : 'E*Trade PM';
+    let prevDate = '起始';
+    const rows = per.map(pr => {
+      const row = `<tr>
+        <td>${prevDate} → ${pr.date}${pr.closed ? ' 🔒' : ''}</td>
+        <td>${fmtUSD(pr.opening_total)}</td>
+        <td class="${pr.net_flow ? (pr.net_flow > 0 ? 'pos' : 'neg') : ''}">${pr.net_flow ? fmtSignedUSD(pr.net_flow) : '—'}</td>
+        <td class="${pnlClass(pr.pnl)}">${fmtSignedUSD(pr.pnl)}</td>
+        <td class="${pnlClass(pr.pool_return)}">${fmtSignedPct(pr.pool_return)}</td>
+        <td>${pr.nav.toFixed(2)}</td>
+      </tr>`;
+      prevDate = pr.date;
+      return row;
+    }).join('');
+    return `
+      <details style="margin-top:12px">
+        <summary style="font-family:var(--f-ui);font-size:0.68rem;color:var(--text-2);cursor:pointer">期间明细 · ${label}（${per.length} 个快照期间——每期倒挤盈亏与期间收益）</summary>
+        <div style="overflow-x:auto"><table class="book-table" style="margin-top:6px">
+          <thead><tr><th>期间</th><th>期初总值</th><th>净流入</th><th>倒挤 P&amp;L</th><th>期间收益</th><th>NAV/unit</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>
+        <div style="font-family:var(--f-ui);font-size:0.6rem;color:var(--text-2)">倒挤 P&amp;L = 期末总值 − 期初总值 − 本期净流入（v3.5 §3.2）。🔒 = 已关账（锁定不可改）。异常大的期间盈亏通常意味着漏记/错记资金流——先查本期流水再怀疑市场。</div>
+      </details>`;
+  }).join('');
+
+  // (17) transit composition under the sub-account zone
+  const transit = ca.transit_legs || [];
+  const transitDetail = transit.length ? `
+    <details style="margin-top:6px">
+      <summary style="font-family:var(--f-ui);font-size:0.64rem;color:var(--text-2);cursor:pointer">在途构成（${transit.length} 笔中转腿）</summary>
+      <div style="font-family:var(--f-mono);font-size:0.66rem;padding:6px 0">
+        ${transit.map(f => `${f.bank_date || f.snapshot_date || '—'} ${f.from} → ${f.to} ${fmtUSD(f.amount)}`).join('<br>')}
+      </div>
+    </details>` : '';
+
+  el.innerHTML = sumStrip + rollTables + periodDetail + filters + ledger + pendingHtml + subHtml + transitDetail;
 }
 
 async function voidEntry(file, id) {
