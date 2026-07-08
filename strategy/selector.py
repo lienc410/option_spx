@@ -383,7 +383,8 @@ def is_aftermath(vix: VixSnapshot, params: "StrategyParams | None" = None) -> bo
     """
     HIGH_VOL aftermath window:
     - trailing 10-day peak VIX >= 28
-    - current VIX at least 5% off that peak
+    - current VIX at least 10% off that peak (AFTERMATH_OFF_PEAK_PCT;
+      0.05 → 0.10 per Q018 Variant B, R-20260419 line — MaxDD -36%)
     - current VIX remains below the EXTREME_VOL boundary (params.extreme_vix)
 
     SPEC-118.1: the EXTREME guard previously hardcoded 40.0 while the selector's
@@ -1815,17 +1816,21 @@ def _apply_bcd_governance_live(rec: Recommendation, vix: VixSnapshot, iv: IVSnap
         if regime_val == "LOW_VOL":
             qg = gov.quote_gate_status()
             if not qg["unlocked"]:
-                rec.rationale += (f"　[D2 quote-gate: {qg['days']}/{qg['needed']} 天，"
-                                  f"未解锁前主格开仓将触发即时复审]")
+                # SPEC-136 单源：quote_gate_status().label_human（digest /
+                # 手动开仓 advisory 同源），禁止手写第二套
+                _qg_label = qg.get("label_human") or (
+                    f"真实报价已积累 {qg['days']}/{qg['needed']} 天")
+                rec.rationale += (f"　[BCD 重开前置：{_qg_label}——"
+                                  f"未满前开 BCD 将触发即时复审（提示不拦）]")
                 T.add("governance", "bcd_quote_gate",
                       f"报价前置门：已记录 {qg['days']} 天 / 需 {qg['needed']} 天真实报价"
-                      "（未解锁前主格开仓触发即时复审，不拦）",
+                      "（未解锁前开 BCD 触发即时复审，不拦）",
                       inputs=qg, outcome="info", code_ref="SPEC-123 D2",
                       stage="governance")
             else:
                 adv = gov.first5_advisory()
                 if adv:
-                    rec.rationale += f"　[D2 {adv}]"
+                    rec.rationale += f"　[BCD 纪律：{adv}]"
         rec.trace = (rec.trace or []) + T.drain()
     except Exception:
         # governance must never break the recommendation path
