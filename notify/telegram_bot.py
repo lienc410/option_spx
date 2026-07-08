@@ -817,7 +817,8 @@ async def _safe_send(bot: Bot, chat_id: str, text: str, **kwargs) -> bool:
     Unattended bot sends only fire on hosts whose launchd plist declares
     SPX_PUSH_ENABLE=1 (oldair production); everywhere else they go dark."""
     from telegram.error import BadRequest
-    from notify.event_push import PUSH_ENABLE_ENV, _record_push, push_enabled
+    from notify.event_push import (PUSH_ENABLE_ENV, _record_push, _to_plain,
+                                   push_enabled)
     if not push_enabled():
         log.info("telegram_bot: %s != 1 — unattended send suppressed "
                  "(SPEC-130 host guard)", PUSH_ENABLE_ENV)
@@ -830,7 +831,7 @@ async def _safe_send(bot: Bot, chat_id: str, text: str, **kwargs) -> bool:
     except BadRequest as exc:
         log.warning("telegram send BadRequest (%s) — retrying as plain text", exc)
         try:
-            await bot.send_message(chat_id=chat_id, text=text, **kwargs)
+            await bot.send_message(chat_id=chat_id, text=_to_plain(text), **kwargs)
             _record_push("fallback")
             return True
         except Exception:

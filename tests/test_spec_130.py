@@ -89,17 +89,28 @@ class HostGuardTests(unittest.TestCase):
         bot.send_message.assert_awaited_once()
 
     def test_legacy_direct_senders_guarded(self) -> None:
-        """遗留直连 sender（SPEC-126 两传输之外的历史通道）同样 deny-by-default。"""
+        """遗留直连 sender（SPEC-126 两传输之外的历史通道）同样 deny-by-default。
+        （daily_chain_sanity 2026-07-07 已迁 gateway——由下方 gateway 端到端
+        测试覆盖，不再是直连通道。）"""
         post = MagicMock()
         with patch.dict(os.environ, self._CREDS), \
              patch.object(requests, "post", post):
             from scripts.etrade_status_notify import _send_telegram as etrade_send
             self.assertFalse(etrade_send("x"))
             import logging
-            from research.q041.daily_chain_sanity import _send_telegram as sanity_send
-            self.assertFalse(sanity_send("x", logging.getLogger("t")))
             from research.q041.collect_chains import _send_collector_alert_telegram
             _send_collector_alert_telegram("SPX", logging.getLogger("t"))  # 静默 return
+        post.assert_not_called()
+
+    def test_chain_sanity_via_gateway_guarded(self) -> None:
+        """daily_chain_sanity 迁 gateway 后：dev 主机依旧零 HTTP + False，
+        且消息带 category/about 契约头。"""
+        import logging
+        from research.q041.daily_chain_sanity import _send_telegram as sanity_send
+        post = MagicMock()
+        with patch.dict(os.environ, self._CREDS), \
+             patch.object(requests, "post", post):
+            self.assertFalse(sanity_send("S1 ok", logging.getLogger("t")))
         post.assert_not_called()
 
     def test_gateway_end_to_end_denied_on_dev_host(self) -> None:

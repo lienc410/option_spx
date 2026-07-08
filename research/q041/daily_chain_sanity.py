@@ -15,7 +15,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import sys
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
@@ -24,7 +23,6 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-import requests
 from dotenv import load_dotenv
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -37,7 +35,6 @@ ET = ZoneInfo("America/New_York")
 SCHWAB_ROOT = REPO_ROOT / "data" / "q041_chains"
 OUTPUT_PATH = REPO_ROOT / "data" / "q041_chain_sanity_daily.jsonl"
 LOG_DIR = REPO_ROOT / "logs"
-TELEGRAM_TIMEOUT = 20
 
 N_WHITELIST = len(WHITELIST)
 
@@ -174,31 +171,13 @@ def _check_s4_eod(day: date) -> int:
 
 # ── Telegram ───────────────────────────────────────────────────────────────────
 
-def _telegram_creds() -> tuple[str, str]:
-    return (
-        os.getenv("TELEGRAM_BOT_TOKEN", "").strip(),
-        os.getenv("TELEGRAM_CHAT_ID", "").strip(),
-    )
-
-
-def _send_telegram(text: str, log: logging.Logger) -> bool:
-    # SPEC-130 host guard — 遗留直连 sender 也必须 deny-by-default
-    from notify.event_push import push_enabled
-    if not push_enabled():
-        log.info("chain sanity alert suppressed: SPX_PUSH_ENABLE != 1 (SPEC-130)")
-        return False
-    token, chat_id = _telegram_creds()
-    if not token or not chat_id:
-        log.warning("telegram credentials missing; skip send")
-        return False
+def _send_telegram(text: str, log: logging.Logger, *, category: str = "FYI") -> bool:
+    # SPEC-126: through the gateway (was the last legacy direct sender in the
+    # daily path — its pushes arrived without the category/about header and
+    # never entered logs/push_stats.json). Host guard lives in the transport.
     try:
-        res = requests.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            data={"chat_id": chat_id, "text": text},
-            timeout=TELEGRAM_TIMEOUT,
-        )
-        res.raise_for_status()
-        return True
+        from notify.gateway import escape, push as gw_push
+        return gw_push(category, "系统状态", "", escape(text))
     except Exception:
         log.exception("telegram send failed")
         return False
@@ -347,7 +326,7 @@ def main(argv: list[str] | None = None) -> int:
         _send_telegram(report_text, log)
         if rec.alert_fired:
             alert_text = _build_alert(rec)
-            _send_telegram(alert_text, log)
+            _send_telegram(alert_text, log, category="ACTION")
             log.warning("Alert fired:\n%s", alert_text)
     else:
         log.info("[dry-run] report:\n%s", _build_report(rec))

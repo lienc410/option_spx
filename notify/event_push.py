@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -69,6 +70,20 @@ def _record_push(outcome: str) -> None:
         log.exception("event_push: stats record failed")
 
 
+_HTML_TAG_RE = re.compile(r"</?(?:b|strong|i|em|u|s|code|pre|a)(?:\s[^>]*)?>",
+                          re.IGNORECASE)
+
+
+def _to_plain(text: str) -> str:
+    """Convert an HTML-mode message to readable plain text for the fallback
+    resend. H-4 second surfacing (2026-07-07): the fallback used to resend the
+    HTML string verbatim, so the PM received literal '&lt;' entities
+    ("$-6,006 &lt; 0"). Strip the known formatting tags first, then unescape
+    entities (that order, so unescaped '<' can't form fake tags)."""
+    out = _HTML_TAG_RE.sub("", text)
+    return out.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+
+
 def _send(text: str, *, disable_notification: bool = False) -> bool:
     """H-4 (2026-07-06 incident): the 16:50 governance push contained a raw
     '< 0' comparison, Telegram's HTML parser returned 400, and the message
@@ -109,7 +124,7 @@ def _send(text: str, *, disable_notification: bool = False) -> bool:
                     r.status_code, r.text[:200])
         r2 = requests.post(
             _TELEGRAM_API.format(token=token),
-            json=payload,
+            json={**payload, "text": _to_plain(text)},
             timeout=8,
         )
         if r2.status_code == 200:

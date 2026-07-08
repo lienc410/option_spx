@@ -159,8 +159,9 @@ def _send_telegram_message(text: str, log: logging.Logger) -> bool:
         import sys as _sys
         from pathlib import Path as _P
         _sys.path.insert(0, str(_P(__file__).resolve().parents[1]))
-        from notify.gateway import push as gw_push
-        return gw_push("ACTION", "新开仓", "Settled VIX 2nd signal", text)
+        from notify.gateway import escape, push as gw_push
+        # plain-text body → whole-body escape at the boundary (H-4)
+        return gw_push("ACTION", "新开仓", "Settled VIX 2nd signal", escape(text))
     except Exception:
         log.exception("telegram send failed")
         return False

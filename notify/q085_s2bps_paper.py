@@ -35,11 +35,13 @@ except Exception:
 
 from strategy.q085_s2bps_signal import signal_day  # noqa: E402
 # SPEC-126: all sends go through the gateway (category/about contract)
+from notify.gateway import escape as _gw_escape  # noqa: E402
 from notify.gateway import push as _gw_push  # noqa: E402
 
 
 def _telegram_send(msg: str, *, category: str = "FYI", about: str = "系统状态") -> bool:
-    return _gw_push(category, about, "", msg, dedupe_key=None)
+    # plain-text body → whole-body escape at the boundary (H-4)
+    return _gw_push(category, about, "", _gw_escape(msg), dedupe_key=None)
 
 log = logging.getLogger("q085_s2bps")
 ET = ZoneInfo("America/New_York")

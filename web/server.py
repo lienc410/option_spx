@@ -5626,9 +5626,11 @@ def _manual_open_governance_advisory(strategy_key: str, body: dict, trade_id: st
             pass
 
         if notes:
-            from notify.gateway import push as gw_push
+            from notify.gateway import escape, push as gw_push
+            # plain-text body → whole-body escape (H-4: "现金 $x < $y floor"
+            # carries raw '<')
             gw_push("FYI", f"持仓 {trade_id}", "治理提示（不拦截）",
-                    "本单在治理口径外：\n" + "\n".join(f"  · {n}" for n in notes))
+                    escape("本单在治理口径外：\n" + "\n".join(f"  · {n}" for n in notes)))
     except Exception:
         pass
 
@@ -6352,12 +6354,12 @@ def _apply_diagonal_roll(body: dict):
 
     # 推送（gateway，STATE：登记确认，不响铃）— fail-soft
     try:
-        from notify.gateway import push as gw_push
+        from notify.gateway import escape, push as gw_push
         for r in results:
             gw_push("STATE", f"持仓 {r['trade_id']}", "Roll 已登记",
-                    f"旧短腿平 / 新短腿 C{new_strike:g} exp {new_expiry} 开 · "
-                    f"cycle 实现 ${r['cycle_realized']:,.0f} · "
-                    "adjusted basis 已更新（21-DTE 时钟按新短腿重置）")
+                    escape(f"旧短腿平 / 新短腿 C{new_strike:g} exp {new_expiry} 开 · "
+                           f"cycle 实现 ${r['cycle_realized']:,.0f} · "
+                           "adjusted basis 已更新（21-DTE 时钟按新短腿重置）"))
     except Exception:
         app.logger.exception("roll push failed")
 

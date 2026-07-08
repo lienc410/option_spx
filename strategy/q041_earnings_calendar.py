@@ -93,9 +93,9 @@ def _emit_alert(symbol: str, reason: str) -> None:
     with ALERT_PATH.open("a", encoding="utf-8") as f:
         f.write(json.dumps(rec) + "\n")
     try:
-        from notify.gateway import push as gw_push
+        from notify.gateway import escape, push as gw_push
         gw_push("ACTION", "系统状态", "Q041 earnings calendar",
-                f"⚠ {symbol} {reason}", dedupe_key=f"q041_earncal_{symbol}")
+                escape(f"⚠ {symbol} {reason}"), dedupe_key=f"q041_earncal_{symbol}")
     except Exception:
         pass
 

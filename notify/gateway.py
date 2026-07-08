@@ -28,6 +28,12 @@ Policies:
               ALERT/ACTION ring.
   delivery  — transports retry HTML→plain text (H-4) and count outcomes in
               logs/push_stats.json for the heartbeat.
+
+Body is sent with parse_mode=HTML. Callers composing PLAIN TEXT must wrap the
+whole body with escape() — never escape fragments (the 7/6 push died on a raw
+'<' in a gate detail; the 7/7 push died AGAIN on a raw '<0' two lines below
+the fragment-level fix). Callers using intentional tags (<b>/<code>) escape
+their dynamic fields themselves.
 """
 from __future__ import annotations
 
@@ -45,6 +51,15 @@ CATEGORY_EMOJI = {"ALERT": "🔴", "ACTION": "🟡", "STATE": "🔵", "FYI": "�
 _PRIORITY = {"FYI": 0, "STATE": 1, "ACTION": 2, "ALERT": 3}
 
 log = logging.getLogger("gateway")
+
+
+def escape(s) -> str:
+    """HTML-escape a whole plain-text body at the push boundary (matches
+    telegram_bot._h / event_push._h). State files and logs keep plain text —
+    only what goes to the transport is escaped."""
+    if s is None:
+        return ""
+    return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def _today() -> str:

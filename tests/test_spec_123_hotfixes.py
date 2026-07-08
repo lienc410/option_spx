@@ -259,14 +259,65 @@ class TestH4PushDelivery(unittest.TestCase):
         self.assertEqual(recorded[next(iter(recorded))]["failed"], 1)
 
     def test_halt_message_html_safe(self):
-        """The exact 7/6 killer: gate details with raw '<' must arrive
-        escaped in the push copy."""
+        """7/6 killer（gate detail 裸 '<'）+ 7/7 二次浮面（背景行裸 '<0' 逃过
+        detail 级转义、再次 400）：_halt_message 保持纯文本（state/summary 可读），
+        推送边界整体转义后不得残留任何裸 '<'，也不得双重转义。"""
         import strategy.bcd_governance as gov
+        from notify.gateway import escape
         msg = gov._halt_message(
             [{"gate": "G4_family_cum", "full_halt": True,
               "detail": "家族累计（实现+标记）$-175,460 < $-15,000"}], "2026-07-06")
-        self.assertIn("&lt;", msg)
-        self.assertNotIn(" < ", msg)
+        self.assertIn(" < ", msg)      # plain text preserved for state/summary
+        self.assertIn("和<0", msg)     # the 7/7 背景-line landmine…
+        body = escape(msg)
+        self.assertNotIn("<", body.replace("&lt;", ""))   # …fully escaped
+        self.assertNotIn("&amp;lt;", body)                # no double-escape
+
+    def test_daily_update_escapes_push_body(self):
+        """整条治理推送（含背景行）经 daily_update 边界后无裸 '<'。"""
+        import strategy.bcd_governance as gov
+        tmp = Path(tempfile.mkdtemp())
+        sent = []
+
+        def _rec(category, about, title, body, **kw):
+            sent.append(body)
+            return True
+
+        with patch.object(gov, "STATE_PATH", tmp / "state.json"), \
+             patch.object(gov, "record_daily_marks", return_value=[]), \
+             patch.object(gov, "evaluate_short_leg_actions", return_value=[]), \
+             patch.object(gov, "_realized_rows", return_value=[]), \
+             patch.object(gov, "check_quote_gate_unlock", return_value=None), \
+             patch.object(gov, "quote_gate_status", return_value={}), \
+             patch.object(gov, "evaluate_gates", return_value=[
+                 {"gate": "G2_18m_combined",
+                  "detail": "18 个月实现+标记和 $-6,006 < 0（n=4）"}]), \
+             patch("notify.gateway.push", side_effect=_rec):
+            gov.daily_update("2026-07-07", calls=None, dry_run=False)
+        halt = [b for b in sent if "例行复核" in b]
+        self.assertEqual(len(halt), 1)
+        self.assertNotIn("<", halt[0].replace("&lt;", ""))
+
+    def test_fallback_resend_is_readable_plain_text(self):
+        """7/7: 降级重发曾把 HTML 原文原样发出，PM 收到字面 '&lt;'。重发前
+        必须剥已知标签 + 反转义实体。"""
+        import notify.event_push as ep
+        stats = Path(tempfile.mkdtemp()) / "push_stats.json"
+        calls = []
+
+        def post(url, json=None, timeout=None):
+            calls.append(json)
+            return self._mock_resp(400 if "parse_mode" in json else 200, "nope")
+
+        with patch.object(ep, "PUSH_STATS", stats), \
+             patch.dict("os.environ", {"TELEGRAM_BOT_TOKEN": "t",
+                                       "TELEGRAM_CHAT_ID": "c",
+                                       "SPX_PUSH_ENABLE": "1"}), \
+             patch.object(ep.requests, "post", side_effect=post):
+            ok = ep._send("🟡 [ACTION] 系统状态\n<b>标题</b>\n$-6,006 &lt; 0（n=4）")
+        self.assertTrue(ok)
+        self.assertEqual(calls[1]["text"],
+                         "🟡 [ACTION] 系统状态\n标题\n$-6,006 < 0（n=4）")
 
     def test_heartbeat_surfaces_failed_pushes(self):
         import scripts.ops_heartbeat as hb

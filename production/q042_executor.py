@@ -102,9 +102,10 @@ def _send_telegram(text: str, log: logging.Logger, *, sleeve: str = "?") -> bool
         import sys as _sys
         from pathlib import Path as _P
         _sys.path.insert(0, str(_P(__file__).resolve().parents[1]))
-        from notify.gateway import push as gw_push
+        from notify.gateway import escape, push as gw_push
         from datetime import date as _date
-        return gw_push("ACTION", "新开仓", "Q042 Drawdown Overlay 触发", text,
+        # plain-text body → whole-body escape at the boundary (H-4)
+        return gw_push("ACTION", "新开仓", "Q042 Drawdown Overlay 触发", escape(text),
                        dedupe_key=f"q042_trigger_{sleeve}_{_date.today().isoformat()}")
     except Exception:
         log.exception("telegram send failed")
