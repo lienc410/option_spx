@@ -21,46 +21,84 @@ from strategy.selector import select_strategy
 from tests.test_spec_129 import _nnb_snapshots
 
 
-def _patched_exposure(family_usd: float, cash: float | None, cash_source: str = "live"):
-    """把 evaluate_exposure_degrade 的两个数据源钉到给定向量。"""
+def _patched_exposure(family_usd: float, cash: float | None,
+                      cash_source: str = "live", deployed_debit: float = 0.0):
+    """把 evaluate_exposure_degrade 的三个数据源钉到给定向量（v2：分母 =
+    策略资金池 = cash + deployed_debit）。"""
     fam = {"family": "bull_put_spread", "family_open_max_loss_usd": family_usd,
            "family_open_positions": [{"trade_id": "X", "max_loss_usd": family_usd}]}
     return (
         patch.object(ex, "family_open_exposure", return_value=fam),
         patch.object(ex, "liquid_cash", return_value=(cash, cash_source)),
+        patch.object(ex, "deployed_debit_capital", return_value=deployed_debit),
     )
 
 
 class ThresholdTests(unittest.TestCase):
+    def test_77_ratified_vector_triggers(self) -> None:
+        """v2 固定实证向量（PM ratify）：76,600 / (152,346 + 76,600) = 33.5%
+        ≥ 30% → 触发（v1 分母混池已修正：debit 已付资本补回分母）。"""
+        fam, cash, debit = 76_600.0, 152_346.01, 76_600.0
+        with patch.object(ex, "family_open_exposure",
+                          return_value={"family": "bull_call_diagonal",
+                                        "family_open_max_loss_usd": fam,
+                                        "family_open_positions": []}), \
+             patch.object(ex, "liquid_cash", return_value=(cash, "live")), \
+             patch.object(ex, "deployed_debit_capital", return_value=debit):
+            out = ex.evaluate_exposure_degrade("bull_call_diagonal")
+        exp_pool = cash + debit
+        exp_pct = fam / exp_pool * 100
+        self.assertTrue(out["degraded"])
+        self.assertAlmostEqual(out["strategy_pool_usd"], round(exp_pool, 2), places=2)
+        self.assertAlmostEqual(out["pct_of_pool"], round(exp_pct, 2), places=2)
+        self.assertAlmostEqual(out["pct_of_pool"], 33.46, places=1)   # ≈33.5%
+        self.assertIn("占策略资金池 33.5%", out["copy"])
+        self.assertIn("阈值 30%", out["copy"])
+        self.assertIn("超阈值不禁止任何操作，仅改变推荐语气", out["copy"])
+        self.assertNotIn("流动现金 ≥", out["copy"])   # v1 分母表述废止
+
     def test_at_and_above_threshold_degrades(self) -> None:
-        cash = 500_000.0
-        for frac in (0.40, 0.41, 0.5028):     # 含 7/7 实证比例
-            fam = round(cash * frac, 2)
-            p1, p2 = _patched_exposure(fam, cash)
-            with p1, p2:
+        cash, debit = 400_000.0, 100_000.0     # pool = 500k
+        pool = cash + debit
+        for frac in (0.30, 0.31, 0.45):
+            fam = round(pool * frac, 2)
+            p1, p2, p3 = _patched_exposure(fam, cash, deployed_debit=debit)
+            with p1, p2, p3:
                 out = ex.evaluate_exposure_degrade("bull_put_spread")
             self.assertTrue(out["degraded"], f"frac={frac}")
-            self.assertAlmostEqual(out["pct_of_cash"], frac * 100, places=1)
+            self.assertAlmostEqual(out["pct_of_pool"], frac * 100, places=1)
             self.assertIn("条件满足，敞口已满", out["copy"])
             self.assertIn(f"${fam:,.0f}", out["copy"])           # 绝对值显式
-            self.assertIn("≥ 40%", out["copy"])                   # 阈值显式
-            self.assertIn("流动现金", out["copy"])                # 分母定义显式
+            self.assertIn("（阈值 30%）", out["copy"])            # 阈值显式
+            self.assertIn("策略资金池", out["copy"])              # v2 分母定义显式
 
     def test_below_threshold_not_degraded(self) -> None:
-        cash = 500_000.0
-        for frac in (0.399, 0.25, 0.0):
-            p1, p2 = _patched_exposure(round(cash * frac, 2), cash)
-            with p1, p2:
+        cash, debit = 400_000.0, 100_000.0
+        pool = cash + debit
+        for frac in (0.299, 0.20, 0.0):
+            p1, p2, p3 = _patched_exposure(round(pool * frac, 2), cash,
+                                           deployed_debit=debit)
+            with p1, p2, p3:
                 out = ex.evaluate_exposure_degrade("bull_put_spread")
             self.assertFalse(out["degraded"], f"frac={frac}")
             self.assertIsNone(out["copy"])
 
+    def test_v1_denominator_would_have_over_triggered(self) -> None:
+        """回归锁：同一 7/7 向量在 v1 口径（纯现金分母）下是 50.3%——v2 修正
+        后分母含已部署 debit，比例回到真实敞口刻度。"""
+        fam, cash, debit = 76_600.0, 152_346.01, 76_600.0
+        p1, p2, p3 = _patched_exposure(fam, cash, deployed_debit=debit)
+        with p1, p2, p3:
+            out = ex.evaluate_exposure_degrade("bull_put_spread")
+        self.assertLess(out["pct_of_pool"], fam / cash * 100)   # 33.5% < 50.3%
+
     def test_denominator_unavailable_fails_soft(self) -> None:
-        p1, p2 = _patched_exposure(200_000.0, None, "unavailable")
-        with p1, p2:
+        p1, p2, p3 = _patched_exposure(200_000.0, None, "unavailable", 50_000.0)
+        with p1, p2, p3:
             out = ex.evaluate_exposure_degrade("bull_put_spread")
         self.assertFalse(out["degraded"])
-        self.assertIsNone(out["pct_of_cash"])
+        self.assertIsNone(out["pct_of_pool"])
+        self.assertIsNone(out["strategy_pool_usd"])
         self.assertIn("n/a", out["note"])         # 照常推荐 + 标注 n/a
 
 
@@ -96,7 +134,8 @@ class MorningPushTests(unittest.TestCase):
         self.assertIn("条件满足，敞口已满", sent["title"])
         self.assertIn("非加仓号召", sent["body"])
         self.assertIn("$210,000", sent["body"])            # 绝对值进正文
-        self.assertIn("≥ 40%", sent["body"])
+        self.assertIn("（阈值 30%）", sent["body"])          # v2 阈值显式
+        self.assertIn("仅改变推荐语气", sent["body"])        # v2 语义澄清入文案
 
     def test_normal_day_stays_action(self) -> None:
         rec = select_strategy(*_nnb_snapshots(50.0))
@@ -120,16 +159,16 @@ class CopyConsistencyTests(unittest.TestCase):
         """推荐卡（/api/recommendation payload）与晨报正文的降级文案逐字一致
         （同源 exposure.degrade_copy）。"""
         rec = select_strategy(*_nnb_snapshots(50.0))
-        cash, fam = 500_000.0, 210_000.0
-        p1, p2 = _patched_exposure(fam, cash)
+        cash, debit, fam = 400_000.0, 100_000.0, 210_000.0   # pool 500k → 42%
+        p1, p2, p3 = _patched_exposure(fam, cash, deployed_debit=debit)
 
         # 卡片侧：真 evaluate（钉数据源），经 /api/recommendation 组装
         from web.server import app
-        with p1, p2, patch("strategy.selector.get_recommendation", return_value=rec):
+        with p1, p2, p3, patch("strategy.selector.get_recommendation", return_value=rec):
             payload = app.test_client().get("/api/recommendation").get_json()
         card = payload.get("exposure_degrade") or {}
         self.assertTrue(card.get("degraded"), payload.get("error"))
-        expected = ex.degrade_copy("bull_put_spread", fam, fam / cash * 100)
+        expected = ex.degrade_copy("bull_put_spread", fam, fam / (cash + debit) * 100)
         self.assertEqual(card["copy"], expected)
 
         # 晨报侧：同一 evaluate 输出进 body
@@ -140,11 +179,11 @@ class CopyConsistencyTests(unittest.TestCase):
             sent.update({"category": category, "body": body})
             return True
 
-        p1b, p2b = _patched_exposure(fam, cash)
+        p1b, p2b, p3b = _patched_exposure(fam, cash, deployed_debit=debit)
         with patch.object(bot_mod, "is_trading_day", return_value=True), \
              patch.object(bot_mod, "get_recommendation", return_value=rec), \
              patch.object(bot_mod, "_safe_append_recommendation_event"), \
-             p1b, p2b, \
+             p1b, p2b, p3b, \
              patch("notify.gateway.apush", side_effect=_rec_apush):
             asyncio.run(bot_mod.scheduled_push(AsyncMock(), "chat"))
         self.assertEqual(sent["category"], "STATE")
@@ -159,8 +198,8 @@ class SelectorUntouchedTests(unittest.TestCase):
         rec_before = select_strategy(*snaps)
         before = asdict(rec_before)
 
-        p1, p2 = _patched_exposure(300_000.0, 500_000.0)
-        with p1, p2:
+        p1, p2, p3 = _patched_exposure(300_000.0, 500_000.0, deployed_debit=100_000.0)
+        with p1, p2, p3:
             ex.evaluate_exposure_degrade(rec_before.strategy_key)
 
         self.assertEqual(asdict(rec_before), before)       # 对象未被降级评估修改
