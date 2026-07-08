@@ -626,6 +626,7 @@ def compute_book(data_dir: Path | None = None, force: bool = False) -> dict[str,
         },
         # (11) 期间明细：每快照期的 总值/净流/倒挤盈亏/期间收益/NAV/关账
         "pool_periods": {"sw": sw["periods"], "et": et["periods"]},
+        "restatements": _read_events(data_dir / "restatements.jsonl"),
         "recon_checks": recon_checks,
         "recon_all_green": all(c["ok"] for c in recon_checks),
         "guarantees": guarantees,

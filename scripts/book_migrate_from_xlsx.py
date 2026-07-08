@@ -46,11 +46,16 @@ CONFIG = {
     # §3.5 E*Trade merge (2026-06-01) dual-basis conventions
     "et_merge": {
         "date": "2026-06-01",
-        "cost_basis": {"Lien": 339348.13, "CXZ": 207907.0},
+        # RESTATEMENT 2026-07-07 (PM ratified, restatements.jsonl): Lien basis
+        # anchored 2024-11 (486,110.97 + net flows -269,553.99 = 216,556.98),
+        # replacing option B 339,348.13 — pre-merge recorded gains +122,791.15
+        # enter the book; ROI convention symmetric with CXZ.
+        "cost_basis": {"Lien": 216556.98, "CXZ": 207907.0},
         "roi_convention": {
-            "Lien": "personal_series_twr_since_2025",
+            "Lien": "value_vs_cost_basis",
             "CXZ": "value_vs_cost_basis",
         },
+        "restated": "2026-07-07 anchor-2024-11 (see restatements.jsonl)",
     },
     "guarantees": [
         {"beneficiary": "Chinchaung", "guarantor": "Lien", "hurdle": 0.05,
@@ -197,8 +202,49 @@ def _cmp(path: str, a, b, errs: list[str], tol_override: float | None = None):
         errs.append(f"{path}: native={a} oracle={b} (Δ={float(a) - float(b):+.6f})")
 
 
+# Documented restatements: the archived workbook predates them; transform its
+# values to post-restatement equivalents so parity stays exact. Return-ratio
+# fields recompute from transformed components; convention-changed fields are
+# excluded with a printed note.
+RESTATEMENT_DELTA_LIEN = 339348.13 - 216556.98   # +122,791.15 pnl / -contrib
+
+
+def _apply_restatements(oracle: dict) -> list[str]:
+    notes = []
+    d = RESTATEMENT_DELTA_LIEN
+    for m in oracle.get("members", []):
+        if m.get("name") == "Lien":
+            m["contrib"] = (m["contrib"] or 0) - d
+            m["pnl"] = (m["pnl"] or 0) + d
+            m["return_pct"] = m["pnl"] / m["contrib"] if m["contrib"] else None
+            notes.append("members[Lien] contrib/pnl/return transformed (restatement 2026-07-07)")
+    tot = oracle.get("total", {})
+    if tot:
+        tot["contrib"] = (tot["contrib"] or 0) - d
+        tot["pnl"] = (tot["pnl"] or 0) + d
+        tot["return_pct"] = tot["pnl"] / tot["contrib"] if tot["contrib"] else None
+    for row in oracle.get("etrade_pool", []):
+        if row.get("name") == "Lien":
+            row["cost_basis"] = 216556.98
+            # ROI convention changed (TWR-since-2025 -> value_vs_cost_basis):
+            # not delta-transformable, recompute directly
+            cv = row.get("current_value") or 0
+            row["return_on_invested"] = ((cv - 216556.98) / 216556.98) if cv else None
+            notes.append("etrade_pool[Lien] basis/ROI transformed")
+    # member_statements[].total mirrors members — same transform
+    for s in oracle.get("member_statements", []):
+        if s.get("name") == "Lien" and s.get("total"):
+            st = s["total"]
+            st["contrib"] = (st["contrib"] or 0) - d
+            st["pnl"] = (st["pnl"] or 0) + d
+            st["return_pct"] = st["pnl"] / st["contrib"] if st["contrib"] else None
+    return notes
+
+
 def parity(native: dict, oracle: dict) -> list[str]:
     errs: list[str] = []
+    for n in _apply_restatements(oracle):
+        print("  ~", n)
     # compare ORACLE keys only — the native payload may carry extra fields
     # (contributions_gross/distributions/dual_basis etc.) with no Excel
     # counterpart; the workbook is the reference, not a ceiling

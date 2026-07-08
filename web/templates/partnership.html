@@ -349,7 +349,7 @@ function renderETPool(b) {
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <div class="note-block">份额按并入当日市值设定；收益率分母 = 成本基数（CXZ 用实际净投入 $207,907，含并入前收益；Lien 用并入当日市值 option B + 自 2025 起时间加权——注：2024 对账单不全，Lien 累计收益率不含 2024 及更早）。</div>`;
+    <div class="note-block">份额按并入当日市值设定（不受成本基约定影响）；收益率分母 = 个人成本基（CXZ $207,907 实际净投入；Lien $216,557 = 2024-11 锚定市值 + 此后净流水——**2026-07-07 重述**，替代原 option B，两人口径对称）。注：两人的 2024 及更早收益均不计（Lien 对账单不全 / CXZ 自 May'24 起）。TWR 口径的个人年度序列见上方年度表。</div>`;
 }
 
 function renderNav(b) {
@@ -411,7 +411,14 @@ function renderConventionFooter() {
           <tr><td>NAV/Unit</td><td>单位净值增长（基 100）</td><td>审计级业绩记录</td><td>Overview NAV 区</td></tr>
         </tbody>
       </table></div>
-    </details>`;
+    </details>
+    ${(BOOK.restatements || []).length ? `
+    <details style="margin-top:6px">
+      <summary style="font-family:var(--f-ui);font-size:0.66rem;color:var(--orange);cursor:pointer">重述记录（${BOOK.restatements.length} 条）</summary>
+      <div style="font-family:var(--f-ui);font-size:0.66rem;color:var(--text-2);padding:6px 0;line-height:1.7">
+        ${BOOK.restatements.map(r => `<div style="margin-bottom:6px"><strong>${r.date}</strong> · ${r.field}：${fmtUSD(r.old)} → ${fmtUSD(r.new)}（${r.approved_by} 批准）<br>${r.effect}<br><span style="font-size:0.6rem">依据：${r.derivation} · ${r.caveats}</span></div>`).join('')}
+      </div>
+    </details>` : ''}`;
 }
 
 function renderOverview(b) {
