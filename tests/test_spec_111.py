@@ -311,5 +311,128 @@ class TestAC8_Q081TrailClosure(unittest.TestCase):
         self.assertIn("IMPLEMENTED", text, "Verdict A not marked IMPLEMENTED in Q081")
 
 
+# ── SPEC-111 review 2026-07-07: standing monitor ──────────────────────────────
+#
+# The June hole these lock in: liquid sat below the $30k floor for 3 weeks
+# (6/5–6/26, standing utilization 155–204%) with zero pushes — floor only
+# blocked candidates, rejects don't ring, 75% alert fires on accepts only.
+
+class TestStandingMonitor(unittest.TestCase):
+
+    def _run(self, liquid, committed, tmp, prev=None, pushes=None):
+        import strategy.cash_budget_governance as gov
+        state = tmp / "standing_state.json"
+        logf = tmp / "standing.jsonl"
+        if prev is not None:
+            state.write_text(json.dumps(prev))
+        captured = pushes if pushes is not None else []
+
+        def _push(cat, about, title, body, **kw):
+            captured.append({"category": cat, "body": body, **kw})
+            return True
+
+        with patch.object(gov, "STANDING_STATE", state), \
+             patch.object(gov, "STANDING_LOG", logf), \
+             patch.object(gov, "get_current_liquid_cash",
+                          return_value=_mock_cash(liquid)), \
+             patch.object(gov, "get_open_cash_collateral_total_usd",
+                          return_value=_mock_open_debit(committed)), \
+             patch("notify.gateway.push", side_effect=_push):
+            return gov.daily_standing_check()
+
+    def test_floor_breach_pushes_action_once(self):
+        tmp = Path(tempfile.mkdtemp())
+        pushes: list = []
+        snap = self._run(17_000, 76_600, tmp, pushes=pushes)
+        kinds = [m["kind"] for m in snap["messages"]]
+        self.assertIn("floor_breach", kinds)
+        self.assertEqual(pushes[0]["category"], "ACTION")
+        # H-4 convention: pushed body is whole-escaped, no raw '<'
+        self.assertNotIn("<", pushes[0]["body"].replace("&lt;", ""))
+        # second run same state → silent (no repeat spam)
+        pushes2: list = []
+        snap2 = self._run(17_000, 76_600, tmp, pushes=pushes2)
+        self.assertEqual(snap2["messages"], [])
+        self.assertEqual(pushes2, [])
+
+    def test_floor_recover_is_fyi(self):
+        tmp = Path(tempfile.mkdtemp())
+        pushes: list = []
+        snap = self._run(152_346, 76_600, tmp,
+                         prev={"floor_breached": True, "over_cap": True,
+                               "liquid_usd": 17_000}, pushes=pushes)
+        kinds = [m["kind"] for m in snap["messages"]]
+        self.assertIn("floor_recover", kinds)
+        self.assertIn("under_cap", kinds)
+        self.assertTrue(all(p["category"] == "FYI" for p in pushes))
+
+    def test_over_cap_crossing_is_action(self):
+        tmp = Path(tempfile.mkdtemp())
+        snap = self._run(100_000, 70_000, tmp,
+                         prev={"floor_breached": False, "over_cap": False,
+                               "liquid_usd": 100_000})
+        kinds = [m["kind"] for m in snap["messages"]]
+        self.assertEqual(kinds, ["over_cap"])
+
+    def test_denominator_swing_fyi(self):
+        tmp = Path(tempfile.mkdtemp())
+        # 88.6k → 152.3k = +72%, no floor/cap transitions (util stays under)
+        snap = self._run(152_346, 40_000, tmp,
+                         prev={"floor_breached": False, "over_cap": False,
+                               "liquid_usd": 88_578})
+        kinds = [m["kind"] for m in snap["messages"]]
+        self.assertEqual(kinds, ["denom_swing"])
+
+    def test_unavailable_source_skips_without_flapping(self):
+        import strategy.cash_budget_governance as gov
+        tmp = Path(tempfile.mkdtemp())
+        state = tmp / "standing_state.json"
+        state.write_text(json.dumps({"floor_breached": True, "over_cap": True,
+                                     "liquid_usd": 17_000}))
+        with patch.object(gov, "STANDING_STATE", state), \
+             patch.object(gov, "STANDING_LOG", tmp / "s.jsonl"), \
+             patch.object(gov, "get_current_liquid_cash",
+                          return_value=_mock_cash(0.0, source="unavailable")), \
+             patch.object(gov, "get_open_cash_collateral_total_usd",
+                          return_value=_mock_open_debit(0.0)):
+            snap = gov.daily_standing_check()
+        self.assertEqual(snap.get("skipped"), "cash_read_unavailable")
+        # prev state untouched
+        self.assertTrue(json.loads(state.read_text())["floor_breached"])
+
+
+class TestEntryResourceProfile(unittest.TestCase):
+    """资源画像(PM 2026-07-07 需求):吃现金 → 池/已占/cap 余量;吃 BP → Schwab 水位。"""
+
+    def test_cash_strategy_profile(self):
+        from web.server import _entry_resource_profile
+        with patch("strategy.cash_budget_governance.get_open_cash_collateral_total_usd",
+                   return_value=_mock_open_debit(76_600)):
+            p = _entry_resource_profile("bull_call_diagonal", 152_346.0)
+        self.assertEqual(p["consumes"], "cash")
+        self.assertEqual(p["cash_committed_usd"], 76_600)
+        self.assertAlmostEqual(p["standing_utilization_pct"], 50.3, places=1)
+        self.assertAlmostEqual(p["cap_headroom_usd"], 0.60 * 152_346 - 76_600, places=2)
+        self.assertFalse(p["floor_breached"])
+
+    def test_bp_strategy_profile(self):
+        from web.server import _entry_resource_profile
+        with patch("schwab.client.get_account_balances",
+                   return_value={"net_liquidation": 629_243.78,
+                                 "maintenance_margin": 106_174.62,
+                                 "option_buying_power": 523_069.16}):
+            p = _entry_resource_profile("bull_put_spread", 152_346.0)
+        self.assertEqual(p["consumes"], "bp")
+        self.assertEqual(p["schwab_option_bp_usd"], 523_069.16)
+        self.assertAlmostEqual(p["schwab_maint_pct_nlv"], 16.9, places=1)
+
+    def test_fail_soft_on_broker_error(self):
+        from web.server import _entry_resource_profile
+        with patch("schwab.client.get_account_balances",
+                   side_effect=RuntimeError("api down")):
+            p = _entry_resource_profile("bull_put_spread", None)
+        self.assertEqual(p.get("error"), "unavailable")
+
+
 if __name__ == "__main__":
     unittest.main()

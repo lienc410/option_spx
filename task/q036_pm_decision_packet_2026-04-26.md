@@ -1,5 +1,12 @@
 # Q036 PM Decision Packet — Idle BP Capital-Allocation Overlay
 
+> **⚠ REAUDIT NOTE (2026-07-07)**
+> "hold 不产品化" verdict **维持且更强**:+0.074pp 低于后来校准的噪音门槛
+> (Δ<0.5pp=噪音, Q080-P3),uplift 本身在噪音内。§5.3 的 re-trigger 条件引用了
+> 同量级(不可测)的信号,事实上等于 silent drop——若未来重启此线,触发条件需按
+> 噪音门槛重写。framing 层面 "idle BP 有待部署" 已被 Q081 cash-bound 修正
+> (BP 闲置≠资本闲置)。见 `task/bp_utilization_thread_reaudit_2026-07-07.md`。
+
 - Date: 2026-04-26
 - Prepared by: Quant Researcher
 - Audience: PM

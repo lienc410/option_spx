@@ -23,6 +23,8 @@ log = logging.getLogger(__name__)
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = REPO_ROOT / "data"
 DECISIONS_LOG = DATA_DIR / "cash_budget_decisions.jsonl"
+STANDING_STATE = DATA_DIR / "cash_budget_standing_state.json"
+STANDING_LOG = DATA_DIR / "cash_budget_standing.jsonl"
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -370,3 +372,142 @@ def log_cash_budget_decision(
 def evaluate_debit_cash_budget(candidate: dict) -> dict:
     """Deprecated alias for evaluate_cash_collateral_budget (SPEC-115 rename)."""
     return evaluate_cash_collateral_budget(candidate)
+
+
+# ── Standing monitor (SPEC-111 review 2026-07-07) ─────────────────────────────
+#
+# The June incident this fixes: liquid cash sat below the $30k floor for three
+# straight weeks (6/5–6/26, standing utilization 155–204%) and the PM never
+# heard about it — the floor only BLOCKS candidates, rejects don't ring, and
+# the 75% alert only fires on ACCEPTED entries. Standing state (committed vs
+# pool, independent of any candidate) was evaluated by nobody.
+#
+# This check runs once per trading day (16:50 q085 job) and pushes only on
+# STATE TRANSITIONS, never daily spam:
+#   floor breached / recovered            → ACTION / FYI
+#   standing utilization crosses CAP_PCT  → ACTION (up) / FYI (down)
+#   liquid pool moves ≥30% day-over-day   → FYI (denominator visibility)
+
+DENOM_SWING_PCT = 0.30
+
+
+def get_resource_snapshot() -> dict:
+    """Both resource poles in one call: cash pool (scarce) + committed, and
+    per-broker maintenance margin / option BP (abundant pole). Fail-soft:
+    missing broker data leaves fields None, never raises."""
+    snap: dict = {"ts": _now_utc()}
+    cash = get_current_liquid_cash()
+    committed = get_open_cash_collateral_total_usd()
+    liquid = cash.get("total") or 0.0
+    occupied = committed.get("total") or 0.0
+    snap["cash"] = {
+        "liquid_usd": liquid,
+        "committed_usd": occupied,
+        "standing_utilization_pct": round(occupied / liquid * 100.0, 1) if liquid > 0 else None,
+        "cap_pct": CAP_PCT * 100.0,
+        "cap_headroom_usd": round(CAP_PCT * liquid - occupied, 2) if liquid > 0 else None,
+        "floor_usd": CASH_FLOOR_USD,
+        "floor_breached": bool(liquid < CASH_FLOOR_USD),
+        "source": cash.get("source"),
+        "positions": committed.get("positions") or [],
+    }
+    snap["bp"] = {}
+    for broker, reader in (("schwab", "schwab.client"), ("etrade", "etrade.client")):
+        try:
+            import importlib
+            bal = importlib.import_module(reader).get_account_balances()
+            nlv = _num(bal.get("net_liquidation"))
+            maint = _num(bal.get("maintenance_margin"))
+            snap["bp"][broker] = {
+                "nlv": nlv,
+                "maintenance_margin": maint,
+                "maint_pct_nlv": round(maint / nlv * 100.0, 1) if maint and nlv else None,
+                "option_bp": _num(bal.get("option_buying_power") or bal.get("buying_power")),
+            }
+        except Exception as exc:
+            snap["bp"][broker] = {"error": str(exc)}
+    return snap
+
+
+def daily_standing_check(*, dry_run: bool = False) -> dict:
+    """Evaluate standing cash-budget state; push on transitions. Returns the
+    snapshot + list of messages emitted (for the q085 job summary)."""
+    snap = get_resource_snapshot()
+    c = snap["cash"]
+    messages: list[tuple[str, str, str]] = []  # (category, kind, body)
+
+    prev: dict = {}
+    if STANDING_STATE.exists():
+        try:
+            prev = json.loads(STANDING_STATE.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            prev = {}
+
+    if c.get("source") == "unavailable":
+        # No data — don't flap states on broker outage; report and keep prev.
+        snap["messages"] = []
+        snap["skipped"] = "cash_read_unavailable"
+        return snap
+
+    util = c.get("standing_utilization_pct")
+    over_cap = bool(util is not None and util > CAP_PCT * 100.0)
+    floor_breached = c["floor_breached"]
+    prev_floor = bool(prev.get("floor_breached"))
+    prev_over_cap = bool(prev.get("over_cap"))
+    prev_liquid = _num(prev.get("liquid_usd"))
+
+    util_txt = f"{util:.1f}%" if util is not None else "—"
+
+    if floor_breached and not prev_floor:
+        messages.append(("ACTION", "floor_breach",
+            f"[现金池] 跌破 floor:流动现金 ${c['liquid_usd']:,.0f} < ${CASH_FLOOR_USD:,.0f}。"
+            f"所有吃现金策略(BCD/T2/T3)从现在起被锁,直到现金恢复。"
+            f"已占用 ${c['committed_usd']:,.0f}。"))
+    elif prev_floor and not floor_breached:
+        messages.append(("FYI", "floor_recover",
+            f"[现金池] floor 恢复:流动现金 ${c['liquid_usd']:,.0f} ≥ ${CASH_FLOOR_USD:,.0f},"
+            f"吃现金策略解锁(站立利用率 {util_txt})。"))
+
+    if over_cap and not prev_over_cap:
+        messages.append(("ACTION", "over_cap",
+            f"[现金池] 站立利用率上穿 cap:已占用 ${c['committed_usd']:,.0f} = {util_txt} "
+            f"of ${c['liquid_usd']:,.0f}(cap {CAP_PCT*100:.0f}%)。新吃现金开仓将被拒;"
+            f"通常由现金池缩水或手动开仓引起。"))
+    elif prev_over_cap and not over_cap:
+        messages.append(("FYI", "under_cap",
+            f"[现金池] 站立利用率回落 cap 之下:{util_txt} of ${c['liquid_usd']:,.0f}。"))
+
+    if prev_liquid and prev_liquid > 0 and not messages:
+        swing = (c["liquid_usd"] - prev_liquid) / prev_liquid
+        if abs(swing) >= DENOM_SWING_PCT:
+            headroom = c.get("cap_headroom_usd")
+            headroom_txt = f"(cap 余量 ${headroom:,.0f})" if headroom is not None else ""
+            messages.append(("FYI", "denom_swing",
+                f"[现金池] 分母变动 {swing:+.0%}:${prev_liquid:,.0f} → ${c['liquid_usd']:,.0f}。"
+                f"站立利用率现为 {util_txt}{headroom_txt}。"))
+
+    snap["messages"] = [{"category": cat, "kind": kind, "body": body}
+                        for cat, kind, body in messages]
+    if not dry_run:
+        for cat, kind, body in messages:
+            try:
+                from notify.gateway import escape, push as gw_push
+                gw_push(cat, "系统状态", "现金预算站立监控", escape(body),
+                        dedupe_key=f"cash_standing:{kind}")
+            except Exception:
+                log.exception("cash standing push failed")
+        try:
+            STANDING_STATE.parent.mkdir(parents=True, exist_ok=True)
+            STANDING_STATE.write_text(json.dumps({
+                "ts": snap["ts"],
+                "liquid_usd": c["liquid_usd"],
+                "committed_usd": c["committed_usd"],
+                "floor_breached": floor_breached,
+                "over_cap": over_cap,
+            }, sort_keys=True), encoding="utf-8")
+            with STANDING_LOG.open("a", encoding="utf-8") as f:
+                f.write(json.dumps({k: snap[k] for k in ("ts", "cash", "bp")},
+                                   sort_keys=True, default=str) + "\n")
+        except Exception:
+            log.exception("cash standing state write failed")
+    return snap

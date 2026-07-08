@@ -1833,10 +1833,27 @@ function updateOpenRiskRow() {
   const cash = famMatch && ENTRY_RISK_CTX.liquid_cash_usd > 0 ? Number(ENTRY_RISK_CTX.liquid_cash_usd) : null;
   const pct = (concurrent != null && cash) ? (concurrent / cash) * 100 : null;
   const usd = (v) => v == null ? '—' : '$' + Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 });
+  // SPEC-111 review 2026-07-07 — 资源画像行：本策略吃现金还是吃 BP,该极当前水位
+  const rp = ENTRY_RISK_CTX?.resource_profile;
+  let resLine = '';
+  if (rp && rp.consumes === 'cash') {
+    const head = rp.cap_headroom_usd;
+    const warn = rp.floor_breached || (head != null && orderMaxLoss != null && head < orderMaxLoss);
+    resLine = `<br>Resource: <strong>consumes cash</strong>`
+      + ` · committed ${usd(rp.cash_committed_usd)}`
+      + (rp.standing_utilization_pct != null ? ` (${Number(rp.standing_utilization_pct).toFixed(1)}% of pool)` : '')
+      + ` · cap ${rp.cap_pct != null ? Number(rp.cap_pct).toFixed(0) : '60'}% headroom `
+      + `<strong class="${warn ? 'risk-warn' : ''}">${usd(head)}</strong>`
+      + (rp.floor_breached ? ' · <strong class="risk-warn">cash floor breached</strong>' : '');
+  } else if (rp && rp.consumes === 'bp') {
+    resLine = `<br>Resource: <strong>consumes BP</strong>`
+      + ` · Schwab option BP ${usd(rp.schwab_option_bp_usd)}`
+      + ` · maint margin ${rp.schwab_maint_pct_nlv != null ? Number(rp.schwab_maint_pct_nlv).toFixed(1) + '% of NLV' : '—'}`;
+  }
   el.innerHTML = `
     Max loss (this order): <strong>${usd(orderMaxLoss)}</strong>
     · Family concurrent${famN ? ` (+${famN} open)` : ''}: <strong>${usd(concurrent)}</strong>
-    · Of liquid cash: <strong class="${pct != null && pct >= 25 ? 'risk-warn' : ''}">${pct == null ? 'n/a' : pct.toFixed(1) + '%'}</strong>${cash ? ` (${usd(cash)})` : ''}`;
+    · Of liquid cash: <strong class="${pct != null && pct >= 25 ? 'risk-warn' : ''}">${pct == null ? 'n/a' : pct.toFixed(1) + '%'}</strong>${cash ? ` (${usd(cash)})` : ''}${resLine}`;
 }
 
 function updatePremiumDiff() {

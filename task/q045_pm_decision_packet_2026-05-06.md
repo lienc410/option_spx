@@ -1,5 +1,18 @@
 # Q045 — PM Decision Packet: Account-Level ROE Optimization
 
+> **⚠ SUPERSESSION STAMP (2026-07-07, PM-批准 reaudit)**
+> 本 packet 的 **framing 已被 Q081 cash-bound 实测推翻**(2026-06-01):账户资本从未闲置
+> (在 QQQ/SPY/个股),闲置的只是 PM 风险额度(BP)。"~89pp of account capital is idle"
+> 陈述在真实账户口径下**不成立**;Phase 2D 的 "+20.7pp theoretical upper bound"
+> (对闲置 BP 线性外推 $/BP-day,无信号供给模型)**正式作废**。
+> 数字层面:BS-flat 定价(先于 SPEC-119 CALIB,卖方 credit 系统性偏高)、
+> daily-MTM 平滑 Sharpe(Q080-P1 证明虚增 ~+0.7,"Sharpe improves +0.05" 在 artifact 内)、
+> 无 bootstrap CI / era 分层——绝对量级不作为现行证据引用;若用于论证进一步 sizing,
+> 必须 CALIB + unsmoothed + era-stratified 重跑。
+> **仍然有效**:17% 零仓日=信号稀缺(非 sizing 不足)的诊断、N2 cliff 的存在、
+> SPEC-084 参数本身(未回滚,待合成栈重仿真复核)。
+> 全文见 `task/bp_utilization_thread_reaudit_2026-07-07.md`。
+
 Date: 2026-05-06
 Role: Quant Researcher (Tier 3 Full Deep Dive)
 Window primary: 2023-01-01 → 2026-05-06 (3.34 years)

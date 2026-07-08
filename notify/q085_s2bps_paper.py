@@ -506,6 +506,21 @@ def run(today: str | None = None, *, dry_run: bool = False) -> dict:
         log.exception("q087 bcd governance failed")
         summary["bcd_governance_error"] = str(exc)
 
+    # A4. SPEC-111 review 2026-07-07 — standing cash-budget monitor. Fixes the
+    # June silent-floor-breach hole (3 weeks under $30k, zero pushes): floor /
+    # cap-crossing / denominator-swing transitions now reach the PM.
+    try:
+        from strategy.cash_budget_governance import daily_standing_check
+        standing = daily_standing_check(dry_run=dry_run)
+        summary["cash_standing"] = {
+            "utilization_pct": (standing.get("cash") or {}).get("standing_utilization_pct"),
+            "floor_breached": (standing.get("cash") or {}).get("floor_breached"),
+            "messages": standing.get("messages") or [],
+        }
+    except Exception as exc:
+        log.exception("cash standing check failed")
+        summary["cash_standing_error"] = str(exc)
+
     # C. manage open positions
     closes = manage_open_positions(puts, today)
     summary["closes"] = closes

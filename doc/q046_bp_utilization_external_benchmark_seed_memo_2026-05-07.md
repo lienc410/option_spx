@@ -1,5 +1,14 @@
 # Q046 — External Benchmarking of BP Utilization and Account-Level Deployment Efficiency
 
+> **⚠ SUPERSESSION STAMP (2026-07-07, PM-批准 reaudit)**
+> "把平均 BP 使用率推向外部 20-30%" 的目标句**作废**:Q081 (2026-06-01) 实测账户为
+> cash-bound + BP-rich,BP 利用率是输出不是目标;外部对标账本多以 BP 为资本约束
+> (Reg-T/naked 账本),与本账户"NLV 养 beta + 期权做 overlay"结构不可比。
+> **仍然有效**:机制排序 C(扩覆盖)>A(加 sizing)、per-trade vs book-level 口径校正。
+> 注意:本 memo 指向的 Q041 扩覆盖轴,其 T2 现落地为 cash-secured——消耗稀缺现金而非
+> 富余 BP,资源错配详见 `task/bp_utilization_thread_reaudit_2026-07-07.md` §3.1 与
+> `task/spec111_review_2026-07-07.md` §4。
+
 Date: 2026-05-07
 Status: seed / research entry
 Owner: Planner / Quant Researcher

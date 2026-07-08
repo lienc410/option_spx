@@ -1,5 +1,11 @@
 # Q041 Portfolio Attribution — Tier 3 Results Memo
 
+> **⚠ REAUDIT RESTATEMENT (2026-07-07)** — 维度 D 的 "+22.21pp BP-fill" 按 CSP BP = K×100
+> 口径计,是口径通胀:cash-secured 读法下 K×100 是**现金**占用(不填 BP,且消耗稀缺资源);
+> PM-margin 读法下真实 BP ≈ 12-18% notional → BP-fill ≈ **+3-4pp**。caveat 4 的
+> "mildly overstated" 低估了 ~5-6 倍口径差。SPEC-085 F3 引用此数须带本注。
+> 见 `task/bp_utilization_thread_reaudit_2026-07-07.md` §2.3。
+
 Date: 2026-05-07
 Owner: Quant Researcher
 Window: 2023-01-02 → 2026-04-29 (868 trading days, ~3.3 yr)

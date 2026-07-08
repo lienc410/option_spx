@@ -5724,11 +5724,48 @@ def api_position_entry_risk():
         "liquid_cash_usd": liquid_cash,
         "cash_source": cash_source,
         "concurrent_pct_of_cash": pct,
+        "resource_profile": _entry_resource_profile(strategy_key, liquid_cash),
     }
     # NaN/Inf 禁入浏览器 JSON（strict-JSON AC）
     from strategy.campaign import _assert_finite
     _assert_finite(payload, "entry_risk")
     return jsonify(payload)
+
+
+def _entry_resource_profile(strategy_key: str, liquid_cash) -> dict:
+    """SPEC-111 review 2026-07-07（PM 需求）— 资源画像：该策略吃哪一极资源,
+    以及那一极的当前水位。吃现金（BCD/T2/T3）→ 池/已占/cap 余量/floor;
+    吃 BP（credit 价差）→ Schwab 维持保证金 %NLV + option BP 余量。提示不拦,
+    fail-soft:任何读取失败只降级字段,不 500。"""
+    try:
+        from strategy.cash_budget_governance import (
+            CAP_PCT, CASH_FLOOR_USD, CASH_OCCUPYING_STRATEGIES,
+            get_open_cash_collateral_total_usd,
+        )
+        consumes = "cash" if strategy_key in CASH_OCCUPYING_STRATEGIES else "bp"
+        profile: dict = {"consumes": consumes}
+        if consumes == "cash":
+            committed = (get_open_cash_collateral_total_usd() or {}).get("total") or 0.0
+            profile["cash_committed_usd"] = round(committed, 2)
+            if liquid_cash and liquid_cash > 0:
+                profile["standing_utilization_pct"] = round(committed / liquid_cash * 100.0, 1)
+                profile["cap_headroom_usd"] = round(CAP_PCT * liquid_cash - committed, 2)
+                profile["floor_breached"] = bool(liquid_cash < CASH_FLOOR_USD)
+            profile["cap_pct"] = CAP_PCT * 100.0
+        else:
+            # SPX credit 价差在 Schwab 下单 → BP 极只看 Schwab
+            from schwab.client import get_account_balances as _schwab_bal
+            bal = _schwab_bal()
+            nlv = bal.get("net_liquidation")
+            maint = bal.get("maintenance_margin")
+            profile["schwab_option_bp_usd"] = bal.get("option_buying_power") or bal.get("buying_power")
+            profile["schwab_maint_margin_usd"] = maint
+            if maint and nlv:
+                profile["schwab_maint_pct_nlv"] = round(float(maint) / float(nlv) * 100.0, 1)
+        return profile
+    except Exception as exc:
+        app.logger.warning("entry resource profile failed: %s", exc)
+        return {"consumes": None, "error": "unavailable"}
 
 
 @app.route("/api/position/open-draft")
