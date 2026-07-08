@@ -1044,10 +1044,15 @@ document.getElementById('nav-date').textContent = new Date().toLocaleDateString(
 // live selector verdicts (including REDUCE_WAIT gates) not stale catalog names.
 (async () => {
   await loadStrategyCatalog();
-  await loadStrategyMatrix();
+  // Render immediately from the static catalog matrix, then let the slow
+  // calls land independently. /api/strategy-matrix evaluates 36 selector
+  // cells AND blocks on /api/backtest/stats — on a cold backtest cache that
+  // is 60s+, and awaiting it here left the signal banner stuck on
+  // "Loading current signals…" (PM 2026-07-07).
   setTab('NORMAL');
   loadSignals();
   loadStratStats();
+  loadStrategyMatrix().then(() => setTab(activeTab || 'NORMAL')).catch(() => {});
 })();
 </script>
 </body>
