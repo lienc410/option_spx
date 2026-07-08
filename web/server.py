@@ -3194,6 +3194,22 @@ def _load_capital_flows() -> list[dict]:
     return flows
 
 
+@app.route("/api/portfolio/resource-waterline")
+def api_portfolio_resource_waterline():
+    """SPEC-111 复审 + Q091(PM ratified 2026-07-07)— 资源水位卡片:
+    现金池 governed 视图(池/已占/cap 余量/floor 距离)+ crash-day 可部署
+    容量(Q091 最恶情景实时计算)。合并口径,不随 account-view 切换。"""
+    try:
+        from strategy.cash_budget_governance import resource_waterline
+        data = resource_waterline()
+    except Exception as exc:
+        app.logger.exception("resource waterline failed")
+        data = {"available": False, "error": str(exc)}
+    from strategy.campaign import _assert_finite
+    _assert_finite(data, "resource_waterline")
+    return jsonify(data)
+
+
 @app.route("/api/portfolio/capital-flows")
 def api_portfolio_capital_flows():
     """Capital-flow ledger for journal chips + return-adjustment audit."""

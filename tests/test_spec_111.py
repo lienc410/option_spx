@@ -494,6 +494,70 @@ class TestReviewTriggers(unittest.TestCase):
         self.assertNotIn("review_loosen", [m["kind"] for m in snap["messages"]])
 
 
+class TestResourceWaterline(unittest.TestCase):
+    """资源水位卡片数据源(Q091 常数实时算术,PM ratified 2026-07-07)。"""
+
+    _SCHWAB_BAL = {"cash_balance": 105_412.77, "maintenance_margin": 106_174.62,
+                   "net_liquidation": 629_243.78, "option_buying_power": 523_069.16}
+    _SCHWAB_POS = {"positions": [
+        {"symbol": "NVDA", "asset_type": "EQUITY", "market_value": 490_513.0}]}
+    _ET_BAL = {"cash_balance": 46_933.24, "maintenance_margin": 127_867.66,
+               "net_liquidation": 625_452.73, "option_buying_power": 156_444.13}
+    _ET_POS = {"positions": [
+        {"symbol": "SPY", "asset_type": "EQ", "market_value": 545_467.0}]}
+
+    def _run(self):
+        import strategy.cash_budget_governance as gov
+        with patch("schwab.client.get_account_balances", return_value=self._SCHWAB_BAL), \
+             patch("schwab.client.get_account_positions", return_value=self._SCHWAB_POS), \
+             patch("etrade.client.get_account_balances", return_value=self._ET_BAL), \
+             patch("etrade.client.get_account_positions", return_value=self._ET_POS), \
+             patch.object(gov, "get_open_cash_collateral_total_usd",
+                          return_value=_mock_open_debit(76_600.0)):
+            return gov.resource_waterline()
+
+    def test_matches_q091_worst_scenario_arithmetic(self):
+        import strategy.cash_budget_governance as gov
+        d = self._run()
+        self.assertTrue(d["available"])
+        self.assertFalse(d["partial"])
+        # cash side
+        self.assertAlmostEqual(d["cash"]["pool_usd"], 152_346.01, places=2)
+        self.assertAlmostEqual(d["cash"]["cap_headroom_usd"],
+                               0.60 * 152_346.01 - 76_600.0, places=2)
+        self.assertFalse(d["cash"]["fits_standard_debit"])  # 14.8k < 22k
+        # crash side — hand arithmetic, both brokers, dd45%×β1.2×h2x
+        exp = 0.0
+        for bal, mv in ((self._SCHWAB_BAL, 490_513.0), (self._ET_BAL, 545_467.0)):
+            h0 = bal["maintenance_margin"] / mv
+            e_dd = mv * (1 - gov.Q091_WORST_DD * gov.Q091_WORST_BETA)
+            exp += (e_dd + bal["cash_balance"] - 76_600.0 / 2
+                    - e_dd * min(h0 * gov.Q091_WORST_HAIRCUT_X, 1.0))
+        self.assertAlmostEqual(d["crash_budget"]["worst_excess_usd"], round(exp), places=0)
+        self.assertAlmostEqual(d["crash_budget"]["deployable_usd"],
+                               round(exp - gov.Q091_BUFFER_USD), places=0)
+
+    def test_single_broker_failure_is_partial(self):
+        import strategy.cash_budget_governance as gov
+        with patch("schwab.client.get_account_balances", return_value=self._SCHWAB_BAL), \
+             patch("schwab.client.get_account_positions", return_value=self._SCHWAB_POS), \
+             patch("etrade.client.get_account_balances", side_effect=RuntimeError("down")), \
+             patch.object(gov, "get_open_cash_collateral_total_usd",
+                          return_value=_mock_open_debit(0.0)):
+            d = gov.resource_waterline()
+        self.assertTrue(d["available"])
+        self.assertTrue(d["partial"])
+
+    def test_all_brokers_down_unavailable(self):
+        import strategy.cash_budget_governance as gov
+        with patch("schwab.client.get_account_balances", side_effect=RuntimeError("x")), \
+             patch("etrade.client.get_account_balances", side_effect=RuntimeError("y")), \
+             patch.object(gov, "get_open_cash_collateral_total_usd",
+                          return_value=_mock_open_debit(0.0)):
+            d = gov.resource_waterline()
+        self.assertFalse(d["available"])
+
+
 class TestEntryResourceProfile(unittest.TestCase):
     """资源画像(PM 2026-07-07 需求):吃现金 → 池/已占/cap 余量;吃 BP → Schwab 水位。"""
 

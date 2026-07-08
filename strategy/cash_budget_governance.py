@@ -374,6 +374,97 @@ def evaluate_debit_cash_budget(candidate: dict) -> dict:
     return evaluate_cash_collateral_budget(candidate)
 
 
+# ── Q091 crash 预算常数(PM ratified 2026-07-07)──────────────────────────────
+# 最恶已批情景:dd 45% × β1.2 × haircut ×2.0;buffer $100k。治理常数(与
+# CAP_PCT 同级):改动须重跑 research/q091 网格 + PM re-ratify。前端展示一律
+# 经 resource_waterline() 实时计算——no-param-mirror 纪律,禁止硬编码结果值。
+Q091_WORST_DD = 0.45
+Q091_WORST_BETA = 1.2
+Q091_WORST_HAIRCUT_X = 2.0
+Q091_BUFFER_USD = 100_000.0
+
+_EQUITY_TYPES = frozenset({"EQUITY", "ETF", "COLLECTIVE_INVESTMENT",
+                           "MUTUAL_FUND", "EQ"})
+
+
+def resource_waterline() -> dict:
+    """资源水位(Portfolio Snapshot 卡片数据源):现金池 governed 视图 +
+    Q091 最恶情景 crash-day 可部署容量,全部实时计算。
+    Fail-soft:单 broker 失败 → partial=True;全失败 → available=False。
+    与 Q091 脚本的差异:crash NLV 计入 cash-like(BOXX 在 crash 中保值)。"""
+    import importlib
+
+    committed = get_open_cash_collateral_total_usd()
+    l_opt = float(committed.get("total") or 0.0)
+
+    liquid_total = 0.0
+    excess_worst = 0.0
+    brokers: dict = {}
+    errors: list[str] = []
+    for broker in ("schwab", "etrade"):
+        try:
+            mod = importlib.import_module(f"{broker}.client")
+            bal = mod.get_account_balances()
+            pos = (mod.get_account_positions() or {}).get("positions") or []
+            cash = _num(bal.get("cash_balance")) or 0.0
+            cash_like = sum((_num(p.get("market_value")) or 0.0) for p in pos
+                            if str(p.get("symbol") or "").upper() in CASH_LIKE_SYMBOLS)
+            equity_mv = sum(
+                (_num(p.get("market_value")) or 0.0) for p in pos
+                if str(p.get("asset_type") or "").upper() in _EQUITY_TYPES
+                and str(p.get("symbol") or "").upper() not in CASH_LIKE_SYMBOLS)
+            maint = _num(bal.get("maintenance_margin")) or 0.0
+            h0 = (maint / equity_mv) if equity_mv else 0.0
+            e_dd = equity_mv * max(0.0, 1.0 - Q091_WORST_DD * Q091_WORST_BETA)
+            nlv_dd = e_dd + cash + cash_like - l_opt / 2.0
+            maint_dd = e_dd * min(h0 * Q091_WORST_HAIRCUT_X, 1.0)
+            excess_worst += nlv_dd - maint_dd
+            liquid_total += cash + cash_like
+            brokers[broker] = {
+                "cash": round(cash + cash_like, 2),
+                "equity_mv": round(equity_mv, 2),
+                "maint": round(maint, 2),
+                "option_bp": _num(bal.get("option_buying_power")
+                                  or bal.get("buying_power")),
+            }
+        except Exception as exc:
+            errors.append(f"{broker}: {exc}")
+            log.warning("resource_waterline: %s read failed: %s", broker, exc)
+    if not brokers:
+        return {"available": False, "error": "; ".join(errors)}
+
+    cap_usd = CAP_PCT * liquid_total
+    try:
+        from strategy.selector import DEFAULT_PARAMS
+        standard_debit = float(getattr(DEFAULT_PARAMS, "bcd_max_debit_usd", 22_000.0))
+    except Exception:
+        standard_debit = 22_000.0
+    return {
+        "available": True,
+        "partial": bool(errors),
+        "cash": {
+            "pool_usd": round(liquid_total, 2),
+            "committed_usd": round(l_opt, 2),
+            "utilization_pct": round(l_opt / liquid_total * 100.0, 1) if liquid_total else None,
+            "cap_pct": CAP_PCT * 100.0,
+            "cap_headroom_usd": round(cap_usd - l_opt, 2),
+            "floor_usd": CASH_FLOOR_USD,
+            "floor_distance_usd": round(liquid_total - CASH_FLOOR_USD, 2),
+            "standard_debit_usd": standard_debit,
+            "fits_standard_debit": bool(cap_usd - l_opt >= standard_debit),
+        },
+        "crash_budget": {
+            "worst_excess_usd": round(excess_worst, 0),
+            "buffer_usd": Q091_BUFFER_USD,
+            "deployable_usd": round(excess_worst - Q091_BUFFER_USD, 0),
+            "options_sleeve_max_loss_usd": round(l_opt, 2),
+            "scenario": (f"dd {Q091_WORST_DD:.0%} × β{Q091_WORST_BETA} × "
+                         f"haircut ×{Q091_WORST_HAIRCUT_X:g}"),
+        },
+        "brokers": brokers,
+    }
+
+
 # ── Standing monitor (SPEC-111 review 2026-07-07) ─────────────────────────────
 #
 # The June incident this fixes: liquid cash sat below the $30k floor for three
