@@ -440,11 +440,23 @@ def compute_book(data_dir: Path | None = None, force: bool = False) -> dict[str,
             # (basis reset to merge-date value) distorts the BLENDED simple
             # return even when contributed == cost_basis (Lien's 3.6% case)
             "dual_basis": bool(et_m),
+            # decomposition of the BLENDED simple return. Two distinct ET
+            # quantities (PM caught them mislabeled as one):
+            #   et_component     — as used in the blend, on the member's own
+            #                      basis convention (option B: since-merge;
+            #                      personal-cost: INCLUDES pre-merge gains)
+            #   et_since_merge   — uniform pool basis (contributed at merge);
+            #                      same pool ⇒ near-identical for everyone
             "return_parts": ({
                 "sw_simple": (sw_m["simple_return"] if sw_m else None),
-                "et_since_merge": (((et_m["current_value"] - et_m["cost_basis"])
-                                    / et_m["cost_basis"])
-                                   if et_m and et_m["cost_basis"] > 1e-9 else None),
+                "et_component": (((et_m["current_value"] - et_m["cost_basis"])
+                                  / et_m["cost_basis"])
+                                 if et_m and et_m["cost_basis"] > 1e-9 else None),
+                "et_includes_premerge": bool(
+                    et_m and abs(et_m["contributed"] - et_m["cost_basis"]) > 0.01),
+                "et_since_merge": (((et_m["current_value"] - et_m["contributed"])
+                                    / et_m["contributed"])
+                                   if et_m and et_m["contributed"] > 1e-9 else None),
             } if et_m else None),
             "pnl": m_pnl,
             "return_pct": (m_pnl / m_contrib) if m_contrib > 1e-9 else None,

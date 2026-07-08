@@ -249,7 +249,7 @@ function renderMembers(b) {
       <td>${m.distributions ? '−' + fmtUSD(m.distributions) : '—'}</td>
       <td>${fmtUSD(m.contrib)}</td>
       <td class="${pnlClass(m.pnl)}">${fmtSignedUSD(m.pnl)}</td>
-      <td class="${pnlClass(m.return_pct)}">${fmtPct(m.return_pct)}${m.return_parts ? `<div style="font-size:0.58rem;color:var(--text-2);font-family:var(--f-ui)">SW ${fmtPct(m.return_parts.sw_simple)} · ET 自并入 ${fmtPct(m.return_parts.et_since_merge)}</div>` : ''}</td>
+      <td class="${pnlClass(m.return_pct)}">${fmtPct(m.return_pct)}${m.return_parts ? `<div style="font-size:0.58rem;color:var(--text-2);font-family:var(--f-ui)">SW ${fmtPct(m.return_parts.sw_simple)} · ${m.return_parts.et_includes_premerge ? `ET 含并入前 ${fmtPct(m.return_parts.et_component)}（自并入 ${fmtPct(m.return_parts.et_since_merge)}）` : `ET 自并入 ${fmtPct(m.return_parts.et_since_merge)}`}</div>` : ''}</td>
     </tr>`).join('');
   const t = b.total || {};
   const totalRow = `
