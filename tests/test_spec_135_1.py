@@ -149,7 +149,10 @@ class AnchorTests(unittest.TestCase):
 class UiAuditTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.spx = (ROOT / "web" / "templates" / "spx.html").read_text(encoding="utf-8")
+        # SPEC-135.3 搬家后：trace 渲染住共享 trace_render.js + theme.css（单源）
+        cls.spx = ((ROOT / "web" / "templates" / "spx.html").read_text(encoding="utf-8")
+                   + (ROOT / "web" / "static" / "trace_render.js").read_text(encoding="utf-8")
+                   + (ROOT / "web" / "static" / "theme.css").read_text(encoding="utf-8"))
 
     def test_hierarchy_wiring_present(self) -> None:
         for token in ("trace-anchor", "is-final", "trace-ev-group", "trace-market",

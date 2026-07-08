@@ -485,3 +485,123 @@ button, select, input, textarea, optgroup {
   color: var(--text-2);
   text-transform: none;
 }
+
+/* ── SPEC-135.3 — Decision Trace 共享样式（/spx + Portfolio 首页共用，
+      渲染器 web/static/trace_render.js）。Outcome 词汇表：红 ⛔ 只留真拦截，
+      advisory = 琥珀 ⚠ 提示（不拦）。 ── */
+.trace-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--blue-border);
+  border-radius: 9px;
+  padding: 0;
+  margin-top: 12px;
+}
+.trace-card > summary {
+  cursor: pointer; list-style: none;
+  padding: 12px 18px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-family: var(--f-ui); font-size: 0.64rem; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-2);
+}
+.trace-card > summary::-webkit-details-marker { display: none; }
+.trace-card > summary .trace-verdict {
+  font-family: var(--f-display); font-style: italic; font-size: 0.92rem;
+  font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--text);
+}
+.trace-body { padding: 0 18px 14px; }
+.trace-date-row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+.trace-date-row select {
+  background: var(--surface-hi); border: 1px solid var(--border-2);
+  color: var(--text); border-radius: 6px; padding: 4px 8px;
+  font-family: var(--f-mono); font-size: 0.7rem;
+}
+.trace-lane { margin-bottom: 14px; }
+.trace-lane-title {
+  font-family: var(--f-ui); font-size: 0.62rem; font-weight: 700;
+  letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-2);
+  padding-bottom: 5px; border-bottom: 1px solid var(--border); margin-bottom: 6px;
+}
+.trace-node { border-left: 2px solid var(--border-2); margin-left: 6px; }
+.trace-node > summary {
+  cursor: pointer; list-style: none;
+  display: flex; gap: 8px; align-items: baseline;
+  padding: 4px 0 4px 10px; font-size: 0.76rem; color: var(--text);
+}
+.trace-node > summary::-webkit-details-marker { display: none; }
+.trace-node .t-icon { flex-shrink: 0; width: 1.2em; text-align: center; }
+.trace-node.t-pass  { border-left-color: var(--green-border); }
+.trace-node.t-veto  { border-left-color: var(--red-border); }
+.trace-node.t-halt  { border-left-color: var(--red-border); }
+.trace-node.t-advisory { border-left-color: var(--orange-border); }
+.trace-node.t-accept, .trace-node.t-wait { border-left-color: var(--blue-border); }
+.trace-node .t-ref {
+  margin-left: auto; font-family: var(--f-mono); font-size: 0.58rem;
+  color: var(--text-2); white-space: nowrap; flex-shrink: 0;
+}
+.trace-triple {
+  margin: 2px 0 6px 22px; padding: 7px 9px;
+  background: var(--surface-hi); border: 1px solid var(--border-2);
+  border-radius: 6px; font-size: 0.7rem; color: var(--text-2);
+  display: grid; gap: 3px;
+}
+.trace-triple strong { color: var(--text); font-weight: 500; }
+.trace-triple code {
+  font-family: var(--f-mono); font-size: 0.64rem; color: var(--text-2);
+  word-break: break-all;
+}
+.trace-ghost {
+  margin: 2px 0 2px 16px; font-size: 0.7rem; color: var(--text-2);
+  font-style: italic; opacity: 0.65;
+}
+.trace-disclaimer {
+  font-size: 0.66rem; color: var(--text-2); font-style: italic; margin-top: 3px;
+}
+.trace-market {
+  font-size: 0.72rem; color: var(--text-2); line-height: 1.6;
+  padding: 4px 0 8px; border-bottom: 1px solid var(--border); margin-bottom: 8px;
+}
+.trace-market .m-sep { color: var(--text-2); opacity: 0.6; }
+.trace-anchor-block { margin-bottom: 6px; }
+.trace-anchor {
+  display: flex; gap: 9px; align-items: baseline;
+  padding: 5px 0; cursor: pointer;
+  font-size: 0.88rem; font-weight: 600; color: var(--text);
+}
+.trace-anchor .a-icon { flex-shrink: 0; width: 1.2em; text-align: center; }
+.trace-anchor.a-ok .a-icon { color: var(--green); }
+.trace-anchor.a-blocked .a-icon { color: var(--red); }
+.trace-anchor.a-blocked .a-label { color: var(--red); }
+.trace-anchor.a-advisory .a-icon { color: var(--orange); }
+.trace-anchor.a-advisory .a-label { color: var(--orange); }
+.trace-anchor.is-final {
+  font-size: 0.98rem; font-weight: 700;
+  border-top: 2px solid var(--blue-border);
+  padding-top: 9px; margin-top: 6px; cursor: default;
+}
+.trace-anchor.is-final .a-icon { color: var(--blue); }
+.trace-anchor-compact {
+  font-size: 0.8rem; padding: 3px 0; cursor: default;
+}
+.trace-anchor-compact.is-final { font-size: 0.86rem; padding-top: 6px; margin-top: 3px; }
+.trace-ev-group { margin-left: 22px; }
+.trace-ev-inline {
+  font-size: 0.7rem; color: var(--text-2);
+  padding: 3px 0 3px 10px; border-left: 2px solid var(--border-2); margin-left: 6px;
+}
+.trace-postnote { margin-top: 4px; }
+.trace-postnote-label {
+  font-family: var(--f-ui); font-size: 0.58rem; font-weight: 700;
+  letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-2);
+  padding: 3px 0 1px 10px;
+}
+/* 图例常显（SPEC-135.3 §3） */
+.trace-legend {
+  display: flex; gap: 14px; flex-wrap: wrap;
+  font-size: 0.66rem; color: var(--text-2);
+  padding: 4px 0 8px;
+}
+.trace-legend .lg-ok { color: var(--green); }
+.trace-legend .lg-adv { color: var(--orange); }
+.trace-legend .lg-block { color: var(--red); }
+.trace-legend .lg-final { color: var(--blue); }

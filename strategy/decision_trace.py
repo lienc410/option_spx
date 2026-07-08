@@ -43,7 +43,11 @@ def add(layer: str, check: str, label_human: str, *, detail: str = "",
     """追加一个 trace 节点（纯记录，永不影响控制流）。
 
     layer: data|cell|gate|governance|funding|exposure|output
-    outcome: info|route|pass|veto|halt|accept|wait
+    outcome: info|route|pass|advisory|veto|halt|accept|wait
+      advisory（SPEC-135.3）：评估为真、改变语气/通知、不阻止任何东西——
+      渲染为琥珀 ⚠"提示"；红色 ⛔ 只留给真拦截（halt / 会阻止推荐或需
+      pm_override 的 veto）。PM 2026-07-07 实测把敞口提示误读成最终拦截
+      理由——词汇表缺此档是根因。
     SPEC-135.1（纯附加两字段，层级由代码吐、前端零硬编码）：
       kind:  verdict（阶段结论，常显锚点）| evidence（支撑检查，缩进可折叠）
              | final（今日结论，最大锚点）
@@ -143,7 +147,8 @@ def funding_trace(strategy_key: str) -> list[dict]:
         nodes.append({
             "layer": "funding", "check": "cash_floor",
             "label_human": f"现金池余额 vs 底线（任何时候留足 ${CASH_FLOOR_USD:,.0f} 应急现金）",
-            "detail": (f"当前流动现金 ${total:,.0f} vs 底线 ${CASH_FLOOR_USD:,.0f}"
+            "detail": ((f"当前流动现金 ${total:,.0f} vs 底线 ${CASH_FLOOR_USD:,.0f}"
+                        "——此门在开仓 API 有真实拦截路径（手动单可 pm_override）")
                        if available else "现金数据不可用（fail-soft，不拦）"),
             "inputs": {"liquid_cash": total if available else None,
                        "floor": CASH_FLOOR_USD, "source": cash.get("source")},
@@ -162,7 +167,8 @@ def funding_trace(strategy_key: str) -> list[dict]:
                                 f"{CAP_PCT:.0%} 押在 debit/现金担保结构上"),
                 "detail": (f"已占用 ${open_cash:,.0f} / cap ${cap:,.0f} → "
                            f"还可再部署约 ${max(headroom, 0):,.0f}"
-                           "（允许张数 = 余量 ÷ 单张成本，随所选行权价而变）"),
+                           "（允许张数 = 余量 ÷ 单张成本，随所选行权价而变）"
+                           "——此门在开仓 API 有真实拦截路径（手动单可 pm_override）"),
                 "inputs": {"open_cash": round(open_cash, 2), "cap_pct": CAP_PCT,
                            "headroom": round(headroom, 2)},
                 "outcome": "pass" if headroom > 0 else "veto",
@@ -191,7 +197,9 @@ def funding_trace(strategy_key: str) -> list[dict]:
             "inputs": {k: deg.get(k) for k in
                        ("family", "family_open_max_loss_usd", "strategy_pool_usd",
                         "pct_of_pool", "threshold_pct", "degraded")},
-            "outcome": "veto" if deg.get("degraded") else "pass",
+            # SPEC-135.3：degraded = 提示不拦（改变推荐语气、不阻止任何操作）
+            # → advisory（琥珀 ⚠），不再用 veto——PM 曾把它误读成最终拦截理由
+            "outcome": "advisory" if deg.get("degraded") else "pass",
             "code_ref": "SPEC-131 v2", "branch_taken": True,
             "kind": "evidence", "stage": "capital",
         })

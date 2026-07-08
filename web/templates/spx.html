@@ -15,6 +15,8 @@
      at web/static/ — self-hosted, NO CDN (deploy red line).
      License text: web/static/lightweight-charts.LICENSE -->
 <script src="{{ url_for('static', filename='lightweight-charts.standalone.production.js') }}?v=spec132_1"></script>
+<!-- SPEC-135.3: Decision Trace 共享渲染器（与 Portfolio 首页同源） -->
+<script src="{{ url_for('static', filename='trace_render.js') }}?v=spec135_3"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -525,108 +527,6 @@ body {
   font-size: 0.68rem; color: var(--text-2);
 }
 .structure-fn strong { font-family: var(--f-mono); color: var(--text); font-weight: 500; }
-
-/* ── Decision Trace (SPEC-135 — 决策管道自吐，前端零硬编码门清单) ── */
-.trace-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--blue-border);
-  border-radius: 9px;
-  padding: 0;
-  margin-top: 12px;
-}
-.trace-card > summary {
-  cursor: pointer; list-style: none;
-  padding: 12px 18px;
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  font-family: var(--f-ui); font-size: 0.64rem; font-weight: 700;
-  letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-2);
-}
-.trace-card > summary::-webkit-details-marker { display: none; }
-.trace-card > summary .trace-verdict {
-  font-family: var(--f-display); font-style: italic; font-size: 0.92rem;
-  font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--text);
-}
-.trace-body { padding: 0 18px 14px; }
-.trace-date-row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
-.trace-date-row select {
-  background: var(--surface-hi); border: 1px solid var(--border-2);
-  color: var(--text); border-radius: 6px; padding: 4px 8px;
-  font-family: var(--f-mono); font-size: 0.7rem;
-}
-.trace-lane { margin-bottom: 14px; }
-.trace-lane-title {
-  font-family: var(--f-ui); font-size: 0.62rem; font-weight: 700;
-  letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-2);
-  padding-bottom: 5px; border-bottom: 1px solid var(--border); margin-bottom: 6px;
-}
-.trace-node { border-left: 2px solid var(--border-2); margin-left: 6px; }
-.trace-node > summary {
-  cursor: pointer; list-style: none;
-  display: flex; gap: 8px; align-items: baseline;
-  padding: 4px 0 4px 10px; font-size: 0.76rem; color: var(--text);
-}
-.trace-node > summary::-webkit-details-marker { display: none; }
-.trace-node .t-icon { flex-shrink: 0; width: 1.2em; text-align: center; }
-.trace-node.t-pass  { border-left-color: var(--green-border); }
-.trace-node.t-veto  { border-left-color: var(--red-border); }
-.trace-node.t-halt  { border-left-color: var(--orange-border); }
-.trace-node.t-accept, .trace-node.t-wait { border-left-color: var(--blue-border); }
-.trace-node .t-ref {
-  margin-left: auto; font-family: var(--f-mono); font-size: 0.58rem;
-  color: var(--text-2); white-space: nowrap; flex-shrink: 0;
-}
-.trace-triple {
-  margin: 2px 0 6px 22px; padding: 7px 9px;
-  background: var(--surface-hi); border: 1px solid var(--border-2);
-  border-radius: 6px; font-size: 0.7rem; color: var(--text-2);
-  display: grid; gap: 3px;
-}
-.trace-triple strong { color: var(--text); font-weight: 500; }
-.trace-triple code {
-  font-family: var(--f-mono); font-size: 0.64rem; color: var(--text-2);
-  word-break: break-all;
-}
-.trace-ghost {
-  margin: 2px 0 2px 16px; font-size: 0.7rem; color: var(--text-2);
-  font-style: italic; opacity: 0.65;
-}
-/* ── SPEC-135.1 层级化：锚点常显、evidence 缩进折叠 ─────────── */
-.trace-market {
-  font-size: 0.72rem; color: var(--text-2); line-height: 1.6;
-  padding: 4px 0 8px; border-bottom: 1px solid var(--border); margin-bottom: 8px;
-}
-.trace-market .m-sep { color: var(--text-2); opacity: 0.6; }
-.trace-anchor-block { margin-bottom: 6px; }
-.trace-anchor {
-  display: flex; gap: 9px; align-items: baseline;
-  padding: 5px 0; cursor: pointer;
-  font-size: 0.88rem; font-weight: 600; color: var(--text);
-}
-.trace-anchor .a-icon { flex-shrink: 0; width: 1.2em; text-align: center; }
-.trace-anchor.a-ok .a-icon { color: var(--green); }
-.trace-anchor.a-blocked .a-icon { color: var(--red); }
-.trace-anchor.a-blocked .a-label { color: var(--red); }
-.trace-anchor.is-final {
-  font-size: 0.98rem; font-weight: 700;
-  border-top: 2px solid var(--blue-border);
-  padding-top: 9px; margin-top: 6px; cursor: default;
-}
-.trace-anchor.is-final .a-icon { color: var(--blue); }
-.trace-ev-group { margin-left: 22px; }
-.trace-ev-inline {
-  font-size: 0.7rem; color: var(--text-2);
-  padding: 3px 0 3px 10px; border-left: 2px solid var(--border-2); margin-left: 6px;
-}
-.trace-postnote { margin-top: 4px; }
-.trace-postnote-label {
-  font-family: var(--f-ui); font-size: 0.58rem; font-weight: 700;
-  letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-2);
-  padding: 3px 0 1px 10px;
-}
-.trace-disclaimer {
-  font-size: 0.66rem; color: var(--text-2); font-style: italic; margin-top: 3px;
-}
 
 /* ── Campaign card (SPEC-127 §1 双层记账) ───────────────────── */
 .campaign-card {
@@ -2979,142 +2879,6 @@ async function loadStructureMap() {
 
 // ── SPEC-135 — Decision Trace（管道自吐；前端零硬编码 gate 清单）────────────
 
-const TRACE_ICONS = { pass: '✓', veto: '⛔', halt: '⛔', info: '·', route: '▸',
-                      accept: '🏁', wait: '⏸' };
-
-function traceNodeHtml(n) {
-  const icon = TRACE_ICONS[n.outcome] || '·';
-  const iconColor = n.outcome === 'pass' ? 'var(--green)'
-    : (n.outcome === 'veto' || n.outcome === 'halt') ? 'var(--red)'
-    : (n.outcome === 'accept' || n.outcome === 'wait') ? 'var(--blue)' : 'var(--text-2)';
-  const inputsStr = n.inputs && Object.keys(n.inputs).length
-    ? JSON.stringify(n.inputs) : '—';
-  // hover/点击三件套：{检查了什么数据, 实际值 vs 阈值, code_ref}（SPEC-135 §0）
-  return `
-    <details class="trace-node t-${n.outcome}">
-      <summary title="点击展开：检查数据 · 实际值 vs 阈值 · 代码溯源">
-        <span class="t-icon" style="color:${iconColor}">${icon}</span>
-        <span>${n.label_human || n.check}</span>
-        <span class="t-ref">${n.code_ref || ''}</span>
-      </summary>
-      <div class="trace-triple">
-        <div><strong>检查数据:</strong> <code>${inputsStr}</code></div>
-        <div><strong>实际值 vs 阈值:</strong> ${n.detail || '—'}</div>
-        <div><strong>代码溯源:</strong> <code>${n.code_ref || '—'}</code></div>
-      </div>
-    </details>`;
-}
-
-// SPEC-135.1 — Lane A 层级化：verdict/final 常显锚点，evidence 缩进可折叠。
-// 层级纯由代码吐的 kind/stage 字段驱动（前端零硬编码 stage/gate 清单）；
-// 历史行无 kind → 按 evidence 降级（向后兼容）。
-
-const TRACE_ANCHOR_ICONS = { accept: '●', pass: '●', route: '●',
-                             veto: '⛔', halt: '⛔', wait: '▶', info: '●' };
-
-function traceKindOf(n) { return n.kind || 'evidence'; }
-
-function traceEvidenceGroupHtml(evs, groupId, collapsed) {
-  if (!evs.length) return '';
-  // 短 evidence（≤20 字且通过）连续段同行并列；其余每行一条（保留三件套）
-  const rows = [];
-  let shortRun = [];
-  const flushShort = () => {
-    if (shortRun.length > 1) {
-      rows.push(`<div class="trace-ev-inline">${shortRun.map((n) =>
-        `<span title="${(n.detail || '').replace(/"/g, '&quot;')}">✓ ${n.label_human}</span>`).join(' · ')}</div>`);
-    } else if (shortRun.length === 1) {
-      rows.push(traceNodeHtml(shortRun[0]));
-    }
-    shortRun = [];
-  };
-  for (const n of evs) {
-    if (n.outcome === 'pass' && (n.label_human || '').length <= 20) {
-      shortRun.push(n);
-    } else {
-      flushShort();
-      rows.push(traceNodeHtml(n));
-    }
-  }
-  flushShort();
-  return `<div class="trace-ev-group" id="${groupId}" ${collapsed ? 'style="display:none"' : ''}>${rows.join('')}</div>`;
-}
-
-function traceAnchorHtml(anchor, idx, collapsed) {
-  const n = anchor.node;
-  const kind = traceKindOf(n);
-  const icon = TRACE_ANCHOR_ICONS[n.outcome] || '●';
-  const cls = (n.outcome === 'veto' || n.outcome === 'halt') ? 'blocked'
-    : (kind === 'final' ? 'final' : 'ok');
-  const groupId = `trace-ev-${idx}`;
-  const hasEv = anchor.pre.length > 0;
-  const evHtml = traceEvidenceGroupHtml(anchor.pre, groupId, collapsed);
-  const postHtml = anchor.post && anchor.post.length
-    ? `<div class="trace-ev-group trace-postnote"><div class="trace-postnote-label">附注</div>${anchor.post.map(traceNodeHtml).join('')}</div>`
-    : '';
-  return `
-    <div class="trace-anchor-block">
-      <div class="trace-anchor ${kind === 'final' ? 'is-final' : ''} a-${cls}"
-           ${hasEv ? `onclick="const g=document.getElementById('${groupId}'); if(g) g.style.display = g.style.display==='none' ? '' : 'none';" title="点击折叠/展开支撑检查"` : ''}>
-        <span class="a-icon">${icon}</span>
-        <span class="a-label">${n.label_human || n.check}</span>
-        <span class="t-ref">${n.code_ref || ''}</span>
-      </div>
-      ${evHtml}${postHtml}
-    </div>`;
-}
-
-function traceLaneAHtml(d) {
-  const nodes = d.lane_a || [];
-  if (!nodes.length) {
-    return `<div class="trace-ghost">${d.lane_a_note || d.lane_a_error || '无 trace 数据'}</div>`;
-  }
-  // ① 市场读数 stage：单行汇总（spec 钦定渲染特例），不折叠
-  const market = nodes.filter((n) => (n.stage || '') === 'market_read');
-  const rest = nodes.filter((n) => (n.stage || '') !== 'market_read');
-  let html = '';
-  if (market.length) {
-    html += `<div class="trace-market">${market.map((n) =>
-      `<span title="${(n.detail || '').replace(/"/g, '&quot;')}">${n.label_human}</span>`).join('<span class="m-sep"> · </span>')}</div>`;
-  }
-  // ② 锚点分组：evidence 归其后最近的 verdict/final；final 后残余 = 附注
-  const anchors = [];
-  let pending = [];
-  for (const n of rest) {
-    if (traceKindOf(n) === 'evidence') { pending.push(n); continue; }
-    anchors.push({ node: n, pre: pending, post: [] });
-    pending = [];
-  }
-  if (pending.length) {
-    if (anchors.length) anchors[anchors.length - 1].post = pending;
-    else return html + pending.map(traceNodeHtml).join('')   // 历史行降级：全 evidence 平铺
-      + (d.lane_a_note ? `<div class="trace-ghost">${d.lane_a_note}</div>` : '');
-  }
-  const collapsedDefault = window.innerWidth < 720;   // 移动端默认折叠
-  html += anchors.map((a, i) => traceAnchorHtml(a, i, collapsedDefault)).join('');
-  const truncated = nodes.some((n) => n.outcome === 'veto' || n.outcome === 'halt');
-  if (truncated) {
-    html += `<div class="trace-ghost">…后续未走到的门不再评估（被上方 ⛔ 截断）——ghost 分支</div>`;
-  }
-  if (d.lane_a_note) html += `<div class="trace-ghost">${d.lane_a_note}</div>`;
-  return html;
-}
-
-function traceLaneBHtml(items) {
-  if (!items || !items.length) return '<div class="trace-ghost">今天没有 open 仓位。</div>';
-  return items.map((it) => {
-    const icon = it.state === 'action' ? '⛔' : it.state === 'hold' ? '✓' : '·';
-    const color = it.state === 'action' ? 'var(--orange)' : it.state === 'hold' ? 'var(--green)' : 'var(--text-2)';
-    return `<div class="trace-node t-${it.state === 'action' ? 'halt' : 'pass'}">
-      <summary style="cursor:default">
-        <span class="t-icon" style="color:${color}">${icon}</span>
-        <span>${it.trade_id ? `<span style="font-family:var(--f-mono);font-size:0.66rem;color:var(--text-2)">${it.trade_id}</span> · ` : ''}${it.label_human}</span>
-        <span class="t-ref">${it.code_ref || ''}</span>
-      </summary>
-    </div>`;
-  }).join('');
-}
-
 function renderDecisionTrace(d) {
   const wrap = document.getElementById('decision-trace');
   if (!wrap) return;
@@ -3133,17 +2897,18 @@ function renderDecisionTrace(d) {
         <span style="margin-left:auto;font-weight:400;letter-spacing:0;text-transform:none">为什么是这个结论 → 点开看全程</span>
       </summary>
       <div class="trace-body">
+        ${TraceRender.legendHtml()}
         <div class="trace-date-row">
           <select id="trace-date-pick" onchange="loadDecisionTrace(this.value)">${dateOptions}</select>
           <span style="font-size:0.66rem;color:var(--text-2)">最近 30 个有记录的交易日可切换</span>
         </div>
         <div class="trace-lane">
           <div class="trace-lane-title">Lane A · 今天开不开新仓？</div>
-          ${traceLaneAHtml(d)}
+          ${TraceRender.laneAHtml(d, 'trace-ev')}
         </div>
         <div class="trace-lane">
           <div class="trace-lane-title">Lane B · 手上的仓位要动吗？</div>
-          ${traceLaneBHtml(d.lane_b)}
+          ${TraceRender.laneBHtml(d.lane_b)}
         </div>
         <div class="trace-lane">
           <div class="trace-lane-title">Lane C · 地形参考（只描述，不决策）</div>

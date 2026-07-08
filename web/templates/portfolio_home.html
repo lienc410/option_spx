@@ -10,6 +10,8 @@
 <script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec108"></script>
 <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec108">
 <script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
+<!-- SPEC-135.3: Decision Trace 共享渲染器（与 /spx 同一 copy 源） -->
+<script src="{{ url_for('static', filename='trace_render.js') }}?v=spec135_3"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1121,6 +1123,9 @@ body {
   <!-- Today's Actions section label -->
   <div class="section-label" style="margin-bottom:10px">Today's Actions</div>
 
+  <!-- SPEC-135.3: Decision Trace 锚点摘要卡（Lane A 锚点 + 展开完整决策链） -->
+  <div id="trace-summary" style="margin-bottom:12px"></div>
+
   <!-- ── SPX Primary Card ── -->
   <div class="strategy-card tier-primary" id="card-spx">
     <div class="card-header">
@@ -1631,6 +1636,32 @@ function shortRecLabel(sig) {
   return sig.strategy || key || '—';
 }
 
+// ── SPEC-135.3: Decision Trace 锚点摘要卡（数据源 /api/decision-trace，
+//    渲染 = 共享 TraceRender —— 与 /spx 全图同一 copy 源）─────────────────────
+async function loadTraceSummary() {
+  const wrap = document.getElementById('trace-summary');
+  if (!wrap || !window.TraceRender) return;
+  try {
+    const res = await fetch('/api/decision-trace');
+    const d = await res.json();
+    const anchors = TraceRender.anchorSummaryHtml(d.lane_a || []);
+    if (!anchors) { wrap.innerHTML = ''; return; }
+    wrap.innerHTML = `
+      <div class="trace-card" style="margin-top:0">
+        <div class="trace-body" style="padding-top:12px">
+          ${TraceRender.legendHtml()}
+          ${anchors}
+          <details style="margin-top:6px">
+            <summary style="cursor:pointer;list-style:none;font-size:0.68rem;color:var(--text-2)">▸ 展开完整决策链（含静默通过的门与资金检查）</summary>
+            <div style="margin-top:8px">${TraceRender.laneAHtml(d, 'home-ev')}</div>
+          </details>
+        </div>
+      </div>`;
+  } catch (_) {
+    wrap.innerHTML = '';
+  }
+}
+
 // ── SPX Card ──────────────────────────────────────────────────────────────────
 async function loadSpx() {
   try {
@@ -1687,9 +1718,16 @@ async function loadSpx() {
       chips += sigChip('VIX3M', fmtNum(vix.vix3m, 1), '', vix.backwardation ? 'backw.' : '');
     document.getElementById('signals-spx').innerHTML = chips;
 
-    // Rationale
-    if (rec.rationale)
+    // Rationale — SPEC-135.3：改渲染 trace 锚点序列（候选→刹车→结论），
+    // 与 Decision Trace 同一 copy 源（label_human；完整 detail 含 pm-clear
+    // 命令由 hover title 承载）。裸 rationale 长文本仅作无 trace 的降级路径。
+    const _anchorsHtml = (window.TraceRender && rec.trace)
+      ? TraceRender.anchorSummaryHtml(rec.trace) : '';
+    if (_anchorsHtml) {
+      document.getElementById('rationale-spx').innerHTML = _anchorsHtml;
+    } else if (rec.rationale) {
       document.getElementById('rationale-spx').textContent = rec.rationale;
+    }
 
     // Legs structure — option type from l.option (CALL/PUT); was hard-coded
     // PUT, which mislabelled bull_call_diagonal / bear_call_spread / IC call
@@ -3571,7 +3609,7 @@ async function syncPortfolio() {
   const ts  = document.getElementById('sync-ts');
   if (btn) { btn.textContent = '↻ Syncing…'; btn.disabled = true; }
   if (ts)  ts.textContent = '';
-  await Promise.allSettled([loadSpx(), loadSettling(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadSchwabAuthBanner(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition()]);
+  await Promise.allSettled([loadSpx(), loadTraceSummary(), loadSettling(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadSchwabAuthBanner(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition()]);
   if (btn) { btn.textContent = '↻ Sync'; btn.disabled = false; }
   if (ts)  ts.textContent = 'synced ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }

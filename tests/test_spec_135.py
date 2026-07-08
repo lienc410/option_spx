@@ -296,7 +296,11 @@ class StorageApiTests(unittest.TestCase):
 class UiAuditTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.spx = (ROOT / "web" / "templates" / "spx.html").read_text(encoding="utf-8")
+        # SPEC-135.3 搬家后：trace 渲染住共享 trace_render.js + theme.css，
+        # spx.html 只留接线——审计面 = 三者合体（渲染仍单源）
+        cls.spx = ((ROOT / "web" / "templates" / "spx.html").read_text(encoding="utf-8")
+                   + (ROOT / "web" / "static" / "trace_render.js").read_text(encoding="utf-8")
+                   + (ROOT / "web" / "static" / "theme.css").read_text(encoding="utf-8"))
 
     def test_three_lanes_and_disclaimer(self) -> None:
         for token in ("Lane A · 今天开不开新仓？", "Lane B · 手上的仓位要动吗？",
