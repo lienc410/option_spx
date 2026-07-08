@@ -93,6 +93,11 @@ body { font-family: var(--f-ui); background: radial-gradient(circle at top, var(
   background: var(--surface); border: 1px solid var(--border-2);
   border-radius: 12px; padding: 18px 18px 16px;
 }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 13px); gap: 2px; }
+.cal-cell { width: 13px; height: 13px; border-radius: 3px; display: inline-block; }
+.cal-none { background: var(--surface-hi); }
+.cal-empty { background: transparent; }
+
 .section-title {
   font-size: 0.62rem; font-weight: 700; letter-spacing: 0.11em;
   text-transform: uppercase; color: var(--text-2); margin-bottom: 14px;
@@ -215,6 +220,8 @@ tr:last-child td { border-bottom: none; }
     </article>
   </section>
 
+  <div class="toggle-note" id="ledger-recon" style="margin:-8px 0 14px"></div>
+
   <section class="grid-2-eq">
     <article class="card">
       <div class="section-title">Monthly Realized P&amp;L</div>
@@ -238,6 +245,8 @@ tr:last-child td { border-bottom: none; }
               <th>Win Rate</th>
               <th>Total P&amp;L</th>
               <th>Avg P&amp;L</th>
+              <th>Worst</th>
+              <th>Avg Hold</th>
             </tr>
           </thead>
           <tbody id="strategy-body"></tbody>
@@ -250,6 +259,17 @@ tr:last-child td { border-bottom: none; }
       <div class="section-title">Open Positions</div>
       <div class="open-grid" id="open-grid"></div>
       <div class="empty" id="open-empty" style="display:none;">No open live trades in the resolved log.</div>
+    </article>
+  </section>
+
+  <section class="grid-2">
+    <article class="card">
+      <div class="section-title">Exit Discipline</div>
+      <div id="discipline-body"><div class="empty">Loading…</div></div>
+    </article>
+    <article class="card">
+      <div class="section-title">Daily Strategy P&amp;L Calendar <span style="font-weight:400;letter-spacing:0;text-transform:none;color:var(--text-2)">· realized + open MTM</span></div>
+      <div id="pnl-calendar"><div class="empty">Loading…</div></div>
     </article>
   </section>
 
@@ -316,12 +336,24 @@ function renderSummary(summary) {
   setMetric('m-open', summary.open_trades || 0);
 }
 
-function renderByStrategy(byStrategy) {
+function renderByStrategy(byStrategy, closedCurve) {
   const tbody = document.getElementById('strategy-body');
   tbody.innerHTML = '';
   const rows = Object.entries(byStrategy || {}).sort((a, b) => (b[1].total_pnl || 0) - (a[1].total_pnl || 0));
   document.getElementById('strategy-empty').style.display = rows.length ? 'none' : 'block';
+  // Worst trade + avg hold per strategy from the uncapped campaign curve
+  const holdOf = r => (r.closed_at && r.opened_at)
+    ? Math.max(0, Math.round((new Date(r.closed_at) - new Date(r.opened_at)) / 86400000)) : null;
+  const perStrat = {};
+  for (const r of (closedCurve || [])) {
+    const g = perStrat[r.strategy_key] || (perStrat[r.strategy_key] = { worst: null, holds: [] });
+    if (g.worst == null || Number(r.pnl) < g.worst) g.worst = Number(r.pnl);
+    const h = holdOf(r);
+    if (h != null) g.holds.push(h);
+  }
   for (const [key, stats] of rows) {
+    const g = perStrat[key] || { worst: null, holds: [] };
+    const avgHold = g.holds.length ? (g.holds.reduce((a, v) => a + v, 0) / g.holds.length) : null;
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${strategyName(key, key)}</td>
@@ -329,6 +361,8 @@ function renderByStrategy(byStrategy) {
       <td class="mono">${pct(stats.win_rate)}</td>
       <td class="mono ${Number(stats.total_pnl || 0) >= 0 ? 'pos' : 'neg'}">${money(stats.total_pnl)}</td>
       <td class="mono ${Number(stats.avg_pnl || 0) >= 0 ? 'pos' : 'neg'}">${money(stats.avg_pnl)}</td>
+      <td class="mono ${g.worst != null && g.worst < 0 ? 'neg' : ''}">${g.worst == null ? '—' : money(g.worst)}</td>
+      <td class="mono">${avgHold == null ? '—' : avgHold.toFixed(0) + 'd'}</td>
     `;
     tbody.appendChild(tr);
   }
@@ -356,9 +390,10 @@ function renderOpenPositions(rows, schwabVisible) {
       <div class="kv"><span>Opened</span><strong>${row.opened_at || '—'}</strong></div>
       <div class="kv"><span>Entry Premium</span><strong>${row.entry_premium == null ? '—' : fixed(row.entry_premium)}</strong></div>
       <div class="kv"><span>Mark</span><strong>${row.mark == null ? '—' : fixed(row.mark)}</strong></div>
-      <div class="kv"><span>Trade Log P&amp;L</span><strong class="${Number(row.trade_log_pnl || 0) >= 0 ? 'pos' : 'neg'}">${row.trade_log_pnl == null ? '—' : money(row.trade_log_pnl)}</strong></div>
+      ${row.trade_log_pnl != null && row.trade_log_pnl !== row.unrealized_pnl
+        ? `<div class="kv"><span>Trade Log P&amp;L</span><strong class="${Number(row.trade_log_pnl || 0) >= 0 ? 'pos' : 'neg'}">${money(row.trade_log_pnl)}</strong></div>` : ''}
       <div class="kv"><span>Unrealized P&amp;L</span><strong class="${Number(row.unrealized_pnl || 0) >= 0 ? 'pos' : 'neg'}">${row.unrealized_pnl == null ? '—' : money(row.unrealized_pnl)}</strong></div>
-      <div class="kv"><span>Greeks</span><strong>${row.delta == null ? '—' : `Δ ${fixed(row.delta)} · Θ ${fixed(row.theta)}${row.gamma == null ? '' : ` · Γ ${fixed(row.gamma, 3)}`}${row.vega == null ? '' : ` · ν ${fixed(row.vega)}`}`}</strong></div>
+      <div class="kv"><span>Greeks</span><strong>${row.delta == null ? '—' : `Δ ${fixed(row.delta)} · Θ ${fixed(row.theta)}${row.gamma == null ? '' : ` · Γ ${fixed(row.gamma, 3)}`}${row.vega == null ? '' : ` · V ${fixed(row.vega)}`}`}</strong></div>
     `;
     grid.appendChild(article);
   }
@@ -433,14 +468,30 @@ function renderRecent(rows) {
   });
 }
 
-function renderCharts(monthly) {
-  const labels = monthly.map((row) => row.month);
-  const realized = monthly.map((row) => Number(row.realized_pnl || 0));
+function renderCharts(monthly, closedCurve) {
+  // Zero-fill month gaps — skipping a no-trade month (2026-06) makes two
+  // bars look consecutive and misreads cadence.
+  const byMonth = {};
+  for (const row of (monthly || [])) byMonth[row.month] = Number(row.realized_pnl || 0);
+  const months = Object.keys(byMonth).sort();
+  const labels = [];
+  const realized = [];
+  if (months.length) {
+    let [y, m] = months[0].split('-').map(Number);
+    const [ey, em] = months[months.length - 1].split('-').map(Number);
+    while (y < ey || (y === ey && m <= em)) {
+      const k = `${y}-${String(m).padStart(2, '0')}`;
+      labels.push(k);
+      realized.push(byMonth[k] || 0);
+      m += 1; if (m > 12) { m = 1; y += 1; }
+    }
+  }
+  // Cumulative realized per campaign close (step) — with a handful of
+  // trades, a 2-point monthly line hides everything the step curve shows.
+  const curve = (closedCurve || []).filter(r => r.closed_at);
   let running = 0;
-  const cumulative = realized.map((value) => {
-    running += value;
-    return running;
-  });
+  const stepLabels = curve.map(r => r.closed_at);
+  const cumulative = curve.map(r => { running += Number(r.pnl || 0); return running; });
 
   if (monthlyChart) monthlyChart.destroy();
   if (cumulativeChart) cumulativeChart.destroy();
@@ -470,14 +521,14 @@ function renderCharts(monthly) {
   cumulativeChart = new Chart(document.getElementById('cumulative-chart').getContext('2d'), {
     type: 'line',
     data: {
-      labels,
+      labels: stepLabels,
       datasets: [{
         label: 'Cumulative P&L',
         data: cumulative,
         borderColor: 'var(--gold)',
         backgroundColor: 'var(--theme-lit-030)',
         fill: true,
-        tension: 0.25,
+        stepped: true,
         pointRadius: 3,
       }],
     },
@@ -493,18 +544,95 @@ function renderCharts(monthly) {
   });
 }
 
+// ── Exit discipline (per-leg ledger: close_reason mix + rule adherence) ──
+const _RULE_REASONS = new Set(['50pct_profit', 'profit_target', 'dte_21', '21dte', 'stop', 'stop_loss', 'expiry', 'roll_cycle']);
+function renderDiscipline(trades) {
+  const el = document.getElementById('discipline-body');
+  if (!el) return;
+  if (!trades || !trades.length) { el.innerHTML = '<div class="empty">No closed legs yet.</div>'; return; }
+  const counts = {};
+  let ruleBased = 0;
+  const holds = [];
+  for (const t of trades) {
+    const r = String(t.close_reason || 'unknown').toLowerCase();
+    counts[r] = (counts[r] || 0) + 1;
+    if (_RULE_REASONS.has(r)) ruleBased += 1;
+    if (t.hold_days != null) holds.push(t.hold_days);
+  }
+  const n = trades.length;
+  const pctRule = (ruleBased / n * 100);
+  const avgHold = holds.length ? holds.reduce((a, v) => a + v, 0) / holds.length : null;
+  const chips = Object.entries(counts).sort((a, b) => b[1] - a[1])
+    .map(([r, c]) => `<span class="pill" style="margin:2px 4px 2px 0">${r} <strong>${c}</strong></span>`).join('');
+  el.innerHTML = `
+    <div class="kv"><span>规则内退出（目标 / DTE / 止损 / roll）</span>
+      <strong class="${pctRule >= 60 ? 'pos' : 'neg'}">${ruleBased}/${n} · ${pctRule.toFixed(0)}%</strong></div>
+    <div class="kv"><span>Avg Hold</span><strong>${avgHold == null ? '—' : avgHold.toFixed(0) + 'd'}</strong></div>
+    <div style="margin-top:8px">${chips}</div>
+    <div class="muted" style="font-size:0.68rem;margin-top:8px">manual / discretionary 占比高不是错误 — 但如果它们的平均结果差于规则内退出，就是纪律缺口。单元：per-leg（data/closed_trades.jsonl）。</div>`;
+}
+
+// ── Daily strategy P&L calendar (from /api/strategy/cum-pnl day series) ──
+function renderPnlCalendar(series) {
+  const el = document.getElementById('pnl-calendar');
+  if (!el) return;
+  const rows = (series || []).filter(r => r.date);
+  if (!rows.length) { el.innerHTML = '<div class="empty">No daily P&L rows yet.</div>'; return; }
+  const byDate = {};
+  for (const r of rows) byDate[r.date] = Number(r.day_pnl || 0);
+  const months = [...new Set(rows.map(r => r.date.slice(0, 7)))].sort().slice(-3);
+  const maxAbs = Math.max(...rows.map(r => Math.abs(Number(r.day_pnl || 0))), 1);
+  let html = '<div style="display:flex;gap:14px;flex-wrap:wrap">';
+  for (const mon of months) {
+    const [y, m] = mon.split('-').map(Number);
+    const first = new Date(Date.UTC(y, m - 1, 1));
+    const daysIn = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    let cells = '';
+    for (let i = 0; i < first.getUTCDay(); i++) cells += '<span class="cal-cell cal-empty"></span>';
+    for (let d = 1; d <= daysIn; d++) {
+      const iso = `${mon}-${String(d).padStart(2, '0')}`;
+      const v = byDate[iso];
+      if (v == null) { cells += `<span class="cal-cell cal-none" title="${iso}"></span>`; continue; }
+      const alpha = 0.15 + 0.65 * Math.min(1, Math.abs(v) / maxAbs);
+      const col = v >= 0 ? `rgba(66,204,124,${alpha.toFixed(2)})` : `rgba(224,72,98,${alpha.toFixed(2)})`;
+      cells += `<span class="cal-cell" style="background:${col}" title="${iso}  ${v >= 0 ? '+' : '−'}$${Math.abs(Math.round(v)).toLocaleString()}"></span>`;
+    }
+    html += `<div><div class="muted mono" style="font-size:0.62rem;margin-bottom:4px">${mon}</div>
+      <div class="cal-grid">${cells}</div></div>`;
+  }
+  html += '</div><div class="muted" style="font-size:0.66rem;margin-top:8px">hover 看当日 SPX spread 策略 P&L（含 open MTM）。深色 = 大额。</div>';
+  el.innerHTML = html;
+}
+
+// ── Ledger reconciliation: trade_log (campaign) vs closed_trades (per-leg) ──
+function renderRecon(summary, closedTrades) {
+  const el = document.getElementById('ledger-recon');
+  if (!el) return;
+  const legs = (closedTrades || []).filter(t => t.realized_pnl != null);
+  if (!legs.length || summary.total_pnl == null) { el.textContent = ''; return; }
+  const legTotal = legs.reduce((a, t) => a + Number(t.realized_pnl), 0);
+  const diff = Number(summary.total_pnl) - legTotal;
+  const ok = Math.abs(diff) < 50;
+  el.innerHTML = `台账对账：trade_log（campaign 层）$${Math.round(summary.total_pnl).toLocaleString()} vs closed_trades（per-leg 净额）$${Math.round(legTotal).toLocaleString()} · Δ $${Math.abs(Math.round(diff)).toLocaleString()} ${ok ? '<span class="pos">✓ ≈ 佣金差</span>' : '<span class="neg">⚠ 超出佣金可解释范围 — 查两本台账</span>'}`;
+}
+
 async function loadPerformance() {
   const errorBox = document.getElementById('error-box');
   try {
     const excludePaper = !!document.getElementById('exclude-paper-toggle')?.checked;
     const perfUrl = excludePaper ? '/api/performance/live' : '/api/performance/live?include_paper=1';
-    const [catalogRes, perfRes] = await Promise.all([
+    const [catalogRes, perfRes, ledgerRes, cumRes] = await Promise.all([
       fetch('/api/strategy-catalog'),
       fetch(perfUrl),
+      fetch('/api/strategy/closed-trades'),
+      fetch('/api/strategy/cum-pnl'),
     ]);
     if (!catalogRes.ok || !perfRes.ok) throw new Error('Failed to load live performance data');
     const catalogData = await catalogRes.json();
     const perf = await perfRes.json();
+    let ledger = { trades: [] }, cum = { series: [] };
+    try { ledger = await ledgerRes.json(); } catch (_) {}
+    try { cum = await cumRes.json(); } catch (_) {}
     catalog = catalogData.strategies || {};
     document.getElementById('raw-count').textContent = perf.trade_count_raw ?? '—';
     document.getElementById('effective-count').textContent = perf.trade_count_effective ?? '—';
@@ -512,10 +640,13 @@ async function loadPerformance() {
       ? `Including paper trades in summary · ${perf.paper_trade_count || 0} tagged`
       : `Showing live performance excluding paper trades · ${perf.paper_trade_count || 0} tagged`;
     renderSummary(perf.summary || {});
-    renderByStrategy(perf.by_strategy || {});
+    renderByStrategy(perf.by_strategy || {}, perf.closed_curve || []);
+    renderDiscipline(ledger.trades || []);
+    renderPnlCalendar(cum.series || []);
+    renderRecon(perf.summary || {}, ledger.trades || []);
     renderOpenPositions(perf.open_positions || [], (perf.open_positions || []).some((row) => row.unrealized_pnl != null || row.mark != null));
     renderRecent(perf.recent_closed || []);
-    renderCharts(perf.monthly || []);
+    renderCharts(perf.monthly || [], perf.closed_curve || []);
     errorBox.style.display = 'none';
   } catch (err) {
     errorBox.textContent = err.message || String(err);

@@ -3010,6 +3010,11 @@ def api_strategy_closed_trades():
                         continue
                     if not _strategy_matches(ct.get("strategy"), strategy):
                         continue
+                    # SPEC-127 cycle rows are single-leg cash-flow records of a
+                    # roll, not closed structures — they'd distort win-rate,
+                    # hold and discipline stats.
+                    if ct.get("cycle_event"):
+                        continue
                     hold_days = None
                     try:
                         hold_days = (date.fromisoformat(ct["closed_at"])
@@ -6460,6 +6465,72 @@ def api_position_note():
         "note": note,
     })
     return jsonify({"ok": True})
+
+
+@app.route("/api/decision-trace")
+def api_decision_trace():
+    """SPEC-135 — Decision Trace 三泳道数据（date= 缺省当日；最近 30 日可切）。
+
+    反漂移：Lane A 节点全部来自生产代码自吐（selector trace + 装配层），
+    前端零硬编码 gate 清单。当日 = 现算（与生产同管道）；历史 =
+    recommendation_log 存档（Lane B 历史未存档如实标注；Lane C 从 shadow
+    jsonl 按日期重建）。"""
+    from logs.recommendation_log_io import read_events
+    from strategy.decision_trace import funding_trace, lane_b_positions, lane_c_terrain
+
+    today = datetime.now(_ET).date().isoformat()
+    q_date = str(flask_req.args.get("date") or today)
+
+    events = read_events()
+    dates_avail = sorted({e.get("date") for e in events if e.get("date")})[-30:]
+    if today not in dates_avail:
+        dates_avail.append(today)
+
+    payload: dict = {"date": q_date, "dates_available": dates_avail,
+                     "is_today": q_date == today}
+
+    if q_date == today:
+        # 现算：与生产同管道（BCD 治理 wrapper 含在 get_recommendation 内）
+        try:
+            from strategy.selector import get_recommendation
+            rec = get_recommendation(use_intraday=_is_market_hours())
+            target_key = (rec.strategy_key if rec.strategy_key != "reduce_wait"
+                          else "bull_put_spread")
+            # ④ 资金检查层（装配层 I/O，selector 纯函数之外）追加在 selector 节点后
+            payload["lane_a"] = list(rec.trace or []) + funding_trace(target_key)
+            payload["final"] = {"strategy_key": rec.strategy_key,
+                                "strategy": rec.strategy.value,
+                                "position_action": rec.position_action,
+                                "rationale": rec.rationale}
+        except Exception as exc:
+            payload["lane_a"] = []
+            payload["lane_a_error"] = str(exc)
+        payload["lane_b"] = lane_b_positions(q_date)
+    else:
+        day_events = [e for e in events if e.get("date") == q_date]
+        with_trace = [e for e in day_events if e.get("trace")]
+        chosen = (with_trace or day_events)[-1] if day_events else None
+        if chosen:
+            payload["lane_a"] = list(chosen.get("trace") or [])
+            payload["final"] = {"strategy_key": chosen.get("strategy_key"),
+                                "strategy": chosen.get("strategy"),
+                                "position_action": chosen.get("position_action"),
+                                "rationale": chosen.get("rationale"),
+                                "recorded_at": chosen.get("timestamp"),
+                                "source": chosen.get("source")}
+            if not chosen.get("trace"):
+                payload["lane_a_note"] = "该日事件早于 SPEC-135，无 trace 存档（仅结论可见）"
+        else:
+            payload["lane_a"] = []
+            payload["lane_a_note"] = "该日无推荐事件存档"
+        payload["lane_b"] = [{"trade_id": None, "state": "info",
+                              "label_human": "历史日期的持仓触发器未存档（v1 只回放当日）",
+                              "code_ref": "SPEC-135 §2"}]
+    payload["lane_c"] = lane_c_terrain(q_date)
+
+    from strategy.campaign import _assert_finite
+    _assert_finite(payload, "decision_trace")
+    return jsonify(payload)
 
 
 @app.route("/api/structure-map")

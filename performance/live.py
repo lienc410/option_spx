@@ -205,6 +205,14 @@ def compute_live_performance(
             key=lambda t: t.get("closed_at") or "",
             reverse=True,
         )[:10],
+        # Full, uncapped campaign curve — the cumulative chart / per-strategy
+        # worst-trade & hold stats must not silently break at 10 campaigns.
+        "closed_curve": sorted(
+            [{"closed_at": r["closed_at"], "opened_at": r["opened_at"],
+              "strategy_key": r["strategy_key"], "pnl": r["actual_pnl"]}
+             for r in recent_closed],
+            key=lambda r: r["closed_at"] or "",
+        ),
         "open_positions": open_positions,
         "include_paper": include_paper,
         "paper_trade_count": paper_trade_count,
