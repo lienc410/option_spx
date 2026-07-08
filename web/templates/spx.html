@@ -1979,7 +1979,10 @@ function openTradeModal(kind, presetAccount, addTranche) {
   const body = document.getElementById('trade-modal-body');
   const title = document.getElementById('trade-modal-title');
   if (kind === 'open') {
-    const options = MANUAL_OPTIONS.map(o => `<option value="${o.key}" ${o.key === CURRENT_REC?.strategy_key ? 'selected' : ''}>${o.name}</option>`).join('');
+    // Add-tranche 加的是"已有持仓"的一份 → 预选持仓自身的策略（而非当日推荐，
+    // 后者在 wait 日常是 reduce_wait，会让 BCD 加仓预选错格）。
+    const _presetKey = (addTranche && CURRENT_POS?.strategy_key) || CURRENT_REC?.strategy_key;
+    const options = MANUAL_OPTIONS.map(o => `<option value="${o.key}" ${o.key === _presetKey ? 'selected' : ''}>${o.name}</option>`).join('');
     title.textContent = addTranche ? 'Add Tranche' : 'Open Position';
     body.innerHTML = modalShell(`
       <div id="open-wait-banner"></div>
@@ -2108,7 +2111,11 @@ function openTradeModal(kind, presetAccount, addTranche) {
     OPEN_MODAL_WAIT_DAY = isWaitDay();
     renderOpenWaitBanner();
     updateOpenDerivedFields();
-    if (!OPEN_MODAL_WAIT_DAY) {
+    if (addTranche) {
+      // 加仓是显式的持仓管理动作 → 无论是否 wait 日都按持仓策略预填（override），
+      // 链筛选照常。halt 下经 open-draft 的 force_strategy 放行（提示不拦）。
+      loadOpenDraft(document.getElementById('open-strategy-key')?.value || '', true);
+    } else if (!OPEN_MODAL_WAIT_DAY) {
       loadOpenDraft(document.getElementById('open-strategy-key')?.value || '');
     } else {
       const hint = document.getElementById('open-legs-hint');
@@ -2274,12 +2281,15 @@ function openTradeModal(kind, presetAccount, addTranche) {
         </div>
         <div class="modal-grid">
           <div class="modal-field">
-            <label class="modal-label">New Short Strike</label>
+            <label class="modal-label">New Short Strike <span style="font-weight:400;color:var(--text-2);font-size:0.65rem">(链筛选建议)</span></label>
             <input id="roll-new-strike" class="modal-input" type="number" oninput="updateRollPreview()">
           </div>
           <div class="modal-field">
             <label class="modal-label">New Short Expiry <span style="font-weight:400;color:var(--text-2);font-size:0.65rem">(45 DTE |Δ|0.30 建议)</span></label>
             <input id="roll-new-expiry" class="modal-input" type="date" value="${plusDays(45)}" oninput="updateRollPreview()">
+          </div>
+          <div class="modal-field full">
+            <div class="modal-hint" id="roll-suggest-hint">Loading 45 DTE |Δ|0.30 short-leg suggestion from live chain…</div>
           </div>
           <div class="modal-field full">
             <label class="modal-label">Note</label>
@@ -2294,6 +2304,7 @@ function openTradeModal(kind, presetAccount, addTranche) {
           <button class="action-btn primary" onclick="submitDiagonalRoll()">Roll selected</button>
         </div>`);
       updateRollPreview();
+      prefillRollShortLeg();   // 链筛选建议新短腿（45 DTE |Δ|0.30）→ 预填空的执行价字段
     } else {
       title.textContent = 'Roll Position';
       body.innerHTML = modalShell(`
@@ -2496,6 +2507,34 @@ function updateRollPreview() {
     return `${l.trade_id}: cycle ${net >= 0 ? '+' : ''}${net.toFixed(2)}/share · adjusted basis ${basisNow.toFixed(2)} → ${basisAfter.toFixed(2)} (stop line ${(0.5 * basisAfter).toFixed(2)})`;
   });
   el.innerHTML = parts.join('<br>');
+}
+
+// 链筛选建议新短腿（45 DTE |Δ|0.30，与 BCD catalog / shadow 同款）。复用
+// open-draft 的强制 BCD 短腿扫描——D1 halt 下经 force_strategy override 放行
+// (提示不拦)。fail-soft：拿不到就留空,PM 手填,绝不阻断 roll 表单。
+async function prefillRollShortLeg() {
+  const hint = document.getElementById('roll-suggest-hint');
+  const strikeEl = document.getElementById('roll-new-strike');
+  const expiryEl = document.getElementById('roll-new-expiry');
+  try {
+    const res = await fetch('/api/position/open-draft?force_strategy=bull_call_diagonal');
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    const shortLeg = (data.legs || []).find((l) => l.action === 'SELL' && (l.option || '').toUpperCase() === 'CALL');
+    const strike = shortLeg?.strike ?? data.short_strike;
+    if (strike != null && strikeEl && !strikeEl.value) strikeEl.value = strike;
+    if (data.expiry && expiryEl) expiryEl.value = data.expiry;
+    updateRollPreview();
+    if (hint) {
+      const dte = shortLeg?.dte;
+      const delta = shortLeg?.delta;
+      hint.textContent = strike != null
+        ? `建议新短腿：C${strike}${data.expiry ? ' exp ' + data.expiry : ''}${dte ? ' (' + dte + ' DTE' + (delta != null ? ', Δ' + Number(delta).toFixed(2) : '') + ')' : ''} — 链筛选，可改。`
+        : 'Chain suggestion unavailable — enter the new short strike manually.';
+    }
+  } catch (e) {
+    if (hint) hint.textContent = 'Chain suggestion unavailable (' + (e.message || 'offline') + ') — enter the new short strike manually.';
+  }
 }
 
 async function submitDiagonalRoll() {

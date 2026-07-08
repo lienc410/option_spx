@@ -1764,6 +1764,32 @@ def _apply_bcd_governance_live(rec: Recommendation, vix: VixSnapshot, iv: IVSnap
     try:
         from strategy import bcd_governance as gov
         halt = gov.is_halted()
+        # 显式 force_strategy = PM 手动 override（唯一调用方：/api/position/
+        # open-draft 预填，供 add-tranche / roll 的链筛选与执行价预填）。halt 只
+        # 暂停 *自动* 新开仓；它绝不能拦住 PM 管理现有仓位所需的 advisory 预填
+        # ——halt 文案自己写明"持仓管理不受影响"。故 force 时保留真实腿，把 halt
+        # 作为 rationale 上的知情提示（提示不拦），不 downgrade 成 wait。
+        # （2026-07-07 D1 halt 触发后 add-tranche/roll 预填全断的回归根因。）
+        if halt and params.force_strategy:
+            reasons = "；".join(
+                f"{g.get('detail') or '?'}（{g.get('gate', '?')}）"
+                for g in (halt.get("gates") or [])
+            ) or "触发门未知"
+            rec.rationale += (
+                f"　[BCD 家族复核门触发（{halt.get('at')} 起）：{reasons}"
+                f"——自动新开仓已暂停；本预填仅供持仓管理/显式 override 参考（提示不拦）]"
+            )
+            T.add("governance", "bcd_family_halt",
+                  "安全刹车（override 放行）：家族复核门触发，但本次为 PM 显式 force 预填 → 提示不拦",
+                  detail=("；".join(f"{g.get('detail') or '?'}"
+                                    for g in (halt.get("gates") or []))
+                          + "。halt 只暂停自动新开仓，不阻断持仓管理预填。"
+                            "PM 复核后解除：python -m strategy.bcd_governance --pm-clear"),
+                  inputs={"halted_at": halt.get("at"),
+                          "gates": [g.get("gate") for g in (halt.get("gates") or [])]},
+                  outcome="advisory", code_ref="SPEC-123 D1", stage="governance")
+            rec.trace = (rec.trace or []) + T.drain()
+            return rec
         # SPEC-135 治理层节点（安全刹车——含运行特性披露人话版）。halted 分支
         # 会走 _reduce_wait → 新 trace 从这些节点开始重建，故先 reset 再记。
         if halt:

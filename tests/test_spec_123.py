@@ -183,6 +183,36 @@ class TestSelectorHalt(GovBase):
         self.assertIn("G1_last6_realized", wrapped.rationale)
         self.assertIn("例行复核", wrapped.rationale)
 
+    def test_halted_bcd_force_strategy_override_keeps_legs(self):
+        """回归（2026-07-08 修）：D1 halt 下，显式 force_strategy（/api/position/
+        open-draft 预填：add-tranche / roll）必须保留真实 BCD 腿——halt 只暂停
+        自动新开仓，不阻断持仓管理预填。降级只发生在非 force 路径。"""
+        from strategy.selector import (
+            IVSignal, Regime, StrategyName, StrategyParams, TrendSignal,
+            _apply_bcd_governance_live, select_strategy,
+        )
+        from tests.test_strategy_unification import make_iv, make_trend, make_vix
+        gov._write_state({"halt": {"at": "2026-07-07",
+                                   "gates": [{"gate": "G2_18m_combined",
+                                              "detail": "18 个月实现+标记和 $-6,006 < 0（n=4）"}]}})
+        vix = make_vix(vix=13.0, regime=Regime.LOW_VOL, trend=None)
+        iv = make_iv(signal=IVSignal.LOW, iv_rank=10.0, iv_percentile=12.0, vix=13.0)
+        trend = make_trend(signal=TrendSignal.BULLISH)
+        forced = StrategyParams(force_strategy="bull_call_diagonal")
+        rec = select_strategy(vix, iv, trend, forced)
+        wrapped = _apply_bcd_governance_live(rec, vix, iv, trend, forced)
+        # 保留真实腿，未降级
+        self.assertEqual(wrapped.strategy_key, "bull_call_diagonal")
+        self.assertNotEqual(wrapped.strategy, StrategyName.REDUCE_WAIT)
+        self.assertTrue(wrapped.legs)
+        # halt 作为知情提示挂在 rationale（提示不拦）
+        self.assertIn("提示不拦", wrapped.rationale)
+        self.assertIn("G2_18m_combined", wrapped.rationale)
+        # 非 force 同状态仍降级（护栏未被削弱）
+        rec2 = select_strategy(vix, iv, trend)
+        wrapped2 = _apply_bcd_governance_live(rec2, vix, iv, trend)
+        self.assertEqual(wrapped2.strategy, StrategyName.REDUCE_WAIT)
+
     def test_not_halted_bcd_passes_with_quote_gate_advisory(self):
         from strategy.selector import (
             IVSignal, Regime, TrendSignal, _apply_bcd_governance_live, select_strategy,
