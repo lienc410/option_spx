@@ -6494,8 +6494,18 @@ def api_decision_trace():
         try:
             from strategy.selector import get_recommendation
             rec = get_recommendation(use_intraday=_is_market_hours())
-            target_key = (rec.strategy_key if rec.strategy_key != "reduce_wait"
-                          else "bull_put_spread")
+            # 观望日敞口层评估"被拦/本该走"的 canonical 家族（7/7 实例：
+            # halted BCD 日应看 bull_call_diagonal 家族敞口，而非 BPS 兜底）
+            if rec.strategy_key != "reduce_wait":
+                target_key = rec.strategy_key
+            else:
+                from strategy.catalog import strategy_key as _cat_key
+                try:
+                    target_key = _cat_key(rec.canonical_strategy) or "bull_put_spread"
+                except Exception:
+                    target_key = "bull_put_spread"
+                if target_key == "reduce_wait":
+                    target_key = "bull_put_spread"
             # ④ 资金检查层（装配层 I/O，selector 纯函数之外）追加在 selector 节点后
             payload["lane_a"] = list(rec.trace or []) + funding_trace(target_key)
             payload["final"] = {"strategy_key": rec.strategy_key,
