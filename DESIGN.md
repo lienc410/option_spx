@@ -343,8 +343,11 @@ produces visibly wrong rhythm in side-by-side comparison.
     - `/q041/backtest` — Q041 backtest (per-sleeve)
     - `/q041/archive` — Q041 T1 retired strategy archive [RETIRED]
   - **Account / cross-strategy**
-    - `/portfolio-backtest` — joint J0 vs J3 BP simulation (873-day chart)
-    - `/performance` — live trade performance
+    - `/portfolio-backtest` — Governance & Regime backtest (SPEC-103 rules over
+      Q072 daily flags; nav label `Gov BT`). The original J0-vs-J3 BP simulation
+      this route once held was superseded by the SPEC-103 rebuild.
+    - `/performance` — live trade performance (campaign analytics; family tabs
+      pair it with `/journal` as two views of the trading record)
     - `/margin` — margin estimator + Schwab live BP
 - **Border radius:** sm: 5px (buttons, badges), md: 9px (cards), lg: 12px (large panels), pill: 9999px (dots, status indicators)
 - **Card spacing:** 12px margin-bottom between cards, 16px internal padding (strip), 20px internal padding (full card)
@@ -366,7 +369,7 @@ produces visibly wrong rhythm in side-by-side comparison.
 Pages must not carry inline `nav-links` blocks. Canonical set and labels:
 
 ```
-Portfolio | SPX | /ES | DD Overlay | Aftermath | Stress Put Ladder | Sleeves | Port BT | Performance | Journal | Margin | Funds | Book
+Portfolio | SPX | /ES | DD Overlay | Aftermath | Stress Put Ladder | Sleeves | Gov BT | Performance | Journal | Margin | Funds | Book
 ```
 
 Label decisions (2026-07-06): `DD Overlay` (nav-width form of display name
@@ -406,3 +409,5 @@ Label decisions (2026-07-06): `DD Overlay` (nav-width form of display name
 | 2026-07-06 | Page-title scale: two tiers — Portfolio hero 2.1rem, all other pages 1.7rem, always `--f-display` | Six drifting sizes found (SPEC-125/S3); normalize opportunistically when touching a page |
 | 2026-07-06 | Unified notification gateway (SPEC-126): 4-category contract + mandatory about 首行 + 15:55 pre-close digest replaces 15:30/16:03/16:15 scheduled pushes | 8 direct-send sites had no classification/dedupe/quiet levels; PM received contradictory-looking HOLD-vs-WAIT messages and 3 overlapping late-day pushes |
 | 2026-07-06 | Spec/rule IDs banned as primary UI labels — function-first names + muted `.spec-ref` suffix | PM couldn't tell what "SPEC-104 Monitors" / "SPEC-108.1 V1b Ladder" do from the label; generalizes the Q042→"Drawdown Overlay" precedent into a rule |
+| 2026-07-07 | Nav `Port BT` → `Gov BT`; route unchanged | Page content pivoted to the SPEC-103 governance backtest long ago — label said portfolio BP simulation, page showed regime/rules history (name-matches-content rule, same as Q042 precedent) |
+| 2026-07-07 | Journal + Performance bound as a page-tab family ("trading record" topic) | Two visit rhythms (daily ops vs periodic analytics) justify separate pages; tabs + ledger-unit labels + calendar deep-links express that they are two views of one topic |

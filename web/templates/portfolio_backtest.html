@@ -250,7 +250,7 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
   <!-- Regime history: 3-column layout mirrors live governance matrix -->
   <div class="section-label">Historical Regime Distribution</div>
   <div class="regime-hist" id="gov-regime-hist">
-    <div class="unavail" style="grid-column:1/-1">Loading…</div>
+    <div class="unavail" style="grid-column:1/-1">重建 20 年 daily flags（约 2-5s）…</div>
   </div>
 
   <!-- Episode analysis table -->
@@ -271,11 +271,12 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
           <th>End</th>
           <th>Trading Days</th>
           <th>Max VIX</th>
+          <th>Max DD</th>
           <th>Escalated to R6</th>
           <th>Status</th>
         </tr>
       </thead>
-      <tbody id="gov-episodes"><tr><td colspan="6" class="unavail" style="text-align:center">Loading…</td></tr></tbody>
+      <tbody id="gov-episodes"><tr><td colspan="7" class="unavail" style="text-align:center">重建 20 年 daily flags（约 2-5s）…</td></tr></tbody>
     </table>
   </div>
 
@@ -522,6 +523,24 @@ function fmtPct1(v) { return typeof v === 'number' ? v.toFixed(1) + '%' : '—';
 // API caps are already in percent form (80.0 means 80%) per SPEC-104; no *100.
 function capPct(v)  { return v != null ? fmtPct1(v) : '—'; }
 
+// Stress 天的触发分支归因：VIX≥22 天 vs 仅回撤(VIX<22) 天。stress 占比
+// 51.9% 的解释权在这里——回撤分支把"stress"从尾部事件拉成了半常态，
+// R5 紧缩 cap 的实际生效时长由此决定。
+function _stressBranchHtml(tl) {
+  const regs = tl.regimes || [], vix = tl.vix || [];
+  if (!regs.length || regs.length !== vix.length) return '';
+  let vixDays = 0, ddDays = 0;
+  for (let i = 0; i < regs.length; i++) {
+    const rg = String(regs[i]).toLowerCase();
+    if (rg === 'stress' || rg === 'second' || rg === 'second_leg') {
+      if (Number(vix[i]) >= 22) vixDays++; else ddDays++;
+    }
+  }
+  const tot = vixDays + ddDays;
+  if (!tot) return '';
+  return `<div class="rh-stat-sub" style="margin-top:5px">触发分支 · VIX≥22: <strong style="color:var(--text)">${vixDays}d (${(vixDays/tot*100).toFixed(0)}%)</strong> · 仅回撤: <strong style="color:var(--text)">${ddDays}d (${(ddDays/tot*100).toFixed(0)}%)</strong></div>`;
+}
+
 async function loadGovernanceBT() {
   const [btR, tlR] = await Promise.allSettled([
     fetch('/api/governance/backtest').then(r => r.json()),
@@ -569,10 +588,18 @@ async function loadGovernanceBT() {
       if (el) el.textContent = `DD Overlay · ${ddDaysFinal}d`;
     }
 
-    // Hero range
+    // Hero range + staleness self-announcement: the flags CSV is a static
+    // research artifact (research/q072, regenerated manually via the
+    // q064→q072 chain) — when it quietly freezes, the page must say so
+    // instead of presenting a two-month-old distribution as current
+    // (2026-07-07: flags ended 5/11, missing the June VIX-22 episode).
     if (dr.start && dr.end) {
-      document.getElementById('hero-range').textContent =
-        `${dr.start} → ${dr.end} · ${dr.total_trading_days} trading days`;
+      const lagDays = Math.round((Date.now() - new Date(dr.end + 'T00:00:00')) / 86400000);
+      const staleChip = lagDays > 7
+        ? ` <span style="color:var(--orange);font-family:var(--f-mono)">⚠ flags 截至 ${dr.end} · 落后 ${lagDays} 天（需重跑 q064→q072 生成链）</span>`
+        : '';
+      document.getElementById('hero-range').innerHTML =
+        `${dr.start} → ${dr.end} · ${dr.total_trading_days} trading days${staleChip}`;
     }
 
     // ── Regime History Summary metrics row (4-card) ──────────────────────────
@@ -632,6 +659,7 @@ async function loadGovernanceBT() {
           <div>
             <div class="rh-stat-big">${fmtPct1(m.stress_pct)}</div>
             <div class="rh-stat-sub">${m.stress_days} days · ${m.n_episodes} episodes · avg ${fmtNum(m.avg_episode_days, 0)}d</div>
+            ${_stressBranchHtml(tlVal)}
           </div>
           <div>
             <span class="rh-rule-badge rb-warn">R5: cap → ${capPct(caps.R5_stress_threshold_pct)}</span>
@@ -692,6 +720,29 @@ async function loadGovernanceBT() {
 
     // ── Episode table with time-window filter ────────────────────────────────
     const _allEpisodes = (d.episodes || []).slice().reverse();
+    // Per-episode max drawdown (SPX vs running ATH over the FULL history —
+    // drawdown depth is what separates a 3-day wobble from 2008/2020; Max VIX
+    // alone under-ranks slow-bleed episodes).
+    if (tlVal.dates && tlVal.spx && tlVal.dates.length === tlVal.spx.length) {
+      const ddByDate = {};
+      let ath = -Infinity;
+      for (let i = 0; i < tlVal.dates.length; i++) {
+        const px = Number(tlVal.spx[i]);
+        if (px > ath) ath = px;
+        ddByDate[tlVal.dates[i]] = (px / ath - 1) * 100;
+      }
+      const allDates = tlVal.dates;
+      for (const ep of _allEpisodes) {
+        let worst = null;
+        for (const dt of allDates) {
+          if (dt < ep.start) continue;
+          if (ep.end && dt > ep.end) break;
+          const v = ddByDate[dt];
+          if (v != null && (worst == null || v < worst)) worst = v;
+        }
+        ep._max_dd = worst;
+      }
+    }
 
     function _epRow(ep) {
       return `<tr>
@@ -700,6 +751,9 @@ async function loadGovernanceBT() {
         <td class="emph">${ep.trading_days}d</td>
         <td class="${ep.max_vix >= 30 ? 'danger' : ep.max_vix >= 22 ? 'warn' : ''}">
           ${ep.max_vix != null ? ep.max_vix.toFixed(1) : '—'}
+        </td>
+        <td class="${ep._max_dd != null && ep._max_dd <= -10 ? 'danger' : ep._max_dd != null && ep._max_dd <= -6 ? 'warn' : ''}">
+          ${ep._max_dd != null ? ep._max_dd.toFixed(1) + '%' : '—'}
         </td>
         <td class="${ep.second_leg_triggered ? 'danger' : ''}">
           ${ep.second_leg_triggered ? '✕ YES — R6 阻断' : '—'}
@@ -718,7 +772,7 @@ async function loadGovernanceBT() {
       }
       document.getElementById('gov-episodes').innerHTML = eps.length
         ? eps.map(_epRow).join('')
-        : '<tr><td colspan="6" class="unavail" style="text-align:center">No episodes in this window.</td></tr>';
+        : '<tr><td colspan="7" class="unavail" style="text-align:center">No episodes in this window.</td></tr>';
     }
 
     _renderEpisodeTable(1);
