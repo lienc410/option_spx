@@ -88,7 +88,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .book-table { width:100%;border-collapse:collapse;margin-bottom:6px; }
 .book-table th { font-size:0.56rem;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-2);padding:6px 8px;text-align:right;border-bottom:1px solid var(--border-2);white-space:nowrap; }
 .book-table th:first-child { text-align:left; }
-.book-table td { font-family:var(--f-mono);font-size:0.74rem;padding:7px 8px;border-bottom:1px solid var(--border);text-align:right;vertical-align:middle;color:var(--text); }
+.book-table td { font-family:var(--f-mono);font-size:0.72rem;padding:6px 7px;border-bottom:1px solid var(--border);text-align:right;vertical-align:middle;color:var(--text);white-space:nowrap; }
 .book-table td:first-child { text-align:left;font-family:var(--f-ui);color:var(--text); }
 .book-table tr.total-row td { border-top:1px solid var(--border-2);border-bottom:none;font-weight:600;color:var(--text); }
 .book-table tr.total-row td:first-child { font-family:var(--f-ui); }
@@ -162,6 +162,23 @@ const fmtPct = (v) => (v === null || v === undefined) ? '—' : (v * 100).toFixe
 const fmtSignedUSD = (v) => (v === null || v === undefined) ? '—' : (v >= 0 ? '+' : '−') + '$' + Math.abs(Math.round(v)).toLocaleString('en-US');
 const fmtSignedPct = (v) => (v === null || v === undefined) ? '—' : (v >= 0 ? '+' : '−') + Math.abs(v * 100).toFixed(2) + '%';
 const pnlClass = (v) => (v === null || v === undefined) ? '' : (v >= 0 ? 'pos' : 'neg');
+
+/* click-popover for footnote markers (title-hover is unreliable) */
+function showFootnote(ev, text) {
+  ev.stopPropagation();
+  let tip = document.getElementById('foot-tip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'foot-tip';
+    tip.style.cssText = 'position:absolute;z-index:1000;max-width:340px;background:var(--surface-hi);border:1px solid var(--border-2);border-radius:9px;padding:10px 12px;font-family:var(--f-ui);font-size:0.68rem;color:var(--text);line-height:1.6;box-shadow:0 4px 16px rgba(0,0,0,0.35);display:none';
+    document.body.appendChild(tip);
+    document.addEventListener('click', () => { tip.style.display = 'none'; });
+  }
+  tip.textContent = text;
+  tip.style.display = 'block';
+  tip.style.left = Math.min(ev.pageX + 8, window.innerWidth - 360) + 'px';
+  tip.style.top = (ev.pageY + 14) + 'px';
+}
 
 function switchTab(tab) {
   document.querySelectorAll('.page-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
@@ -240,7 +257,7 @@ function memberSplit(schwab, etrade) {
 function renderMembers(b) {
   const rows = (b.members || []).map(m => `
     <tr>
-      <td>${m.name}${m.dual_basis ? ' <span title="E*Trade 侧按个人成本基（并入溢价计入盈亏而非出资）——见页脚口径说明" style="cursor:help;color:var(--orange)">†</span>' : ''}</td>
+      <td>${m.name}${m.dual_basis ? ` <span onclick="showFootnote(event, 'E*Trade 侧按个人成本基计（并入前有记录的收益计入盈亏而非出资；池份额不受影响）。Lien 基数为 2024-11 锚定重述值 $216,557；CXZ 为实际净投入 $207,907。详见表下注与页脚「重述记录」。')" style="cursor:pointer;color:var(--orange)">†</span>` : ''}</td>
       <td>${fmtUSD(m.schwab_value)}</td>
       <td>${fmtUSD(m.etrade_value)}</td>
       <td>${fmtUSD(m.total_value)}</td>
@@ -270,7 +287,7 @@ function renderMembers(b) {
     <div style="overflow-x:auto"><table class="book-table">
       <thead><tr>
         <th>Member</th><th>Schwab</th><th>E*Trade</th><th>Total Value</th>
-        <th>Split</th><th>出资总额</th><th>分配</th><th>净投入</th><th>P&amp;L</th><th>Return<span title="Simple 口径 = 累计盈亏 ÷ 净投入" style="cursor:help">*</span></th>
+        <th>Split</th><th>出资总额</th><th>分配</th><th>净投入</th><th>P&amp;L</th><th>Return<span onclick="showFootnote(event, 'Return = Simple 口径（累计盈亏 ÷ 净投入）。与年度表的 TWR（纯投资业绩，剔除出入金时点）口径不同——四种口径的区别见页脚「收益率口径速查」。')" style="cursor:pointer">*</span></th>
       </tr></thead>
       <tbody>${rows}${totalRow}</tbody>
     </table></div>
@@ -291,10 +308,10 @@ function renderCCCByYear(b) {
   }).join('');
   return `
     <div class="section-label">CCC-354 Returns by Year · 时间加权（全员同池）</div>
-    <table class="book-table">
+    <div style="overflow-x:auto"><table class="book-table">
       <thead><tr>${head}</tr></thead>
       <tbody>${rows}</tbody>
-    </table>
+    </table></div>
     <div class="note-block">同一资金池的时间加权收益（TWR）对每位合伙人相同；$ 列为各人当年盈亏（按资本规模不同）。「Since inception」累计含并入前收益，故大于两年份之和。</div>`;
 }
 
@@ -317,14 +334,14 @@ function renderETByYear(b) {
   }).join('');
   return `
     <div class="section-label">E*Trade Returns by Year · 各自独立账户（并入前）</div>
-    <table class="book-table">
+    <div style="overflow-x:auto"><table class="book-table">
       <thead><tr>
         <th>Period</th>
         <th class="grp-lien">Lien Return</th><th class="grp-lien">Lien P&amp;L</th>
         <th class="grp-cxz">CXZ Return</th><th class="grp-cxz">CXZ P&amp;L</th>
       </tr></thead>
       <tbody>${rows}</tbody>
-    </table>
+    </table></div>
     <div class="note-block">E*Trade 2026-06-01 才并池，并入前 Lien（3370+4511）与 CXZ（6842）是各自独立账户，故无统一池 TWR。窗口不同：Lien 用 Nov→Nov 季度值近似且 2024 对账单仅自 08 月、数据不全；CXZ 按日历年自 May'24。累计收益率见上方 PM Pool 表（Lien 35.4% 自 2025 起时间加权 / CXZ 43.6% 自始）。</div>`;
 }
 
@@ -342,13 +359,13 @@ function renderETPool(b) {
     </tr>`).join('');
   return `
     <div class="section-label">E*Trade PM Pool · 2026-06-01 并入</div>
-    <table class="book-table">
+    <div style="overflow-x:auto"><table class="book-table">
       <thead><tr>
         <th>Partner</th><th>Contributed</th><th>Cost Basis</th>
         <th>Current Value</th><th>Share %</th><th>Return on Invested</th>
       </tr></thead>
       <tbody>${rows}</tbody>
-    </table>
+    </table></div>
     <div class="note-block">份额按并入当日市值设定（不受成本基约定影响）；收益率分母 = 个人成本基（CXZ $207,907 实际净投入；Lien $216,557 = 2024-11 锚定市值 + 此后净流水——**2026-07-07 重述**，替代原 option B，两人口径对称）。注：两人的 2024 及更早收益均不计（Lien 对账单不全 / CXZ 自 May'24 起）。TWR 口径的个人年度序列见上方年度表。</div>`;
 }
 
