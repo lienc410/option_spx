@@ -1,0 +1,26 @@
+{
+ "brokers": {
+  "etrade": {
+   "cash": 46933.24,
+   "equity_mv": 545466.99,
+   "maint": 127867.6635,
+   "n_positions": 10,
+   "nlv": 624855.23053,
+   "option_bp": 156444.13333333333
+  },
+  "schwab": {
+   "cash": 105412.77,
+   "equity_mv": 490513.09,
+   "maint": 105402.62,
+   "n_positions": 7,
+   "nlv": 628391.28,
+   "option_bp": 522988.66
+  }
+ },
+ "options_sleeve_max_loss": 76600.0,
+ "spots": {
+  "AMZN": 245.98,
+  "GOOGL": 367.03
+ },
+ "ts": "2026-07-07T22:15:50-04:00"
+}
