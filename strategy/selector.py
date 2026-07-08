@@ -45,6 +45,7 @@ from enum import Enum
 from typing import Optional
 
 from strategy.catalog import strategy_descriptor, strategy_key as catalog_strategy_key
+from strategy import decision_trace as T
 
 @dataclass
 class StrategyParams:
@@ -318,6 +319,10 @@ class Recommendation:
     # SPEC-106 — payoff taxonomy (CREDIT / DEBIT / WAIT / NEUTRAL_PREMIUM /
     # RESEARCH_ONLY). Auto-populated by _build_recommendation / _reduce_wait.
     payoff_type: str = ""
+    # SPEC-135 — Decision Trace：本次评估走过的全部节点（数据层/格路由/
+    # 门链含静默通过/治理/最终输出），由 decision_trace 收集器自吐。
+    # 纯附加字段：不参与任何路由决策（AC：注入前后路由 bit-identical）。
+    trace: list = field(default_factory=list, repr=False)
 
     def summary(self) -> str:
         """Single-line summary for quick reading."""
@@ -452,7 +457,19 @@ def _build_recommendation(
     local_spike: bool = False,
 ) -> Recommendation:
     desc = strategy_descriptor(strategy.value)
+    # SPEC-135 — 最终输出节点 + 把本轮 trace 附到 rec（drain 清空收集器，
+    # 纯附加：不影响任何字段/路由）
+    if strategy == StrategyName.REDUCE_WAIT:
+        T.add("output", "final_verdict", "今日结论：不开新仓（观望）",
+              detail=rationale, outcome="wait", code_ref="selector._reduce_wait")
+    else:
+        T.add("output", "final_verdict",
+              f"今日结论：开仓候选 — {strategy.value}（动作 {position_action}）",
+              detail=rationale, outcome="accept",
+              code_ref="selector._build_recommendation")
+    _trace_nodes = T.drain()
     return Recommendation(
+        trace           = _trace_nodes,
         strategy_key    = desc.key,
         strategy        = strategy,
         underlying      = desc.underlying,
@@ -700,6 +717,7 @@ def select_strategy(
                 Defaults to DEFAULT_PARAMS; pass a custom StrategyParams to run
                 parameter experiments via the backtest engine.
     """
+    T.reset()   # SPEC-135: 每次评估自吐一份 trace（纯记录，不分支）
     if params.force_strategy:
         return _build_forced_recommendation(params.force_strategy, vix, iv, trend, params)
 
@@ -708,8 +726,37 @@ def select_strategy(
     t    = trend.signal
     macro_warn = not trend.above_200
 
+    # ── SPEC-135 数据层（① 市场读数，全部带语义描述）────────────────────────
+    T.add("data", "vix_regime", T.vix_phrase(vix.vix, T.ev(r)),
+          detail=f"5日均 {vix.vix_5d_avg} vs 前5日 {vix.vix_5d_ago} → 动量 {T.ev(vix.trend)}",
+          inputs={"vix": round(vix.vix, 2), "regime": T.ev(r), "vix_trend": T.ev(vix.trend)},
+          code_ref="signals/vix_regime.py")
+    T.add("data", "iv_percentile", f"期权贵贱：{T.ivp_phrase(iv.iv_percentile)}",
+          detail=f"IVR {iv.iv_rank:.0f} / IVP {iv.iv_percentile:.0f}"
+                 + ("（两者分歧 >15，以 IVP 为准重分类）" if abs(iv.iv_rank - iv.iv_percentile) > 15 else ""),
+          inputs={"iv_rank": round(iv.iv_rank, 1), "iv_percentile": round(iv.iv_percentile, 1),
+                  "effective_signal": T.ev(iv_s)},
+          code_ref="selector._effective_iv_signal")
+    T.add("data", "trend", T.trend_phrase(T.ev(t), trend.ma_gap_pct),
+          detail=("价格在 200 日均线上方（宏观环境正常）" if trend.above_200
+                  else "价格跌破 200 日均线（宏观逆风警示）"),
+          inputs={"signal": T.ev(t), "ma_gap_pct": round(trend.ma_gap_pct, 4),
+                  "above_200": trend.above_200},
+          code_ref="signals/trend.py")
+    T.add("data", "term_structure",
+          "VIX 期限结构：" + ("倒挂（近月恐慌高于远月 — 短期极度紧张）" if vix.backwardation
+                             else "正常 contango（近月低于远月）"),
+          detail=f"VIX {vix.vix:.1f} vs VIX3M {vix.vix3m if vix.vix3m is not None else '—'}",
+          inputs={"backwardation": vix.backwardation, "vix3m": vix.vix3m},
+          code_ref="signals/vix_regime.py")
+
     # ── EXTREME_VOL: VIX above extreme threshold → always wait ───────
-    if r == Regime.HIGH_VOL and vix.vix >= params.extreme_vix:
+    _extreme = (r == Regime.HIGH_VOL and vix.vix >= params.extreme_vix)
+    if not T.gate(not _extreme, "extreme_vol",
+                  f"极端波动刹车：恐慌指数是否失控（≥{params.extreme_vix:.0f} 一律持币）",
+                  detail=f"VIX {vix.vix:.1f} vs 极端线 {params.extreme_vix:.0f}",
+                  inputs={"vix": round(vix.vix, 2), "extreme_vix": params.extreme_vix},
+                  code_ref="selector EXTREME_VOL"):
         return _reduce_wait(
             f"EXTREME_VOL (VIX ≥ {params.extreme_vix:.0f}) — tail risk too elevated; hold cash",
             vix, iv, trend, macro_warn,
@@ -723,8 +770,22 @@ def select_strategy(
 
     # ── HIGH_VOL: trade with tighter params ──────────────────────────
     if r == Regime.HIGH_VOL:
+        T.add("cell", "route_high_vol",
+              f"查策略手册：高波动区 × {T.trend_phrase(T.ev(t), trend.ma_gap_pct)}"
+              "（高波动格用收紧参数：更小 delta、更小仓位）",
+              inputs={"regime": T.ev(r), "trend": T.ev(t), "iv_signal": T.ev(iv_s)},
+              outcome="route", code_ref="selector HIGH_VOL matrix")
         if t == TrendSignal.BEARISH:
-            if iv_s == IVSignal.HIGH and is_aftermath(vix):
+            _aftermath_ok = (iv_s == IVSignal.HIGH and is_aftermath(vix))
+            T.add("gate", "hv_bearish_aftermath",
+                  "余波特批通道：恐慌刚从峰值明显回落时，可绕过常规门做双侧收权利金"
+                  "（broken-wing Iron Condor）",
+                  detail=(f"10日VIX峰值 {vix.vix_peak_10d or vix.vix:.1f} → 现在 {vix.vix:.1f}"
+                          + ("，满足余波条件" if _aftermath_ok else "，不满足（走常规门链）")),
+                  inputs={"iv_signal": T.ev(iv_s), "vix_peak_10d": vix.vix_peak_10d},
+                  outcome="pass" if _aftermath_ok else "info",
+                  code_ref="SPEC-064 aftermath")
+            if _aftermath_ok:
                 peak = vix.vix_peak_10d or vix.vix
                 drop_pct = max(0.0, (1.0 - (vix.vix / peak)) * 100.0) if peak else 0.0
                 action = get_position_action(
@@ -759,14 +820,24 @@ def select_strategy(
                     position_action=action,
                     macro_warning=macro_warn,
                 )
-            if vix.trend == Trend.RISING:
+            _rising = (vix.trend == Trend.RISING)
+            if not T.gate(not _rising, "hv_bearish_vix_rising",
+                          "恐慌还在升级吗？升级中不卖 call，等它稳住",
+                          detail=f"VIX 动量 {T.ev(vix.trend)}（5日均 {vix.vix_5d_avg} vs 前5日 {vix.vix_5d_ago}）",
+                          inputs={"vix_trend": T.ev(vix.trend)},
+                          code_ref="selector HIGH_VOL·BEARISH P1"):
                 return _reduce_wait(
                     "HIGH_VOL + BEARISH + VIX RISING — panic escalating; wait for VIX to stabilise before selling calls",
                     vix, iv, trend, macro_warn,
                     canonical_strategy=StrategyName.BEAR_CALL_SPREAD_HV.value,
                     params=params,
                 )
-            if not params.disable_entry_gates and iv.ivp63 >= IVP63_BCS_BLOCK:
+            _ivp63_hot = (not params.disable_entry_gates and iv.ivp63 >= IVP63_BCS_BLOCK)
+            if not T.gate(not _ivp63_hot, "hv_bearish_ivp63",
+                          "恐慌是否处于近 3 个月最高位？是则均值回归风险太大，不卖 call spread",
+                          detail=f"63日 IV 分位 {iv.ivp63:.0f} vs 拦截线 {IVP63_BCS_BLOCK}",
+                          inputs={"ivp63": round(iv.ivp63, 1), "block": IVP63_BCS_BLOCK},
+                          code_ref="selector IVP63_BCS_BLOCK"):
                 return _reduce_wait(
                     f"HIGH_VOL + BEARISH but ivp63={iv.ivp63:.0f} >= {IVP63_BCS_BLOCK} — "
                     "VIX at 63-day high; mean reversion risk too elevated for BCS_HV short call",
@@ -840,8 +911,20 @@ def select_strategy(
             )
 
         if t == TrendSignal.NEUTRAL:
-            if iv_s == IVSignal.HIGH and is_aftermath(vix):
-                if vix.backwardation:
+            _aftermath_ok = (iv_s == IVSignal.HIGH and is_aftermath(vix))
+            T.add("gate", "hv_neutral_aftermath",
+                  "余波特批通道：恐慌刚从峰值明显回落时的双侧收权利金特批",
+                  detail=(f"10日VIX峰值 {vix.vix_peak_10d or vix.vix:.1f} → 现在 {vix.vix:.1f}"
+                          + ("，满足" if _aftermath_ok else "，不满足（走常规门链）")),
+                  inputs={"iv_signal": T.ev(iv_s), "vix_peak_10d": vix.vix_peak_10d},
+                  outcome="pass" if _aftermath_ok else "info", code_ref="SPEC-064 aftermath")
+            if _aftermath_ok:
+                _bw = vix.backwardation
+                if not T.gate(not _bw, "hv_neutral_aftermath_backwardation",
+                              "近月恐慌是否高于远月（倒挂）？倒挂时短期 put 恐慌太热，不做 Iron Condor",
+                              detail=f"VIX {vix.vix:.1f} vs VIX3M {vix.vix3m}",
+                              inputs={"backwardation": _bw},
+                              code_ref="selector HIGH_VOL·NEUTRAL aftermath"):
                     return _reduce_wait(
                         "HIGH_VOL + NEUTRAL + BACKWARDATION — near-term put panic elevated; skip IC HV",
                         vix, iv, trend, macro_warn, backwardation=True,
@@ -882,14 +965,24 @@ def select_strategy(
                     position_action=action,
                     macro_warning=macro_warn,
                 )
-            if vix.trend == Trend.RISING:
+            _rising = (vix.trend == Trend.RISING)
+            if not T.gate(not _rising, "hv_neutral_vix_rising",
+                          "恐慌还在升级吗？升级中不做 Iron Condor",
+                          detail=f"VIX 动量 {T.ev(vix.trend)}",
+                          inputs={"vix_trend": T.ev(vix.trend)},
+                          code_ref="selector HIGH_VOL·NEUTRAL"):
                 return _reduce_wait(
                     "HIGH_VOL + NEUTRAL + VIX RISING — vol escalating; wait for VIX to stabilise",
                     vix, iv, trend, macro_warn,
                     canonical_strategy=StrategyName.IRON_CONDOR_HV.value,
                     params=params,
                 )
-            if vix.backwardation:
+            _bw = vix.backwardation
+            if not T.gate(not _bw, "hv_neutral_backwardation",
+                          "近月恐慌是否高于远月（倒挂）？倒挂时不做 Iron Condor",
+                          detail=f"VIX {vix.vix:.1f} vs VIX3M {vix.vix3m}",
+                          inputs={"backwardation": _bw},
+                          code_ref="selector HIGH_VOL·NEUTRAL"):
                 return _reduce_wait(
                     "HIGH_VOL + NEUTRAL + BACKWARDATION — near-term put panic elevated; skip IC HV",
                     vix, iv, trend, macro_warn, backwardation=True,
@@ -929,7 +1022,12 @@ def select_strategy(
                 macro_warning=macro_warn,
             )
 
-        if vix.backwardation:
+        _bw = vix.backwardation
+        if not T.gate(not _bw, "hv_bullish_backwardation",
+                      "近月恐慌是否高于远月（倒挂）？倒挂时不卖 put spread",
+                      detail=f"VIX {vix.vix:.1f} vs VIX3M {vix.vix3m}",
+                      inputs={"backwardation": _bw},
+                      code_ref="selector HIGH_VOL·BULLISH"):
             return _reduce_wait(
                 "HIGH_VOL + BACKWARDATION — VIX term structure inverted; skip Bull Put Spread",
                 vix, iv, trend, macro_warn, backwardation=True,
@@ -937,7 +1035,12 @@ def select_strategy(
                 params=params,
             )
         # P1: VIX momentum rising → premium spiking, near-term risk elevated
-        if vix.trend == Trend.RISING:
+        _rising = (vix.trend == Trend.RISING)
+        if not T.gate(not _rising, "hv_bullish_vix_rising",
+                      "恐慌还在升级吗？升级中不卖 put",
+                      detail=f"VIX 动量 {T.ev(vix.trend)}",
+                      inputs={"vix_trend": T.ev(vix.trend)},
+                      code_ref="selector HIGH_VOL·BULLISH P1"):
             return _reduce_wait(
                 "HIGH_VOL + VIX RISING — near-term panic building; wait for VIX to stabilise",
                 vix, iv, trend, macro_warn,
@@ -1010,9 +1113,18 @@ def select_strategy(
 
     # ── LOW_VOL ──────────────────────────────────────────────────────
     if r == Regime.LOW_VOL:
+        T.add("cell", "route_low_vol",
+              f"查策略手册：低波动区 × {T.trend_phrase(T.ev(t), trend.ma_gap_pct)}",
+              inputs={"regime": T.ev(r), "trend": T.ev(t), "iv_signal": T.ev(iv_s)},
+              outcome="route", code_ref="selector LOW_VOL matrix")
         if t == TrendSignal.NEUTRAL:
             # P3: VIX rising in low-vol env = regime about to shift; skip condor
-            if vix.trend == Trend.RISING:
+            _rising = (vix.trend == Trend.RISING)
+            if not T.gate(not _rising, "lv_neutral_vix_rising",
+                          "恐慌在低位抬头吗？低波动区里 VIX 上冲常是体制切换前兆，不做 Iron Condor",
+                          detail=f"VIX 动量 {T.ev(vix.trend)}",
+                          inputs={"vix_trend": T.ev(vix.trend)},
+                          code_ref="selector LOW_VOL·NEUTRAL P3"):
                 return _reduce_wait(
                     "LOW_VOL + NEUTRAL but VIX RISING — potential regime shift; Iron Condor risk too high",
                     vix, iv, trend, macro_warn,
@@ -1020,7 +1132,12 @@ def select_strategy(
                     params=params,
                 )
             # P3: IVP outside 20–50 sweet-spot — too low = insufficient premium; too high = tail risk
-            if iv.iv_percentile < 20 or iv.iv_percentile > 50:
+            _ivp_out = (iv.iv_percentile < 20 or iv.iv_percentile > 50)
+            if not T.gate(not _ivp_out, "lv_neutral_ivp_band",
+                          "premium 在甜区吗？（第 20-50 百分位）太便宜没肉、太贵尾部风险高",
+                          detail=f"当前 {T.ivp_phrase(iv.iv_percentile)}，甜区 20-50",
+                          inputs={"iv_percentile": round(iv.iv_percentile, 1), "band": [20, 50]},
+                          code_ref="selector LOW_VOL·NEUTRAL P3"):
                 return _reduce_wait(
                     f"LOW_VOL + NEUTRAL but IVP={iv.iv_percentile:.0f} outside 20–50 — Iron Condor risk/reward unfavourable",
                     vix, iv, trend, macro_warn,
@@ -1058,7 +1175,14 @@ def select_strategy(
                 # as Gate 3 (SPEC-054 → SPEC-056c).
 
                 # ── Gate 2 (SPEC-051): IV=HIGH in LOW_VOL ────────────────────
-                if iv_s == IVSignal.HIGH:
+                _iv_high = (iv_s == IVSignal.HIGH)
+                if not T.gate(not _iv_high, "lv_bullish_iv_high",
+                              "低波动区里期权反常偏贵吗？是则可能是波动扩张前兆，"
+                              "Bull Call Diagonal 的卖出腿会暴露",
+                              detail=f"当前 {T.ivp_phrase(iv.iv_percentile)}",
+                              inputs={"iv_signal": T.ev(iv_s),
+                                      "iv_percentile": round(iv.iv_percentile, 1)},
+                              code_ref="SPEC-051 Gate 2"):
                     return _reduce_wait(
                         f"LOW_VOL + BULLISH but IV=HIGH (IVP={iv.iv_percentile:.0f}) — "
                         "vol expansion signal in low-vol regime; DIAGONAL short leg exposed",
@@ -1073,13 +1197,20 @@ def select_strategy(
                 # Full-history event study (n=14) shows Sharpe +1.56, similar to double_low.
 
             from strategy.bcd_filter import should_block_bcd
-            if should_block_bcd(
+            _comfort_block = should_block_bcd(
                 params.bcd_comfort_filter_mode,
                 vix=vix.vix,
                 dist_30d_high_pct=trend.dist_30d_high_pct,
                 ma_gap_pct=trend.ma_gap_pct,
                 date=vix.date,
-            ):
+            )
+            if not T.gate(not _comfort_block, "lv_bullish_comfort_top",
+                          "『舒适顶部』过滤：VIX 低 + 贴近 30 日高点 + 远离均线三项同时"
+                          "成立时拦（注：Q087 A4 已证此过滤零保护价值，当前多为 shadow 模式）",
+                          detail=(f"vix={vix.vix:.1f}, 距30日高点 {trend.dist_30d_high_pct}"
+                                  f", 均线偏离 {trend.ma_gap_pct:.3f}"),
+                          inputs={"mode": params.bcd_comfort_filter_mode},
+                          code_ref="SPEC-079 comfortable-top"):
                 return _reduce_wait(
                     f"BCD comfortable-top filter (SPEC-079): risk_score=3 "
                     f"(vix={vix.vix:.1f}, dist_30d={trend.dist_30d_high_pct:.3f}, "
@@ -1114,6 +1245,10 @@ def select_strategy(
             )
 
         # BEARISH in LOW_VOL → no edge; low-vol pullbacks are typically V-shaped
+        T.gate(False, "lv_bearish_dead_cell",
+               "手册死格：低波动区的下跌通常是 V 型反转，方向性看跌没有统计边际 → 一律观望",
+               detail="低波动 pullback 历史上多为 V 型，做空胜率无优势",
+               inputs={"cell": "LOW_VOL|BEARISH"}, code_ref="selector LOW_VOL·BEARISH")
         return _reduce_wait(
             "LOW_VOL + BEARISH — 低波动环境中的方向性看跌无统计边际；V型反转概率高，等待趋势确认",
             vix, iv, trend, macro_warn,
@@ -1121,10 +1256,20 @@ def select_strategy(
         )
 
     # ── NORMAL ───────────────────────────────────────────────────────
+    T.add("cell", "route_normal",
+          f"查策略手册：正常波动区 × 期权{T.ev(iv_s)}贵贱档 × "
+          f"{T.trend_phrase(T.ev(t), trend.ma_gap_pct)}",
+          inputs={"regime": T.ev(r), "iv_signal": T.ev(iv_s), "trend": T.ev(t)},
+          outcome="route", code_ref="selector NORMAL matrix")
     if iv_s == IVSignal.HIGH:
         if t == TrendSignal.BULLISH:
             # Backwardation filter: skip if near-term panic elevated
-            if vix.backwardation:
+            _bw = vix.backwardation
+            if not T.gate(not _bw, "nhb_backwardation",
+                          "近月恐慌是否高于远月（倒挂）？倒挂时不卖 put spread",
+                          detail=f"VIX {vix.vix:.1f} vs VIX3M {vix.vix3m}",
+                          inputs={"backwardation": _bw},
+                          code_ref="selector NORMAL·HIGH·BULLISH"):
                 return _reduce_wait(
                     "NORMAL + IV HIGH + BULLISH but VIX term structure in BACKWARDATION — skip Bull Put Spread",
                     vix, iv, trend, macro_warn, backwardation=True,
@@ -1132,7 +1277,12 @@ def select_strategy(
                     params=params,
                 )
             # P1: VIX momentum rising → conditions deteriorating, skip selling puts
-            if vix.trend == Trend.RISING:
+            _rising = (vix.trend == Trend.RISING)
+            if not T.gate(not _rising, "nhb_vix_rising",
+                          "恐慌还在升级吗？升级中不卖 put",
+                          detail=f"VIX 动量 {T.ev(vix.trend)}",
+                          inputs={"vix_trend": T.ev(vix.trend)},
+                          code_ref="selector NORMAL·HIGH·BULLISH P1"):
                 return _reduce_wait(
                     "NORMAL + IV HIGH + BULLISH but VIX RISING — wait for VIX to stabilise before selling premium",
                     vix, iv, trend, macro_warn,
@@ -1143,6 +1293,12 @@ def select_strategy(
             # Bootstrap matrix: BPS avg −$299 not significant (n=23);
             # BCS_HV CI [$755,$1,044] is bootstrap-degenerate (n=10, block_size=5 ≈ 2 blocks).
             # No strategy has statistically significant alpha in this cell.
+            T.gate(False, "nhb_dead_cell",
+                   "手册死格：此组合（正常区 + 期权偏贵 + 上升趋势）26 年回测中"
+                   "没有任何策略有统计显著优势 → 一律观望",
+                   detail="bootstrap 矩阵：BPS 均值 −$299 不显著（n=23）",
+                   inputs={"cell": "NORMAL|HIGH|BULLISH"},
+                   code_ref="SPEC-060 Change 3")
             return _reduce_wait(
                 "NORMAL + IV HIGH + BULLISH — no strategy has statistically significant alpha in this cell; REDUCE_WAIT (SPEC-060)",
                 vix, iv, trend, macro_warn,
@@ -1151,7 +1307,12 @@ def select_strategy(
             )
 
         if t == TrendSignal.BEARISH:
-            if vix.trend == Trend.RISING:
+            _rising = (vix.trend == Trend.RISING)
+            if not T.gate(not _rising, "nhbe_vix_rising",
+                          "恐慌还在升级吗？升级中不做 Iron Condor",
+                          detail=f"VIX 动量 {T.ev(vix.trend)}",
+                          inputs={"vix_trend": T.ev(vix.trend)},
+                          code_ref="selector NORMAL·HIGH·BEARISH"):
                 return _reduce_wait(
                     "NORMAL + IV HIGH + BEARISH + VIX RISING — skip Iron Condor while vol escalating",
                     vix, iv, trend, macro_warn,
@@ -1188,7 +1349,12 @@ def select_strategy(
 
         # NEUTRAL trend + HIGH IV → Iron Condor (stable vol is good for condors)
         # P3: skip if VIX rising — condor will be hit by the move that's building
-        if vix.trend == Trend.RISING:
+        _rising = (vix.trend == Trend.RISING)
+        if not T.gate(not _rising, "nhn_vix_rising",
+                      "恐慌还在升级吗？升级中不做 Iron Condor",
+                      detail=f"VIX 动量 {T.ev(vix.trend)}",
+                      inputs={"vix_trend": T.ev(vix.trend)},
+                      code_ref="selector NORMAL·HIGH·NEUTRAL P3"):
             return _reduce_wait(
                 "NORMAL + IV HIGH + NEUTRAL but VIX RISING — Iron Condor unsafe; wait for vol to stabilise",
                 vix, iv, trend, macro_warn,
@@ -1223,15 +1389,31 @@ def select_strategy(
     if iv_s == IVSignal.LOW:
         if t == TrendSignal.BULLISH:
             # SPEC-113 carve: VIX<18 routes to BCD (spike-decay state with +vega cushion)
-            if vix.vix < SPEC_113_VIX_THRESHOLD:
+            _carve_ok = (vix.vix < SPEC_113_VIX_THRESHOLD)
+            T.gate(_carve_ok, "nlb_spec113_carve",
+                   f"温和带特批通道：VIX 低于 {SPEC_113_VIX_THRESHOLD:.0f} 时此格特批做 "
+                   "Bull Call Diagonal（买远月 call + 卖近月 call）——"
+                   "spike 衰减态中 +vega 缓冲有结构性回报",
+                   detail=f"VIX {vix.vix:.1f} vs 特批线 {SPEC_113_VIX_THRESHOLD:.0f}"
+                          + ("，进入特批" if _carve_ok else "，不满足（该格无常规策略 → 观望）"),
+                   inputs={"vix": round(vix.vix, 2), "threshold": SPEC_113_VIX_THRESHOLD},
+                   code_ref="SPEC-113 carve")
+            if _carve_ok:
                 from strategy.bcd_filter import should_block_bcd
-                if (not params.disable_entry_gates and should_block_bcd(
+                _comfort_block = (not params.disable_entry_gates and should_block_bcd(
                     params.bcd_comfort_filter_mode,
                     vix=vix.vix,
                     dist_30d_high_pct=trend.dist_30d_high_pct,
                     ma_gap_pct=trend.ma_gap_pct,
                     date=vix.date,
-                )):
+                ))
+                if not T.gate(not _comfort_block, "nlb_comfort_top",
+                              "『舒适顶部』过滤：VIX 低 + 贴近 30 日高点 + 远离均线三项"
+                              "同时成立时拦（Q087 A4 已证零保护价值，多为 shadow 模式）",
+                              detail=(f"vix={vix.vix:.1f}, 距30日高点 {trend.dist_30d_high_pct}"
+                                      f", 均线偏离 {trend.ma_gap_pct:.3f}"),
+                              inputs={"mode": params.bcd_comfort_filter_mode},
+                              code_ref="SPEC-079 comfortable-top"):
                     return _reduce_wait(
                         f"SPEC-113 BCD carve (NORMAL+IV_LOW+BULL+VIX<{SPEC_113_VIX_THRESHOLD}) but "
                         f"comfortable-top filter (SPEC-079): risk_score=3 "
@@ -1278,6 +1460,10 @@ def select_strategy(
             )
 
         if t == TrendSignal.BEARISH:
+            T.gate(False, "nlbe_dead_cell",
+                   "手册死格：期权太便宜 + 下降趋势，没有值得卖的 premium → 观望",
+                   inputs={"cell": "NORMAL|LOW|BEARISH"},
+                   code_ref="selector NORMAL·LOW·BEARISH")
             return _reduce_wait(
                 "NORMAL + IV LOW + BEARISH — low premium insufficient for IC; skip",
                 vix, iv, trend, macro_warn,
@@ -1285,6 +1471,10 @@ def select_strategy(
             )
 
         # NEUTRAL + LOW IV → no edge in any direction, not worth selling premium either
+        T.gate(False, "nln_dead_cell",
+               "手册死格：无方向 + premium 便宜，两头都没边际 → 观望",
+               inputs={"cell": "NORMAL|LOW|NEUTRAL"},
+               code_ref="selector NORMAL·LOW·NEUTRAL")
         return _reduce_wait(
             "NORMAL + IV LOW + NEUTRAL — no directional edge and premium cheap; skip",
             vix, iv, trend, macro_warn,
@@ -1294,7 +1484,12 @@ def select_strategy(
     # iv_s == NEUTRAL, regime == NORMAL
     if t == TrendSignal.BULLISH:
         # Backwardation filter for Bull Put Spread
-        if vix.backwardation:
+        _bw = vix.backwardation
+        if not T.gate(not _bw, "nnb_backwardation",
+                      "近月恐慌是否高于远月（倒挂）？倒挂 = 短期极度紧张，不卖 put spread",
+                      detail=f"VIX {vix.vix:.1f} vs VIX3M {vix.vix3m}",
+                      inputs={"backwardation": _bw},
+                      code_ref="selector NNB backwardation"):
             return _reduce_wait(
                 "NORMAL + IV NEUTRAL + BULLISH but VIX term structure in BACKWARDATION — skip Bull Put Spread",
                 vix, iv, trend, macro_warn, backwardation=True,
@@ -1302,7 +1497,12 @@ def select_strategy(
                 params=params,
             )
         # P1: VIX momentum rising → conditions deteriorating, skip selling puts
-        if vix.trend == Trend.RISING:
+        _rising = (vix.trend == Trend.RISING)
+        if not T.gate(not _rising, "nnb_vix_rising",
+                      "恐慌还在升级吗？升级中不卖 put，等它稳住",
+                      detail=f"VIX 动量 {T.ev(vix.trend)}",
+                      inputs={"vix_trend": T.ev(vix.trend)},
+                      code_ref="selector NNB P1"):
             return _reduce_wait(
                 "NORMAL + IV NEUTRAL + BULLISH but VIX RISING — wait for VIX to stabilise before selling premium",
                 vix, iv, trend, macro_warn,
@@ -1310,7 +1510,16 @@ def select_strategy(
                 params=params,
             )
         # P1: IVP ≥ BPS_NNB_IVP_UPPER — stressed vol; tail risk exceeds premium benefit
-        if iv.iv_percentile >= BPS_NNB_IVP_UPPER:
+        # （5 月实盘复审 F1：PM 曾把这道『入场』门当『退出』信号用——它拦的是
+        #   开新仓，不是要求平已有仓）
+        _ivp_hot = (iv.iv_percentile >= BPS_NNB_IVP_UPPER)
+        if not T.gate(not _ivp_hot, "nnb_ivp_upper",
+                      f"期权是否太贵（≥第 {BPS_NNB_IVP_UPPER} 百分位）？太贵 = 市场在"
+                      "定价压力，尾部风险超过 premium 收益，不开新 Bull Put Spread",
+                      detail=f"当前 {T.ivp_phrase(iv.iv_percentile)}，上限 {BPS_NNB_IVP_UPPER}",
+                      inputs={"iv_percentile": round(iv.iv_percentile, 1),
+                              "upper": BPS_NNB_IVP_UPPER},
+                      code_ref="selector NNB BPS_NNB_IVP_UPPER"):
             return _reduce_wait(
                 f"NORMAL + IV NEUTRAL + BULLISH but IVP={iv.iv_percentile:.0f} ≥ {BPS_NNB_IVP_UPPER} — stressed vol environment, BPS tail risk too high",
                 vix, iv, trend, macro_warn,
@@ -1320,7 +1529,14 @@ def select_strategy(
         # P2: IVP < BPS_NNB_IVP_LOWER — insufficient premium for BPS risk/reward
         # Analysis (2026-03-28): borderline entry at IVP=43 caused 2025-10-03 loss.
         # Raise minimum from 40→43 to filter marginal premium environments.
-        if iv.iv_percentile < BPS_NNB_IVP_LOWER:
+        _ivp_thin = (iv.iv_percentile < BPS_NNB_IVP_LOWER)
+        if not T.gate(not _ivp_thin, "nnb_ivp_lower",
+                      f"premium 够肉吗（≥第 {BPS_NNB_IVP_LOWER} 百分位）？太薄不值得"
+                      "承担 put spread 的下行风险",
+                      detail=f"当前 {T.ivp_phrase(iv.iv_percentile)}，下限 {BPS_NNB_IVP_LOWER}",
+                      inputs={"iv_percentile": round(iv.iv_percentile, 1),
+                              "lower": BPS_NNB_IVP_LOWER},
+                      code_ref="selector NNB BPS_NNB_IVP_LOWER"):
             return _reduce_wait(
                 f"NORMAL + IV NEUTRAL + BULLISH but IVP={iv.iv_percentile:.0f} < {BPS_NNB_IVP_LOWER} — insufficient premium for BPS risk/reward",
                 vix, iv, trend, macro_warn,
@@ -1348,14 +1564,24 @@ def select_strategy(
         )
 
     if t == TrendSignal.BEARISH:
-        if vix.trend == Trend.RISING:
+        _rising = (vix.trend == Trend.RISING)
+        if not T.gate(not _rising, "nnbe_vix_rising",
+                      "恐慌还在升级吗？升级中不做 Iron Condor",
+                      detail=f"VIX 动量 {T.ev(vix.trend)}",
+                      inputs={"vix_trend": T.ev(vix.trend)},
+                      code_ref="selector NORMAL·NEUTRAL·BEARISH"):
             return _reduce_wait(
                 "NORMAL + IV NEUTRAL + BEARISH + VIX RISING — skip Iron Condor while vol escalating",
                 vix, iv, trend, macro_warn,
                 canonical_strategy=StrategyName.IRON_CONDOR.value,
                 params=params,
             )
-        if iv.iv_percentile < 20 or iv.iv_percentile > 50:
+        _ivp_out = (iv.iv_percentile < 20 or iv.iv_percentile > 50)
+        if not T.gate(not _ivp_out, "nnbe_ivp_band",
+                      "premium 在甜区吗？（第 20-50 百分位）",
+                      detail=f"当前 {T.ivp_phrase(iv.iv_percentile)}，甜区 20-50",
+                      inputs={"iv_percentile": round(iv.iv_percentile, 1), "band": [20, 50]},
+                      code_ref="selector NORMAL·NEUTRAL·BEARISH"):
             return _reduce_wait(
                 f"NORMAL + IV NEUTRAL + BEARISH but IVP={iv.iv_percentile:.0f} outside 20–50 — IC risk/reward unfavourable",
                 vix, iv, trend, macro_warn,
@@ -1389,7 +1615,12 @@ def select_strategy(
 
     # NORMAL + NEUTRAL IV + NEUTRAL trend → Iron Condor (no directional bias, neutral vol)
     # P3: skip if VIX rising — range assumption breaking down
-    if vix.trend == Trend.RISING:
+    _rising = (vix.trend == Trend.RISING)
+    if not T.gate(not _rising, "nnn_vix_rising",
+                  "恐慌还在升级吗？升级中区间假设失效，不做 Iron Condor",
+                  detail=f"VIX 动量 {T.ev(vix.trend)}",
+                  inputs={"vix_trend": T.ev(vix.trend)},
+                  code_ref="selector NORMAL·NEUTRAL·NEUTRAL P3"):
         return _reduce_wait(
             "NORMAL + IV NEUTRAL + NEUTRAL but VIX RISING — Iron Condor unsafe; wait for vol to stabilise",
             vix, iv, trend, macro_warn,
@@ -1397,7 +1628,12 @@ def select_strategy(
             params=params,
         )
     # P3: IVP outside 20–50 — too low = free money illusion; too high = breached too often
-    if iv.iv_percentile < 20 or iv.iv_percentile > 50:
+    _ivp_out = (iv.iv_percentile < 20 or iv.iv_percentile > 50)
+    if not T.gate(not _ivp_out, "nnn_ivp_band",
+                  "premium 在甜区吗？（第 20-50 百分位）太低是免费午餐幻觉、太高被击穿太频繁",
+                  detail=f"当前 {T.ivp_phrase(iv.iv_percentile)}，甜区 20-50",
+                  inputs={"iv_percentile": round(iv.iv_percentile, 1), "band": [20, 50]},
+                  code_ref="selector NORMAL·NEUTRAL·NEUTRAL P3"):
         return _reduce_wait(
             f"NORMAL + IV NEUTRAL + NEUTRAL but IVP={iv.iv_percentile:.0f} outside 20–50 — Iron Condor risk/reward unfavourable",
             vix, iv, trend, macro_warn,
@@ -1523,7 +1759,18 @@ def _apply_bcd_governance_live(rec: Recommendation, vix: VixSnapshot, iv: IVSnap
     try:
         from strategy import bcd_governance as gov
         halt = gov.is_halted()
+        # SPEC-135 治理层节点（安全刹车——含运行特性披露人话版）。halted 分支
+        # 会走 _reduce_wait → 新 trace 从这些节点开始重建，故先 reset 再记。
         if halt:
+            T.reset()
+            T.add("governance", "bcd_family_halt",
+                  "安全刹车：该策略家族近期合计收益转负 → 暂停开新仓等复核"
+                  "（预注册说明：策略良好时每周期也有约四成概率误踩此门，"
+                  "是『要求复核』不是『宣布失效』）",
+                  detail="；".join(f"{g.get('detail') or '?'}" for g in (halt.get("gates") or [])),
+                  inputs={"halted_at": halt.get("at"),
+                          "gates": [g.get("gate") for g in (halt.get("gates") or [])]},
+                  outcome="halt", code_ref="SPEC-123 D1")
             # Lead with what happened in plain language (the gate dict already
             # carries a human-readable detail); the gate code is provenance
             # and trails in parentheses. "SPEC-123 D1，门：G2_18m_combined"
@@ -1532,7 +1779,7 @@ def _apply_bcd_governance_live(rec: Recommendation, vix: VixSnapshot, iv: IVSnap
                 f"{g.get('detail') or '?'}（{g.get('gate', '?')}）"
                 for g in (halt.get("gates") or [])
             ) or "触发门未知"
-            return _reduce_wait(
+            halted_rec = _reduce_wait(
                 f"BCD 新开仓暂停（{halt.get('at')} 起）— 收益复核门触发：{reasons}。"
                 f"这是预期内的例行复核（edge 真实时每窗口也有约 39-48% 概率触发），"
                 f"不是策略失效判定；持仓管理不受影响。"
@@ -1540,16 +1787,29 @@ def _apply_bcd_governance_live(rec: Recommendation, vix: VixSnapshot, iv: IVSnap
                 vix, iv, trend, macro_warn=False,
                 canonical_strategy=rec.strategy.value, params=params,
             )
+            # 治理截断：保留 selector 原 trace（走到开仓候选的完整路径）+
+            # 追加治理节点与最终观望结论——PM 看到"本来会开、被刹车拦下"全程
+            halted_rec.trace = (rec.trace or []) + halted_rec.trace
+            return halted_rec
+        T.add("governance", "bcd_family_halt",
+              "安全刹车：策略家族收益复核门（本日未触发）",
+              detail="家族累计/月度/18个月合并各门均在允许区",
+              outcome="pass", code_ref="SPEC-123 D1")
         regime_val = getattr(vix.regime, "value", str(vix.regime))
         if regime_val == "LOW_VOL":
             qg = gov.quote_gate_status()
             if not qg["unlocked"]:
                 rec.rationale += (f"　[D2 quote-gate: {qg['days']}/{qg['needed']} 天，"
                                   f"未解锁前主格开仓将触发即时复审]")
+                T.add("governance", "bcd_quote_gate",
+                      f"报价前置门：已记录 {qg['days']} 天 / 需 {qg['needed']} 天真实报价"
+                      "（未解锁前主格开仓触发即时复审，不拦）",
+                      inputs=qg, outcome="info", code_ref="SPEC-123 D2")
             else:
                 adv = gov.first5_advisory()
                 if adv:
                     rec.rationale += f"　[D2 {adv}]"
+        rec.trace = (rec.trace or []) + T.drain()
     except Exception:
         # governance must never break the recommendation path
         import logging

@@ -210,27 +210,60 @@ def _latest_open_marks(marks: list[dict]) -> dict[str, dict]:
 
 def evaluate_gates(today: str) -> list[dict]:
     """Returns fired gates as dicts (empty = healthy). Mid marks are primary."""
+    fired, _trace = evaluate_gates_detailed(today)
+    return fired
+
+
+def evaluate_gates_detailed(today: str) -> tuple[list[dict], list[dict]]:
+    """SPEC-135 — (fired, all_gates_trace)：四门逐个入 trace（含未触发的，
+    label_human 与门定义同居此处，随门改动同 commit）。evaluate_gates 行为
+    不变（薄包装，返回 fired 部分）。"""
     fired: list[dict] = []
+    trace: list[dict] = []
     realized = _realized_rows()
     marks = _marks_history()
     latest = _latest_open_marks(marks)
     marked_sum = sum(float(m["pnl_mid"]) for m in latest.values())
 
+    def _node(check: str, label_human: str, detail: str, hit: bool,
+              inputs: dict, code_ref: str) -> None:
+        trace.append({"layer": "governance", "check": check,
+                      "label_human": label_human, "detail": detail,
+                      "inputs": inputs, "outcome": "veto" if hit else "pass",
+                      "code_ref": code_ref, "branch_taken": True})
+
     # Gate 1 — last 6 realized sum < 0 (needs a full window)
+    g1_hit = False
     if len(realized) >= GATE1_LAST_N:
         s = sum(float(r["realized_pnl"]) for r in realized[-GATE1_LAST_N:])
-        if s < 0:
+        g1_hit = s < 0
+        if g1_hit:
             fired.append({"gate": "G1_last6_realized",
                           "detail": f"最近 {GATE1_LAST_N} 笔实现和 ${s:,.0f} < 0"})
+        _node("g1_last6",
+              f"最近 {GATE1_LAST_N} 笔实现结果合计是否转负（转负 = 例行复核，非失效判定）",
+              f"合计 ${s:,.0f} vs 0（计数口径：整仓平仓与 roll 短腿周期各一笔，SPEC-127）",
+              g1_hit, {"last_n_sum": round(s, 2), "n": GATE1_LAST_N}, "SPEC-123 G1")
+    else:
+        _node("g1_last6",
+              f"最近 {GATE1_LAST_N} 笔实现结果合计是否转负",
+              f"实现样本不足（{len(realized)}/{GATE1_LAST_N} 笔）——本门不评估",
+              False, {"n_realized": len(realized)}, "SPEC-123 G1")
 
     # Gate 2 — 18-month realized+marked < 0 with n >= 3
     cutoff = (date.fromisoformat(today) - timedelta(days=GATE2_WINDOW_DAYS)).isoformat()
     recent = [r for r in realized if str(r.get("closed_at", "")) >= cutoff]
     n2 = len(recent) + len(latest)
     s2 = sum(float(r["realized_pnl"]) for r in recent) + marked_sum
-    if n2 >= GATE2_MIN_TRADES and s2 < 0:
+    g2_hit = bool(n2 >= GATE2_MIN_TRADES and s2 < 0)
+    if g2_hit:
         fired.append({"gate": "G2_18m_combined",
                       "detail": f"18 个月实现+标记和 ${s2:,.0f} < 0（n={n2}）"})
+    _node("g2_18m",
+          "该策略家族 18 个月合计（已实现 + 持仓按市价折算）是否转负",
+          f"合计 ${s2:,.0f} vs 0（n={n2}，满 {GATE2_MIN_TRADES} 笔才评估）",
+          g2_hit, {"sum_18m": round(s2, 2), "n": n2, "min_n": GATE2_MIN_TRADES},
+          "SPEC-123 G2")
 
     # Gate 3 — single calendar month marked drawdown
     month = today[:7]
@@ -247,17 +280,29 @@ def evaluate_gates(today: str) -> list[dict]:
         before = [r for r in rows if str(r["date"])[:7] < month]
         base = float(before[-1]["pnl_mid"]) if before else 0.0
         month_dd += float(in_month[-1]["pnl_mid"]) - base
-    if month_dd <= GATE3_MONTH_MARK_DD_USD:
+    g3_hit = month_dd <= GATE3_MONTH_MARK_DD_USD
+    if g3_hit:
         fired.append({"gate": "G3_month_mark_dd",
                       "detail": f"{month} 标记回撤 ${month_dd:,.0f} ≤ ${GATE3_MONTH_MARK_DD_USD:,.0f}"})
+    _node("g3_month_dd",
+          "本月持仓按市价折算的回撤是否超过单月上限",
+          f"{month} 回撤 ${month_dd:,.0f} vs 上限 ${GATE3_MONTH_MARK_DD_USD:,.0f}",
+          g3_hit, {"month_dd": round(month_dd, 2), "limit": GATE3_MONTH_MARK_DD_USD},
+          "SPEC-123 G3")
 
     # Gate 4 — family cumulative (all realized + current marks) → full halt
     cum = sum(float(r["realized_pnl"]) for r in realized) + marked_sum
-    if cum < GATE4_FAMILY_CUM_USD:
+    g4_hit = cum < GATE4_FAMILY_CUM_USD
+    if g4_hit:
         fired.append({"gate": "G4_family_cum", "full_halt": True,
                       "detail": f"家族累计（实现+标记）${cum:,.0f} < ${GATE4_FAMILY_CUM_USD:,.0f}"})
+    _node("g4_family_cum",
+          "该策略家族开账以来累计（实现 + 标记）是否击穿全停线（击穿 = 全停 + PM 复审）",
+          f"累计 ${cum:,.0f} vs 全停线 ${GATE4_FAMILY_CUM_USD:,.0f}",
+          g4_hit, {"family_cum": round(cum, 2), "limit": GATE4_FAMILY_CUM_USD},
+          "SPEC-123 G4")
 
-    return fired
+    return fired, trace
 
 
 def _halt_message(fired: list[dict], today: str) -> str:

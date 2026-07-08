@@ -55,6 +55,8 @@ class RecommendationLogIoTests(unittest.TestCase):
             "strategy", "strategy_key", "rationale", "macro_warning", "backwardation",
             "vix", "regime", "vix3m", "iv_rank", "iv_percentile", "iv_signal",
             "spx", "trend_signal", "legs", "params_hash",
+            # SPEC-135: Decision Trace 扩展字段（additive，strict-JSON）
+            "trace",
         }
         self.assertEqual(set(row.keys()), expected_keys)
 
