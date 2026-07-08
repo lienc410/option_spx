@@ -2,7 +2,7 @@
 
 **Date**: 2026-07-07
 **Owner**: Quant Researcher
-**Status**: P0 COMPLETE — 待 PM ratify 假设集(§4)后即为 ② 结论
+**Status**: **RATIFIED 2026-07-07** — PM 拍板 buffer = $100k;§4 其余假设(情景网格 / gap−30% / 静态账本)按拟稿接受。**② 定稿结论:可部署 defined-risk 容量 = $337,688 − $100,000 ≈ $238k**;naked-put 子配额按 crash 占用口径(GOOGL ~$20k/张)。此数即 ④ 合成栈重仿真与 SPEC-111 §4-B 的输入。
 **Trigger**: BP-utilization 重审计处置顺序 ②(PM 批准 2026-07-07);同时是 SPEC-111 复审 §4-B(T2 naked-put)的前置数据
 **Data**: 2026-07-07 live 双 broker 快照(`q091_p0_snapshot.json`),情景网格无拟合、无统计推断——纯风险算术
 
