@@ -2,7 +2,7 @@
 
 **Date**: 2026-07-07
 **Owner**: Quant Researcher
-**Status**: P0 COMPLETE — 主问题已回答;一个疑似合成缝隙升级为 P1 待核
+**Status**: **CLOSED 2026-07-07** — 主问题已回答;疑似 BP 缝隙当日核清为测量伪影(§3),reaudit ④ 完结
 **Input**: 标准回测(account $500k canonical,引擎内生 SPEC-084 J3 + BP ceilings 35/50% + bcd_max_debit $22k)交易流;SPEC-111 现金闸门(60% cap / $30k floor)按生产语义重放;现金池网格 {37k, 90k, 152k, 250k}
 **Files**: `q092_p0_composed_stack_replay.py` / `q092_p0_replay.csv`
 
@@ -39,23 +39,23 @@ sizing 口径)。池回落到双位数万,预期代价约为 BCD 贡献的四成
 PM 可选:(a) 接受"BCD 同时只有一笔"的事实约束;(b) 单笔回到 ~$22k 换并发容量。
 不需要改规则,只需要知道这笔账。
 
-## 3. 发现 3(疑似合成缝隙,P1 待核)— BP 站立总和可超 ceiling
+## 3. 发现 3 — BP 侧无合成缝隙(P1 同日核清,关闭)
 
-重放对 19y 交易流做逐日站立 BP 加总:**peak = 57% > HIGH_VOL ceiling 50%**
-(p95 = 42%,avg 14.9%)。可能成因:ceiling 在入场时按当时 regime 检查,
-跨 regime 叠仓(NORMAL 存量 15% + HIGH_VOL 新开 42%)的站立总和无人复核;
-也可能是本重放 total_bp 汇总口径与引擎不一致(Q045 当年报 peak 43%)。
-**不下结论**——P1 用引擎内生日度 BP 序列核对:若引擎真允许站立 57%,
-这是"每层各自验证、合成无人看"的又一实例(与 6 月现金静默同构)。
+P0 初值 peak 57% > 50% ceiling 曾疑似跨 regime 叠仓缝隙。**当日核清:测量伪影**
+——重放按"exit 日含端点"逐日加总,roll/换仓日"平旧+开新"被同日双计;引擎日内
+先平后开,从未真正并发。改用 exit 日排除口径:**真实站立 peak = 48.4%
+(2021-12-20)≤ 50% ceiling ✓**,p95 = 42%,avg 14.9%。
+ceiling 的 entry-time 检查(`engine.py:1252`,used_bp + target ≤ ceiling)
+对站立总和是有效约束,合成栈 BP 侧自洽。(Q045 当年报 peak 43% 与 48.4% 的
+差为 J3 后新增 roll 链与 HV 并发所致,同口径可比。)
 
-## 4. 与 Q091 的合并读法
+## 4. 与 Q091 的合并读法(注意口径)
 
-Q091 定稿:crash-day 可部署 defined-risk 容量 ≈ **$238k**(buffer $100k 后)。
-本重放 BP 侧 p95 站立 = 42% × $500k = $210k < $238k ✓——**канonical sizing 的
-BP 占用在 crash 预算之内**;但 peak 57% = $285k > $238k,peak 日若撞上 crash
-起点则超预算。P1 核清 peak 语义后,若为真,ceiling 与 crash 预算的对齐
-(50% × 500k = $250k ≈ $238k,基本吻合)给出简洁治理:**站立 BP 总和 ≤ 50%
-ceiling 同时即是 crash 预算线**——一条线管两件事。
+Q091 的 $238k 可部署容量是**真实账户**(NLV $1.25M,实际持仓)的 crash-day
+余量;本重放的 BP% 是 **$500k canonical 回测账户**的策略 sleeve 口径——
+两者不能直接互扣。诚实的衔接是:真实账户今天期权 sleeve max loss $76.6k
+≪ $238k ✓;若未来 sleeve 扩到 canonical 满负荷(站立 ~48% × 实际配置基数),
+需按当时实盘重跑 Q091 网格再对表,不做跨口径换算。
 
 ## 5. 局限
 
@@ -68,6 +68,7 @@ ceiling 同时即是 crash 预算线**——一条线管两件事。
 
 ## 6. 队列衔接
 
-- **P1(小,半天内)**:引擎内生日度 BP 序列 vs ceiling 语义核对(§3)
-- reaudit ④ 主问题(合成栈是否自洽)已回答:**当前规模自洽;规模敏感性已量化**
+- ~~P1 ceiling 语义核对~~ — 当日完成,见 §3(伪影,无缝隙)
+- reaudit ④ 主问题(合成栈是否自洽)**已回答:当前规模自洽;规模敏感性已量化**
+  (池 <$150k 时代价 ~39% BCD PnL);BP 侧站立 peak 48.4% 在 ceiling 内
 - Q046 遗留的 BP-fill 重做:等 T2 collateral 决策(A/B)落地后按对应口径做
