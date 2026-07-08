@@ -390,6 +390,85 @@ def evaluate_debit_cash_budget(candidate: dict) -> dict:
 
 DENOM_SWING_PCT = 0.30
 
+# ── §5.4 对称复审判据(SPEC-111 复审,PM ratified 2026-07-07)────────────────
+# 触发只推 ACTION 提请人工复审,绝不自动改参数。纸面判据若无自动检测就是
+# 又一个"6 月哑巴"——所以装进 daily_standing_check。
+REVIEW_TIGHTEN_UTIL = 55.0     # 收紧向:站立利用率 > 55%…
+REVIEW_TIGHTEN_DAYS = 5        # …连续 5 个记录日
+REVIEW_LOOSEN_DAYS = 20        # 放宽向:最近 20 个记录日(跨度 ≤30 自然日)…
+REVIEW_LOOSEN_MIN_REJECTS = 2  # …每日 ≥2 笔 cap(非 floor)拒绝…
+REVIEW_LOOSEN_MAX_UTIL = 40.0  # …且当前站立利用率 < 40%
+REVIEW_SUPPRESS_DAYS = 20      # 同向触发后 20 天内不重发
+
+
+def _read_jsonl(path: Path) -> list[dict]:
+    rows: list[dict] = []
+    if path.exists():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line:
+                try:
+                    rows.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    return rows
+
+
+def _review_trigger_messages(util, prev_state: dict) -> list[tuple[str, str, str]]:
+    """§5.4 判据评估。数据不足 → 静默;返回 (category, kind, body) 列表。
+    日期一律取日志 ts 的 UTC 日历日(16:50 ET 写入 = 同一 UTC 日,自洽)。"""
+    from datetime import date as _date
+
+    today = datetime.now(timezone.utc).date()
+    last_fired = prev_state.get("review_trigger_last") or {}
+    msgs: list[tuple[str, str, str]] = []
+
+    def _suppressed(kind: str) -> bool:
+        d = last_fired.get(kind)
+        try:
+            return bool(d) and (today - _date.fromisoformat(str(d))).days < REVIEW_SUPPRESS_DAYS
+        except ValueError:
+            return False
+
+    # 收紧向
+    if util is not None and util > REVIEW_TIGHTEN_UTIL and not _suppressed("review_tighten"):
+        by_date: dict[str, float] = {}
+        for r in _read_jsonl(STANDING_LOG):
+            d = str(r.get("ts", ""))[:10]
+            u = (r.get("cash") or {}).get("standing_utilization_pct")
+            if d and u is not None:
+                by_date[d] = float(u)
+        by_date[today.isoformat()] = float(util)
+        days = sorted(by_date)[-REVIEW_TIGHTEN_DAYS:]
+        if (len(days) >= REVIEW_TIGHTEN_DAYS
+                and all(by_date[d] > REVIEW_TIGHTEN_UTIL for d in days)):
+            msgs.append(("ACTION", "review_tighten",
+                f"[现金池] 复审触发(收紧向):站立利用率连续 {REVIEW_TIGHTEN_DAYS} 个记录日 "
+                f"> {REVIEW_TIGHTEN_UTIL:.0f}%(今日 {util:.1f}%)。"
+                f"per SPEC-111 复审 §5.4:提请人工复审,不自动改参数。"))
+
+    # 放宽向
+    if util is not None and util < REVIEW_LOOSEN_MAX_UTIL and not _suppressed("review_loosen"):
+        rejects: dict[str, int] = {}
+        for r in _read_jsonl(DECISIONS_LOG):
+            if r.get("decision") != "reject":
+                continue
+            reason = str(r.get("reason") or "")
+            if reason.startswith("cash_floor") or "cap" not in reason:
+                continue
+            d = str(r.get("ts", ""))[:10]
+            rejects[d] = rejects.get(d, 0) + 1
+        days = sorted(rejects)[-REVIEW_LOOSEN_DAYS:]
+        if (len(days) >= REVIEW_LOOSEN_DAYS
+                and all(rejects[d] >= REVIEW_LOOSEN_MIN_REJECTS for d in days)
+                and (_date.fromisoformat(days[-1]) - _date.fromisoformat(days[0])).days <= 30):
+            msgs.append(("ACTION", "review_loosen",
+                f"[现金池] 复审触发(放宽向):最近 {REVIEW_LOOSEN_DAYS} 个记录日每日 "
+                f"≥{REVIEW_LOOSEN_MIN_REJECTS} 笔 cap 拒绝,而站立利用率仅 {util:.1f}% "
+                f"(<{REVIEW_LOOSEN_MAX_UTIL:.0f}%)——cap 可能与池规模脱钩。"
+                f"per SPEC-111 复审 §5.4:提请人工复审,不自动改参数。"))
+    return msgs
+
 
 def get_resource_snapshot() -> dict:
     """Both resource poles in one call: cash pool (scarce) + committed, and
@@ -486,6 +565,11 @@ def daily_standing_check(*, dry_run: bool = False) -> dict:
                 f"[现金池] 分母变动 {swing:+.0%}:${prev_liquid:,.0f} → ${c['liquid_usd']:,.0f}。"
                 f"站立利用率现为 {util_txt}{headroom_txt}。"))
 
+    try:
+        messages.extend(_review_trigger_messages(util, prev))
+    except Exception:
+        log.exception("cash review trigger evaluation failed")
+
     snap["messages"] = [{"category": cat, "kind": kind, "body": body}
                         for cat, kind, body in messages]
     if not dry_run:
@@ -497,6 +581,10 @@ def daily_standing_check(*, dry_run: bool = False) -> dict:
             except Exception:
                 log.exception("cash standing push failed")
         try:
+            review_last = dict(prev.get("review_trigger_last") or {})
+            for _, kind, _ in messages:
+                if kind in ("review_tighten", "review_loosen"):
+                    review_last[kind] = datetime.now(timezone.utc).date().isoformat()
             STANDING_STATE.parent.mkdir(parents=True, exist_ok=True)
             STANDING_STATE.write_text(json.dumps({
                 "ts": snap["ts"],
@@ -504,6 +592,7 @@ def daily_standing_check(*, dry_run: bool = False) -> dict:
                 "committed_usd": c["committed_usd"],
                 "floor_breached": floor_breached,
                 "over_cap": over_cap,
+                "review_trigger_last": review_last,
             }, sort_keys=True), encoding="utf-8")
             with STANDING_LOG.open("a", encoding="utf-8") as f:
                 f.write(json.dumps({k: snap[k] for k in ("ts", "cash", "bp")},

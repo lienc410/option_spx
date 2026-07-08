@@ -401,6 +401,99 @@ class TestStandingMonitor(unittest.TestCase):
         self.assertTrue(json.loads(state.read_text())["floor_breached"])
 
 
+class TestReviewTriggers(unittest.TestCase):
+    """§5.4 对称复审判据(PM ratified 2026-07-07)自动检测。"""
+
+    def _seed_standing(self, tmp, days_util: list[tuple[str, float]]):
+        logf = tmp / "standing.jsonl"
+        with logf.open("w") as f:
+            for d, u in days_util:
+                f.write(json.dumps({"ts": f"{d}T20:50:00Z",
+                                    "cash": {"standing_utilization_pct": u},
+                                    "bp": {}}) + "\n")
+        return logf
+
+    def _run(self, liquid, committed, tmp, logf, decisions=None):
+        import strategy.cash_budget_governance as gov
+        captured: list = []
+
+        def _push(cat, about, title, body, **kw):
+            captured.append({"category": cat, "body": body})
+            return True
+
+        from contextlib import ExitStack
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(gov, "STANDING_STATE", tmp / "state.json"))
+            stack.enter_context(patch.object(gov, "STANDING_LOG", logf))
+            stack.enter_context(patch.object(gov, "get_current_liquid_cash",
+                                             return_value=_mock_cash(liquid)))
+            stack.enter_context(patch.object(gov, "get_open_cash_collateral_total_usd",
+                                             return_value=_mock_open_debit(committed)))
+            stack.enter_context(patch("notify.gateway.push", side_effect=_push))
+            if decisions is not None:
+                stack.enter_context(patch.object(gov, "DECISIONS_LOG", decisions))
+            snap = gov.daily_standing_check()
+        return snap, captured
+
+    def test_tighten_fires_after_5_days_then_suppressed(self):
+        from datetime import date, timedelta
+        tmp = Path(tempfile.mkdtemp())
+        today = date.today()
+        seed = [((today - timedelta(days=k)).isoformat(), 58.0) for k in range(4, 0, -1)]
+        logf = self._seed_standing(tmp, seed)
+        snap, _ = self._run(100_000, 58_000, tmp, logf)
+        kinds = [m["kind"] for m in snap["messages"]]
+        self.assertIn("review_tighten", kinds)
+        # 触发后抑制:再跑一次不重发
+        snap2, _ = self._run(100_000, 58_000, tmp, logf)
+        self.assertNotIn("review_tighten", [m["kind"] for m in snap2["messages"]])
+
+    def test_tighten_needs_full_streak(self):
+        from datetime import date, timedelta
+        tmp = Path(tempfile.mkdtemp())
+        today = date.today()
+        seed = [((today - timedelta(days=k)).isoformat(), 58.0 if k != 2 else 30.0)
+                for k in range(4, 0, -1)]
+        logf = self._seed_standing(tmp, seed)
+        snap, _ = self._run(100_000, 58_000, tmp, logf)
+        self.assertNotIn("review_tighten", [m["kind"] for m in snap["messages"]])
+
+    def test_loosen_fires_on_20_reject_days_at_low_util(self):
+        from datetime import date, timedelta
+        tmp = Path(tempfile.mkdtemp())
+        logf = self._seed_standing(tmp, [])
+        decisions = tmp / "decisions.jsonl"
+        today = date.today()
+        with decisions.open("w") as f:
+            for k in range(20):
+                d = (today - timedelta(days=19 - k)).isoformat()
+                for _ in range(2):
+                    f.write(json.dumps({
+                        "ts": f"{d}T20:50:00Z", "decision": "reject",
+                        "reason": "cash_collateral: post-entry cash $99,600 = 65.4% of "
+                                  "$152,346 liquid (cap 60%)"}) + "\n")
+        snap, pushes = self._run(100_000, 30_000, tmp, logf, decisions=decisions)
+        kinds = [m["kind"] for m in snap["messages"]]
+        self.assertIn("review_loosen", kinds)
+        self.assertTrue(any("放宽向" in p["body"] for p in pushes))
+
+    def test_loosen_ignores_floor_rejects(self):
+        from datetime import date, timedelta
+        tmp = Path(tempfile.mkdtemp())
+        logf = self._seed_standing(tmp, [])
+        decisions = tmp / "decisions.jsonl"
+        today = date.today()
+        with decisions.open("w") as f:
+            for k in range(20):
+                d = (today - timedelta(days=19 - k)).isoformat()
+                for _ in range(2):
+                    f.write(json.dumps({
+                        "ts": f"{d}T20:50:00Z", "decision": "reject",
+                        "reason": "cash_floor: liquid cash $19,853 < $30,000 floor"}) + "\n")
+        snap, _ = self._run(100_000, 30_000, tmp, logf, decisions=decisions)
+        self.assertNotIn("review_loosen", [m["kind"] for m in snap["messages"]])
+
+
 class TestEntryResourceProfile(unittest.TestCase):
     """资源画像(PM 2026-07-07 需求):吃现金 → 池/已占/cap 余量;吃 BP → Schwab 水位。"""
 
