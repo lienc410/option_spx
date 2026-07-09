@@ -30,9 +30,9 @@ E-Trade token 过期 → combined NLV 少一轨 → 首页头条渲染 **"NLV $6
 
 现金池分母随缺轨从 $152k 变 $105k → cash budget 72.7%>60% **红门触发**、RESOURCE WATERLINE 显示"已满 $-13,352"、敞口池占比 33.5%→42%。**数据中断被翻译成了治理裁决**。修法：现金/敞口类计算携带轨道构成标记——缺轨时降级为"数据降级中"advisory 语气或用 last-known-good + staleness 标注，禁出硬 verdict。（语义诚实红旗的数据版）
 
-## F5 — 推送 HTML 转义 bug（P2）
+## F5 — 推送 HTML 转义 bug（P2）— **已修复 01307e7**
 
-7/7 有 1 条推送 HTML parse 失败降级纯文本（H-4 兜底正常工作）。push_stats fallback 计数即证据；找到该消息模板修转义。
+7/7 有 1 条推送 HTML parse 失败降级纯文本（H-4 兜底正常工作）。**另一会话 7/7 晚已独立抓获并修复**：gateway boundary 改为 whole-body escape（notify/gateway.py:56），根因是 H-4 只转义了 gate detail 片段、背景行的裸 `<0` 再次打死 parse。无需再动。
 
 ## F6 — 风格面（P3，有界行动）
 
@@ -44,6 +44,19 @@ E-Trade token 过期 → combined NLV 少一轨 → 首页头条渲染 **"NLV $6
 
 非在飞页面（es/backtest/q041/margin/performance/journal/q042）抽查：SPEC 引用绝大多数已按 DESIGN.md 规则作 .spec-ref 后缀/出处行使用，7/6 前端 review 的模式保持住了。人话化残债集中于推送线（=SPEC-136 范围，另一会话在飞）。A2 无需独立批次。
 
-## 待续
+## 全局审阅结论（2026-07-08 凌晨完成，Opus）
 
-135.4 落地后：前端字符串批 A2 审计、全仓 grep 面（TODO/FIXME/裸 except/print 遗留）、模块间单源审计、oldair launchd 面板健康、DESIGN.md 与实现一致性抽查。
+grep 面/单源/launchd/A2 全部走完：
+- **TODO/FIXME/HACK 生产路径 = 0**（干净）
+- **裸 except 165、print 30** — 绝大多数有意 fail-soft/脚本 main，仅 ledger+资金流路径值得有界审计（F6）
+- **launchd 27/27 green（07-07 17:30）**；唯一历史违规是 signal_settling 路径问题（早已修）
+- **_ES_BP_PER_CONTRACT 硬编码带 freshness 机制**（as_of+age 警告）——可接受
+- **A2 前端合规**（F7）：非在飞页面 SPEC 引用已按 DESIGN.md 降级，无需独立批
+
+**净新增待办 → SPEC-138 收尾批**（待 SPEC-136 完全落定 + 与另一会话协调后编）：
+1. F1 测试债（16 失败：网关迁移 mock 过时×10 / q041 治理拦截查因×6 / **forced-legs 真缺口 selector.py:587×7** / 文案漂移×1 / nav×3 归另一 lane）
+2. F3 缺轨污染头条（P1，NLV 头条数学需感知轨道构成）
+3. F4 门在降级分母开火（P1，现金/敞口计算携带轨道标记，缺轨降 advisory）
+4. F6 有界裸 except 审计（仅 ledger/资金流）
+
+**协调风险实录**：本轮出现 26 文件混提交（c99e234 裹入另一会话 SPEC-136 + 我的 findings 文档）——共享工作树多会话并发的典型事故，无数据丢失但提交边界被污染。SPEC-137/138 派 dev 前须与在飞会话协调工作树占用，或用 worktree 隔离。
