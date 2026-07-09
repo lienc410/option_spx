@@ -2098,13 +2098,19 @@ async function loadNLVChange() {
     const sourceTag = d.source_label
       ? ` <span style="color:var(--text-2);font-size:0.82em">(${d.source_label})</span>`
       : '';
+    // SPEC-138 F3: when a rail is missing today (E-Trade token expired), the Δ
+    // is computed same-scope so it can't fabricate a crash — flag the caption so
+    // the PM reads "口径不齐", not "账户腰斩".
+    const railTag = (d.rail_complete === false && d.rail_caption)
+      ? ` <span style="color:var(--orange);font-size:0.82em" title="数据降级：仅统计当前在轨账户，同口径对比。">⚠ ${d.rail_caption}</span>`
+      : '';
     el.innerHTML =
       `<span style="color:var(--text-2)">NLV</span> ` +
       `<span style="color:var(--text)">${fmtDollars(d.today_nlv)}</span>` +
       sourceTag + ` ` +
       `<span style="color:${color};font-weight:500">${sign}$${Math.round(dlrs).toLocaleString()} (${sign}${pct.toFixed(2)}%)</span>` +
       ` <span style="color:var(--text-2);font-size:0.92em">vs ${d.prev_date}</span>` +
-      mtd + ytd;
+      mtd + ytd + railTag;
   } catch (e) {
     el.innerHTML = `<span style="color:var(--text-2)">NLV unavailable</span>`;
   }
@@ -3790,8 +3796,14 @@ async function loadResourceWaterline() {
     // 答案先行(PM 2026-07-07:"这一堆数字看不懂要讲什么"):状态句回答
     // "还能不能开、能开多大、为什么",原始数字降级为脚注,情景参数进悬停。
     const floorBad = c.floor_distance_usd != null && c.floor_distance_usd < 0;
+    // SPEC-138 F4: 缺轨(单券商掉线)时现金池缩水,floor/cap"击穿"是数据中断不是
+    // 治理裁决——降级为 advisory 语气(琥珀,非红),绝不出"锁定"/"已满"硬 verdict。
+    const railGap = d.rail_complete === false;
     let cashCls, cashLine;
-    if (floorBad) {
+    if (railGap) {
+      cashCls = 'rw-orange';
+      cashLine = `<span class="rw-word">数据降级</span> — 现金轨不齐(${d.degraded_error || '某账户数据缺失'}),池只统计在轨账户,预算/底线判定暂挂,数据恢复后自动复算`;
+    } else if (floorBad) {
       cashCls = 'rw-red';
       cashLine = `<span class="rw-word">锁定</span> — 现金已低于底线(${usd(c.floor_usd)}),所有吃现金的策略(BCD/T2)暂停,补现金后自动解锁`;
     } else if (!c.fits_standard_debit) {

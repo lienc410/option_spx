@@ -257,7 +257,40 @@ def evaluate_cash_collateral_budget(candidate: dict) -> dict:
     # Get liquid cash (fail-safe: block on unavailable)
     cash_data = get_current_liquid_cash()
     liquid_cash = cash_data.get("total") or 0.0
-    if cash_data.get("source") == "unavailable":
+    source = cash_data.get("source")
+    # SPEC-138 F4 — the cash denominator must know its rail composition. When a
+    # broker rail drops mid-session (source="partial": E-Trade token expired but
+    # Schwab still reads), the pool shrinks $152k→$105k and a healthy book
+    # crosses the 60% cap purely from the missing rail. That is a data outage,
+    # NOT a governance verdict — degrade the gate to ADVISORY (never a hard red
+    # veto) and surface staleness so decision_trace shows the 135.3 advisory tier.
+    rail_complete = source == "live"
+    degraded = source == "partial"
+
+    def _staleness() -> dict:
+        present = sorted((cash_data.get("breakdown") or {}).keys())
+        return {
+            "rail_complete": rail_complete,
+            "cash_source": source,
+            "cash_error": cash_data.get("error"),
+            "rails_present": present,
+        }
+
+    def _advisory(reason_tail: str, stats: dict) -> dict:
+        """缺轨降级档：不 veto、不出红门；同口径数字仅供参考 + staleness 标注。"""
+        return {
+            "accepted": True,            # 数据降级不裁决 → 不硬 veto
+            "outcome": "advisory",
+            "reason": (
+                "advisory_degraded: 数据降级中（现金轨不齐，"
+                f"{cash_data.get('error') or '某轨缺席'}），治理判定暂挂；"
+                f"{reason_tail}"
+            ),
+            "alert": False,
+            "stats": {**stats, **_staleness(), "degraded": True},
+        }
+
+    if source == "unavailable":
         log.error("cash_budget_governance: liquid cash unavailable — blocking (fail-safe)")
         return {
             "accepted": False,
@@ -272,30 +305,54 @@ def evaluate_cash_collateral_budget(candidate: dict) -> dict:
                 "cap_pct": CAP_PCT,
                 "alert_pct": ALERT_PCT,
                 "cash_floor_usd": CASH_FLOOR_USD,
+                "rail_complete": False,
             },
         }
 
     # Cash floor check
     if liquid_cash < CASH_FLOOR_USD:
+        floor_stats = {
+            "current_liquid_cash": liquid_cash,
+            "currently_open_cash": 0.0,
+            "candidate_cash": candidate_cash,
+            "post_entry_total_cash": candidate_cash,
+            "post_entry_utilization_pct": candidate_cash / max(liquid_cash, 1.0) * 100.0,
+            "cap_pct": CAP_PCT,
+            "alert_pct": ALERT_PCT,
+            "cash_floor_usd": CASH_FLOOR_USD,
+        }
+        if degraded:
+            return _advisory(
+                f"同口径现金 ${liquid_cash:,.0f} < ${CASH_FLOOR_USD:,.0f} floor（缺轨压低，非真实击穿）",
+                floor_stats)
         return {
             "accepted": False,
             "reason": f"cash_floor: liquid cash ${liquid_cash:,.0f} < ${CASH_FLOOR_USD:,.0f} floor",
             "alert": False,
-            "stats": {
-                "current_liquid_cash": liquid_cash,
-                "currently_open_cash": 0.0,
-                "candidate_cash": candidate_cash,
-                "post_entry_total_cash": candidate_cash,
-                "post_entry_utilization_pct": candidate_cash / max(liquid_cash, 1.0) * 100.0,
-                "cap_pct": CAP_PCT,
-                "alert_pct": ALERT_PCT,
-                "cash_floor_usd": CASH_FLOOR_USD,
-            },
+            "stats": {**floor_stats, "rail_complete": rail_complete},
         }
 
     # Open cash collateral total
     open_data = get_open_cash_collateral_total_usd()
     open_cash = open_data.get("total") or 0.0
+    # SPEC-138 F6 — the committed-cash read logs its error and returns total=0
+    # on failure; the cap gate used to silently proceed on that 0 (under-counting
+    # committed capital → could fail OPEN on an over-budget entry). Surface it:
+    # a committed-side read failure degrades the gate to advisory (same posture
+    # as an F4 rail gap), never a silent under-count.
+    if open_data.get("error"):
+        return _advisory(
+            f"占用现金读取失败（{open_data.get('error')}），committed 侧无法核算 — "
+            "cap 判定暂挂",
+            {
+                "current_liquid_cash": round(liquid_cash, 2),
+                "currently_open_cash": None,
+                "candidate_cash": round(candidate_cash, 2),
+                "cap_pct": CAP_PCT,
+                "alert_pct": ALERT_PCT,
+                "cash_floor_usd": CASH_FLOOR_USD,
+                "open_cash_read_error": open_data.get("error"),
+            })
 
     post_entry = open_cash + candidate_cash
     utilization = post_entry / max(liquid_cash, 1.0)
@@ -316,10 +373,16 @@ def evaluate_cash_collateral_budget(candidate: dict) -> dict:
         "cap_pct": CAP_PCT,
         "alert_pct": ALERT_PCT,
         "cash_floor_usd": CASH_FLOOR_USD,
+        "rail_complete": rail_complete,
     }
 
     # Hard cap check
     if post_entry > cap_threshold:
+        if degraded:
+            return _advisory(
+                f"同口径占用 ${post_entry:,.0f} = {utilization*100:.1f}% of "
+                f"${liquid_cash:,.0f}（缺轨压低分母，非真实超限）",
+                stats)
         return {
             "accepted": False,
             "reason": (
@@ -331,13 +394,14 @@ def evaluate_cash_collateral_budget(candidate: dict) -> dict:
             "stats": stats,
         }
 
-    # Alert check (accepted but warn PM)
-    alert = post_entry >= alert_threshold
+    # Alert check (accepted but warn PM) — a degraded read never rings a spurious
+    # alert off the shrunk denominator; the advisory staleness carries the context.
+    alert = (post_entry >= alert_threshold) and not degraded
     return {
         "accepted": True,
-        "reason": "accepted",
+        "reason": "accepted" if not degraded else "accepted_degraded",
         "alert": alert,
-        "stats": stats,
+        "stats": {**stats, **({"degraded": True, **_staleness()} if degraded else {})},
     }
 
 
@@ -442,6 +506,13 @@ def resource_waterline() -> dict:
     return {
         "available": True,
         "partial": bool(errors),
+        # SPEC-138 F4: rail composition of the pool. When a broker rail dropped
+        # (rail_complete=False), the shrunk pool inflates utilization / turns
+        # cap_headroom negative ("已满 −$X") — the frontend must render this as a
+        # data-degraded staleness state, never a hard "over-cap" verdict.
+        "rail_complete": not errors,
+        "rails_present": sorted(brokers.keys()),
+        "degraded_error": "; ".join(errors) if errors else None,
         "cash": {
             "pool_usd": round(liquid_total, 2),
             "committed_usd": round(l_opt, 2),

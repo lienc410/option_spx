@@ -186,20 +186,40 @@ class TestDigest(unittest.TestCase):
 
 
 class TestMigrationCompleteness(unittest.TestCase):
-    """CI assertion: no direct Telegram sends outside the gateway and the two
-    transports. Interactive bot replies (update.message.reply_*) are replies,
-    not pushes, and stay."""
+    """CI assertion (SPEC-126 + SPEC-137 §1 全仓扫描): after the gateway
+    migration, the ONLY direct Telegram transport call sites in the entire
+    repository are the two transports (notify/event_push._send +
+    notify/telegram_bot._safe_send). Every other push — including the former
+    legacy direct senders in scripts/ and research/q041/ — goes through
+    notify.gateway.push. Interactive bot replies (update.message.reply_*) are
+    replies, not pushes, and stay.
+
+    The scan walks the whole repo by design (not a fixed dir list) so a NEW
+    direct sender added anywhere is caught, not just in the dirs the author
+    happened to think of."""
+
+    # 全仓扫描跳过：虚拟环境 / 依赖 / 测试自身 / git / 平行 worktree
+    _SKIP_DIRS = {"venv", ".venv", "node_modules", "tests", ".git", ".claude"}
+
+    def _repo_py_files(self):
+        for p in REPO.rglob("*.py"):
+            if any(part in self._SKIP_DIRS
+                   for part in p.relative_to(REPO).parts):
+                continue
+            yield p
 
     def test_no_direct_requests_to_telegram_api(self):
+        """全仓：api.telegram.org 只允许出现在 event_push 传输层。"""
         allowed = {"notify/event_push.py"}
-        for p in list((REPO / "notify").glob("*.py")) + \
-                 list((REPO / "web").glob("*.py")) + \
-                 list((REPO / "production").glob("*.py")):
-            rel = str(p.relative_to(REPO))
-            if rel in allowed:
-                continue
-            src = p.read_text(encoding="utf-8")
-            self.assertNotRegex(src, r"api\.telegram\.org", rel)
+        offenders = [
+            str(p.relative_to(REPO))
+            for p in self._repo_py_files()
+            if str(p.relative_to(REPO)) not in allowed
+            and "api.telegram.org" in p.read_text(encoding="utf-8")
+        ]
+        self.assertEqual(
+            offenders, [],
+            f"直连 api.telegram.org 未迁 gateway（SPEC-137 §1）：{offenders}")
 
     def test_no_bot_send_message_outside_safe_send(self):
         src = (REPO / "notify" / "telegram_bot.py").read_text(encoding="utf-8")
@@ -207,15 +227,19 @@ class TestMigrationCompleteness(unittest.TestCase):
         self.assertEqual(src.count("await bot.send_message"), 2)
 
     def test_no_raw_send_imports_outside_gateway(self):
+        """全仓：event_push._send 传输入口只允许 gateway/event_push 调用。"""
         allowed = {"notify/gateway.py", "notify/event_push.py"}
-        for d in ("notify", "web", "scripts", "strategy", "production"):
-            for p in (REPO / d).glob("*.py"):
-                rel = str(p.relative_to(REPO))
-                if rel in allowed:
-                    continue
-                src = p.read_text(encoding="utf-8")
-                self.assertNotIn("from notify.event_push import _send", src, rel)
-                self.assertNotIn("event_push._send(", src, rel)
+        offenders = []
+        for p in self._repo_py_files():
+            rel = str(p.relative_to(REPO))
+            if rel in allowed:
+                continue
+            src = p.read_text(encoding="utf-8")
+            if "from notify.event_push import _send" in src or "event_push._send(" in src:
+                offenders.append(rel)
+        self.assertEqual(
+            offenders, [],
+            f"直连 event_push._send 未走 gateway（SPEC-137 §1）：{offenders}")
 
 
 class TestDesignDoc(unittest.TestCase):

@@ -110,8 +110,10 @@ def _realized_rows() -> list[dict]:
 
 def open_bcd_positions() -> list[dict]:
     """Resolved open (un-closed, un-voided) BCD positions from the trade log.
-    Ids flagged duplicate_open_count>0 (2026-06-03 collision, migration
-    pending) are counted as ONE position — see SPEC-123_ledger_id_migration_note."""
+    Ids flagged duplicate_open_count>0 (2026-06-03 collision) are counted as
+    ONE position. SPEC-137 §2 lands the append-only collapse correction
+    (scripts/spec137_dup_id_migration.py) that clears the flag to 0 once run on
+    oldair — see SPEC-123_ledger_id_migration_note."""
     from logs.trade_log_io import resolve_log
     out = []
     for row in resolve_log():

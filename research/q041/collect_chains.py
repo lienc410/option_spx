@@ -272,31 +272,21 @@ def _write_collector_alert(symbol: str, reason: str, snapshot_date: str) -> None
 
 
 def _send_collector_alert_telegram(symbol: str, log: logging.Logger) -> None:
-    """Push Telegram alert when an index symbol's chain fails all retries."""
-    import os as _os
-    import requests as _req
-    # SPEC-130 host guard — 遗留直连 sender 也必须 deny-by-default
-    from notify.event_push import push_enabled
-    if not push_enabled():
-        log.info("collector alert suppressed: SPX_PUSH_ENABLE != 1 (SPEC-130)")
-        return
-    token = _os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-    chat_id = _os.getenv("TELEGRAM_CHAT_ID", "").strip()
-    if not token or not chat_id:
-        return
-    text = (
-        f"🚨 Q041 Collector Failure\n"
-        f"{symbol} chain fetch failed {INDEX_RETRY_MAX}x at 16:30 ET.\n"
-        f"Q041 {symbol} signal will be UNAVAILABLE today."
+    """Push an alert when an index symbol's chain fails all retries.
+
+    SPEC-137: routes through the unified gateway (category/about/dedupe + host
+    guard in the transport). Was a legacy direct Telegram sender. A collector
+    failure means today's Q041 signal is missing → 🔴 ALERT."""
+    from notify.gateway import escape, push as gw_push
+    body = (
+        f"{symbol} 期权链在 16:30 ET 连续抓取 {INDEX_RETRY_MAX} 次都失败。\n"
+        f"今天的 Q041 {symbol} 信号会缺席（无数据可算）。"
     )
     try:
-        _req.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            data={"chat_id": chat_id, "text": text},
-            timeout=20,
-        )
+        gw_push("ALERT", "系统状态", "Q041 数据采集失败", escape(body),
+                dedupe_key=f"q041_collector_fail_{symbol}")
     except Exception:
-        log.exception("collector alert telegram failed")
+        log.exception("collector alert push failed")
 
 
 def _fetch_chain_with_retry(symbol: str, log: logging.Logger) -> tuple[list, list] | None:

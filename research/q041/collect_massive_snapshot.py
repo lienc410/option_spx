@@ -46,7 +46,6 @@ REQUEST_PAUSE_SEC = 0.35
 PAGE_LIMIT = 250
 INTEGRITY_AUDIT_PATH = REPO_ROOT / "data" / "q041_massive_snapshot_integrity.jsonl"
 INTEGRITY_ALERT_STATE_PATH = REPO_ROOT / "data" / "q041_massive_snapshot_integrity_alerts.jsonl"
-TELEGRAM_TIMEOUT = 20
 INTEGRITY_LOOKBACK_DAYS = 5
 
 _US_HOLIDAYS_2025 = {
@@ -302,23 +301,13 @@ def _append_integrity_alert_state(day: str, missing_days: list[str]) -> None:
         fh.write(json.dumps({"date": day, "missing_days": missing_days}, ensure_ascii=False) + "\n")
 
 
-def _telegram_creds() -> tuple[str, str]:
-    return os.getenv("TELEGRAM_BOT_TOKEN", "").strip(), os.getenv("TELEGRAM_CHAT_ID", "").strip()
-
-
 def _send_telegram_message(text: str, log: logging.Logger) -> bool:
-    token, chat_id = _telegram_creds()
-    if not token or not chat_id:
-        log.warning("telegram credentials missing; skip integrity alert")
-        return False
+    """SPEC-137: route through the unified gateway (category/about/dedupe +
+    host guard in the transport). Was a legacy direct Telegram sender with no
+    host guard at all. A missing-partition integrity gap is a 🟡 ACTION."""
     try:
-        res = requests.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            data={"chat_id": chat_id, "text": text},
-            timeout=TELEGRAM_TIMEOUT,
-        )
-        res.raise_for_status()
-        return True
+        from notify.gateway import escape, push as gw_push
+        return gw_push("ACTION", "系统状态", "", escape(text))
     except Exception:
         log.exception("telegram send failed")
         return False

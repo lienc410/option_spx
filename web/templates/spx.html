@@ -2799,9 +2799,9 @@ function structureChartColors() {
     blue: themeColor('--blue'),
     orange: themeColor('--orange'),
     cluster: themeColor('--text-2'),
-    // SPEC-132.1 表格指定 put 墙 = teal；设计系统无 teal token —— 图表专用
-    // 常量（非 :root 复制，light/dark 双值）
-    teal: isLight ? '#0F8A7C' : '#2FB8A6',
+    // SPEC-132.1 put 墙 = teal；SPEC-137.4 迁 theme.css token（--teal-chart，
+    // light/dark 双值随主题），不再在此硬编码 hex。
+    teal: themeColor('--teal-chart'),
     volS2: themeRgba('--gold', 0.55),
     volNeutral: themeRgba('--text-2', isLight ? 0.30 : 0.40),
   };

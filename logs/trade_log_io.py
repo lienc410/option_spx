@@ -112,7 +112,19 @@ def resolve_log() -> list[dict]:
         # SPEC-123 §4a integrity flag: >1 open under one id means a historical
         # id collision (see ID_ALLOC_LOCK note). The extra opens are NOT merged
         # or dropped silently anymore — downstream consumers can see the flag.
+        # SPEC-137 §2: an append-only disambiguation correction with
+        # duplicate_open_resolution == "collapse" records that the extra open
+        # was a double-click/retry artifact (not an independent position);
+        # once landed, the collision is resolved and the flag clears to 0.
+        # base_open stays the first (chronological) open — the corrections
+        # loop above already left it untouched (empty fields).
         open_events = [e for e in ordered if e.get("event") == "open"]
+        dup_resolved = any(
+            c.get("duplicate_open_resolution") == "collapse"
+            for c in corrections
+        )
+        dup_count = 0 if dup_resolved else (
+            len(open_events) if len(open_events) > 1 else 0)
         resolved.append({
             "id": trade_id,
             "voided": voided,
@@ -122,7 +134,7 @@ def resolve_log() -> list[dict]:
             "rolls": base_rolls,
             "notes": notes,
             "corrections": corrections,
-            "duplicate_open_count": len(open_events) if len(open_events) > 1 else 0,
+            "duplicate_open_count": dup_count,
             # SPEC-127 §1: campaign_id defaults to the trade's own id — every
             # legacy trade is a degenerate one-member campaign.
             "campaign_id": (base_open or {}).get("campaign_id") or trade_id,

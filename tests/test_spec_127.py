@@ -472,6 +472,37 @@ class H5ActionEngineTests(unittest.TestCase):
                              short_mid=round(entry_credit * 0.20, 2))
         self.assertEqual(gov.evaluate_short_leg_actions(self.today, chain2), [])
 
+    def test_spec137_collapse_activation_filled_vs_unfilled(self) -> None:
+        """SPEC-137 §3 填/不填双路径：cycle-0 collapse ≤15% 检查只在开仓记录了
+        per-leg fill（short_entry_price）时激活；不填则退回纯 21-DTE 兜底，即便
+        链上残值很低也不因 collapse 触发。"""
+        exp = _iso(40)   # 40 DTE — 远离 21-DTE 兜底，隔离 collapse 判定
+        # 残值 = 5% of a plausible credit — 若 collapse 激活必触发
+        chain = self._chain(short_expiry=exp, short_mid=1.5)
+
+        # (a) 填了 fill=30 → 残值 1.5 ≤ 15%×30=4.5 → collapse 触发
+        tlog.append_event(mk_open("F1", premium=-411.0, expiry=exp,
+                                  short_entry_price=30.0))
+        filled = gov.evaluate_short_leg_actions(self.today, chain)
+        self.assertEqual(len(filled), 1)
+        self.assertTrue(any("collapse" in t for t in filled[0]["triggers"]))
+        self.assertEqual(filled[0]["short_entry_price"], 30.0)
+
+        # (b) 没填 → 无入场权利金基线 → collapse 无从激活；40 DTE 未到 21-DTE
+        #     → 该仓位零动作（纯兜底路径）
+        tlog.TRADE_LOG_FILE.unlink()
+        tlog.append_event(mk_open("U1", premium=-411.0, expiry=exp))  # 无 short_entry_price
+        unfilled = gov.evaluate_short_leg_actions(self.today, chain)
+        self.assertEqual(unfilled, [])
+
+        # (c) 没填但短腿已 ≤21 DTE → 21-DTE 兜底仍独立触发（collapse 缺席不影响它）
+        tlog.TRADE_LOG_FILE.unlink()
+        tlog.append_event(mk_open("U2", premium=-411.0, expiry=_iso(11)))
+        fallback = gov.evaluate_short_leg_actions(self.today, self._chain(short_expiry=_iso(11)))
+        self.assertEqual(len(fallback), 1)
+        self.assertTrue(any("≤ 21" in t for t in fallback[0]["triggers"]))
+        self.assertFalse(any("collapse" in t for t in fallback[0]["triggers"]))
+
     def test_roll_branch_resets_dte_clock(self) -> None:
         """AC-5 ROLL 分支：roll 后时钟按新短腿重置."""
         old_exp = _iso(11)

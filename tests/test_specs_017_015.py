@@ -60,13 +60,17 @@ class Spec017And015Tests(unittest.TestCase):
         self.assertTrue(
             _block_hv_spell_entry(Regime.HIGH_VOL, 27.0, "bull_put_spread_hv", start, {}, params, late_day)
         )
+        # SPEC-138 F1 行为判定：max_trades_per_spell 有意 2→3（SPEC-100，commit
+        # b894e26 "raise max_trades_per_spell 2→3 + cache refresh"）。用
+        # params.max_trades_per_spell 表达"计数达上限即拦截"的原意，不再硬编码
+        # 旧值 2（否则测的是过时阈值）。
         self.assertTrue(
             _block_hv_spell_entry(
                 Regime.HIGH_VOL,
                 27.0,
                 "iron_condor_hv",
                 start,
-                {"iron_condor_hv": 2},
+                {"iron_condor_hv": params.max_trades_per_spell},
                 params,
                 start + pd.Timedelta(days=5),
             )

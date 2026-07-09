@@ -146,7 +146,7 @@ class Spec090Tests(unittest.TestCase):
         self._write_day("2026-05-04", schwab_rows=_schwab_rows(), massive_rows=_massive_rows())
 
         sent: list[str] = []
-        with patch.object(mod, "_send_telegram_message", side_effect=lambda text, _log: sent.append(text) or True):
+        with patch.object(mod, "_send_telegram_message", side_effect=lambda text, _log, **_kw: sent.append(text) or True):
             rc = mod.run(day=date(2026, 5, 4), force=True, send_telegram=True, verbose=False)
 
         self.assertEqual(rc, 0)
@@ -165,7 +165,7 @@ class Spec090Tests(unittest.TestCase):
         self._write_day("2026-05-04", schwab_rows=schwab_rows, massive_rows=massive_rows)
 
         sent: list[str] = []
-        with patch.object(mod, "_send_telegram_message", side_effect=lambda text, _log: sent.append(text) or True):
+        with patch.object(mod, "_send_telegram_message", side_effect=lambda text, _log, **_kw: sent.append(text) or True):
             rc1 = mod.run(day=date(2026, 5, 4), force=True, send_telegram=True, verbose=False)
             rc2 = mod.run(day=date(2026, 5, 4), force=True, send_telegram=True, verbose=False)
 
@@ -182,7 +182,7 @@ class Spec090Tests(unittest.TestCase):
         self._write_day("2026-05-04", schwab_rows=_schwab_rows(), massive_rows=None)
 
         sent: list[str] = []
-        with patch.object(mod, "_send_telegram_message", side_effect=lambda text, _log: sent.append(text) or True):
+        with patch.object(mod, "_send_telegram_message", side_effect=lambda text, _log, **_kw: sent.append(text) or True):
             rc = mod.run(day=date(2026, 5, 4), force=True, send_telegram=True, verbose=False)
 
         self.assertEqual(rc, 0)

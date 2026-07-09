@@ -112,7 +112,11 @@ class Spec093Tests(unittest.TestCase):
         self.assertIn("Main strategy overlay", text)
         self.assertIn("(backtest data)", text)
         self.assertIn("/api/q041/overview", text)
-        self.assertIn("Geometric from equity curve", text)
+        # SPEC-138 F1 行为判定：ROE 口径说明有意从"Geometric from equity curve"
+        # 改为 canonical "$500k account" baseline（q041_backtest.html annSub，
+        # 与 server 端 ann_roe_pct 单源）。对齐现文案并确认其正确（$500k 基线是
+        # 现行 ROE 口径真值）。
+        self.assertIn("Based on $500k account", text)
         self.assertNotIn("on $${initEq.toFixed(0)}k baseline", text)
 
     @patch("web.server._build_q041_overview_payload", side_effect=RuntimeError("boom"))

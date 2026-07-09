@@ -244,12 +244,20 @@ class UiWiringTests(unittest.TestCase):
 
     def test_theme_reactive_dual_palette(self) -> None:
         """双主题：颜色经 theme.js 桥读 theme.css token；themechange 重绘；
-        teal（SPEC 指定、系统无 token）持 light/dark 双值。"""
+        teal（SPEC 指定）SPEC-137.4 迁 theme.css --teal-chart token，light/dark
+        双值随主题（不再在 spx.html 硬编码 hex）。"""
         for token in ("structureChartColors", "themeColor('--green')",
                       "themeRgba('--gold'", "addEventListener('themechange'",
                       "data-theme"):
             self.assertIn(token, SPX_HTML)
-        self.assertIn("'#0F8A7C' : '#2FB8A6'", SPX_HTML)   # teal light/dark
+        # put 墙 teal 经 token 桥读取，spx.html 内不再有 hex 常量
+        self.assertIn("themeColor('--teal-chart')", SPX_HTML)
+        self.assertNotIn("#2FB8A6", SPX_HTML)
+        self.assertNotIn("#0F8A7C", SPX_HTML)
+        # 双值真源落 theme.css：dark #2FB8A6 / light #0F8A7C
+        theme_css = (ROOT / "web" / "static" / "theme.css").read_text(encoding="utf-8")
+        self.assertIn("--teal-chart: #2FB8A6", theme_css)   # dark
+        self.assertIn("--teal-chart: #0F8A7C", theme_css)   # light
 
     def test_badge_red_lines_inherited_around_chart(self) -> None:
         """132 三红线继承：badge 词汇表在 v2 卡里仍在（图例携带）。"""

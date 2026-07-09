@@ -111,6 +111,7 @@ Within an exempted page, don't MIX: pick one language per control group.
 - `--blue:   #4888E8` / bg `rgba(72,136,232,0.07)` / border `rgba(72,136,232,0.22)` — informational / HOLD / neutral signal / backtest line
 - `--orange: #E08040` / bg `rgba(224,128,64,0.07)` / border `rgba(224,128,64,0.22)` — warning / approaching threshold (2× credit stop, expiry <7d)
 - `--gray-bg: rgba(96,104,128,0.08)` / `--gray-border: rgba(96,104,128,0.2)` — disabled / NO ENTRY / blocked / read-only badge
+- `--teal-chart: #2FB8A6` dark / `#0F8A7C` light — **chart-only, non-semantic** accent for the SPX structure-map put wall (SPEC-132.1/137.4). Not for UI chrome; read via `themeColor('--teal-chart')` in chart code, never hardcode the hex.
 
 **Theme system:** The product supports PM-controlled dark and light themes. The
 dark palette remains the historical baseline, while the warm off-white light

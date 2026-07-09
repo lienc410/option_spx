@@ -6,6 +6,15 @@ from signals.intraday import IntradayStopTrigger, SpikeLevel, StopLevel, VixSpik
 import notify.telegram_bot as bot_mod
 
 
+def _push_body(call) -> str:
+    """gateway.apush(bot, chat_id, category, about, title, body, ...) — body is
+    the 6th positional arg. SPEC-126 migration: intraday_monitor now composes
+    through the gateway, not raw bot.send_message."""
+    if len(call.args) > 5:
+        return str(call.args[5])
+    return str(call.kwargs.get("body", ""))
+
+
 def _es_state(**overrides):
     state = {
         "strategy_key": "es_short_put",
@@ -60,6 +69,12 @@ class Spec086Tests(unittest.TestCase):
         bot_mod._intraday_state["spike_level"] = SpikeLevel.NONE
         bot_mod._intraday_state["stop_level"] = StopLevel.NONE
         bot_mod._intraday_state["es_stop_level"] = bot_mod.EsStopLevel.NONE
+        # SPEC-138 F1：隔离 ES-stop escalation 路径。mismatch/profit 一次性检查
+        # 也会调 get_account_positions，会提前吃掉 side_effect 里的持仓 payload
+        # （module-level state 跨测试残留，setUp 原本没重置这两个 flag）→ 第二
+        # 次 intraday_monitor 拿不到持仓、escalation 断掉。置 True 跳过它们。
+        bot_mod._intraday_state["mismatch_alerted"] = True
+        bot_mod._intraday_state["profit_alerted"] = True
 
     @patch("schwab.client.get_account_positions")
     @patch("notify.telegram_bot.read_state")
@@ -92,16 +107,21 @@ class Spec086Tests(unittest.TestCase):
         _mock_open,
     ) -> None:
         # SPEC-121: 21.2 = 2.02x (warning), 106.0 = 10.1x (trigger)
+        # SPEC-138 F1 行为判定：生产已迁 gateway（SPEC-126）——intraday_monitor
+        # 经 notify.gateway.apush 推送，不再直调 bot.send_message；SPEC-130 主机
+        # guard 在传输层，测试态 delenv 后 raw send 零 await（正是 await_count=0
+        # 的原因）。断言改测 gateway 契约（升级一次、文案正确），非削弱。
         mock_read_state.return_value = _es_state(actual_premium=10.5)
         mock_positions.side_effect = [_positions_payload(21.2), _positions_payload(106.0)]
         bot = AsyncMock()
 
-        asyncio.run(bot_mod.intraday_monitor(bot, "chat"))
-        asyncio.run(bot_mod.intraday_monitor(bot, "chat"))
+        with patch("notify.gateway.apush", new_callable=AsyncMock) as mock_push:
+            asyncio.run(bot_mod.intraday_monitor(bot, "chat"))
+            asyncio.run(bot_mod.intraday_monitor(bot, "chat"))
 
-        self.assertEqual(bot.send_message.await_count, 2)
-        first = bot.send_message.await_args_list[0].kwargs["text"]
-        second = bot.send_message.await_args_list[1].kwargs["text"]
+        self.assertEqual(mock_push.await_count, 2)   # 升级一次：WARNING → TRIGGER
+        first = _push_body(mock_push.await_args_list[0])
+        second = _push_body(mock_push.await_args_list[1])
         self.assertIn("Stop Watch", first)
         self.assertIn("Credit Stop TRIGGERED", second)
 
@@ -173,15 +193,17 @@ class Spec086Tests(unittest.TestCase):
         mock_positions,
         _mock_open,
     ) -> None:
+        # SPEC-138 F1：同上——经 gateway.apush 断言（clear 消息 body 文案）。
         mock_read_state.return_value = _es_state(actual_premium=10.0)
         mock_positions.side_effect = [_positions_payload(22.0), _positions_payload(18.0)]
         bot = AsyncMock()
 
-        asyncio.run(bot_mod.intraday_monitor(bot, "chat"))
-        asyncio.run(bot_mod.intraday_monitor(bot, "chat"))
+        with patch("notify.gateway.apush", new_callable=AsyncMock) as mock_push:
+            asyncio.run(bot_mod.intraday_monitor(bot, "chat"))
+            asyncio.run(bot_mod.intraday_monitor(bot, "chat"))
 
-        self.assertEqual(bot.send_message.await_count, 2)
-        cleared = bot.send_message.await_args_list[1].kwargs["text"]
+        self.assertEqual(mock_push.await_count, 2)
+        cleared = _push_body(mock_push.await_args_list[1])
         self.assertIn("Stop watch cleared", cleared)
         self.assertIn("18.00", cleared)
 
