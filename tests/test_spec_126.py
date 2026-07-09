@@ -198,13 +198,21 @@ class TestMigrationCompleteness(unittest.TestCase):
     direct sender added anywhere is caught, not just in the dirs the author
     happened to think of."""
 
-    # 全仓扫描跳过：虚拟环境 / 依赖 / 测试自身 / git / 平行 worktree
-    _SKIP_DIRS = {"venv", ".venv", "node_modules", "tests", ".git", ".claude"}
+    # 全仓扫描跳过：测试自身 / git / 平行 worktree / 依赖
+    _SKIP_DIRS = {"node_modules", "tests", ".git", ".claude"}
+
+    @staticmethod
+    def _is_skippable(part: str) -> bool:
+        # 任意 venv 变体（venv / .venv / .venv_fund …）与第三方 site-packages —
+        # 前缀匹配，避免精确集漏掉命名变体（.venv_fund 曾漏网命中 tqdm）
+        return (part.startswith("venv") or part.startswith(".venv")
+                or part == "site-packages")
 
     def _repo_py_files(self):
         for p in REPO.rglob("*.py"):
-            if any(part in self._SKIP_DIRS
-                   for part in p.relative_to(REPO).parts):
+            parts = p.relative_to(REPO).parts
+            if any(part in self._SKIP_DIRS or self._is_skippable(part)
+                   for part in parts):
                 continue
             yield p
 

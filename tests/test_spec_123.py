@@ -358,7 +358,8 @@ class TestSingleSource(unittest.TestCase):
         """Q087 C4/SPEC-123 §4b: one production implementation, no copies."""
         defs = []
         for p in REPO.rglob("*.py"):
-            if "venv" in p.parts or ".git" in p.parts:
+            if (any(x.startswith("venv") or x.startswith(".venv") for x in p.parts)
+                    or ".git" in p.parts or ".claude" in p.parts):
                 continue
             try:
                 if re.search(r"^\s*def _effective_iv_signal\b",
@@ -370,7 +371,9 @@ class TestSingleSource(unittest.TestCase):
 
     def test_consumers_import_the_production_function(self):
         for p in REPO.rglob("*.py"):
-            if "venv" in p.parts or p.name == "selector.py" or "prototype" in p.parts:
+            if (any(x.startswith("venv") or x.startswith(".venv") for x in p.parts)
+                    or ".claude" in p.parts
+                    or p.name == "selector.py" or "prototype" in p.parts):
                 continue
             try:
                 src = p.read_text(encoding="utf-8")
