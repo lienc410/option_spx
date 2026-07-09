@@ -3246,109 +3246,34 @@ def api_portfolio_nlv_change():
 
     today_iso = datetime.now(_ET).date().isoformat()
 
-    # Live current NLV: reuse portfolio summary aggregation
+    # Live current NLV per rail — SPEC-138 F3: the headline math must know which
+    # rails are present TODAY, so a missing rail (E-Trade token expired) can't be
+    # subtracted against a full-combined baseline and read as an account crash.
     try:
-        from schwab.client import live_position_snapshot
-        from strategy.state import read_state
         from web.portfolio_surface import portfolio_summary_payload
 
         summary = portfolio_summary_payload()
         accounts = summary.get("account_breakdown") or {}
         schwab_nlv = float(accounts.get("schwab_nlv") or 0.0)
         etrade_nlv = float(accounts.get("etrade_nlv") or 0.0) if accounts.get("etrade_nlv") else 0.0
+        today_accounts = {"schwab": schwab_nlv, "etrade": etrade_nlv}
         today_combined = schwab_nlv + etrade_nlv
     except Exception:
-        # Fall back to most recent recorded value
-        today_combined = float(records[-1].get("combined_nlv") or 0.0)
+        # Fall back to the most recent recorded row's per-rail values.
+        last = records[-1]
+        last_accts = last.get("accounts") or {}
+        today_accounts = {
+            "schwab": float((last_accts.get("schwab") or {}).get("nlv") or 0.0),
+            "etrade": float((last_accts.get("etrade") or {}).get("nlv") or 0.0),
+        }
+        today_combined = float(last.get("combined_nlv")
+                               or (today_accounts["schwab"] + today_accounts["etrade"]))
 
-    # Skip rows where combined_nlv is None (partial — e.g., ETrade auth expired)
-    # so prev/MTD/YTD anchors compare apples-to-apples against full-portfolio days.
-    def _is_full(r: dict) -> bool:
-        return r.get("combined_nlv") is not None and not r.get("partial_accounts")
-
-    prior = [r for r in records if r.get("date") and r["date"] < today_iso and _is_full(r)]
-    if not prior:
-        return jsonify({
-            "status": "first_day",
-            "today_nlv": round(today_combined, 2),
-            "history_days": len(records),
-        })
-    prev = prior[-1]
-    prev_nlv = float(prev.get("combined_nlv") or 0.0)
-    change_dollars = today_combined - prev_nlv
-    change_pct = (change_dollars / prev_nlv * 100.0) if prev_nlv > 0 else 0.0
-
-    # MTD / YTD — same partial-skip discipline
-    from datetime import date as _date
-    today_date = _date.fromisoformat(today_iso)
-    mtd_start = today_date.replace(day=1).isoformat()
-    ytd_start = today_date.replace(month=1, day=1).isoformat()
-    mtd_rows = [r for r in records if r.get("date") and r["date"] >= mtd_start and r["date"] < today_iso and _is_full(r)]
-    ytd_rows = [r for r in records if r.get("date") and r["date"] >= ytd_start and r["date"] < today_iso and _is_full(r)]
-
-    def _pct_from(rows):
-        if not rows:
-            return None
-        anchor = float(rows[0].get("combined_nlv") or 0.0)
-        if anchor <= 0:
-            return None
-        return round((today_combined - anchor) / anchor * 100.0, 2)
-
-    # Flow-adjusted period return (Modified Dietz): deposits/withdrawals from
-    # data/capital_flows.jsonl are removed from the numerator and day-weighted
-    # into the denominator. Raw ΔNLV MTD/YTD stays in mtd_pct/ytd_pct — the
-    # 6/01 +$288k ETrade transfer alone is ~+30pp of raw "YTD".
-    flows = _load_capital_flows()
-
-    def _adj_pct_from(rows):
-        if not rows:
-            return None
-        anchor = float(rows[0].get("combined_nlv") or 0.0)
-        anchor_date_iso = rows[0]["date"]
-        if anchor <= 0:
-            return None
-        period = [f for f in flows if anchor_date_iso < f["date"] <= today_iso]
-        if not period:
-            return _pct_from(rows)
-        anchor_date = _date.fromisoformat(anchor_date_iso)
-        total_days = max((today_date - anchor_date).days, 1)
-        net_flow = sum(f["signed_amount"] for f in period)
-        weighted = sum(
-            f["signed_amount"]
-            * ((today_date - _date.fromisoformat(f["date"])).days / total_days)
-            for f in period
-        )
-        denom = anchor + weighted
-        if denom <= 0:
-            return None
-        return round((today_combined - anchor - net_flow) / denom * 100.0, 2)
-
-    ytd_flow_count = sum(1 for f in flows if ytd_start <= f["date"] <= today_iso)
-
-    # Source label: surface which accounts are contributing to the live NLV
-    # so the hero can disambiguate Schwab-only vs combined.
-    source_parts = []
-    if schwab_nlv > 0: source_parts.append("Schwab")
-    if etrade_nlv > 0: source_parts.append("ETrade")
-    source_label = "Live · " + "+".join(source_parts) if source_parts else "Live"
-
-    return jsonify({
-        "status": "available",
-        "today_nlv": round(today_combined, 2),
-        "prev_nlv": round(prev_nlv, 2),
-        "prev_date": prev.get("date"),
-        "change_dollars": round(change_dollars, 2),
-        "change_pct": round(change_pct, 3),
-        "mtd_pct": _pct_from(mtd_rows),
-        "ytd_pct": _pct_from(ytd_rows),
-        "mtd_adj_pct": _adj_pct_from(mtd_rows),
-        "ytd_adj_pct": _adj_pct_from(ytd_rows),
-        "flows_recorded_ytd": ytd_flow_count,
-        "history_days": len(records),
-        "source_label": source_label,
-        "schwab_nlv": round(schwab_nlv, 2),
-        "etrade_nlv": round(etrade_nlv, 2),
-    })
+    from web.portfolio_surface import rail_aware_nlv_change
+    payload = rail_aware_nlv_change(
+        records, today_iso, today_accounts,
+        today_combined=today_combined, flows=_load_capital_flows())
+    return jsonify(payload)
 
 
 @app.route("/api/q041/overview")

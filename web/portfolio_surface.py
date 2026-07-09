@@ -452,6 +452,150 @@ def _schwab_spx_bp_from_positions() -> dict | None:
     return None
 
 
+_RAIL_KEYS = ("schwab", "etrade")
+_RAIL_NAMES = {"schwab": "Schwab", "etrade": "E-Trade"}
+
+
+def _row_rail_set(row: dict) -> set[str]:
+    """Rails with a positive NLV recorded in a daily-snapshot row."""
+    accts = row.get("accounts") or {}
+    return {k for k in _RAIL_KEYS
+            if (_num((accts.get(k) or {}).get("nlv")) or 0.0) > 0}
+
+
+def _row_rail_value(row: dict, subset) -> float:
+    accts = row.get("accounts") or {}
+    return sum(float((accts.get(k) or {}).get("nlv") or 0.0) for k in subset)
+
+
+def rail_aware_nlv_change(records: list[dict], today_iso: str,
+                          today_accounts: dict, *, today_combined: float,
+                          flows: list[dict] | None = None) -> dict:
+    """SPEC-138 F3 — rail-composition-aware home headline (day Δ + MTD/YTD).
+
+    `today_accounts` = live per-rail NLV, e.g. {"schwab": 105000, "etrade": 0}.
+    `today_combined` = the hero NLV (schwab + etrade live sum).
+
+    Full-rail days are **bit-identical** to the legacy combined math (same
+    branch, same `combined_nlv` anchors). When today's live snapshot is missing
+    a rail that the comparison baseline HAS (E-Trade token expired mid-session),
+    every percentage is computed **same-scope** — only the rails today actually
+    has, against those same rails in the anchor row — so a data outage can never
+    render as a huge account drop. `rail_complete=False` + `rail_caption` name
+    the missing rail. (F3 root: 数据中断 ≠ 账户腰斩。)"""
+    flows = flows or []
+    if not records:
+        return {"status": "no_history"}
+
+    today_rails = {k for k in _RAIL_KEYS
+                   if (_num(today_accounts.get(k)) or 0.0) > 0}
+
+    def _is_full(r: dict) -> bool:
+        return r.get("combined_nlv") is not None and not r.get("partial_accounts")
+
+    prior = [r for r in records
+             if r.get("date") and r["date"] < today_iso and _is_full(r)]
+    if not prior:
+        return {"status": "first_day", "today_nlv": round(today_combined, 2),
+                "history_days": len(records)}
+
+    prev = prior[-1]
+    base_rails = _row_rail_set(prev)
+    # today ⊇ baseline → complete (bit-identical path). Missing a baseline rail
+    # → gap: restrict everything to the rails today AND the anchor share.
+    rail_complete = today_rails >= base_rails
+    scope = today_rails if rail_complete else (today_rails & base_rails)
+
+    def _today_val() -> float:
+        return today_combined if rail_complete else \
+            sum(float(today_accounts.get(k) or 0.0) for k in scope)
+
+    def _anchor_val(row: dict) -> float:
+        return float(row.get("combined_nlv") or 0.0) if rail_complete else \
+            _row_rail_value(row, scope)
+
+    prev_nlv = _anchor_val(prev)
+    today_val = _today_val()
+    change_dollars = today_val - prev_nlv
+    change_pct = (change_dollars / prev_nlv * 100.0) if prev_nlv > 0 else 0.0
+
+    today_date = date.fromisoformat(today_iso)
+    mtd_start = today_date.replace(day=1).isoformat()
+    ytd_start = today_date.replace(month=1, day=1).isoformat()
+    mtd_rows = [r for r in records if r.get("date")
+                and mtd_start <= r["date"] < today_iso and _is_full(r)]
+    ytd_rows = [r for r in records if r.get("date")
+                and ytd_start <= r["date"] < today_iso and _is_full(r)]
+
+    def _pct_from(rows):
+        if not rows:
+            return None
+        anchor = _anchor_val(rows[0])
+        if anchor <= 0:
+            return None
+        return round((today_val - anchor) / anchor * 100.0, 2)
+
+    def _adj_pct_from(rows):
+        if not rows:
+            return None
+        anchor = _anchor_val(rows[0])
+        anchor_date_iso = rows[0]["date"]
+        if anchor <= 0:
+            return None
+        period = [f for f in flows if anchor_date_iso < f["date"] <= today_iso]
+        if not period:
+            return _pct_from(rows)
+        anchor_date = date.fromisoformat(anchor_date_iso)
+        total_days = max((today_date - anchor_date).days, 1)
+        net_flow = sum(f["signed_amount"] for f in period)
+        weighted = sum(
+            f["signed_amount"]
+            * ((today_date - date.fromisoformat(f["date"])).days / total_days)
+            for f in period
+        )
+        denom = anchor + weighted
+        if denom <= 0:
+            return None
+        return round((today_val - anchor - net_flow) / denom * 100.0, 2)
+
+    ytd_flow_count = sum(1 for f in flows if ytd_start <= f["date"] <= today_iso)
+
+    schwab_nlv = float(today_accounts.get("schwab") or 0.0)
+    etrade_nlv = float(today_accounts.get("etrade") or 0.0)
+    source_parts = [n for k, n in (("schwab", "Schwab"), ("etrade", "ETrade"))
+                    if (_num(today_accounts.get(k)) or 0.0) > 0]
+    source_label = "Live · " + "+".join(source_parts) if source_parts else "Live"
+
+    rail_caption = None
+    if not rail_complete:
+        missing = sorted(base_rails - today_rails)
+        shown = sorted(scope) or sorted(today_rails)
+        miss_txt = "、".join(_RAIL_NAMES.get(m, m) for m in missing)
+        shown_txt = "+".join(_RAIL_NAMES.get(s, s) for s in shown) or "无"
+        rail_caption = f"口径不齐（{miss_txt} 缺席，仅显示 {shown_txt}）"
+
+    return {
+        "status": "available",
+        "today_nlv": round(today_combined, 2),
+        "prev_nlv": round(prev_nlv, 2),
+        "prev_date": prev.get("date"),
+        "change_dollars": round(change_dollars, 2),
+        "change_pct": round(change_pct, 3),
+        "mtd_pct": _pct_from(mtd_rows),
+        "ytd_pct": _pct_from(ytd_rows),
+        "mtd_adj_pct": _adj_pct_from(mtd_rows),
+        "ytd_adj_pct": _adj_pct_from(ytd_rows),
+        "flows_recorded_ytd": ytd_flow_count,
+        "history_days": len(records),
+        "source_label": source_label,
+        "schwab_nlv": round(schwab_nlv, 2),
+        "etrade_nlv": round(etrade_nlv, 2),
+        # SPEC-138 F3 metadata (additive; full-rail days: True / None)
+        "rail_complete": rail_complete,
+        "rail_caption": rail_caption,
+    }
+
+
 def portfolio_summary_payload() -> dict:
     from strategy.selector import DEFAULT_PARAMS
     from strategy.state import read_state, read_all_positions
