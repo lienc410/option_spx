@@ -46,7 +46,10 @@ class Spec101HvLadderTests(unittest.TestCase):
         template = Path("web/templates/es_backtest.html").read_text(encoding="utf-8")
         self.assertIn('data-es-tab-btn="hvlad"', template)
         self.assertIn("/api/es-backtest/hvlad", template)
-        self.assertIn("HV Ladder [archived]", template)
+        # SPEC-138 F1 行为判定：tab 标签有意从 "HV Ladder [archived]" 改为
+        # "Stress Put Ladder → moved"（功能已迁独立 /hvladder 页；命名见
+        # feedback_hv_ladder_naming）。其余 carrier 不变，对齐现标签。
+        self.assertIn("Stress Put Ladder", template)
         self.assertIn("/hvladder_backtest", template)
 
     def test_paper_signal_writes_jsonl(self):
@@ -73,11 +76,16 @@ class Spec101HvLadderTests(unittest.TestCase):
                 )
 
             self.assertIsNotNone(msg)
-            self.assertIn("Paper Trade Signal", msg)
+            # SPEC-138 F1 行为判定：paper 信号文案有意改为
+            # "/ES HV Ladder — Paper / Research Signal"（_format_es_hv_paper_signal）。
+            # 对齐现文案；jsonl 落盘断言（下方）未动，仍锁纸面记录行为。
+            self.assertIn("Paper / Research Signal", msg)
             rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]["signal_date"], "2026-05-14")
-            self.assertEqual(rows[0]["status"], "paper")
+            # SPEC-138 F1：记录 status 字段现为 "signal"（paper research 信号记录
+            # 语义，telegram_bot.py:552），非旧值 "paper"。对齐现 schema。
+            self.assertEqual(rows[0]["status"], "signal")
             self.assertGreater(rows[0]["est_premium"], 0)
 
     def test_stale_vix_guard_suppresses_paper_record(self):

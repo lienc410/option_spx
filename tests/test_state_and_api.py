@@ -321,29 +321,38 @@ class StateAndApiTests(unittest.TestCase):
         self.assertEqual(res.get_json()["signals"][0]["regime"], "NORMAL")
 
     def test_api_backtest_latest_cached_returns_latest_entry(self) -> None:
+        # SPEC-138 F1 行为判定：/api/backtest/latest-cached 有意加了 params-hash
+        # 过滤——只服务与当前 DEFAULT_PARAMS 一致的缓存条目（server.py 注释
+        # "Only serve entries that match current params"），避免拿异参下算的陈旧
+        # 结果冒充当前。原测试写死 "aaaa"/"bbbb" 两个都不等于真 current_phash
+        # → 全被过滤 → {"empty": True} → KeyError。这是 correct 行为，非回归。
+        # 修法：把 current_phash pin 成 "bbbb"，夹具含一条更新但异参的 "stale"
+        # 条目验证它被正确过滤，"new">"old" 验证同参内取 computed_at 最新。
         payload = {
-            "old": {
-                "date": "2026-04-05",
-                "start_date": "2025-01-01",
-                "params_hash": "aaaa",
-                "computed_at": "2026-04-05T08:00:00",
+            "stale": {   # 最新 computed_at，但异参 → 必须被过滤掉
+                "date": "2026-04-05", "start_date": "2099-01-01",
+                "params_hash": "zzzz", "computed_at": "2026-04-05T10:00:00",
+                "payload": {"metrics": {}, "trades": []},
+            },
+            "old": {     # 同参，较早
+                "date": "2026-04-05", "start_date": "2025-01-01",
+                "params_hash": "bbbb", "computed_at": "2026-04-05T08:00:00",
                 "payload": {"metrics": {"win_rate": 0.5}, "trades": []},
             },
-            "new": {
-                "date": "2026-04-05",
-                "start_date": "2024-01-01",
-                "params_hash": "bbbb",
-                "computed_at": "2026-04-05T09:00:00",
+            "new": {     # 同参，同参内最新 → 应当胜出
+                "date": "2026-04-05", "start_date": "2024-01-01",
+                "params_hash": "bbbb", "computed_at": "2026-04-05T09:00:00",
                 "payload": {"metrics": {"win_rate": 0.7}, "trades": [{"strategy": "X"}]},
             },
         }
         with open(server_mod._RESULTS_DISK_CACHE, "w") as fh:
             json.dump(payload, fh)
 
-        res = self.client.get("/api/backtest/latest-cached")
+        with patch.object(server_mod, "_params_hash", return_value="bbbb"):
+            res = self.client.get("/api/backtest/latest-cached")
         self.assertEqual(res.status_code, 200)
         data = res.get_json()
-        self.assertEqual(data["start_date"], "2024-01-01")
+        self.assertEqual(data["start_date"], "2024-01-01")   # 异参 stale 被过滤
         self.assertEqual(data["params_hash"], "bbbb")
         self.assertEqual(data["metrics"]["win_rate"], 0.7)
 

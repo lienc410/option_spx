@@ -69,18 +69,33 @@ class Spec057Tests(unittest.TestCase):
         rec = select_strategy(v, i, t, StrategyParams(force_strategy="iron_condor"))
         self.assertEqual(rec.strategy, StrategyName.IRON_CONDOR)
 
-    def test_ac3_all_strategies_build_valid_recommendation(self):
+    def test_ac3_matrix_strategies_build_valid_recommendation(self):
+        # SPEC-138 F1 行为判定（不是简单改绿）：_build_forced_recommendation
+        # 只服务 matrix / selector 网格策略（SPX / ES）——docstring 明写"Used only
+        # for matrix audit research"。单名纸面 sleeve（SPEC-115 q041_t2/t3,
+        # GOOGL/AMZN/COST/JPM）是 chain-based、在 selector 里没有 forced-entry
+        # legs（run_matrix_audit.py:20 注释 + STRATEGY_KEYS 口径同源），force 本
+        # 就不该支持它们；对其 raise ValueError 是 correct 行为，不是 code bug。
+        # 原测试遍历全 catalog 是在 sleeve keys 注册进 STRATEGIES_BY_KEY 之前写的。
+        from backtest.run_matrix_audit import STRATEGY_KEYS
         from strategy.catalog import STRATEGIES_BY_KEY
         from strategy.selector import StrategyParams, _build_forced_recommendation
 
         params = StrategyParams()
         v, i, t = self._make_snaps()
-        keys = [k for k in STRATEGIES_BY_KEY if k != "reduce_wait"]
-        for key in keys:
+        # matrix scope：每个 SPX/ES 网格策略都能构造有效 forced recommendation
+        for key in STRATEGY_KEYS:
             rec = _build_forced_recommendation(key, v, i, t, params)
             self.assertIsNotNone(rec)
             self.assertIsNotNone(rec.strategy)
             self.assertTrue(len(rec.legs) > 0)
+        # 非 matrix 的 sleeve keys → force 明确 ValueError（不静默造假腿）
+        sleeve_keys = [k for k in STRATEGIES_BY_KEY
+                       if k != "reduce_wait" and k not in STRATEGY_KEYS]
+        self.assertTrue(sleeve_keys, "夹具前提：catalog 确含 sleeve keys")
+        for key in sleeve_keys:
+            with self.assertRaises(ValueError):
+                _build_forced_recommendation(key, v, i, t, params)
 
     @patch("backtest.run_matrix_audit.run_backtest")
     def test_ac4_matrix_audit_strategy_key_consistent(self, mock_run_backtest):

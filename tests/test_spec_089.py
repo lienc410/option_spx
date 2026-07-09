@@ -187,12 +187,17 @@ class Spec089Tests(unittest.TestCase):
 
         import asyncio
 
+        # SPEC-138 F1 行为判定：E-Trade re-auth 告警已迁 gateway（SPEC-126，
+        # telegram_bot.py:879 apush）；SPEC-130 主机 guard 在传输层，测试态 raw
+        # send 零 await。断言改测 gateway 契约（一次告警/失效期），非削弱。
+        from unittest.mock import AsyncMock as _AM
         with patch("etrade.auth.renew_access_token", return_value={"ok": False, "reason": "expired"}), \
-             patch("etrade.auth.is_token_valid", return_value=False):
+             patch("etrade.auth.is_token_valid", return_value=False), \
+             patch("notify.gateway.apush", new_callable=_AM) as mock_push:
             asyncio.run(bot_mod.scheduled_etrade_token_renewal(bot, "chat"))
             asyncio.run(bot_mod.scheduled_etrade_token_renewal(bot, "chat"))
 
-        self.assertEqual(bot.send_message.await_count, 1)
+        self.assertEqual(mock_push.await_count, 1)
 
         with patch("etrade.auth.is_token_valid", return_value=True):
             asyncio.run(bot_mod._maybe_send_etrade_token_alert(bot, "chat"))
@@ -207,10 +212,16 @@ class Spec089Tests(unittest.TestCase):
         self.assertEqual(summary["rails"]["etrade_pm"]["status"], "unavailable")
         self.assertIsNone(summary["bp_usage_by_bucket"]["etrade_maintenance_bp_pct"])
 
+        # SPEC-138 F1 行为判定：E-Trade PM 轨在首页仍在，但静态卡（"E-Trade PM
+        # Account" / "Read-only balances + positions"）在后续 SPEC 被重构成
+        # account-view tab + re-auth banner（intentional UI redesign）。断言对齐
+        # 现结构：E-Trade 轨可见（account tab）+ 页面 read-only 承诺仍在。summary
+        # API 的 fail-soft 断言（上方 205-208）未动，仍锁真正的降级行为。
         home_res = self.client.get("/")
         text = home_res.get_data(as_text=True)
-        self.assertIn("E-Trade PM Account", text)
-        self.assertIn("Read-only balances + positions", text)
+        self.assertIn('data-av="etrade"', text)          # E-Trade 账户视图轨仍在
+        self.assertIn("E-Trade", text)
+        self.assertIn("Read-only summary", text)          # 页面只读承诺
 
     def test_ac6_combined_bp_uses_schwab_plus_etrade(self) -> None:
         with patch("web.portfolio_surface._etrade_margin_data", return_value={
@@ -338,9 +349,20 @@ class Spec089Tests(unittest.TestCase):
         self.assertEqual(result["status"], "insufficient_data")
         self.assertIsNone(result["bp_usage_dollars"])
 
-    def test_ac7_etrade_module_does_not_call_market_data_apis(self) -> None:
+    def test_ac7_etrade_module_does_not_scan_chains_for_signals(self) -> None:
+        # SPEC-138 F1 行为判定（不是简单改绿）：SPEC-089 时代 E-Trade 不碰任何
+        # market-data。后续 SPEC 有意加入**逐 strike 期权报价**用于自身持仓的
+        # live PnL / greeks（commits 17e8ab2 per-leg 到期、40ecb94 SPX→SPXW、
+        # 8c6f323 BCD live PnL+greeks；生产用于 web/server.py:5114/5840）——这是
+        # 有意 code evolution，不是回归。真正该守的不变量是：E-Trade 只标记它
+        # **自己的**持仓，不做 chain 扫描、不取 index/信号 行情来驱动 selector。
+        # 信号隔离由 test_ac8（/api/recommendation 无 etrade）另行锁定。
         source = Path("etrade/client.py").read_text() + "\n" + Path("etrade/auth.py").read_text()
-        for forbidden in ("get_quote", "get_option_chain", "quotes", "chains", "marketdata"):
+        # 仍禁止：整链扫描函数 / market-data 目录式抓取 / 指数历史（信号面）。
+        # 注：不禁裸词 "chains"——它出现在注释里（"per-leg fetches (different
+        # chains)"），是持仓标记语境，非扫描调用；禁函数名 get_option_chain 才是
+        # 真不变量。
+        for forbidden in ("get_option_chain", "get_price_history", "marketdata"):
             self.assertNotIn(forbidden, source)
 
     @patch("web.server._is_market_hours", return_value=False)
