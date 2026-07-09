@@ -144,16 +144,33 @@ def funding_trace(strategy_key: str) -> list[dict]:
         cash = get_current_liquid_cash()
         total = float(cash.get("total") or 0.0)
         available = cash.get("source") != "unavailable"
+        # SPEC-138 F4: a partial read (a broker rail dropped) shrinks the cash
+        # denominator; a floor/cap "breach" off that shrunk pool is a data
+        # outage, NOT a governance verdict — degrade the trace node to advisory
+        # (135.3 琥珀 ⚠ 提示档), never a red veto.
+        degraded = cash.get("source") == "partial"
+        stale_txt = ("　⚠ 数据降级：现金轨不齐（"
+                     f"{cash.get('error') or '某轨缺席'}），同口径仅供参考，不作硬拦"
+                     ) if degraded else ""
+        if not available:
+            floor_outcome = "info"
+        elif total >= CASH_FLOOR_USD:
+            floor_outcome = "pass"
+        elif degraded:
+            floor_outcome = "advisory"
+        else:
+            floor_outcome = "veto"
         nodes.append({
             "layer": "funding", "check": "cash_floor",
             "label_human": f"现金池余额 vs 底线（任何时候留足 ${CASH_FLOOR_USD:,.0f} 应急现金）",
             "detail": ((f"当前流动现金 ${total:,.0f} vs 底线 ${CASH_FLOOR_USD:,.0f}"
-                        "——此门在开仓 API 有真实拦截路径（手动单可 pm_override）")
+                        "——此门在开仓 API 有真实拦截路径（手动单可 pm_override）"
+                        + stale_txt)
                        if available else "现金数据不可用（fail-soft，不拦）"),
             "inputs": {"liquid_cash": total if available else None,
-                       "floor": CASH_FLOOR_USD, "source": cash.get("source")},
-            "outcome": ("pass" if (available and total >= CASH_FLOOR_USD)
-                        else ("veto" if available else "info")),
+                       "floor": CASH_FLOOR_USD, "source": cash.get("source"),
+                       "rail_complete": cash.get("source") == "live"},
+            "outcome": floor_outcome,
             "code_ref": "SPEC-115 cash floor", "branch_taken": True,
             "kind": "evidence", "stage": "capital",
         })
@@ -161,6 +178,12 @@ def funding_trace(strategy_key: str) -> list[dict]:
             open_cash = float(get_open_cash_collateral_total_usd().get("total") or 0.0)
             cap = CAP_PCT * total
             headroom = cap - open_cash
+            if headroom > 0:
+                budget_outcome = "pass"
+            elif degraded:
+                budget_outcome = "advisory"
+            else:
+                budget_outcome = "veto"
             nodes.append({
                 "layer": "funding", "check": "cash_budget",
                 "label_human": (f"占用现金的策略预算 cap：最多用流动现金的 "
@@ -168,10 +191,12 @@ def funding_trace(strategy_key: str) -> list[dict]:
                 "detail": (f"已占用 ${open_cash:,.0f} / cap ${cap:,.0f} → "
                            f"还可再部署约 ${max(headroom, 0):,.0f}"
                            "（允许张数 = 余量 ÷ 单张成本，随所选行权价而变）"
-                           "——此门在开仓 API 有真实拦截路径（手动单可 pm_override）"),
+                           "——此门在开仓 API 有真实拦截路径（手动单可 pm_override）"
+                           + stale_txt),
                 "inputs": {"open_cash": round(open_cash, 2), "cap_pct": CAP_PCT,
-                           "headroom": round(headroom, 2)},
-                "outcome": "pass" if headroom > 0 else "veto",
+                           "headroom": round(headroom, 2),
+                           "rail_complete": cash.get("source") == "live"},
+                "outcome": budget_outcome,
                 "code_ref": "SPEC-111/115 cash budget", "branch_taken": True,
                 "kind": "evidence", "stage": "capital",
             })
@@ -184,22 +209,36 @@ def funding_trace(strategy_key: str) -> list[dict]:
     try:
         from strategy.exposure import evaluate_exposure_degrade
         deg = evaluate_exposure_degrade(strategy_key)
-        if deg.get("pct_of_pool") is not None:
+        # SPEC-138 F4: a partial cash read shrinks the pool denominator and
+        # inflates pct_of_pool past threshold purely from the missing rail
+        # (7/7: 33.5%→42%). exposure.py already holds degraded=False on a
+        # partial read; the trace surfaces the staleness note as advisory, not
+        # a clean pass, so the PM sees "数据降级" not "敞口已满".
+        rail_incomplete = deg.get("rail_complete") is False
+        if rail_incomplete and deg.get("note"):
+            detail = deg["note"]
+        elif deg.get("pct_of_pool") is not None:
             detail = (f"家族并发 max loss ${deg['family_open_max_loss_usd']:,.0f} = "
                       f"占策略资金池 {deg['pct_of_pool']:.1f}%（阈值 "
                       f"{deg['threshold_pct']:.0f}%）——超阈值不禁止任何操作，仅改变推荐语气")
         else:
             detail = deg.get("note") or "敞口数据不可用"
+        if deg.get("degraded"):
+            exp_outcome = "advisory"
+        elif rail_incomplete:
+            exp_outcome = "advisory"   # 缺轨 staleness：不判 pass，也绝不 veto
+        else:
+            exp_outcome = "pass"
         nodes.append({
             "layer": "exposure", "check": "family_exposure_degrade",
             "label_human": "同家族敞口占策略资金池比例（满仓时推荐降语气，不拦操作）",
             "detail": detail,
             "inputs": {k: deg.get(k) for k in
                        ("family", "family_open_max_loss_usd", "strategy_pool_usd",
-                        "pct_of_pool", "threshold_pct", "degraded")},
+                        "pct_of_pool", "threshold_pct", "degraded", "rail_complete")},
             # SPEC-135.3：degraded = 提示不拦（改变推荐语气、不阻止任何操作）
             # → advisory（琥珀 ⚠），不再用 veto——PM 曾把它误读成最终拦截理由
-            "outcome": "advisory" if deg.get("degraded") else "pass",
+            "outcome": exp_outcome,
             "code_ref": "SPEC-131 v2", "branch_taken": True,
             "kind": "evidence", "stage": "capital",
         })

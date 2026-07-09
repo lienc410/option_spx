@@ -3796,8 +3796,14 @@ async function loadResourceWaterline() {
     // 答案先行(PM 2026-07-07:"这一堆数字看不懂要讲什么"):状态句回答
     // "还能不能开、能开多大、为什么",原始数字降级为脚注,情景参数进悬停。
     const floorBad = c.floor_distance_usd != null && c.floor_distance_usd < 0;
+    // SPEC-138 F4: 缺轨(单券商掉线)时现金池缩水,floor/cap"击穿"是数据中断不是
+    // 治理裁决——降级为 advisory 语气(琥珀,非红),绝不出"锁定"/"已满"硬 verdict。
+    const railGap = d.rail_complete === false;
     let cashCls, cashLine;
-    if (floorBad) {
+    if (railGap) {
+      cashCls = 'rw-orange';
+      cashLine = `<span class="rw-word">数据降级</span> — 现金轨不齐(${d.degraded_error || '某账户数据缺失'}),池只统计在轨账户,预算/底线判定暂挂,数据恢复后自动复算`;
+    } else if (floorBad) {
       cashCls = 'rw-red';
       cashLine = `<span class="rw-word">锁定</span> — 现金已低于底线(${usd(c.floor_usd)}),所有吃现金的策略(BCD/T2)暂停,补现金后自动解锁`;
     } else if (!c.fits_standard_debit) {

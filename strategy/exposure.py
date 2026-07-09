@@ -182,6 +182,11 @@ def evaluate_exposure_degrade(strategy_key: str, *,
         "deployed_debit_usd": debit_usd,
         "strategy_pool_usd": None,
         "cash_source": cash_source,
+        # SPEC-138 F4: rail composition of the cash denominator. "partial" = a
+        # broker rail dropped (E-Trade token expired); its shrunk pool inflates
+        # pct_of_pool past the threshold purely from the missing rail (7/7:
+        # 33.5%→42%). That is a data outage, not a real exposure event.
+        "rail_complete": cash_source == "live",
         "pct_of_pool": None,
         "threshold_pct": float(threshold_pct),
         "copy": None,
@@ -194,6 +199,13 @@ def evaluate_exposure_degrade(strategy_key: str, *,
     out["strategy_pool_usd"] = round(pool, 2)
     pct = fam["family_open_max_loss_usd"] / pool * 100.0
     out["pct_of_pool"] = round(pct, 2)
+    if cash_source != "live":
+        # 缺轨：同口径 pct 仅供参考，不因缺轨压低的分母翻"敞口已满"。degraded 保持
+        # False（advisory/info），note 标 staleness——数据中断 ≠ 治理裁决。
+        out["note"] = (
+            f"敞口检查: 现金轨不齐（source={cash_source}），"
+            f"同口径占比 {pct:.1f}% 仅供参考，缺轨压低分母不作降级判定")
+        return out
     if pct >= threshold_pct:
         out["degraded"] = True
         out["copy"] = degrade_copy(fam["family"], fam["family_open_max_loss_usd"],
