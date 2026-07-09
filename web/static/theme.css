@@ -33,6 +33,7 @@
   --orange-bg: rgba(224,128,64,0.07);
   --orange-border: rgba(224,128,64,0.22);
   --purple: #B79CFF;
+  --teal-chart: #2FB8A6;   /* SPEC-137.4: put-wall / 结构地图图表专用 teal（非语义色）*/
   --gray-bg: rgba(96,104,128,0.08);
   --gray-border: rgba(96,104,128,0.2);
   --nav-bg: rgba(8,10,19,0.88);
@@ -253,6 +254,7 @@
   --orange-bg: rgba(184,94,23,0.12);
   --orange-border: rgba(184,94,23,0.30);
   --purple: #7652C8;
+  --teal-chart: #0F8A7C;   /* SPEC-137.4: put-wall / 结构地图图表专用 teal（非语义色）*/
   --gray-bg: rgba(102,112,133,0.10);
   --gray-border: rgba(102,112,133,0.25);
   --nav-bg: rgba(248,246,242,0.90);
