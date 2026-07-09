@@ -139,6 +139,20 @@ class F4CashBudgetGate(unittest.TestCase):
         self.assertFalse(r["accepted"])                # rail-complete 仍 veto
         self.assertTrue(r["stats"]["rail_complete"])
 
+    def test_f6_committed_cash_read_error_degrades_not_silent(self) -> None:
+        """SPEC-138 F6：committed 现金读取失败（get_open_cash_collateral 返回
+        error+total=0）不再被静默当 0 用（会 fail-OPEN 接受超预算单）——降 advisory。"""
+        cand = {"strategy_key": "bull_call_diagonal", "debit_usd": 5_000.0}
+        with patch.object(cbg, "get_current_liquid_cash",
+                          return_value=_cash(152_000.0, "live")), \
+             patch.object(cbg, "get_open_cash_collateral_total_usd",
+                          return_value={"total": 0.0, "positions": [],
+                                        "error": "positions read failed"}):
+            r = cbg.evaluate_cash_collateral_budget(cand)
+        self.assertTrue(r["accepted"])                 # 不 veto
+        self.assertEqual(r["outcome"], "advisory")
+        self.assertEqual(r["stats"]["open_cash_read_error"], "positions read failed")
+
 
 class F4ExposureDegrade(unittest.TestCase):
     """缺轨 fixture → exposure 不因缩水分母翻'敞口已满'；全轨 bit-identical。"""
