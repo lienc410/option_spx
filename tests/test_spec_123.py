@@ -299,6 +299,59 @@ class TestLedgerIds(GovBase):
         row = next(r for r in tlog.resolve_log() if r["id"] == "2026-06-03_bcd_001")
         self.assertEqual(row["duplicate_open_count"], 2)
 
+    def test_spec137_collapse_correction_resolves_duplicate(self):
+        """SPEC-137 §2 / §4a: an append-only collapse correction clears the
+        duplicate-open collision flag WITHOUT voiding the (real) position, and
+        leaves base_open as the first open. Idempotent — a second correction
+        keeps it at 0."""
+        self._open_position("2026-06-03_bcd_001", actual_premium=-380.0)
+        self._open_position("2026-06-03_bcd_001",
+                            timestamp="2026-06-03T11:24:05-04:00",
+                            actual_premium=-381.0)
+        before = next(r for r in tlog.resolve_log() if r["id"] == "2026-06-03_bcd_001")
+        self.assertEqual(before["duplicate_open_count"], 2)
+
+        tlog.append_event({
+            "id": "2026-06-03_bcd_001", "event": "correction",
+            "timestamp": "2026-06-03T13:31:29-04:00", "target_event": "open",
+            "fields": {}, "duplicate_open_resolution": "collapse",
+            "note": "double-click artifact — collapse to single position",
+        })
+        row = next(r for r in tlog.resolve_log() if r["id"] == "2026-06-03_bcd_001")
+        self.assertEqual(row["duplicate_open_count"], 0)   # collision resolved
+        self.assertFalse(row["voided"])                    # position NOT voided
+        self.assertIsNotNone(row["open"])
+        self.assertEqual(row["open"]["actual_premium"], -380.0)  # first open kept
+        self.assertEqual(row["campaign_id"], "2026-06-03_bcd_001")  # 归组不变
+
+        # idempotent: a second collapse correction is still 0, still intact
+        tlog.append_event({
+            "id": "2026-06-03_bcd_001", "event": "correction",
+            "timestamp": "2026-06-03T13:31:30-04:00", "target_event": "open",
+            "fields": {}, "duplicate_open_resolution": "collapse",
+            "note": "re-run",
+        })
+        row2 = next(r for r in tlog.resolve_log() if r["id"] == "2026-06-03_bcd_001")
+        self.assertEqual(row2["duplicate_open_count"], 0)
+        self.assertFalse(row2["voided"])
+
+    def test_spec137_migration_script_idempotent(self):
+        """The one-shot migration script appends exactly one collapse
+        correction and is a no-op on re-run."""
+        import scripts.spec137_dup_id_migration as mig
+        self._open_position("2026-06-03_bcd_001")
+        self._open_position("2026-06-03_bcd_001",
+                            timestamp="2026-06-03T11:24:05-04:00")
+        self.assertEqual(mig.apply_migration(), 1)   # applied
+        self.assertEqual(mig.apply_migration(), 0)   # idempotent no-op
+        corrections = [r for r in tlog.load_log()
+                       if r.get("event") == "correction"
+                       and r.get("duplicate_open_resolution") == "collapse"]
+        self.assertEqual(len(corrections), 1)
+        row = next(r for r in tlog.resolve_log() if r["id"] == "2026-06-03_bcd_001")
+        self.assertEqual(row["duplicate_open_count"], 0)
+        self.assertFalse(row["voided"])
+
 
 class TestSingleSource(unittest.TestCase):
     def test_effective_iv_signal_defined_once(self):

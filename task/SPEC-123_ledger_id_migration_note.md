@@ -20,15 +20,24 @@
 `logs.trade_log_io.ID_ALLOC_LOCK`；`resolve_log()` 对同 id 多 open 输出
 `duplicate_open_count` 标记（此前第二笔 open 被静默吞掉）。
 
-## 既有记录的迁移（需 PM/Quant 确认，dev 不擅自改写 ledger）
+## 既有记录的迁移（SPEC-137 §2 落地，2026-07-08）
 
-待确认问题：**11:24:05 的第二笔 _001 是独立仓位还是双击误提交？**（两条 open 字段接近）
+**判定：双击/重试误提交**（非独立仓位）。依据：两条 open 相隔 2s、字段接近；
+成因正是 ID_ALLOC_LOCK 修复所封的 id 分配竞态（分配早于数秒的 governance 评估，
+两个并发提交各自算出 `_001`）；D1 状态机一直按"1 笔持仓"处理该 id。
 
-- 若为**独立仓位**：将 11:24:05 的 open 重编号为 `2026-06-03_bcd_003`（直接编辑该行 id），
-  并确认 13:31 的 correction 目标是哪一笔（correction 行的 fields 与哪笔成交一致）；
-  归因统计（BCD 家族 D1 状态机读 ledger）在迁移完成前按 `duplicate_open_count` 标记行保守处理。
-- 若为**双击误提交**：对 11:24:05 那行补一条 `void` 事件（`target_event: open` + note 说明），
-  保持 append-only 纪律，不删行。
+**为何不用 §4a 原列的 `void`**：id 级 `void` 会把整个 `_001`（含第一笔真实 open）
+一并作废。改用 **append-only 消歧 correction**：
 
-**在迁移决定落地前**，D1 状态机（SPEC-123 §1）对带 `duplicate_open_count>0` 的 id
-按"1 笔持仓"计（resolve_log 现行为），并在 Telegram 文案中注明该 id 待迁移。
+```json
+{"id": "2026-06-03_bcd_001", "event": "correction", "target_event": "open",
+ "fields": {}, "duplicate_open_resolution": "collapse", "note": "..."}
+```
+
+`resolve_log()` 见到 `duplicate_open_resolution == "collapse"` 即：保留第一笔 open、
+`duplicate_open_count → 0`、**不 void 仓位**；13:31 的 correction 目标随之不再歧义
+（只剩一笔 open）。id 不变 → campaign 归组复核不变。
+
+**落地方式**：`scripts/spec137_dup_id_migration.py`（append-only + 幂等，重跑 no-op，
+不改/删既有行）。**在 oldair 上运行一次**即完成迁移；未运行前 `duplicate_open_count`
+仍为 2，D1 状态机继续按"1 笔持仓"保守处理（resolve_log 现行为不变）。
