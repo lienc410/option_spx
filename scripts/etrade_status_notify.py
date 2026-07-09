@@ -18,7 +18,6 @@ import logging
 import os
 import sys
 from pathlib import Path
-from urllib.parse import quote
 
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
@@ -34,37 +33,17 @@ log = logging.getLogger("etrade_notify")
 DEFAULT_REAUTH_URL = "https://www.portimperialventures.com/etrade/reauth"
 
 
-def _telegram_creds() -> tuple[str, str]:
-    return os.getenv("TELEGRAM_BOT_TOKEN", "").strip(), os.getenv("TELEGRAM_CHAT_ID", "").strip()
-
-
 def _send_telegram(text: str) -> bool:
-    import requests
-    # SPEC-130 host guard — 遗留直连 sender 也必须 deny-by-default
-    # （长期应迁移到 notify.gateway；guard 先封口）
-    from notify.event_push import push_enabled
-    if not push_enabled():
-        log.info("etrade_status_notify: SPX_PUSH_ENABLE != 1 — send suppressed (SPEC-130)")
-        return False
-    token, chat_id = _telegram_creds()
-    if not token or not chat_id:
-        log.warning("TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set — cannot send notification")
-        return False
-    try:
-        r = requests.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            data={"chat_id": chat_id, "text": text, "parse_mode": "Markdown",
-                  "disable_web_page_preview": True},
-            timeout=15,
-        )
-        if r.ok:
-            log.info("Telegram sent")
-            return True
-        log.error("Telegram send failed %d: %s", r.status_code, r.text[:200])
-        return False
-    except Exception as e:
-        log.error("Telegram error: %s", e)
-        return False
+    """SPEC-137: route through the unified gateway (category/about/dedupe +
+    host guard live in the transport). Was a legacy direct Telegram sender.
+
+    E-Trade re-auth is a 🔴 ALERT (PM must act now, before the market open);
+    dedupe_key keeps it to one nudge per ET day even if the check re-runs."""
+    from notify.gateway import escape, push as gw_push
+    return gw_push(
+        "ALERT", "系统状态", "E-Trade 登录已过期", escape(text),
+        dedupe_key="etrade_reauth",
+    )
 
 
 def main() -> None:
@@ -88,18 +67,17 @@ def main() -> None:
         sys.exit(0)
 
     reauth_url = os.getenv("ETRADE_REAUTH_URL", DEFAULT_REAUTH_URL)
-    reason = "expired" if (remaining is not None and remaining <= 0) else "expiring soon"
+    expired = remaining is not None and remaining <= 0
+    reason_cn = "已过期" if expired else "即将过期"
     expired_ago = abs(int(remaining / 60)) if remaining is not None and remaining < 0 else None
 
     msg_lines = [
-        "🔑 *E-Trade re-auth needed*",
+        f"E-Trade 令牌{reason_cn}" + (f"（{expired_ago} 分钟前）" if expired_ago is not None else "") + "，账户数据这一轨暂时缺席。",
         "",
-        f"Token {reason}" + (f" ({expired_ago} min ago)" if expired_ago is not None else ""),
+        "打开这个链接，30 秒重新登录即可恢复：",
+        reauth_url,
         "",
-        f"Open this link to re-auth in 30 seconds:",
-        f"[{reauth_url}]({reauth_url})",
-        "",
-        "_E-Trade tokens hard-expire at midnight ET daily; this is by design._",
+        "（E-Trade 令牌每天美东午夜硬过期，属正常机制，不是故障。）",
     ]
     text = "\n".join(msg_lines)
     log.info("Sending E-Trade re-auth notification to Telegram")

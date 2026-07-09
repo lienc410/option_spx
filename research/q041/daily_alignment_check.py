@@ -21,7 +21,6 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-import requests
 from dotenv import load_dotenv
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -36,7 +35,6 @@ MASSIVE_ROOT = REPO_ROOT / "data" / "q041_massive_snapshot"
 OUTPUT_PATH = REPO_ROOT / "data" / "q041_overlap_daily.jsonl"
 ALERT_STATE_PATH = REPO_ROOT / "data" / "q041_overlap_alert_state.jsonl"
 LOG_DIR = REPO_ROOT / "logs"
-TELEGRAM_TIMEOUT = 20
 
 _US_HOLIDAYS_2026 = {
     "2026-01-01",
@@ -355,23 +353,14 @@ def _append_daily_record(record: AlignmentRecord) -> None:
         fh.write(json.dumps(asdict(record), ensure_ascii=False) + "\n")
 
 
-def _telegram_creds() -> tuple[str, str]:
-    return os.getenv("TELEGRAM_BOT_TOKEN", "").strip(), os.getenv("TELEGRAM_CHAT_ID", "").strip()
-
-
-def _send_telegram_message(text: str, log: logging.Logger) -> bool:
-    token, chat_id = _telegram_creds()
-    if not token or not chat_id:
-        log.warning("telegram credentials missing; skip send")
-        return False
+def _send_telegram_message(text: str, log: logging.Logger, *, category: str = "FYI") -> bool:
+    """SPEC-137: route through the unified gateway (category/about/dedupe +
+    host guard in the transport). Was a legacy direct Telegram sender with no
+    host guard at all. Daily report → ⚪ FYI (quiet); alignment alert → 🔴
+    ALERT (rings)."""
     try:
-        res = requests.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            data={"chat_id": chat_id, "text": text},
-            timeout=TELEGRAM_TIMEOUT,
-        )
-        res.raise_for_status()
-        return True
+        from notify.gateway import escape, push as gw_push
+        return gw_push(category, "系统状态", "", escape(text))
     except Exception:
         log.exception("telegram send failed")
         return False
@@ -492,7 +481,7 @@ def run(*, day: date | None = None, force: bool = False, send_telegram: bool = T
         if send_telegram:
             _send_telegram_message(result.report_text, log)
             for alert_text in result.alert_texts:
-                _send_telegram_message(alert_text, log)
+                _send_telegram_message(alert_text, log, category="ALERT")
         log.info("q041 alignment status=%s date=%s record=%s", result.status, target_day.isoformat(), asdict(result.record))
         return 0
     except Exception:
