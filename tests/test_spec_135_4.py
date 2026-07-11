@@ -2,10 +2,16 @@
 # 同页两处渲染点的设计错误）。
 #
 # AC 覆盖：
-#   §1 首页唯一锚点容器（独立摘要卡删除，锚点故事的家 = SPX 卡理由区）
+#   §1 首页唯一决策链渲染点（独立摘要卡删除）
 #   §2 溯源标识主行零 token（静态扫描）/ final verdict 1.2rem Newsreader+色条 /
 #      安全刹车主行一句话 / 图例 0.6rem 项间 8px 右上 / WAIT·观望 → NO ENTRY
-#   §3 Lane B 语义行 + Lane C 地形一行（首页最小呈现，文案全部代码自吐同源）
+#   §3 三泳道呈现（文案全部代码自吐同源）
+#
+# 2026-07-11 对齐（0d5991f，PM 2026-07-08 指令）：首页决策链 = 与 /spx 完全
+# 一样的共享 Decision Trace 整卡（TraceRender.cardHtml/loadCard）。135.4 §1/§3
+# 时代的首页专属锚点摘要 + Lane B/C 迷你行已退役（两处并存即信息漂移）——
+# 本文件断言按 F1 铁律（改动有档→测试对齐）迁到单卡合同；生产先行提交
+# 0d5991f 未带测试，此处清偿。
 #
 # 135.3 语义断言（advisory 非红、恰一红节点、同源逐字一致）由 test_spec_135_3
 # 沿用回归，此处不重复。
@@ -23,28 +29,32 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class HomeSingleAnchorContainerTests(unittest.TestCase):
-    """§1 去重：首页恰一个锚点渲染点（SPX 卡理由区）。"""
+    """§1 去重（0d5991f 对齐）：首页恰一个决策链渲染点 = 共享整卡容器。"""
 
     @classmethod
     def setUpClass(cls) -> None:
         cls.home = (ROOT / "web" / "templates" / "portfolio_home.html").read_text(encoding="utf-8")
+        cls.tr = (ROOT / "web" / "static" / "trace_render.js").read_text(encoding="utf-8")
 
     def test_standalone_summary_card_deleted(self) -> None:
         self.assertNotIn('id="trace-summary"', self.home)
         self.assertNotIn("loadTraceSummary", self.home)
+        # 0d5991f：首页专属锚点摘要也退役（整卡是唯一决策链渲染点）
+        self.assertNotIn("TraceRender.anchorSummaryHtml(", self.home)
 
-    def test_exactly_one_anchor_render_site(self) -> None:
-        # DOM 断言的静态等价：锚点渲染调用在首页恰出现一次（rationale-spx 内）
-        self.assertEqual(self.home.count("TraceRender.anchorSummaryHtml("), 1)
-        i = self.home.find("TraceRender.anchorSummaryHtml(")
-        anchor_block = self.home[max(0, i - 1200):i]
-        self.assertIn("rationale", anchor_block)   # 渲染目标 = SPX 卡理由区
+    def test_exactly_one_render_site(self) -> None:
+        # DOM 断言的静态等价：共享整卡容器在首页恰出现一次（SPX 卡内）
+        self.assertEqual(self.home.count('id="decision-trace"'), 1)
+        i = self.home.find('id="decision-trace"')
+        card_block = self.home[max(0, i - 1500):i]
+        self.assertIn('id="card-spx"', card_block)   # 容器住在 SPX 主卡内
 
-    def test_expand_entry_in_spx_card(self) -> None:
-        # "展开完整决策链"入口保留在 SPX 卡锚点区底部（懒加载完整 Lane A）
-        self.assertIn("展开完整决策链", self.home)
-        self.assertIn("expandFullTrace", self.home)
-        self.assertIn("TraceRender.laneAHtml(d, 'home-ev')", self.home)
+    def test_full_chain_lives_in_shared_card(self) -> None:
+        # 完整决策链（含静默通过的门）由共享整卡承载——cardHtml 内含 Lane A
+        # 全图渲染；首页不再有独立"展开完整决策链"懒加载路径
+        self.assertNotIn("expandFullTrace", self.home)
+        self.assertIn("${traceLaneAHtml(d, 'trace-ev')}", self.tr)
+        self.assertIn("TraceRender.loadCard('decision-trace')", self.home)
 
 
 class ProvenanceOutOfMainRowTests(unittest.TestCase):
@@ -114,6 +124,7 @@ class VocabularyTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.spx = (ROOT / "web" / "templates" / "spx.html").read_text(encoding="utf-8")
         cls.home = (ROOT / "web" / "templates" / "portfolio_home.html").read_text(encoding="utf-8")
+        cls.tr = (ROOT / "web" / "static" / "trace_render.js").read_text(encoding="utf-8")
 
     def test_wait_final_label_no_entry_narrative(self) -> None:
         vs, ivs, ts = _nnb_snapshots(50.0)
@@ -123,9 +134,11 @@ class VocabularyTests(unittest.TestCase):
         self.assertNotIn("观望", fin["label_human"])
 
     def test_templates_use_no_entry_not_wait(self) -> None:
-        self.assertIn("NO ENTRY（不开新仓）", self.spx)
-        self.assertNotIn("今日观望", self.spx)
-        for tpl in (self.spx, self.home):
+        # 0d5991f：verdict 文案随整卡渲染器迁到共享 trace_render.js
+        self.assertIn("NO ENTRY（不开新仓）", self.tr)
+        for src in (self.spx, self.tr):
+            self.assertNotIn("今日观望", src)
+        for tpl in (self.spx, self.home, self.tr):
             self.assertNotIn("return 'WAIT'", tpl)
 
     def test_halt_label_single_sentence(self) -> None:
@@ -139,25 +152,28 @@ class VocabularyTests(unittest.TestCase):
 
 
 class LaneBCHomeTests(unittest.TestCase):
-    """§3 三泳道首页最小呈现：Lane B 语义行 + Lane C 地形一行，同源自吐。"""
+    """§3 三泳道呈现（0d5991f 对齐）：Lane B/C 唯一渲染 = 共享整卡；
+    首页专属迷你行（laneb-spx/lanec-spx）已退役（双源即漂移）。"""
 
     @classmethod
     def setUpClass(cls) -> None:
         cls.home = (ROOT / "web" / "templates" / "portfolio_home.html").read_text(encoding="utf-8")
+        cls.tr = (ROOT / "web" / "static" / "trace_render.js").read_text(encoding="utf-8")
 
-    def test_lane_b_row_wired_from_api_payload(self) -> None:
-        self.assertIn('id="laneb-spx"', self.home)
-        self.assertIn("${it.label_human}", self.home)     # 文案 = API 自吐
-        self.assertIn("badge-warning", self.home)         # Action State badge
+    def test_lane_b_single_sourced_in_shared_card(self) -> None:
+        self.assertNotIn('id="laneb-spx"', self.home)     # 迷你行退役
+        self.assertIn("${traceLaneBHtml(d.lane_b)}", self.tr)   # 整卡内渲染
+        self.assertIn("${it.label_human}", self.tr)       # 文案 = API 自吐
         # 反漂移：前端零规则硬编码（21-DTE 阈值/触发语句都来自 lane_b payload）
-        self.assertNotIn("short_dte", self.home)
-        self.assertNotIn("21-DTE", self.home)
-        self.assertNotIn("规则要求今天平掉或滚动", self.home)
+        for src in (self.home, self.tr):
+            self.assertNotIn("short_dte", src)
+            self.assertNotIn("21-DTE", src)
+            self.assertNotIn("规则要求今天平掉或滚动", src)
 
-    def test_lane_c_line_wired_from_summary_line(self) -> None:
-        self.assertIn('id="lanec-spx"', self.home)
-        self.assertIn("地形（只描述，不进决策）：${laneC.summary_line}", self.home)
-        self.assertIn("完整图 → Structure Map", self.home)
+    def test_lane_c_single_sourced_in_shared_card(self) -> None:
+        self.assertNotIn('id="lanec-spx"', self.home)     # 迷你行退役
+        self.assertIn("${laneC.narrative || '—'}", self.tr)     # 整卡内渲染
+        self.assertIn("${laneC.disclaimer || ''}", self.tr)
 
     def test_lane_c_summary_line_code_emitted(self) -> None:
         from strategy import decision_trace as dt
@@ -181,11 +197,13 @@ class LaneBCHomeTests(unittest.TestCase):
             out2 = dt.lane_c_terrain("2026-07-07")
         self.assertNotIn("summary_line", out2)
 
-    def test_spx_full_three_lanes_untouched(self) -> None:
+    def test_spx_full_lanes_untouched(self) -> None:
+        # 0d5991f：完整泳道渲染迁到共享 cardHtml；/spx 挂载同一整卡
+        for token in ("${traceLaneAHtml(d, 'trace-ev')}",
+                      "${traceLaneBHtml(d.lane_b)}"):
+            self.assertIn(token, self.tr)
         spx = (ROOT / "web" / "templates" / "spx.html").read_text(encoding="utf-8")
-        for token in ("TraceRender.laneAHtml(d, 'trace-ev')",
-                      "TraceRender.laneBHtml(d.lane_b)"):
-            self.assertIn(token, spx)
+        self.assertIn("TraceRender.loadCard('decision-trace')", spx)
 
 
 if __name__ == "__main__":
