@@ -169,3 +169,8 @@ PM 确认（原话）："我还没有手动做过 DD overlay。" → grandfather
 **实质已核**（PM"数据处理不等未来验收"指令）：oldair dry-run（venv 解释器）→ `gate: main_bp=15.8% cap=12.5% src=sleeve_governance_runtime.pools.spx_pm_bp_pct(all)`——新代码全链路真实 BP + 来源归因确认（对照死门裸 0.0）。
 
 **⚠ 周一（7/13）形式核查预警**：原 AC-8 期望 "main_bp_pct > 0"，但**全部 SPX 仓位已于 7/10 平掉**——若 PM 周一未开新仓，周一 09:40 快照刷新后 16:15 gate log 将写 **main_bp≈0.0 是真值**（书面平仓），不是死门复发。正确判据改为：**`bp_source` 字段存在**（新代码必写）且数值追踪现实（有仓>0/无仓=0）。勿把 true-zero 误读为 dead-zero。（本次 dry-run 的 15.8% 系周六读周五 09:40 快照的滞后值，周一刷新后消失，亦属正常。）
+
+
+## Grandfather 终章（2026-07-11 深夜，全线关闭）
+
+出处凿实：2026-03-12 = paper 模拟触发（RESEARCH_LOG R-20260510-15），"grandfather"=参数迁移豁免术语，审计"人工开"系措辞错误（勘误已入 synergy audit 附录）。paper 仓已补录+生产结算：`A-2026-03-12-002` exit_pnl +$16,329（6mo 评审首个样本就位，n=1 而非 0）。首版补录单位错误已 phantom 留痕。**PM 空集声明与全部事实一致；无人再欠任何动作。**
