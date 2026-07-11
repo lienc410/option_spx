@@ -80,6 +80,13 @@ class StrategyParams:
     # so backtest median debit $23,864 → ≤$22,000, complying with 60%-of-cash cap.
     # Applied in backtest engine when sizing BCD positions. In production, the
     # cash_budget_governance.py hard cap enforces this dynamically against live cash.
+    # Q096 (2026-07-12): engine-canonical sizing semantic, NOT a live directive.
+    # One SPX BCD contract costs $38-41k at 2025-26 spot (> this cap) — engine
+    # sizes ~0.6 fractional contracts while live's integer floor is 1 contract
+    # (≈1.7× engine per-trade risk). Quote engine BCD per-trade figures with the
+    # "(engine ~0.6ct)" lens. Do NOT raise to chase integer parity: the binding
+    # constraint is bp_target (4.5%×$500k≈$22.5k, near-coincident), and
+    # re-sizing would invalidate 26y of BCD backtest conclusions.
     bcd_max_debit_usd: float = 22_000.0
 
     # Total BP ceiling per regime (fraction of account_size, all concurrent positions combined)
