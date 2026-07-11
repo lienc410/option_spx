@@ -27,6 +27,13 @@ _TELEGRAM_API = "https://api.telegram.org/bot{token}/sendMessage"
 
 PUSH_STATS = Path(__file__).resolve().parents[1] / "logs" / "push_stats.json"
 
+# SPEC-139 #22 — per-delivery send ledger (one strict-JSON line per push that
+# actually reached Telegram). push_stats只累加 sent/fallback/failed 计数，无法
+# 溯源"每天 ~7 条无 key 静默件是谁"；此账本补齐 category/about/title/key 逐条。
+# 14 日 rotation 与 push_stats 同步；写入位于 SPEC-130 主机 guard 之后（禁发即
+# 禁记），且仅在真 200 送达后追加。
+PUSH_LEDGER = Path(__file__).resolve().parents[1] / "logs" / "push_ledger.jsonl"
+
 # SPEC-130 — 主机 guard 环境变量。仅 oldair 生产 launchd plists 设置为 "1"；
 # 其它任何机器（dev 机、CI、误跑的脚本）deny-by-default 哑火。
 PUSH_ENABLE_ENV = "SPX_PUSH_ENABLE"
@@ -70,6 +77,50 @@ def _record_push(outcome: str) -> None:
         log.exception("event_push: stats record failed")
 
 
+def _record_ledger(meta: Optional[dict], *, quiet: bool, fallback: bool) -> None:
+    """SPEC-139 #22 — append one strict-JSON line per delivered push. Fields:
+    {ts, category, about, title_head(前40字), dedupe_key(或 null), quiet, fallback}.
+    Called ONLY on a real 200 delivery (sent or plain-text fallback), i.e. strictly
+    after the SPEC-130 host guard — so a non-production host writes zero ledger
+    rows (禁发即禁记), same posture as push_stats. Naked _send(text) callers pass
+    meta=None → row is still recorded with null category/about/title/key.
+    Rotation keeps the most recent 14 distinct ET days (mirrors _record_push)."""
+    try:
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        meta = meta or {}
+        title = meta.get("title")
+        row = {
+            "ts": datetime.now(ZoneInfo("America/New_York")).isoformat(timespec="seconds"),
+            "category": meta.get("category"),
+            "about": meta.get("about"),
+            "title_head": (str(title)[:40] if title else None),
+            "dedupe_key": meta.get("dedupe_key"),
+            "quiet": bool(quiet),
+            "fallback": bool(fallback),
+        }
+        rows = []
+        if PUSH_LEDGER.exists():
+            for line in PUSH_LEDGER.read_text().splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rows.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue   # skip a corrupt line, never crash the send path
+        rows.append(row)
+        # keep rows from the most recent 14 distinct ET dates (== push_stats window)
+        keep = set(sorted({r.get("ts", "")[:10] for r in rows if r.get("ts")})[-14:])
+        rows = [r for r in rows if r.get("ts", "")[:10] in keep]
+        PUSH_LEDGER.parent.mkdir(parents=True, exist_ok=True)
+        PUSH_LEDGER.write_text(
+            "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n"
+                    for r in rows))
+    except Exception:
+        log.exception("event_push: ledger record failed")
+
+
 _HTML_TAG_RE = re.compile(r"</?(?:b|strong|i|em|u|s|code|pre|a)(?:\s[^>]*)?>",
                           re.IGNORECASE)
 
@@ -84,7 +135,8 @@ def _to_plain(text: str) -> str:
     return out.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
 
 
-def _send(text: str, *, disable_notification: bool = False) -> bool:
+def _send(text: str, *, disable_notification: bool = False,
+          meta: Optional[dict] = None) -> bool:
     """H-4 (2026-07-06 incident): the 16:50 governance push contained a raw
     '< 0' comparison, Telegram's HTML parser returned 400, and the message
     vanished with only a log line — no retry, no fallback, no operator
@@ -97,7 +149,12 @@ def _send(text: str, *, disable_notification: bool = False) -> bool:
 
     SPEC-130: host guard FIRST — non-production hosts return False with zero
     HTTP and zero stats writes (stats live behind the guard so push_stats
-    stays a clean production-delivery ledger)."""
+    stays a clean production-delivery ledger).
+
+    SPEC-139 #22: optional `meta` (category/about/title/dedupe_key, supplied by
+    gateway.push) is written to logs/push_ledger.jsonl on a real 200 delivery
+    for per-send tracing. `meta` is fully optional — legacy naked _send(text)
+    callers are unaffected (row recorded with null fields)."""
     if not push_enabled():
         log.info("event_push: %s != 1 — push suppressed (SPEC-130 host guard, "
                  "deny-by-default; only oldair production plists enable it)",
@@ -119,6 +176,7 @@ def _send(text: str, *, disable_notification: bool = False) -> bool:
         )
         if r.status_code == 200:
             _record_push("sent")
+            _record_ledger(meta, quiet=disable_notification, fallback=False)
             return True
         log.warning("event_push: Telegram returned %s: %s — retrying as plain text",
                     r.status_code, r.text[:200])
@@ -129,6 +187,7 @@ def _send(text: str, *, disable_notification: bool = False) -> bool:
         )
         if r2.status_code == 200:
             _record_push("fallback")
+            _record_ledger(meta, quiet=disable_notification, fallback=True)
             return True
         log.error("event_push: plain-text retry also failed %s: %s",
                   r2.status_code, r2.text[:200])
