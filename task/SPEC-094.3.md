@@ -15,7 +15,7 @@
 executor EOD（`run_eod_evaluation` 末段，settle 之后）扫描两账本中 `fill_debit == null` 且未 settle 的 open 记录：
 
 - **每日确认（PM 2026-07-12 修订：替换原 T+2 单次提醒）**：自 entry_target_date 起，**每个交易日 EOD** 发确认提醒（dedupe `q042_fill_reminder_{trade_id}_{date}`，每日一条）："Q042 [sleeve] 触发单第 N 天未确认——已执行请回填 fill_debit；未执行请回复释放（或等 T+5 自动释放）"。
-- **T+5** 仍 null → **自动释放槽位（兜底，PM approve 时可勾除）**：清 `state[sleeve].active_position_id`/`active_position_expiry` + 账本记录打 `phantom: true`（不删，保审计链）+ ACTION 告警："幽灵仓位已释放，sleeve 恢复可触发；若实际已成交请立即补录并手工恢复 state"。连续 5 日提醒未获响应即释放——兜底存在的理由：6 月案例正是零响应场景。
+- **T+5** 仍 null → **自动释放槽位（兜底，PM 2026-07-12 确认保留）**：清 `state[sleeve].active_position_id`/`active_position_expiry` + 账本记录打 `phantom: true`（不删，保审计链）+ ACTION 告警："幽灵仓位已释放，sleeve 恢复可触发；若实际已成交请立即补录并手工恢复 state"。连续 5 日提醒未获响应即释放——兜底存在的理由：6 月案例正是零响应场景。
 - armed 状态**不回补**（触发已按研究语义消耗；释放的只是 no-overlap 槽位）。
 
 ### F2 — 手动 open 端点回写 state（SPEC-094.2 N7 可选项转正式）
@@ -37,7 +37,8 @@ executor EOD（`run_eod_evaluation` 末段，settle 之后）扫描两账本中 
 （无）
 
 ## Review
-- 结论：N/A
+- 结论：N/A（实施后 Quant fidelity review 补）
+- 审批链：PM 2026-07-11"同意继续推进"（立项）→ 2026-07-12 修订 F1 为每日确认 → 2026-07-12"保留兜底"（最后一个开放设计项落定，视为 APPROVED）
 
 ## 验收标准
 
@@ -59,4 +60,4 @@ executor EOD（`run_eod_evaluation` 末段，settle 之后）扫描两账本中 
 5. **Failure / rollback**：部署后首次 T+5 释放若误清真实仓位（PM 已成交但未回填）→ 按 ACTION 告警指引补录+手工恢复 state；连续 2 次误释放 → 回 Quant 复核 T+5 参数。
 
 ---
-Status: DRAFT
+Status: APPROVED
