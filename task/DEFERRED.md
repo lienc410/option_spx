@@ -25,3 +25,4 @@
 | 19 | Q089 候选：BCD 入场择时 overlay（F3 超卖复合 + time-stop；6/3 实证推送自身产生坏入场；S3 前科已注记差异） | PM 交易复盘 2026-07-06 | 2026-07-06 | 2026-08-15 | Quant framing | **CLOSED 2026-07-06**：同日 E1-E4 全流程，双 kill（外审 CONFIRM + PM ratify）；verdict 见 research/q089/ |
 | 20 | Credit 侧并发 max-loss cap：debit 有 SPEC-111 预算、credit 无（5 月实证并发 ~$197k 无约束视野）；是否设规则 = PM 治理决定 | BPS 复审 2026-07-07 | 2026-07-07 | PM 主动提起时 | PM 决策 | 登记 |
 | 21 | Q090 条件性重开：S1s 支撑簇需宽切点 n≥100；S3 持仓墙正式测需前瞻 n≥60（进度由 SPEC-132 shadow 流 + 月度 digest 追踪）；历史 OI 采购为加速选项 | Q090 封账 2026-07-07 | 2026-07-07 | shadow 流达标时 | Quant | 收集中 |
+| 22 | Gateway send-ledger：成功发送零日志（仅记 dedupe/clear），SPEC-126 完整验收的无 key 静默件（~7条/日）无法溯源——加一行 per-send jsonl（ts/category/about/key） | SPEC-126 验收 2026-07-10 | 2026-07-10 | 下一 dev 批 | Dev | 排队 |
