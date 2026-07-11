@@ -189,6 +189,70 @@
     }).join('');
   }
 
+  // SPEC-135.4 §1 修正：整卡渲染器提升为共享单一源（原先只在 spx.html，
+  // 首页另做一套锚点摘要 → 两处并存即信息漂移风险）。现在 /spx 与
+  // Portfolio Command Center 渲染同一 <details class="trace-card"> 全图。
+  function traceCardHtml(d) {
+    const fin = d.final || {};
+    // 词表合规：WAIT/观望 不在 Action State 词表 → NO ENTRY
+    const verdict = fin.strategy_key === 'reduce_wait'
+      ? 'NO ENTRY（不开新仓）'
+      : (fin.strategy ? `开仓候选 — ${fin.strategy}` : '（无当日结论存档）');
+    const dateOptions = (d.dates_available || []).slice().reverse().map((dt) =>
+      `<option value="${dt}" ${dt === d.date ? 'selected' : ''}>${dt}</option>`).join('');
+    const laneC = d.lane_c || {};
+    return `
+      <details class="trace-card" ${d.is_today ? '' : 'open'}>
+        <summary>
+          <span>Decision Trace</span>
+          <span class="trace-verdict">${verdict}</span>
+          <span style="margin-left:auto;font-weight:400;letter-spacing:0;text-transform:none">为什么是这个结论 → 点开看全程</span>
+        </summary>
+        <div class="trace-body">
+          ${traceLegendHtml()}
+          <div class="trace-date-row">
+            <select id="trace-date-pick" onchange="loadDecisionTrace(this.value)">${dateOptions}</select>
+            <span style="font-size:0.66rem;color:var(--text-2)">最近 30 个有记录的交易日可切换</span>
+          </div>
+          <div class="trace-lane">
+            <div class="trace-lane-title">Lane A · 今天开不开新仓？</div>
+            ${traceLaneAHtml(d, 'trace-ev')}
+          </div>
+          <div class="trace-lane">
+            <div class="trace-lane-title">Lane B · 手上的仓位要动吗？</div>
+            ${traceLaneBHtml(d.lane_b)}
+          </div>
+          <div class="trace-lane">
+            <div class="trace-lane-title">Lane C · 地形参考（只描述，不决策）</div>
+            <div style="font-size:0.76rem;color:var(--text);line-height:1.6">${laneC.narrative || '—'}</div>
+            <div class="trace-disclaimer">${laneC.disclaimer || ''}</div>
+          </div>
+        </div>
+      </details>`;
+  }
+
+  // 挂载/刷新整卡到某容器；保留展开态。onchange 日期切换走 window.loadDecisionTrace。
+  let _traceLastContainer = 'decision-trace';
+  async function traceLoadCard(containerId, dateStr) {
+    const id = containerId || _traceLastContainer;
+    _traceLastContainer = id;
+    const wrap = document.getElementById(id);
+    if (!wrap) return;
+    try {
+      const url = dateStr ? `/api/decision-trace?date=${encodeURIComponent(dateStr)}` : '/api/decision-trace';
+      const res = await fetch(url);
+      const data = await res.json();
+      const wasOpen = wrap.querySelector('.trace-card') && wrap.querySelector('.trace-card').open;
+      wrap.innerHTML = traceCardHtml(data);
+      if (wasOpen || dateStr) { const c = wrap.querySelector('.trace-card'); if (c) c.open = true; }
+    } catch (_) {
+      wrap.innerHTML = '';
+    }
+  }
+
+  // 日期下拉 onchange 全局入口（两页 baked-in 同名，复用最近挂载的容器）
+  window.loadDecisionTrace = function (dateStr) { return traceLoadCard(_traceLastContainer, dateStr); };
+
   window.TraceRender = {
     ICONS: TRACE_ICONS,
     ANCHOR_ICONS: TRACE_ANCHOR_ICONS,
@@ -201,5 +265,7 @@
     anchorSummaryHtml: traceAnchorSummaryHtml,
     laneAHtml: traceLaneAHtml,
     laneBHtml: traceLaneBHtml,
+    cardHtml: traceCardHtml,
+    loadCard: traceLoadCard,
   };
 })();

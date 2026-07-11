@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec135_4">
 <script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
 <!-- SPEC-135.3: Decision Trace 共享渲染器（与 /spx 同一 copy 源） -->
-<script src="{{ url_for('static', filename='trace_render.js') }}?v=spec135_4"></script>
+<script src="{{ url_for('static', filename='trace_render.js') }}?v=spec135_5"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1126,9 +1126,8 @@ body {
   <!-- Today's Actions section label -->
   <div class="section-label" style="margin-bottom:10px">Today's Actions</div>
 
-  <!-- SPEC-135.4 §1：独立锚点摘要卡已删——锚点故事唯一的家 = SPX 卡
-       （tier-primary 本就含 rationale narrative，同页两处渲染点是 135.3
-       的设计错误）。首页唯一锚点容器 = #rationale-spx。 -->
+  <!-- SPEC-135.4 §1：决策链唯一渲染 = SPX 卡内的共享 Decision Trace 整卡
+       （#decision-trace，与 /spx 同一 TraceRender.loadCard）。 -->
 
   <!-- ── SPX Primary Card ── -->
   <div class="strategy-card tier-primary" id="card-spx">
@@ -1140,13 +1139,12 @@ body {
       <span class="state-badge badge-wait" id="badge-spx">NO ENTRY</span>
     </div>
     <div class="card-signals" id="signals-spx"></div>
-    <div class="card-rationale-primary" id="rationale-spx"></div>
     <div class="card-structure" id="structure-spx"></div>
+    <!-- SPEC-135.4 §1：Decision Trace 整卡（含 Lane A/B/C）——与 /spx 同一
+         共享渲染器 TraceRender.loadCard，唯一决策链渲染点，防信息漂移。 -->
+    <div id="decision-trace"></div>
     <div class="card-position" id="position-spx">
       <div class="pos-header">Open Position</div>
-      <!-- SPEC-135.4 §3：Lane B 语义行（要动吗？）——文案 = /api/decision-trace
-           lane_b（代码自吐，前端零规则硬编码），与 /spx 三泳道同源 -->
-      <div id="laneb-spx"></div>
       <div class="pos-none" id="pos-spx-body">Loading…</div>
     </div>
     <div class="settling-panel" id="settling-panel-spx">
@@ -1157,10 +1155,6 @@ body {
       <div class="settling-body" id="settling-body-spx" style="display:none">Loading settled-VIX state…</div>
       <div class="settling-note" id="settling-note-spx" style="display:none">Forward-tracking observation only. Not an actionable trade recommendation.</div>
     </div>
-    <!-- SPEC-135.4 §3：Lane C 地形一行（tier-tertiary 灰调，只描述不进决策）
-         ——文案 = /api/decision-trace lane_c.summary_line（structure-map 同一
-         shadow row 派生，代码自吐） -->
-    <div id="lanec-spx" style="display:none;font-family:var(--f-mono);font-size:0.66rem;color:var(--text-2);border-top:1px solid var(--border);margin-top:10px;padding-top:8px"></div>
   </div>
 
   <!-- ── Stress Put Ladder Card (/ES) ── -->
@@ -1650,50 +1644,9 @@ function shortRecLabel(sig) {
 // ── SPEC-135.4: Decision Trace 首页接线（数据源 /api/decision-trace 单次
 //    fetch 复用；渲染 = 共享 TraceRender —— 与 /spx 全图同一 copy 源）。
 //    §1 独立摘要卡已删：锚点唯一渲染点在 SPX 卡理由区（loadSpx 内）。─────────
-let _traceCache = null;
-async function _fetchDecisionTrace() {
-  if (_traceCache) return _traceCache;
-  const res = await fetch('/api/decision-trace');
-  _traceCache = await res.json();
-  return _traceCache;
-}
-
-// SPX 卡锚点区"展开完整决策链"——懒加载完整 Lane A（含静默通过的门）
-async function expandFullTrace(det) {
-  if (!det.open || det.dataset.loaded) return;
-  const box = det.querySelector('.home-full-trace');
-  try {
-    const d = await _fetchDecisionTrace();
-    box.innerHTML = TraceRender.laneAHtml(d, 'home-ev');
-    det.dataset.loaded = '1';
-  } catch (_) {
-    box.textContent = '决策链数据暂不可用';
-  }
-}
-
-// §3 三泳道首页最小呈现：Lane B 语义行（Open Position 区顶）+ Lane C 地形一行
-// （SPX 卡底）。文案全部来自 API（代码自吐），前端零规则/阈值硬编码。
-async function loadTraceLanes() {
-  let d;
-  try { d = await _fetchDecisionTrace(); } catch (_) { return; }
-  const lb = document.getElementById('laneb-spx');
-  if (lb) {
-    const rows = (d.lane_b || []).filter((it) => it.state === 'action' || it.state === 'hold');
-    lb.innerHTML = rows.map((it) => {
-      const warn = it.state === 'action';
-      return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)" title="${(it.code_ref ? '溯源: ' + it.code_ref : '').replace(/"/g, '&quot;')}">
-        <span class="state-badge ${warn ? 'badge-warning' : 'badge-hold'}">${warn ? 'WARNING' : 'HOLD'}</span>
-        <span style="font-size:0.72rem;color:${warn ? 'var(--orange)' : 'var(--text-2)'}">${it.label_human}</span>
-      </div>`;
-    }).join('');
-  }
-  const lc = document.getElementById('lanec-spx');
-  const laneC = d.lane_c || {};
-  if (lc && laneC.summary_line) {
-    lc.innerHTML = `地形（只描述，不进决策）：${laneC.summary_line} · <a href="/spx" style="color:var(--text-2)">完整图 → Structure Map</a>`;
-    lc.style.display = '';
-  }
-}
+// SPEC-135.4 §1：首页决策链 = 与 /spx 同一共享整卡（TraceRender.loadCard，
+// 挂载见 init）。原先首页自做的锚点摘要 + Lane B/C 迷你行已删——两处并存
+// 即信息漂移风险，PM 2026-07-08 定为唯一渲染点。
 
 // ── SPX Card ──────────────────────────────────────────────────────────────────
 async function loadSpx() {
@@ -1751,24 +1704,9 @@ async function loadSpx() {
       chips += sigChip('VIX3M', fmtNum(vix.vix3m, 1), '', vix.backwardation ? 'backw.' : '');
     document.getElementById('signals-spx').innerHTML = chips;
 
-    // Rationale — SPEC-135.4：首页唯一锚点容器。渲染 trace 锚点序列
-    // （候选→刹车→结论，与 Decision Trace 同一 copy 源；完整 detail 含
-    // pm-clear 命令由 hover title 承载）+ 图例（右上角）+ 展开完整决策链
-    // 入口（懒加载 /api/decision-trace 完整 Lane A）。裸 rationale 长文本
-    // 仅作无 trace 的降级路径。
-    const _anchorsHtml = (window.TraceRender && rec.trace)
-      ? TraceRender.anchorSummaryHtml(rec.trace) : '';
-    if (_anchorsHtml) {
-      document.getElementById('rationale-spx').innerHTML = `
-        ${TraceRender.legendHtml()}
-        ${_anchorsHtml}
-        <details style="margin-top:6px" ontoggle="expandFullTrace(this)">
-          <summary style="cursor:pointer;list-style:none;font-size:0.66rem;color:var(--text-2)">▸ 展开完整决策链（含静默通过的门与资金检查）</summary>
-          <div class="home-full-trace" style="margin-top:8px">加载中…</div>
-        </details>`;
-    } else if (rec.rationale) {
-      document.getElementById('rationale-spx').textContent = rec.rationale;
-    }
+    // 决策链已由共享 Decision Trace 整卡承载（#decision-trace，见 init
+    // TraceRender.loadCard）——loadSpx 不再自渲染理由/锚点，避免与整卡
+    // 双源漂移（SPEC-135.4 §1）。
 
     // Legs structure — option type from l.option (CALL/PUT); was hard-coded
     // PUT, which mislabelled bull_call_diagonal / bear_call_spread / IC call
@@ -3656,7 +3594,7 @@ async function syncPortfolio() {
   const ts  = document.getElementById('sync-ts');
   if (btn) { btn.textContent = '↻ Syncing…'; btn.disabled = true; }
   if (ts)  ts.textContent = '';
-  await Promise.allSettled([loadSpx(), loadTraceLanes(), loadSettling(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadSchwabAuthBanner(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition()]);
+  await Promise.allSettled([loadSpx(), TraceRender.loadCard('decision-trace'), loadSettling(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadSchwabAuthBanner(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition()]);
   if (btn) { btn.textContent = '↻ Sync'; btn.disabled = false; }
   if (ts)  ts.textContent = 'synced ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
@@ -3845,7 +3783,7 @@ setInterval(loadResourceWaterline, 5 * 60 * 1000);
   _initDefaultView();
   // SPEC-110: pre-fetch E*Trade monthly NLV so widget renders immediately on snapshot load
   _fetchEtMonthlyNlv();
-  await Promise.allSettled([loadSpx(), loadTraceLanes(), loadSettling(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadSchwabAuthBanner(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition(), loadIntradayGov()]);
+  await Promise.allSettled([loadSpx(), TraceRender.loadCard('decision-trace'), loadSettling(), loadStressPutLadder(), loadNLVChange(), loadQ041(), loadQ042(), loadSchwabAuthBanner(), loadEtradeAuthBanner(), loadSnapshot(), loadGovernance(), loadPositionComposition(), loadIntradayGov()]);
   const ts = document.getElementById('sync-ts');
   if (ts) ts.textContent = 'loaded ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 

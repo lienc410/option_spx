@@ -16,7 +16,7 @@
      License text: web/static/lightweight-charts.LICENSE -->
 <script src="{{ url_for('static', filename='lightweight-charts.standalone.production.js') }}?v=spec132_1"></script>
 <!-- SPEC-135.3: Decision Trace 共享渲染器（与 Portfolio 首页同源） -->
-<script src="{{ url_for('static', filename='trace_render.js') }}?v=spec135_4"></script>
+<script src="{{ url_for('static', filename='trace_render.js') }}?v=spec135_5"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -2916,63 +2916,9 @@ async function loadStructureMap() {
   }
 }
 
-// ── SPEC-135 — Decision Trace（管道自吐；前端零硬编码 gate 清单）────────────
-
-function renderDecisionTrace(d) {
-  const wrap = document.getElementById('decision-trace');
-  if (!wrap) return;
-  const fin = d.final || {};
-  // SPEC-135.4 词表合规：WAIT/观望 不在 Action State 词表 → NO ENTRY
-  const verdict = fin.strategy_key === 'reduce_wait'
-    ? 'NO ENTRY（不开新仓）'
-    : (fin.strategy ? `开仓候选 — ${fin.strategy}` : '（无当日结论存档）');
-  const dateOptions = (d.dates_available || []).slice().reverse().map((dt) =>
-    `<option value="${dt}" ${dt === d.date ? 'selected' : ''}>${dt}</option>`).join('');
-  const laneC = d.lane_c || {};
-  wrap.innerHTML = `
-    <details class="trace-card" ${d.is_today ? '' : 'open'}>
-      <summary>
-        <span>Decision Trace</span>
-        <span class="trace-verdict">${verdict}</span>
-        <span style="margin-left:auto;font-weight:400;letter-spacing:0;text-transform:none">为什么是这个结论 → 点开看全程</span>
-      </summary>
-      <div class="trace-body">
-        ${TraceRender.legendHtml()}
-        <div class="trace-date-row">
-          <select id="trace-date-pick" onchange="loadDecisionTrace(this.value)">${dateOptions}</select>
-          <span style="font-size:0.66rem;color:var(--text-2)">最近 30 个有记录的交易日可切换</span>
-        </div>
-        <div class="trace-lane">
-          <div class="trace-lane-title">Lane A · 今天开不开新仓？</div>
-          ${TraceRender.laneAHtml(d, 'trace-ev')}
-        </div>
-        <div class="trace-lane">
-          <div class="trace-lane-title">Lane B · 手上的仓位要动吗？</div>
-          ${TraceRender.laneBHtml(d.lane_b)}
-        </div>
-        <div class="trace-lane">
-          <div class="trace-lane-title">Lane C · 地形参考（只描述，不决策）</div>
-          <div style="font-size:0.76rem;color:var(--text);line-height:1.6">${laneC.narrative || '—'}</div>
-          <div class="trace-disclaimer">${laneC.disclaimer || ''}</div>
-        </div>
-      </div>
-    </details>`;
-}
-
-async function loadDecisionTrace(dateStr) {
-  const wrap = document.getElementById('decision-trace');
-  if (!wrap) return;
-  try {
-    const url = dateStr ? `/api/decision-trace?date=${encodeURIComponent(dateStr)}` : '/api/decision-trace';
-    const res = await fetch(url);
-    const data = await res.json();
-    const wasOpen = wrap.querySelector('.trace-card')?.open;
-    renderDecisionTrace(data);
-    if (wasOpen || dateStr) { const c = wrap.querySelector('.trace-card'); if (c) c.open = true; }
-  } catch (_) {
-    wrap.innerHTML = '';
-  }
-}
+// ── SPEC-135 — Decision Trace ──────────────────────────────────────────────
+// 整卡渲染器 + 日期切换均提升到共享 TraceRender（trace_render.js），与
+// Portfolio Command Center 同一源，杜绝两处并存的信息漂移。挂载见 init。
 
 // ── Intraday panel ──────────────────────────────────────────────────────────
 
@@ -3132,7 +3078,7 @@ async function loadSettling() {
   loadIntraday();
   loadSettling();
   loadStructureMap();  // SPEC-132 — 日更 shadow，页面加载读一次即可
-  loadDecisionTrace(); // SPEC-135 — 决策管道 trace（当日现算，折叠区）
+  TraceRender.loadCard('decision-trace'); // SPEC-135 — 决策管道 trace（共享整卡）
   setInterval(load,        5 * 60 * 1000);
   setInterval(loadPosition,    30 * 1000);
   setInterval(loadIntraday,    60 * 1000);
