@@ -940,49 +940,56 @@ def api_aftermath_history():
         return jsonify({"error": str(exc), "windows": [], "total_windows": 0}), 200
 
 
+def aftermath_state_payload() -> dict:
+    """Aftermath 窗口状态 payload — is_aftermath() 与 selector 同一函数。
+
+    /api/aftermath/state 与 Decision Trace Lane D（SPEC-135.5）同一组装点
+    （数据同源铁律，装配层禁旁路重推）。Aftermath = VIX peak回落 window，
+    active if: trailing 10d VIX peak >= 28 AND current VIX <= peak * (1 - 10%)
+    AND vix < 40.
+    """
+    from signals.vix_regime import get_current_snapshot
+    from strategy.selector import (
+        is_aftermath,
+        AFTERMATH_PEAK_VIX_10D_MIN,
+        AFTERMATH_OFF_PEAK_PCT,
+    )
+    vix = get_current_snapshot()
+    peak = vix.vix_peak_10d
+    active = is_aftermath(vix)
+    off_peak_pct = ((peak - vix.vix) / peak * 100.0) if peak and peak > 0 else None
+    reason = None
+    if not active:
+        if peak is None:
+            reason = "no_peak_data"
+        elif peak < AFTERMATH_PEAK_VIX_10D_MIN:
+            reason = f"peak_below_threshold ({peak:.1f} < {AFTERMATH_PEAK_VIX_10D_MIN})"
+        elif vix.vix >= 40.0:
+            reason = f"vix_above_extreme ({vix.vix:.1f} >= 40)"
+        elif off_peak_pct is not None and off_peak_pct < AFTERMATH_OFF_PEAK_PCT * 100:
+            reason = f"insufficient_off_peak ({off_peak_pct:.1f}% < {AFTERMATH_OFF_PEAK_PCT*100:.0f}%)"
+        else:
+            reason = "not_active"
+    return {
+        "active": active,
+        "vix": round(vix.vix, 2),
+        "vix_peak_10d": round(peak, 2) if peak else None,
+        "off_peak_pct": round(off_peak_pct, 2) if off_peak_pct is not None else None,
+        "threshold_off_peak_pct": AFTERMATH_OFF_PEAK_PCT * 100,
+        "threshold_peak_min": AFTERMATH_PEAK_VIX_10D_MIN,
+        "threshold_vix_max": 40.0,
+        "regime": vix.regime.value if vix.regime else None,
+        "trend": vix.trend.value if vix.trend else None,
+        "reason": reason,
+        "date": datetime.now(_ET).date().isoformat(),
+    }
+
+
 @app.route("/api/aftermath/state")
 def api_aftermath_state():
-    """Aftermath addon state — surfaces is_aftermath() trigger from SPX selector.
-
-    Aftermath = VIX peak回落 window. Currently active if:
-      trailing 10d VIX peak >= 28 AND current VIX <= peak * (1 - 10%) AND vix < 40.
-    """
+    """Aftermath addon state — surfaces is_aftermath() trigger from SPX selector."""
     try:
-        from signals.vix_regime import get_current_snapshot
-        from strategy.selector import (
-            is_aftermath,
-            AFTERMATH_PEAK_VIX_10D_MIN,
-            AFTERMATH_OFF_PEAK_PCT,
-        )
-        vix = get_current_snapshot()
-        peak = vix.vix_peak_10d
-        active = is_aftermath(vix)
-        off_peak_pct = ((peak - vix.vix) / peak * 100.0) if peak and peak > 0 else None
-        reason = None
-        if not active:
-            if peak is None:
-                reason = "no_peak_data"
-            elif peak < AFTERMATH_PEAK_VIX_10D_MIN:
-                reason = f"peak_below_threshold ({peak:.1f} < {AFTERMATH_PEAK_VIX_10D_MIN})"
-            elif vix.vix >= 40.0:
-                reason = f"vix_above_extreme ({vix.vix:.1f} >= 40)"
-            elif off_peak_pct is not None and off_peak_pct < AFTERMATH_OFF_PEAK_PCT * 100:
-                reason = f"insufficient_off_peak ({off_peak_pct:.1f}% < {AFTERMATH_OFF_PEAK_PCT*100:.0f}%)"
-            else:
-                reason = "not_active"
-        return jsonify({
-            "active": active,
-            "vix": round(vix.vix, 2),
-            "vix_peak_10d": round(peak, 2) if peak else None,
-            "off_peak_pct": round(off_peak_pct, 2) if off_peak_pct is not None else None,
-            "threshold_off_peak_pct": AFTERMATH_OFF_PEAK_PCT * 100,
-            "threshold_peak_min": AFTERMATH_PEAK_VIX_10D_MIN,
-            "threshold_vix_max": 40.0,
-            "regime": vix.regime.value if vix.regime else None,
-            "trend": vix.trend.value if vix.trend else None,
-            "reason": reason,
-            "date": datetime.now(_ET).date().isoformat(),
-        })
+        return jsonify(aftermath_state_payload())
     except Exception as exc:
         return jsonify({
             "active": False,
@@ -2180,73 +2187,78 @@ def api_etrade_auth():
         return redirect("/")
 
 
+def q042_state_payload() -> dict:
+    """DD Overlay 当前状态 payload（/api/q042/state 与 Lane D 同一组装点，
+    SPEC-135.5 数据同源铁律——装配层禁旁路重推）。"""
+    from signals.q042_trigger import get_current_q042_snapshot
+    from production.q042_positions import get_active_positions, get_lifetime_stats, q042_concentration_monitor
+    from strategy.q042_config import (
+        Q042_SLEEVE_A_PRODUCTION_CAP_PCT,
+        Q042_SLEEVE_A_STAGE_LABEL,
+        Q042_SLEEVE_A_TARGET_CAP_PCT,
+        Q042_SLEEVE_B_PRODUCTION_CAP_PCT,
+    )
+    snap = get_current_q042_snapshot()
+    positions = get_active_positions(paper=True)
+    stats = get_lifetime_stats(paper=True)
+    concentration = q042_concentration_monitor(paper=True)
+
+    def _pos_dict(p):
+        if p is None:
+            return None
+        return {
+            "trade_id": p.trade_id,
+            "entry_date": p.entry_date,
+            "long_strike": p.long_strike,
+            "short_strike": p.short_strike,
+            "contracts": p.contracts,
+            "expiry_date": p.expiry_date,
+            "days_to_expiry": p.days_to_expiry,
+            "is_active": p.is_active,
+            "current_pnl": p.current_pnl,
+        }
+
+    return {
+        "date": snap.date,
+        "spx_close": snap.spx_close,
+        "ath_running_max": snap.ath_running_max,
+        # SPEC-094.2 F7: state ATH missing/0 — ddath is a neutral-0 filler,
+        # not a real drawdown read. Consumers (daily_snapshot) warn + skip.
+        "ath_degraded": bool(getattr(snap, "ath_degraded", False)),
+        "ddath_pct": round(snap.ddath * 100, 2),
+        "sleeve_a": {
+            "armed": snap.sleeve_a.armed,
+            "production_cap_pct": Q042_SLEEVE_A_PRODUCTION_CAP_PCT,
+            "target_cap_pct": Q042_SLEEVE_A_TARGET_CAP_PCT,
+            "stage": Q042_SLEEVE_A_STAGE_LABEL,
+            "active_position": _pos_dict(positions.get("A")),
+            "stats": stats.get("A", {}),
+        },
+        "sleeve_b": {
+            "armed": snap.sleeve_b.armed,
+            "production_status": "research_only",
+            "production_cap_pct": Q042_SLEEVE_B_PRODUCTION_CAP_PCT,
+            "in_watching": snap.sleeve_b.in_watching,
+            "watch_start_date": snap.sleeve_b.watch_start_date,
+            "active_position": _pos_dict(positions.get("B")),
+            "stats": stats.get("B", {}),
+        },
+        "combined_bp_pct": snap.combined_bp_pct,
+        "monitors": {
+            "q042_cap_utilization": {
+                "status": "ok" if snap.combined_bp_pct <= Q042_SLEEVE_A_PRODUCTION_CAP_PCT else "breach",
+                "stage_cap_pct": Q042_SLEEVE_A_PRODUCTION_CAP_PCT,
+                "current_combined_bp_pct": snap.combined_bp_pct,
+                "scope": "sleeve_a_staged_cap_monitor",
+            },
+            "q042_top3_pnl_concentration": concentration,
+        },
+        }
+
 @app.route("/api/q042/state")
 def api_q042_state():
     try:
-        from signals.q042_trigger import get_current_q042_snapshot
-        from production.q042_positions import get_active_positions, get_lifetime_stats, q042_concentration_monitor
-        from strategy.q042_config import (
-            Q042_SLEEVE_A_PRODUCTION_CAP_PCT,
-            Q042_SLEEVE_A_STAGE_LABEL,
-            Q042_SLEEVE_A_TARGET_CAP_PCT,
-            Q042_SLEEVE_B_PRODUCTION_CAP_PCT,
-        )
-        snap = get_current_q042_snapshot()
-        positions = get_active_positions(paper=True)
-        stats = get_lifetime_stats(paper=True)
-        concentration = q042_concentration_monitor(paper=True)
-
-        def _pos_dict(p):
-            if p is None:
-                return None
-            return {
-                "trade_id": p.trade_id,
-                "entry_date": p.entry_date,
-                "long_strike": p.long_strike,
-                "short_strike": p.short_strike,
-                "contracts": p.contracts,
-                "expiry_date": p.expiry_date,
-                "days_to_expiry": p.days_to_expiry,
-                "is_active": p.is_active,
-                "current_pnl": p.current_pnl,
-            }
-
-        return jsonify({
-            "date": snap.date,
-            "spx_close": snap.spx_close,
-            "ath_running_max": snap.ath_running_max,
-            # SPEC-094.2 F7: state ATH missing/0 — ddath is a neutral-0 filler,
-            # not a real drawdown read. Consumers (daily_snapshot) warn + skip.
-            "ath_degraded": bool(getattr(snap, "ath_degraded", False)),
-            "ddath_pct": round(snap.ddath * 100, 2),
-            "sleeve_a": {
-                "armed": snap.sleeve_a.armed,
-                "production_cap_pct": Q042_SLEEVE_A_PRODUCTION_CAP_PCT,
-                "target_cap_pct": Q042_SLEEVE_A_TARGET_CAP_PCT,
-                "stage": Q042_SLEEVE_A_STAGE_LABEL,
-                "active_position": _pos_dict(positions.get("A")),
-                "stats": stats.get("A", {}),
-            },
-            "sleeve_b": {
-                "armed": snap.sleeve_b.armed,
-                "production_status": "research_only",
-                "production_cap_pct": Q042_SLEEVE_B_PRODUCTION_CAP_PCT,
-                "in_watching": snap.sleeve_b.in_watching,
-                "watch_start_date": snap.sleeve_b.watch_start_date,
-                "active_position": _pos_dict(positions.get("B")),
-                "stats": stats.get("B", {}),
-            },
-            "combined_bp_pct": snap.combined_bp_pct,
-            "monitors": {
-                "q042_cap_utilization": {
-                    "status": "ok" if snap.combined_bp_pct <= Q042_SLEEVE_A_PRODUCTION_CAP_PCT else "breach",
-                    "stage_cap_pct": Q042_SLEEVE_A_PRODUCTION_CAP_PCT,
-                    "current_combined_bp_pct": snap.combined_bp_pct,
-                    "scope": "sleeve_a_staged_cap_monitor",
-                },
-                "q042_top3_pnl_concentration": concentration,
-            },
-        })
+        return jsonify(q042_state_payload())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -4521,8 +4533,13 @@ def api_es_backtest_hvlad():
         return jsonify(payload)
 
 
-@app.route("/api/hvladder/live")
-def api_hvladder_live():
+def hvladder_live_payload() -> dict:
+    """ES Ladder（Stress Put Ladder /ES）live 状态 payload。
+
+    /api/hvladder/live、首页 Stress Put Ladder 卡与 Decision Trace Lane D
+    （SPEC-135.5）共用此唯一组装点；status_human 是三处共享的人话 copy 源
+    （slots/blocked 词只在这里组装，前端与装配层零重复维护）。
+    """
     rows = _load_hvlad_paper_trades()
     today = datetime.now(_ET).date()
     active_slots = _hvlad_active_slots(rows, today)
@@ -4540,7 +4557,32 @@ def api_hvladder_live():
         "vix_ok": bool(vix_ok),
     }
     blockers = [key for key, ok in gate_status.items() if not ok]
-    return jsonify({
+    signal_live = all(gate_status.values())
+    # SPEC-135.5 人话状态（单一 copy 源）：badge 词取 DESIGN.md Action State /
+    # Signal-outcome 词表（SIGNAL / HOLD / NO ENTRY）
+    _blocker_human = {"vix_ok": "VIX", "trend_ok": "trend", "cadence_ok": "cadence",
+                      "slots_ok": "slots", "warmed": "warmup"}
+    blockers_human = [_blocker_human.get(b, b) for b in blockers]
+    if signal_live:
+        state_text = "SIGNAL LIVE"
+    elif blockers_human:
+        state_text = "blocked: " + " · ".join(blockers_human)
+    else:
+        state_text = "—"
+    if signal_live:
+        badge_word, badge_label = "SIGNAL", "SIGNAL"
+    elif active_slots > 0:
+        badge_word, badge_label = "HOLD", f"HOLD {active_slots}/5"
+    else:
+        badge_word, badge_label = "NO ENTRY", "NO ENTRY"
+    status_human = {
+        "slots_text": f"slots {active_slots}/5",
+        "blockers_human": blockers_human,
+        "state_text": state_text,
+        "badge_word": badge_word,
+        "badge_label": badge_label,
+    }
+    return {
         "date": today.isoformat(),
         "threshold": 22.0,
         "vix_current": vix_current,
@@ -4555,19 +4597,25 @@ def api_hvladder_live():
         "cadence_elapsed_trading_days": cadence_elapsed,
         "trend": trend,
         "gate_status": gate_status,
-        "signal_live": all(gate_status.values()),
+        "signal_live": signal_live,
         "production_status": "research_only",
         "production_allocation_pct": 0.0,
         "execution_allowed": False,
         "research_only_note": "Research-only / paper-only per SPEC-104. NO PRODUCTION EXECUTION.",
         "blockers": blockers,
+        "status_human": status_human,
         "last_signal": rows[0] if rows else None,
         "status": "ok" if vix.get("ok") and trend.get("ok") else "degraded",
         "errors": {
             "vix": vix.get("error"),
             "trend": trend.get("error"),
         },
-    })
+    }
+
+
+@app.route("/api/hvladder/live")
+def api_hvladder_live():
+    return jsonify(hvladder_live_payload())
 
 
 def _hvlad_open_trades(rows: list[dict]) -> list[dict]:
@@ -6448,7 +6496,9 @@ def api_decision_trace():
     recommendation_log 存档（Lane B 历史未存档如实标注；Lane C 从 shadow
     jsonl 按日期重建）。"""
     from logs.recommendation_log_io import read_events
-    from strategy.decision_trace import funding_trace, lane_b_positions, lane_c_terrain
+    from strategy.decision_trace import (LANE_D_SEMANTICS, funding_trace,
+                                         lane_b_positions, lane_c_terrain,
+                                         lane_d_sleeves)
 
     today = datetime.now(_ET).date().isoformat()
     q_date = str(flask_req.args.get("date") or today)
@@ -6488,6 +6538,14 @@ def api_decision_trace():
             payload["lane_a"] = []
             payload["lane_a_error"] = str(exc)
         payload["lane_b"] = lane_b_positions(q_date)
+        # SPEC-135.5 — Lane D：sleeve 决策引擎泳道（当日现算，引擎级 fail-soft
+        # 在 lane_d_sleeves 内部；此处兜底整泳道异常）
+        try:
+            payload["lane_d"] = lane_d_sleeves()
+        except Exception as exc:
+            payload["lane_d"] = {"semantics": LANE_D_SEMANTICS, "engines": [],
+                                 "summary_line": None,
+                                 "note": f"Lane D 装配不可用（fail-soft）: {exc}"}
     else:
         day_events = [e for e in events if e.get("date") == q_date]
         with_trace = [e for e in day_events if e.get("trace")]
@@ -6508,6 +6566,10 @@ def api_decision_trace():
         payload["lane_b"] = [{"trade_id": None, "state": "info",
                               "label_human": "历史日期的持仓触发器未存档（v1 只回放当日）",
                               "code_ref": "SPEC-135 §2"}]
+        # SPEC-135.5：Lane D 历史同 Lane B 口径——如实标注未存档
+        payload["lane_d"] = {"semantics": LANE_D_SEMANTICS, "engines": [],
+                             "summary_line": None,
+                             "note": "历史日期的 sleeve 引擎状态未存档（v1 只回放当日）"}
     payload["lane_c"] = lane_c_terrain(q_date)
 
     from strategy.campaign import _assert_finite
