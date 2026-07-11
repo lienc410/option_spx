@@ -2215,6 +2215,9 @@ def api_q042_state():
             "date": snap.date,
             "spx_close": snap.spx_close,
             "ath_running_max": snap.ath_running_max,
+            # SPEC-094.2 F7: state ATH missing/0 — ddath is a neutral-0 filler,
+            # not a real drawdown read. Consumers (daily_snapshot) warn + skip.
+            "ath_degraded": bool(getattr(snap, "ath_degraded", False)),
             "ddath_pct": round(snap.ddath * 100, 2),
             "sleeve_a": {
                 "armed": snap.sleeve_a.armed,

@@ -254,6 +254,15 @@ def build_record() -> dict | None:
     second_active = bool(state.get("second_leg_active"))
     regime_name = "second" if second_active else "stress" if stress_active else "normal"
 
+    # SPEC-094.2 F7 (AC-94.2-9): when the Q042 snapshot flags ath_degraded, its
+    # ddath is a neutral-0 filler (state ATH missing/0), NOT a real drawdown
+    # read — warn and record null instead of a fake number.
+    q042_ath_degraded = bool(q042.get("ath_degraded"))
+    if q042_ath_degraded:
+        print("[daily_snapshot] WARNING q042 ath_degraded — state ATH missing/0; "
+              "recording regime.ddath_pct as null (not the 0-filler)", file=sys.stderr)
+    q042_ddath_pct = None if q042_ath_degraded else q042.get("ddath_pct")
+
     # SPX positions snapshot — including per-leg broker chain greeks (path B).
     # SPX greeks are NOT available from Polygon historical chain, so daily
     # snapshot captures them from Schwab marketdata/v1/chains for both legs.
@@ -358,7 +367,7 @@ def build_record() -> dict | None:
             "stress_active":     stress_active,
             "second_leg_active": second_active,
             "aftermath_active":  bool(aftermath.get("active")),
-            "ddath_pct":         _r(q042.get("ddath_pct"), 4),
+            "ddath_pct":         _r(q042_ddath_pct, 4),   # SPEC-094.2 F7: null when ath_degraded
         },
 
         "strategies": {

@@ -61,6 +61,7 @@ class Q042Snapshot:
     sleeve_a: SleeveState
     sleeve_b: SleeveState
     combined_bp_pct: float
+    ath_degraded: bool = False   # SPEC-094.2 F7: state ATH missing/0 (see snapshot)
 
     def __str__(self) -> str:
         return (
@@ -232,7 +233,8 @@ def get_current_q042_snapshot(
     """
     if spx_df is None:
         import yfinance as yf
-        raw = yf.Ticker("^GSPC").history(period="1mo", interval="1d")
+        # F7: window lengthened for display; ATH truth is state, not this window.
+        raw = yf.Ticker("^GSPC").history(period="6mo", interval="1d")
         spx_df = raw[["Close"]].rename(columns={"Close": "close"})
         spx_df.index = pd.to_datetime(spx_df.index).tz_localize(None)
 
@@ -241,8 +243,16 @@ def get_current_q042_snapshot(
     spx_close = float(spx_df["close"].iloc[-1])
     today_str = spx_df.index[-1].strftime("%Y-%m-%d")
 
-    # ATH from historical max if state is uninitialised
-    ath = max(state.get("ath_running_max", 0.0), float(spx_df["close"].max()))
+    # F7: ATH真值源 = state (executor日度维护). When state ATH is missing/0, mark
+    # degraded EXPLICITLY rather than silently substituting a short-window max
+    # (which understates the true ATH → understates the drawdown). Fall back to
+    # spx_close so ddath reads a neutral 0 and consumers can skip the row.
+    state_ath = float(state.get("ath_running_max", 0.0) or 0.0)
+    ath_degraded = state_ath <= 0.0
+    if ath_degraded:
+        ath = spx_close
+    else:
+        ath = max(state_ath, spx_close)
     ddath = spx_close / ath - 1.0
 
     sa = state.get("sleeve_a", {})
@@ -270,6 +280,7 @@ def get_current_q042_snapshot(
             active_position_expiry=sb.get("active_position_expiry"),
         ),
         combined_bp_pct=float(state.get("combined_bp_pct", 0.0)),
+        ath_degraded=ath_degraded,
     )
 
 
