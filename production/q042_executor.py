@@ -196,6 +196,126 @@ def _write_pending_record(spec: PendingOrderSpec) -> None:
         f.write(json.dumps(record) + "\n")
 
 
+# ── F1 (SPEC-094.3): pending-fill confirmation loop / phantom guard ──────────
+
+_PHANTOM_RELEASE_TRADING_DAYS = 5   # T+5 兜底释放（PM 2026-07-12 确认保留）
+
+
+def _check_pending_fills(state: dict, today_str: str, dry_run: bool,
+                         log: logging.Logger) -> list[dict]:
+    """SPEC-094.3 F1 — position slot 与现实的对账（幽灵仓位防护）。
+
+    扫描两账本（PAPER_LOG + LIVE_LOG）中 `fill_debit == null` 且未 settle、
+    未 phantom 的 open 记录：
+
+      * 自 entry_target_date 起（n=0）每个交易日 EOD 发确认提醒（FYI，
+        dedupe `q042_fill_reminder_{trade_id}_{date}`，每日一条）——PM
+        2026-07-12 修订：每日确认替换原 T+2 单次提醒；
+      * T+5（n ≥ 5 交易日）仍 null → 兜底自动释放槽位：账本记录打
+        `phantom: true`（不删，保审计链）+ 清 state[sleeve] 的
+        active_position_id/active_position_expiry（仅当槽位确实指向本记录）
+        + ACTION 告警。armed 不回补（触发已按研究语义消耗；释放的只是
+        no-overlap 槽位）。
+
+    位置：settle 与状态级到期清理之后、update_sleeve_* 之前——AC-94.3-2
+    要求释放当日 sleeve 即可正常 fire（2026-06-10 counterfactual）。
+    dry-run：只对 deep-copy 的 state 推演 + log 报告；零落盘零推送
+    （AC-94.3-6，沿 AC-94.2-5/B6 语义）。
+
+    Returns: 本次释放事件列表（log/测试用）。
+    """
+    from production import q042_positions as pos_mod
+    from strategy.q078_ladder import trading_days_between
+
+    releases: list[dict] = []
+    for paper_flag in (True, False):
+        try:
+            rows = pos_mod._load_trades(paper_flag)
+        except Exception:
+            log.exception("F1(94.3) ledger load failed (paper=%s)", paper_flag)
+            continue
+        dirty = False
+        for rec in rows:
+            if rec.get("event", "open") != "open":
+                continue
+            if rec.get("settled") or rec.get("phantom"):
+                continue
+            if rec.get("fill_debit") not in (None, ""):
+                continue                       # 已回填 → 不受任何影响 (AC-94.3-3)
+            sleeve = str(rec.get("sleeve_id") or "").upper()
+            if sleeve not in ("A", "B"):
+                continue
+            entry = str(rec.get("entry_target_date") or "")[:10]
+            if not entry or today_str < entry:
+                continue                       # entry 未到（今日新 fire 的记录）
+            expiry = pos_mod._derive_expiry(rec)
+            if expiry is not None and today_str >= expiry:
+                continue                       # 已到期行归 settle 管，不归 F1
+            trade_id = rec.get("trade_id") or f"{sleeve}-{rec.get('signal_date', '')}"
+            try:
+                n = trading_days_between(entry, today_str)   # entry 当日 n=0
+            except Exception:
+                log.exception("F1(94.3) trading-day count failed for %s", trade_id)
+                continue
+            key = "sleeve_a" if sleeve == "A" else "sleeve_b"
+
+            if n < _PHANTOM_RELEASE_TRADING_DAYS:
+                # ── 每日确认提醒（第 n+1 天，dedupe per trade_id per date）──
+                body = (
+                    f"Q042 [Sleeve {sleeve}] 触发单第 {n + 1} 天未确认——"
+                    f"已执行请回填 fill_debit；未执行请回复释放（或等 T+5 自动释放）。\n"
+                    f"trade_id: {trade_id} · entry_target_date: {entry}\n"
+                    f"Strikes: {rec.get('long_strike')}/{rec.get('short_strike')}"
+                    f" × {rec.get('contracts')} ct · est ${float(rec.get('est_debit') or 0):,.0f}/ct"
+                )
+                if dry_run:
+                    log.info("[dry-run] F1(94.3) would remind %s (day %d) — no push",
+                             trade_id, n + 1)
+                else:
+                    _send_gateway("FYI", "新开仓", "Q042 fill 未确认提醒", body,
+                                  f"q042_fill_reminder_{trade_id}_{today_str}", log)
+                continue
+
+            # ── T+5 兜底释放 ─────────────────────────────────────────────────
+            slot_id = state.get(key, {}).get("active_position_id")
+            slot_match = slot_id == trade_id
+            if dry_run:
+                if slot_match:                 # 推演 on deep-copy only (F4/B6)
+                    state[key]["active_position_id"] = None
+                    state[key]["active_position_expiry"] = None
+                log.info("[dry-run] F1(94.3) would release phantom %s "
+                         "(day %d, slot_match=%s) — no disk, no push",
+                         trade_id, n, slot_match)
+                releases.append({"trade_id": trade_id, "sleeve": sleeve,
+                                 "paper": paper_flag, "dry_run": True})
+                continue
+            rec["phantom"] = True              # 不删记录，保审计链
+            rec["phantom_date"] = today_str
+            dirty = True
+            if slot_match:
+                state[key]["active_position_id"] = None
+                state[key]["active_position_expiry"] = None
+            body = (
+                f"Q042 [Sleeve {sleeve}] 幽灵仓位已释放，sleeve 恢复可触发；"
+                f"若实际已成交请立即补录并手工恢复 state。\n"
+                f"trade_id: {trade_id} · entry_target_date: {entry}"
+                f" · 第 {n} 个交易日仍未确认 fill\n"
+                + ("" if slot_match else
+                   f"注意：state 槽位当前为 {slot_id!r}（与本记录不符，未清动），请人工核查。\n")
+                + "armed 不回补（触发已按研究语义消耗）。账本记录已打 phantom 标记（保留审计链）。"
+            )
+            _send_gateway("ACTION", "系统状态", "Q042 幽灵仓位已释放", body,
+                          f"q042_phantom_release_{trade_id}_{today_str}", log)
+            log.warning("F1(94.3) phantom released: %s (sleeve %s, day %d, slot_match=%s)",
+                        trade_id, sleeve, n, slot_match)
+            releases.append({"trade_id": trade_id, "sleeve": sleeve,
+                             "paper": paper_flag, "dry_run": False})
+        if dirty:
+            target = pos_mod.PAPER_LOG if paper_flag else pos_mod.LIVE_LOG
+            pos_mod._atomic_write_jsonl(target, rows)   # N11 原子写
+    return releases
+
+
 # ── EOD evaluation ────────────────────────────────────────────────────────────
 
 def _process_sleeve_fire(
@@ -345,6 +465,14 @@ def run_eod_evaluation(
             if key in state:
                 state[key]["active_position_id"] = None
                 state[key]["active_position_expiry"] = None
+
+        # ── F1 (SPEC-094.3): pending-fill 确认 / T+5 幽灵释放 ─────────────────
+        # 必须先于 update_sleeve_*：T+5 释放当日 sleeve 即恢复可 fire
+        # (AC-94.3-2)。隔离 try/except——F1 故障不拖垮当日 EOD (AC16)。
+        try:
+            _check_pending_fills(state, today_str, dry_run, log)
+        except Exception:
+            log.exception("F1(94.3) pending-fill check failed — EOD continues (AC16)")
 
         ath = max(state.get("ath_running_max", 0.0), spx_close)
         state["ath_running_max"] = ath

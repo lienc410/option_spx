@@ -167,6 +167,8 @@ def get_active_positions(paper: bool = True) -> dict[str, Optional[Q042Position]
         event = t.get("event", "open")
         if event != "open":
             continue
+        if t.get("phantom"):
+            continue   # SPEC-094.3 AC-4: phantom (released slot) ≡ void
         sid = t.get("sleeve_id", "")
         if sid in by_sleeve:
             by_sleeve[sid].append(t)
@@ -224,6 +226,8 @@ def settle_expired_positions(
     for t in trades:
         if t.get("event", "open") != "open":   # B4: note/close rows aren't positions
             continue
+        if t.get("phantom"):
+            continue   # SPEC-094.3 AC-4: phantom rows are never settled (≡ void)
         if t.get("settled"):
             continue
         expiry = _derive_expiry(t)              # F2/B4
@@ -285,6 +289,8 @@ def get_active_committed_debit_usd(today: Optional[str] = None) -> float:
         for t in _load_trades(paper):
             if t.get("event", "open") != "open":
                 continue
+            if t.get("phantom"):
+                continue  # SPEC-094.3 AC-4: phantom ≡ void, never committed
             if t.get("settled"):
                 continue
             expiry = _derive_expiry(t)
@@ -307,6 +313,8 @@ def get_lifetime_stats(paper: bool = True) -> dict[str, dict]:
         "B": {"trades": 0, "wins": 0, "total_pnl": 0.0},
     }
     for t in trades:
+        if t.get("phantom"):
+            continue   # SPEC-094.3 AC-4: phantom ≡ void, excluded from stats
         sid = t.get("sleeve_id", "")
         if sid not in stats or not t.get("settled"):
             continue

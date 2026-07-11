@@ -2742,7 +2742,50 @@ def api_q042_position_open():
         "note":              data.get("note", "") or "",
     }
     _q042_append(rec)
-    return jsonify({"status": "ok", "trade_id": rec["trade_id"], "record": rec})
+
+    # ── SPEC-094.3 F2: 回写 trigger state，使 no-overlap 保护覆盖人工入场 ──
+    # 幂等：state 已有相同 id 不动；不同 id → 告警不覆盖（双仓疑似，人工裁决）。
+    # 隔离 try/except：state 同步失败不影响账本记录已写入的成功响应。
+    state_synced = False
+    state_conflict = None
+    try:
+        from signals.q042_trigger import load_state as _q042_load_state
+        from signals.q042_trigger import save_state as _q042_save_state
+
+        skey = "sleeve_a" if sleeve == "A" else "sleeve_b"
+        tstate = _q042_load_state()
+        slot = tstate.setdefault(skey, {})
+        cur_id = slot.get("active_position_id")
+        if cur_id == rec["trade_id"]:
+            state_synced = True                     # already synced — idempotent no-op
+        elif cur_id:
+            # different id → 不覆盖；双仓疑似，交人工裁决
+            state_conflict = {"existing_id": cur_id, "new_trade_id": rec["trade_id"]}
+            try:
+                from notify.gateway import escape as _gw_escape
+                from notify.gateway import push as _gw_push
+                _gw_push(
+                    "ACTION", "系统状态", "Q042 手动开仓 state 冲突（疑似双仓）",
+                    _gw_escape(
+                        f"Q042 [Sleeve {sleeve}] 手动开仓已记账（trade_id: {rec['trade_id']}），"
+                        f"但 trigger state 槽位已有不同 id: {cur_id}。\n"
+                        f"未覆盖 state——疑似双仓，请人工裁决：确认真实仓位后手工同步 "
+                        f"active_position_id/active_position_expiry。"
+                    ),
+                    dedupe_key=f"q042_open_state_conflict_{rec['trade_id']}",
+                )
+            except Exception:
+                pass  # 告警失败不阻塞记账响应
+        else:
+            slot["active_position_id"] = rec["trade_id"]
+            slot["active_position_expiry"] = str(rec["expiry"])[:10]
+            _q042_save_state(tstate)
+            state_synced = True
+    except Exception:
+        state_synced = False
+
+    return jsonify({"status": "ok", "trade_id": rec["trade_id"], "record": rec,
+                    "state_synced": state_synced, "state_conflict": state_conflict})
 
 
 @app.route("/api/q042/position/note", methods=["POST"])
