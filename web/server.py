@@ -6563,9 +6563,19 @@ def api_decision_trace():
         else:
             payload["lane_a"] = []
             payload["lane_a_note"] = "该日无推荐事件存档"
-        payload["lane_b"] = [{"trade_id": None, "state": "info",
-                              "label_human": "历史日期的持仓触发器未存档（v1 只回放当日）",
-                              "code_ref": "SPEC-135 §2"}]
+        # SPEC-139 §3 — Lane B 历史回放：读当日存档快照；无字段的旧行如实
+        # 标注降级（不空白不伪造）。
+        if chosen is not None and "lane_b" in chosen:
+            stored_lane_b = list(chosen.get("lane_b") or [])
+            payload["lane_b"] = stored_lane_b or [
+                {"trade_id": None, "state": "info",
+                 "label_human": "该日无 open 持仓（Lane B 快照为空）",
+                 "code_ref": "SPEC-139 §3"}]
+        else:
+            payload["lane_b"] = [{"trade_id": None, "state": "info",
+                                  "label_human": "该日 Lane B 未存档（该推荐早于 "
+                                  "SPEC-139 持仓快照落盘）",
+                                  "code_ref": "SPEC-139 §3"}]
         # SPEC-135.5：Lane D 历史同 Lane B 口径——如实标注未存档
         payload["lane_d"] = {"semantics": LANE_D_SEMANTICS, "engines": [],
                              "summary_line": None,

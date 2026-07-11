@@ -166,6 +166,15 @@ def _params_hash() -> str:
 
 
 def _safe_append_recommendation_event(*, rec: Recommendation, source: str, mode: str) -> None:
+    # SPEC-139 §3 — snapshot 当日 Lane B（持仓动作触发器）一并落盘，供
+    # /api/decision-trace 回放历史日。快照失败 fail-soft：lane_b 保持 None，
+    # 该行回放时如实标注"未存档"降级，绝不阻断推荐事件本体的落盘。
+    lane_b_snapshot = None
+    try:
+        from strategy.decision_trace import lane_b_positions
+        lane_b_snapshot = lane_b_positions(rec.vix_snapshot.date)
+    except Exception:
+        log.exception("lane_b snapshot failed (recommendation event still logged)")
     try:
         append_recommendation_event(
             rec=rec,
@@ -173,6 +182,7 @@ def _safe_append_recommendation_event(*, rec: Recommendation, source: str, mode:
             mode=mode,
             timestamp=datetime.now(ET).isoformat(timespec="seconds"),
             params_hash=_params_hash(),
+            lane_b=lane_b_snapshot,
         )
     except Exception:
         log.exception("recommendation log append failed")
