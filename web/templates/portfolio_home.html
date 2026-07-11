@@ -8,10 +8,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec108"></script>
-<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec135_4">
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec135_5">
 <script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
 <!-- SPEC-135.3: Decision Trace 共享渲染器（与 /spx 同一 copy 源） -->
-<script src="{{ url_for('static', filename='trace_render.js') }}?v=spec135_5"></script>
+<script src="{{ url_for('static', filename='trace_render.js') }}?v=spec135_5_laned"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -2062,33 +2062,30 @@ async function loadStressPutLadder() {
     const res = await fetch('/api/hvladder/live');
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const d = await res.json();
-    const slotsTxt = `slots ${d.active_slots ?? 0}/${d.max_slots ?? 5}`;
+    // SPEC-135.5：slots/blocked/badge 词 = payload status_human（后端唯一
+    // copy 组装点，与 Decision Trace Lane D 行同源）；前端只管颜色/布局
+    const sh = d.status_human || {};
+    const slotsTxt = sh.slots_text || '';
     const vix = d.vix_current;
     const vixOk = vix != null && vix >= (d.threshold ?? 22);
     const vixTxt = vix != null
       ? `<span class="es-key">VIX</span> <span style="color:${vixOk ? 'var(--green)' : 'var(--text-2)'}">${vix.toFixed(1)}</span><span style="color:var(--text-2)">/${(d.threshold ?? 22).toFixed(0)}</span>`
       : '';
-    const blockers = d.blockers || [];
     let stateTxt;
     if (d.signal_live) {
-      stateTxt = `<span style="color:var(--green);font-weight:500">● SIGNAL LIVE</span>`;
-    } else if (blockers.length > 0) {
-      const blockMap = { vix_ok: 'VIX', trend_ok: 'trend', cadence_ok: 'cadence', slots_ok: 'slots', warmed: 'warmup' };
-      const blockLabel = blockers.map(b => blockMap[b] || b).join(' · ');
-      stateTxt = `<span style="color:var(--text-2)">blocked: ${blockLabel}</span>`;
+      stateTxt = `<span style="color:var(--green);font-weight:500">● ${sh.state_text || 'SIGNAL LIVE'}</span>`;
     } else {
-      stateTxt = `<span style="color:var(--text-muted)">—</span>`;
+      stateTxt = `<span style="color:var(--text-2)">${sh.state_text || '—'}</span>`;
     }
     el.innerHTML = `${slotsTxt} &nbsp; ${vixTxt} &nbsp; ${stateTxt}`;
 
-    // Card-level badge: SIGNAL / HOLD / NO ENTRY (SPEC-125 D5 vocab)
-    const slots = d.active_slots ?? 0;
-    if (d.signal_live) {
-      applyBadge('badge-es', { cls: 'badge-open', label: 'SIGNAL' });
-    } else if (slots > 0) {
-      applyBadge('badge-es', { cls: 'badge-hold', label: `HOLD ${slots}/${d.max_slots ?? 5}` });
+    // Card-level badge: SIGNAL / HOLD / NO ENTRY (SPEC-125 D5 vocab；词由
+    // status_human 自吐，此处仅词 → 样式类映射)
+    const esBadgeCls = { 'SIGNAL': 'badge-open', 'HOLD': 'badge-hold', 'NO ENTRY': 'badge-wait' };
+    if (sh.badge_word) {
+      applyBadge('badge-es', { cls: esBadgeCls[sh.badge_word] || 'badge-wait', label: sh.badge_label || sh.badge_word });
     } else {
-      applyBadge('badge-es', { cls: 'badge-wait', label: 'NO ENTRY' });
+      applyBadge('badge-es', { cls: 'badge-unavail', label: 'N/A' });
     }
   } catch (e) {
     el.innerHTML = `<span class="pos-none">${e.message}</span>`;

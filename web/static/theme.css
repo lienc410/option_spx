@@ -608,3 +608,35 @@ button, select, input, textarea, optgroup {
 .trace-legend .lg-adv { color: var(--orange); }
 .trace-legend .lg-block { color: var(--red); }
 .trace-legend .lg-final { color: var(--blue); }
+
+/* ── SPEC-135.5 — Lane D「Sleeve 决策引擎泳道」。共享卡在两页渲染，样式必须
+      住 theme.css（房规：禁模板内联重复 token）。badge 词表 = DESIGN.md
+      Action State + Signal-outcome states；灰调徽章用 --text-2（--text-muted
+      禁用于 PM 要读的内容）。 ── */
+.trace-sleeve-summary {
+  flex-basis: 100%;
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  font-family: var(--f-mono); font-size: 0.62rem; font-weight: 400;
+  letter-spacing: 0; text-transform: none; color: var(--text-2);
+}
+.trace-sleeve-summary .tss-label {
+  font-family: var(--f-ui); font-size: 0.56rem; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2);
+  border: 1px solid var(--border-2); border-radius: 4px; padding: 1px 6px;
+  flex-shrink: 0;
+}
+.trace-laned-link { margin-left: 22px; }
+.trace-node .t-badge {
+  font-family: var(--f-ui); font-size: 0.55rem; font-weight: 500;
+  letter-spacing: 0.10em; text-transform: uppercase;
+  padding: 1px 6px; border-radius: 5px; flex-shrink: 0;
+}
+.t-badge.tb-signal   { color: var(--green);  background: var(--green-bg);  border: 1px solid var(--green-border); }
+.t-badge.tb-hold     { color: var(--blue);   background: var(--blue-bg);   border: 1px solid var(--blue-border); }
+.t-badge.tb-armed, .t-badge.tb-watching, .t-badge.tb-warning {
+  color: var(--orange); background: var(--orange-bg); border: 1px solid var(--orange-border);
+}
+.t-badge.tb-noentry, .t-badge.tb-calm, .t-badge.tb-blocked {
+  color: var(--text-2); background: var(--gray-bg); border: 1px solid var(--gray-border);
+}
+.t-badge.tb-blocked { opacity: 0.6; }
