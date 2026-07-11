@@ -26,3 +26,16 @@ S2 缩量 null（Q090，PM 最强信念已被最干净否定）；S3 持仓墙 O
 ## 不在范围
 
 0DTE 流量/MOC imbalance（数据不可得）；个股/板块 breadth 精细化（工程量与 SPX 单标的账本不匹配——此为数据成本判断非工作量畏惧，若 A 组粗粒度 breadth 幸存可升级）。
+
+---
+
+## 执行注记：数据采集结果（2026-07-12）
+
+| 数据 | 结果 | 覆盖 |
+|---|---|---|
+| VIX9D | ✅ 已入 `data/market_cache/yahoo__VIX9D__max__1d.pkl`（yfinance + CBOE CSV 双源可换） | 2011-01 → 今 |
+| VIX3M | ✅ 已有本地缓存 + CBOE CSV 确认 | 2009-09 → 今 |
+| Total P/C ratio | ⚠️ CBOE 免费归档已拉（`research/q095/data_totalpc.csv`） | **2006-11 → 2019-10 后断档**（免费源停更） |
+| Breadth（A/D、TRIN） | ❌ yfinance ^ADD/^ADRN/^TRIN 全空；无 26y 免费清洁源 | 不可得 |
+
+**A 组宇宙按可得性收缩并锁死（预注册修订）**：期限结构族 ≤4 形态（VIX9D/VIX/VIX3M 曲率、斜率、倒挂持续性等，2011+ 15y）+ PCR ≤2 形态（**只测到 2019-10**，且结论只能覆盖该时代——era 条件性预先声明）。Breadth 族取消（数据成本判断，非工作量畏惧；若未来获得清洁源可复议）。合计 ≤6 形态上限维持。事实层执行待排。
