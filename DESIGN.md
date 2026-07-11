@@ -19,7 +19,7 @@
 - **Body/UI:** `'DM Sans', system-ui, sans-serif` — for labels, body copy, navigation, form inputs, button text
 - **Data/Numbers:** `'JetBrains Mono', 'Courier New', monospace` — for all numeric values: prices, percentages, delta, VIX levels, BP percentages, timestamps, trade IDs
 - **Code:** `'JetBrains Mono'` — same as data; no separate code face needed
-- **Loading:** Google Fonts — `Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,600` + `JetBrains+Mono:wght@400;500;600` + `DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500`
+- **Loading:** 自托管 woff2（SPEC-139：`web/static/fonts/` + theme.css `@font-face`，latin/latin-ext 子集，变量字体权重区间声明，`font-display:swap`）——字重规格不变：`Newsreader 0,6..72,400;1,6..72,400;1,6..72,600` + `JetBrains Mono 400-600` + `DM Sans 300-500`。零外域：模板不得引入 fonts.googleapis/gstatic（静态扫描断言）
 
 **Rule:** Every number on screen must use `--f-mono`. Label that says "VIX" uses `--f-ui`. Value "18.4" uses `--f-mono`. Recommendation sentence uses `--f-display`.
 
@@ -412,3 +412,4 @@ Label decisions (2026-07-06): `DD Overlay` (nav-width form of display name
 | 2026-07-06 | Spec/rule IDs banned as primary UI labels — function-first names + muted `.spec-ref` suffix | PM couldn't tell what "SPEC-104 Monitors" / "SPEC-108.1 V1b Ladder" do from the label; generalizes the Q042→"Drawdown Overlay" precedent into a rule |
 | 2026-07-07 | Nav `Port BT` → `Gov BT`; route unchanged | Page content pivoted to the SPEC-103 governance backtest long ago — label said portfolio BP simulation, page showed regime/rules history (name-matches-content rule, same as Q042 precedent) |
 | 2026-07-07 | Journal + Performance bound as a page-tab family ("trading record" topic) | Two visit rhythms (daily ops vs periodic analytics) justify separate pages; tabs + ledger-unit labels + calendar deep-links express that they are two views of one topic |
+| 2026-07-11 | 字体自托管（SPEC-139）；theme.css cache-buster 全站统一 spec139 | 零外域姿态收官（Chart.js/lightweight-charts/字体全本地）；18 页钉旧版本号会在缓存期内丢 @font-face——版本键必须随 theme.css 内容变更全站同步 |
