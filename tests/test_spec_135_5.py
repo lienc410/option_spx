@@ -514,7 +514,7 @@ class UiAuditTests(unittest.TestCase):
 
     def test_asset_versions_bumped(self) -> None:
         for tpl in (self.spx, self.home):
-            self.assertIn("theme.css') }}?v=spec135_5", tpl)
+            self.assertIn("theme.css') }}?v=spec139", tpl)
             self.assertIn("trace_render.js') }}?v=spec135_5_laned", tpl)
 
 
