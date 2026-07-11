@@ -167,6 +167,149 @@ def _fetch_nlv() -> float:
         return 0.0
 
 
+# ── F1 (SPEC-094.4): ammo routing advisory（弹药路由，提示不拦） ──────────────
+
+# Episode-detector parameters — LOCKED by SPEC-094.4 (5% band / ≥15TD / 7d gap;
+# 改动须新研究). Detector 源: research/q095/q095_p2b_episode_race.py.
+_EPISODE_BAND         = 0.05
+_EPISODE_MIN_LEN      = 15
+_EPISODE_GAP_CAL_DAYS = 7
+_EPISODE_SCAN_START   = "2000-01-01"   # P2b research frame start（贪婪分段起点对齐）
+_AMMO_BPS_BUDGET_NLV_PCT = 12.5        # BPS fallback max-loss 预算（≈ today-scale $78.6k, Q095 P6）
+_SPX_DAILY_CACHE = REPO_ROOT / "data" / "market_cache" / "yahoo__GSPC__max__1d.pkl"
+
+
+def _find_chop_episodes(vals) -> list[tuple[int, int]]:
+    """Maximal non-overlapping chop segments: Close range/mid ≤5% and ≥15TD.
+
+    Verbatim port of research/q095/q095_p2b_episode_race.py::find_episodes,
+    with one tail-window amendment for truncated (live) series: scan bound is
+    ``s <= n - MIN_LEN``（原研究代码 ``s < n - MIN_LEN``），使恰好 15TD 收尾于
+    截断日（=信号日）的 in-band 段被接纳。全量历史上两者等价（185/185 段逐段
+    一致，handoff §四）；Quant 2026-07-12 裁决采用本实现。
+    """
+    n = len(vals)
+    out: list[tuple[int, int]] = []
+    s = 0
+    while s <= n - _EPISODE_MIN_LEN:
+        lo = hi = vals[s]
+        e = s
+        for j in range(s + 1, n):
+            lo, hi = min(lo, vals[j]), max(hi, vals[j])
+            if (hi - lo) / ((hi + lo) / 2) > _EPISODE_BAND:
+                break
+            e = j
+        if e - s + 1 >= _EPISODE_MIN_LEN:
+            out.append((s, e))
+            s = e + 1
+        else:
+            s += 1
+    return out
+
+
+def _normalize_close_series(obj) -> pd.Series:
+    """DataFrame['Close']/Series → tz-naive、日期归一、去重、升序的 Close 序列。"""
+    s = obj["Close"] if isinstance(obj, pd.DataFrame) else obj
+    idx = pd.to_datetime(s.index)
+    if getattr(idx, "tz", None) is not None:
+        idx = idx.tz_localize(None)
+    out = pd.Series(s.values, index=idx.normalize()).astype(float).dropna()
+    return out[~out.index.duplicated(keep="last")].sort_index()
+
+
+def _fetch_spx_close_series(today_str: str) -> pd.Series:
+    """SPX Close 序列（2000-01-01 → 信号日），episode 分类专用（SPEC-094.4）。
+
+    本地 max-history 缓存 + yfinance 3mo 增量补尾。缓存缺失、或缓存末端与增量
+    窗口之间存在空洞（老 Air 缓存过旧 >3mo）→ raise：序列有洞会破坏贪婪分段，
+    caller 按 F2 降级为 `弹药路由 n/a`（AC16）。
+    """
+    base = _normalize_close_series(pd.read_pickle(_SPX_DAILY_CACHE))
+    recent = _normalize_close_series(
+        yf.Ticker("^GSPC").history(period="3mo", interval="1d"))
+    if base.empty or recent.empty or base.index.max() < recent.index.min():
+        raise ValueError("SPX close cache/top-up gap — continuous series unavailable")
+    s = pd.concat([base, recent])
+    s = s[~s.index.duplicated(keep="last")].sort_index()
+    return s.loc[_EPISODE_SCAN_START:pd.Timestamp(today_str)]
+
+
+def _classify_trigger_type(closes: pd.Series, signal_date: str) -> str:
+    """SPEC-094.4 触发型分类（Rev 2026-07-12，因果贪婪分段直译）。
+
+    episode 型 ⟺ 对截至信号日的 Close 序列跑研究同款 find_episodes（截断 =
+    纯 trailing，禁止前视），信号日落在某段内（截断数据上该段末端即信号日）
+    或段末端后 ≤7 日历日。否则突发型。数据不足/过旧 → raise，caller 降级 n/a。
+    """
+    sig = pd.Timestamp(signal_date)
+    trail = closes.loc[_EPISODE_SCAN_START:sig]
+    if len(trail) < _EPISODE_MIN_LEN:
+        raise ValueError("insufficient trailing closes for episode classification")
+    if (sig - trail.index.max()).days > _EPISODE_GAP_CAL_DAYS:
+        raise ValueError("trailing closes too stale for episode classification")
+    dates = trail.index
+    episodes = _find_chop_episodes(trail.values)
+    is_episode = any((sig - dates[e]).days <= _EPISODE_GAP_CAL_DAYS
+                     for _, e in episodes)
+    return "episode" if is_episode else "sudden"
+
+
+def _ammo_advisory(*, sleeve_id: str, signal_date: str, nlv: float,
+                   spx_close: float, vix: float, contracts: int,
+                   est_debit: Optional[float],
+                   closes: Optional[pd.Series] = None,
+                   ) -> tuple[str, Optional[dict]]:
+    """SPEC-094.4 F1 — 三分支弹药路由建议块（Q095 P6 ratified 规则，提示不拦）。
+
+    Returns (advisory_line, ammo_advisory_payload | None)。完全隔离：现金读取/
+    分类/报价任一环节失败 → (`→ 弹药路由 n/a`, None)，绝不阻塞告警
+    （F2/AC16，沿 F5b try/except 惯例）。payload 进 gate log —— 为突发型 n=4
+    的 paper 证据积累建管道。
+    """
+    try:
+        from strategy.cash_budget_governance import get_current_liquid_cash
+        liquid = get_current_liquid_cash().get("total")
+        if liquid is None:
+            raise ValueError("liquid cash unavailable")
+        liquid = float(liquid)
+        need = float(est_debit or 0.0) * max(int(contracts or 0), 0)
+        if closes is None:
+            closes = _fetch_spx_close_series(signal_date)
+        episode_type = _classify_trigger_type(closes, signal_date)
+        payload: dict = {"sleeve": sleeve_id, "episode_type": episode_type,
+                         "liquid": round(liquid, 2), "need": round(need, 2)}
+        if need <= liquid:
+            payload["branch"] = "call_spread"
+            return "→ 弹药充足：Call Spread（默认结构）", payload
+        if episode_type == "episode":
+            from backtest.pricer import find_strike_for_delta
+            dte = 30 if sleeve_id == "A" else 90
+            sigma = float(vix) / 100.0
+            if sigma <= 0:
+                raise ValueError("VIX unavailable for BPS strike pricing")
+            k_short = int(round(find_strike_for_delta(
+                float(spx_close), dte, sigma, 0.30, is_call=False) / 5.0) * 5)
+            k_long = int(round(find_strike_for_delta(
+                float(spx_close), dte, sigma, 0.15, is_call=False) / 5.0) * 5)
+            budget = float(nlv) * _AMMO_BPS_BUDGET_NLV_PCT / 100.0
+            payload["branch"] = "bps_fallback"
+            payload["bps_strikes"] = {"short_put": k_short, "long_put": k_long}
+            return (
+                f"→ 现金不足·震荡铺垫型：可用 BPS fallback — SELL PUT {k_short}(Δ0.30)"
+                f" / BUY PUT {k_long}(Δ0.15)，同 expiry，预算按 BP"
+                f"（max loss ≤ 12.5% NLV ≈ ${budget:,.0f}）。"
+                f"⚠️ BPS 收益显著低于 call spread（26 年同预算差 3.7-7.4×，Q095 P6）"
+                f"——弹药不足下的次优替代"
+            ), payload
+        payload["branch"] = "stand_aside"
+        return (
+            "→ 现金不足·突发崩盘型（无震荡铺垫）：建议空仓 — 历史该型 BPS 亏损 4× 于"
+            " call spread capped debit，且 call spread 自身 4 例 3 亏（Q095 P6）"
+        ), payload
+    except Exception:
+        return "→ 弹药路由 n/a", None
+
+
 # ── Pending record (AC17) ─────────────────────────────────────────────────────
 
 def _write_pending_record(spec: PendingOrderSpec) -> None:
@@ -331,7 +474,7 @@ def _process_sleeve_fire(
     trigger semantic is invariant (漏单 is solved by F3 data + F5 auditability,
     not by re-arming). A held fire NEVER sets active_position_id.
     """
-    from strategy.q042_gate import log_blocked_fire
+    from strategy.q042_gate import log_ammo_advisory, log_blocked_fire
     from strategy.q042_sizing import compute_sizing
 
     allowance = 0.0
@@ -392,9 +535,21 @@ def _process_sleeve_fire(
                  sleeve_id, long_k, short_k, contracts, est or 0.0)
         return spec
 
-    body = _format_alert(spec) + "\n" + _cash_context_line()
+    # SPEC-094.4 F1: ammo routing advisory block appended AFTER the F5b cash
+    # line (AC14.2 amendment). 提示不拦 — fire 语义/sizing/落仓完全不受影响；
+    # any failure inside degrades the block to `弹药路由 n/a` (F2/AC16).
+    advisory_line, ammo = _ammo_advisory(
+        sleeve_id=sleeve_id, signal_date=today_str, nlv=nlv,
+        spx_close=spx_close, vix=vix, contracts=contracts, est_debit=est,
+    )
+    body = _format_alert(spec) + "\n" + _cash_context_line() + "\n" + advisory_line
     _send_gateway("ACTION", "新开仓", "Drawdown Overlay（回撤加仓）触发",
                   body, f"q042_trigger_{sleeve_id}_{today_str}", log)
+    if ammo is not None:
+        try:
+            log_ammo_advisory(ammo, date=today_str)      # AC-94.4-2 paper 证据管道
+        except Exception:
+            log.exception("F1(94.4) ammo advisory gate-log write failed — alert unaffected (AC16)")
     _write_pending_record(spec)
     key = "sleeve_a" if sleeve_id == "A" else "sleeve_b"
     state[key]["active_position_id"] = f"{sleeve_id}-{today_str}"

@@ -127,7 +127,8 @@ def read_latest_gate_row() -> Optional[dict]:
 
     与写入方（log_gate）同居本文件：读的就是日度落盘的 gate ledger，装配层
     不重推 compute_gate 公式。跳过 blocked_fire 反事实行（那是漏单审计
-    payload，不是门状态）。文件缺失 / 解析失败 → None（fail-soft）。
+    payload，不是门状态）与 ammo_advisory 行（SPEC-094.4 弹药路由建议，
+    提示性 payload，不是门状态）。文件缺失 / 解析失败 → None（fail-soft）。
     """
     if not GATE_LOG.exists():
         return None
@@ -142,7 +143,7 @@ def read_latest_gate_row() -> Optional[dict]:
                     row = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                if "blocked_fire" in row:
+                if "blocked_fire" in row or "ammo_advisory" in row:
                     continue
                 latest = row
     except OSError:
@@ -167,6 +168,25 @@ def log_blocked_fire(sleeve: str, reason: str, would_be_contracts: int,
             "would_be_contracts": int(would_be_contracts or 0),
             "ddath": round(ddath, 4),
         },
+    }
+    with GATE_LOG.open("a") as f:
+        f.write(json.dumps(row) + "\n")
+
+
+def log_ammo_advisory(advisory: dict, date: str = "") -> None:
+    """Append an ammo-routing advisory record (SPEC-094.4 F1, AC-94.4-2).
+
+    New OPTIONAL row type on the gate ledger — `ammo_advisory` payload:
+    ``{sleeve, branch, episode_type, liquid, need, bps_strikes?}``。提示不拦
+    （不改变 fire 语义），落盘目的是为突发型 n=4 的 paper 证据积累建管道
+    （Quant standing obligation：每次新触发更新 P6 分层账本）。Readers of the
+    gate ledger must treat rows carrying this key like blocked_fire rows —
+    payload 行，不是门状态（read_latest_gate_row 已跳过）。
+    """
+    GATE_LOG.parent.mkdir(parents=True, exist_ok=True)
+    row = {
+        "date": date or datetime.now(ET).strftime("%Y-%m-%d"),
+        "ammo_advisory": advisory,
     }
     with GATE_LOG.open("a") as f:
         f.write(json.dumps(row) + "\n")
