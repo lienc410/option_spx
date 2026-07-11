@@ -177,7 +177,7 @@ class Spec087RouteTests(unittest.TestCase):
         res = self.client.get("/spx")
         html = res.data.decode()
         # SPEC-125 D6: canonical nav labels (Q041 page label -> "Sleeves")
-        for label in ("Portfolio", "SPX", "/ES", "Sleeves", "Port BT"):
+        for label in ("Portfolio", "SPX", "/ES", "Sleeves", "Gov BT"):
             self.assertIn(label, html,
                 f"spx.html nav missing: {label}")
 
@@ -185,7 +185,7 @@ class Spec087RouteTests(unittest.TestCase):
         """portfolio_home.html must contain all nav links."""
         res = self.client.get("/")
         html = res.data.decode()
-        for label in ("Portfolio", "SPX", "/ES", "Sleeves", "Port BT"):
+        for label in ("Portfolio", "SPX", "/ES", "Sleeves", "Gov BT"):
             self.assertIn(label, html,
                 f"portfolio_home.html nav missing: {label}")
 

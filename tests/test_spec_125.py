@@ -168,7 +168,7 @@ class TestD6NavSingleSource(unittest.TestCase):
     def test_nav_include_has_canonical_set(self):
         src = (TPL / "_nav.html").read_text(encoding="utf-8")
         for label in ("Portfolio", "SPX", "/ES", "DD Overlay", "Aftermath",
-                      "Stress Put Ladder", "Sleeves", "Port BT", "Performance",
+                      "Stress Put Ladder", "Sleeves", "Gov BT", "Performance",
                       "Journal", "Margin", "Funds", "Book"):
             self.assertIn(f">{label}</a>", src, label)
 
