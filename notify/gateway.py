@@ -137,7 +137,11 @@ def push(category: str, about: str, title: str, body: str = "", *,
         return False
     text, quiet = prepared
     from notify.event_push import _send
-    return _send(text, disable_notification=quiet)
+    # SPEC-139 #22: pass category/about/title/dedupe_key through for the
+    # per-send ledger (event_push writes it only on a real 200 delivery).
+    meta = {"category": category, "about": about, "title": title,
+            "dedupe_key": dedupe_key}
+    return _send(text, disable_notification=quiet, meta=meta)
 
 
 async def apush(bot, chat_id: str, category: str, about: str, title: str,

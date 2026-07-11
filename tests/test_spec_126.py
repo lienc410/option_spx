@@ -92,8 +92,8 @@ class TestTransportWiring(GatewayBase):
     def test_push_passes_quiet_flag_to_transport(self):
         sent = {}
 
-        def fake_send(text, *, disable_notification=False):
-            sent["text"], sent["quiet"] = text, disable_notification
+        def fake_send(text, *, disable_notification=False, meta=None):
+            sent["text"], sent["quiet"], sent["meta"] = text, disable_notification, meta
             return True
 
         with patch("notify.event_push._send", side_effect=fake_send):

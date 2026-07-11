@@ -14,8 +14,8 @@
      主机 guard（SPX_PUSH_ENABLE=1 仅 oldair 生产 plists 设置）。
    - 测试态：autouse fixture 强制 delenv SPX_PUSH_ENABLE（guard 兜底）+
      api.telegram.org HTTP 绊线（触真网络即 pytest.fail）+ push_stats /
-     gateway dedupe 重定向 tmp。真活体发送 = @pytest.mark.live_push +
-     SPX_TEST_LIVE_PUSH=1 双重 opt-in，默认 skip。
+     push_ledger（SPEC-139 #22 send-ledger）/ gateway dedupe 重定向 tmp。真活体
+     发送 = @pytest.mark.live_push + SPX_TEST_LIVE_PUSH=1 双重 opt-in，默认 skip。
 2. Ledger 文件（#1 实例 ghost ledger rows，47648fa）
    - logs/trade_log.jsonl（logs.trade_log_io.TRADE_LOG_FILE）、
      data/closed_trades.jsonl（strategy.state.CLOSED_TRADES_FILE）、
@@ -51,6 +51,7 @@ import notify.gateway as _gw
 
 _REPO = Path(__file__).resolve().parents[1]
 _REAL_PUSH_STATS = _REPO / "logs" / "push_stats.json"
+_REAL_PUSH_LEDGER = _REPO / "logs" / "push_ledger.jsonl"   # SPEC-139 #22
 _REAL_REQUESTS_POST = requests.post
 
 # 会话期间被密闭层拦下/记录的推送尝试（调试用，可在测试里 import 检查）
@@ -76,10 +77,19 @@ def _stats_totals() -> dict:
         return {}
 
 
+def _ledger_snapshot() -> str:
+    """SPEC-139 #22 — raw bytes of the real send-ledger for the零增量 meta-assert."""
+    if not _REAL_PUSH_LEDGER.exists():
+        return ""
+    return _REAL_PUSH_LEDGER.read_text()
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _push_stats_meta_assert():
-    """SPEC-130 层 3 — 元断言：真实 push_stats.json 会话期间零增量。"""
+    """SPEC-130 层 3 — 元断言：真实 push_stats.json 与 push_ledger.jsonl 会话
+    期间零增量（两者写入均位于主机 guard 之后，任何增量即密闭被穿透）。"""
     baseline = _stats_totals()
+    ledger_baseline = _ledger_snapshot()
     yield
     if os.environ.get("SPX_TEST_LIVE_PUSH") == "1":
         return  # live_push opt-in 会话允许真实计数增长
@@ -87,6 +97,10 @@ def _push_stats_meta_assert():
     assert after == baseline, (
         "SPEC-130 元断言失败：logs/push_stats.json 在测试会话期间发生增量 "
         f"{baseline} -> {after} — 有测试穿透了推送密闭层（真发送已发生）！"
+    )
+    assert _ledger_snapshot() == ledger_baseline, (
+        "SPEC-139 元断言失败：logs/push_ledger.jsonl 在测试会话期间发生增量 "
+        "— 有测试穿透了 send-ledger 密闭层（真发送已发生）！"
     )
 
 
@@ -114,6 +128,7 @@ def _hermetic_push(request, monkeypatch, tmp_path):
 
     monkeypatch.delenv(_ep.PUSH_ENABLE_ENV, raising=False)
     monkeypatch.setattr(_ep, "PUSH_STATS", tmp_path / "push_stats.json")
+    monkeypatch.setattr(_ep, "PUSH_LEDGER", tmp_path / "push_ledger.jsonl")  # SPEC-139 #22
     monkeypatch.setattr(_gw, "DEDUPE_PATH", tmp_path / "push_dedupe.json")
 
     def _guarded_post(url, *args, **kwargs):
@@ -127,9 +142,9 @@ def _hermetic_push(request, monkeypatch, tmp_path):
 
     monkeypatch.setattr(requests, "post", _guarded_post)
 
-    def _recording_send(text, *, disable_notification=False):
+    def _recording_send(text, *, disable_notification=False, meta=None):
         PUSH_ATTEMPTS.append(str(text))
-        return _REAL_SEND(text, disable_notification=disable_notification)
+        return _REAL_SEND(text, disable_notification=disable_notification, meta=meta)
 
     monkeypatch.setattr(_ep, "_send", _recording_send)
     yield

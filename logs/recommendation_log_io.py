@@ -33,8 +33,14 @@ def append_recommendation_event(
     mode: str,
     timestamp: str,
     params_hash: str,
+    lane_b: list[dict] | None = None,
 ) -> None:
-    """Append one recommendation event to logs/recommendation_log.jsonl."""
+    """Append one recommendation event to logs/recommendation_log.jsonl.
+
+    SPEC-139 §3 — optional `lane_b` snapshot (当日持仓动作触发器读数，
+    lane_b_positions 输出的同形 list) 一并落盘，使 /api/decision-trace 回放历史日
+    时 Lane B 有据可依。纯附加字段：只有显式传入时才写 key，既有行逐字节不变；
+    未传入的旧行回放时如实标注降级。"""
     event = {
         "timestamp": timestamp,
         "source": source,
@@ -61,6 +67,9 @@ def append_recommendation_event(
         # /api/decision-trace 的历史数据源）
         "trace": list(getattr(rec, "trace", None) or []),
     }
+    # SPEC-139 §3 — Lane B 历史快照（纯附加；None 时不写 key → 旧行语义不变）
+    if lane_b is not None:
+        event["lane_b"] = list(lane_b)
     _assert_finite(event)
 
     path = _log_path()
