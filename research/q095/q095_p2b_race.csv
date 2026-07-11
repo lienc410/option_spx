@@ -1,0 +1,6 @@
+classifier,flip_rate_pct,rev5_rate_pct,lag_median_td,miss_rate_pct,episode_median_td,race_window_td,K1,K2,verdict
+C1_ER20,16.54,64.7,2.0,3.2,25.0,23.0,DEAD,pass,DEAD
+C2_RangeATR,8.71,36.5,3.0,6.5,25.0,22.0,DEAD,pass,DEAD
+C3_MA20slope,7.6,27.4,1.0,5.9,25.0,24.0,pass,pass,SURVIVES
+C4_ADX,4.32,21.9,0.0,16.2,25.0,25.0,pass,pass,SURVIVES
+C5_TrailBand,4.83,36.0,1.0,0.0,25.0,24.0,pass,pass,SURVIVES
