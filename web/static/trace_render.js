@@ -1,6 +1,8 @@
-// SPEC-135.3/135.4 — Decision Trace 共享渲染器（/spx 与 Portfolio Command Center 共用）。
+// SPEC-135.3/135.4/135.5 — Decision Trace 共享渲染器（/spx 与 Portfolio Command Center 共用）。
 // 单一 copy 源：所有文案来自 API trace 节点（label_human/detail/code_ref），
-// 渲染层零硬编码 gate/stage 清单（层级纯由 kind/stage 字段驱动）。
+// 渲染层零硬编码 gate/stage/引擎清单（层级纯由 kind/stage 字段驱动）。
+// SPEC-135.5：第四泳道 Lane D（sleeve 决策引擎，stage="sleeve"）＋整卡折叠态
+// 「决策引擎状态」一行摘要（summary_line 后端自吐，两页同一字节）。
 // Outcome 词汇表（SPEC-135.3）：
 //   ● 通过(pass/accept/route) · ⚠ advisory 提示（不拦，琥珀） ·
 //   ⛔ 拦截(veto/halt，红色只留真拦截) · ▶ 今日结论(final/wait)
@@ -29,12 +31,16 @@
       `<span><span class="lg-final">▶</span> 今日结论</span></div>`;
   }
 
-  function traceNodeHtml(n) {
-    const icon = TRACE_ICONS[n.outcome] || '·';
-    const iconColor = n.outcome === 'pass' ? 'var(--green)'
+  function _iconColor(n) {
+    return n.outcome === 'pass' ? 'var(--green)'
       : (n.outcome === 'veto' || n.outcome === 'halt') ? 'var(--red)'
       : n.outcome === 'advisory' ? 'var(--orange)'
       : (n.outcome === 'accept' || n.outcome === 'wait') ? 'var(--blue)' : 'var(--text-2)';
+  }
+
+  function traceNodeHtml(n) {
+    const icon = TRACE_ICONS[n.outcome] || '·';
+    const iconColor = _iconColor(n);
     const inputsStr = n.inputs && Object.keys(n.inputs).length
       ? JSON.stringify(n.inputs) : '—';
     // hover/点击三件套：{检查了什么数据, 实际值 vs 阈值, code_ref}（SPEC-135 §0）
@@ -175,6 +181,58 @@
     return html;
   }
 
+  // ── SPEC-135.5 — Lane D「Sleeve 决策引擎泳道」──────────────────────────────
+  // 语义：这些引擎真实决策（区别于 Lane C 只描述）。行文案/badge 词全部由
+  // /api/decision-trace lane_d 后端自吐（label_human/summary/badge），前端
+  // 零引擎清单、零 copy 硬编码——此处只做 badge 词 → 样式类映射（词表 =
+  // DESIGN.md Action State + Signal-outcome states）。
+  const TRACE_BADGE_CLS = { 'SIGNAL': 'tb-signal', 'ARMED': 'tb-armed',
+    'WATCHING': 'tb-watching', 'WARNING': 'tb-warning', 'HOLD': 'tb-hold',
+    'NO ENTRY': 'tb-noentry', 'CALM': 'tb-calm', 'BLOCKED': 'tb-blocked' };
+
+  function traceLaneDNodeHtml(n) {
+    const icon = TRACE_ICONS[n.outcome] || '·';
+    const badge = n.badge && n.badge.word
+      ? `<span class="t-badge ${TRACE_BADGE_CLS[n.badge.word] || 'tb-noentry'}">${n.badge.label || n.badge.word}</span>`
+      : '';
+    const inputsStr = n.inputs && Object.keys(n.inputs).length
+      ? JSON.stringify(n.inputs) : '—';
+    // 联动线等归属行（kind=evidence）缩进挂在引擎行下，常显不折叠
+    const linkCls = traceKindOf(n) === 'evidence' ? ' trace-laned-link' : '';
+    return `
+      <details class="trace-node t-${n.outcome}${linkCls}">
+        <summary title="点击展开：检查数据 · 实际值 vs 阈值 · 代码溯源${n.code_ref ? _esc('（' + n.code_ref + '）') : ''}">
+          <span class="t-icon" style="color:${_iconColor(n)}">${icon}</span>
+          ${badge}
+          <span>${n.label_human || n.check}</span>
+        </summary>
+        <div class="trace-triple">
+          <div><strong>检查数据:</strong> <code>${inputsStr}</code></div>
+          <div><strong>实际值 vs 阈值:</strong> ${n.detail || '—'}</div>
+          <div><strong>代码溯源:</strong> <code>${n.code_ref || '—'}</code></div>
+        </div>
+      </details>`;
+  }
+
+  function traceLaneDHtml(laneD) {
+    if (!laneD || !(laneD.engines || []).length) {
+      return `<div class="trace-ghost">${(laneD && laneD.note) || 'Lane D 数据不可用'}</div>`;
+    }
+    let html = laneD.engines.map(traceLaneDNodeHtml).join('');
+    if (laneD.note) html += `<div class="trace-ghost">${laneD.note}</div>`;
+    return html;
+  }
+
+  // 折叠态一行摘要（整卡 <summary> 内常显——首页 SPX 卡下方/spx 同一行，
+  // 同 copy 源 = 同一 lane_d.summary_line 字段；hover = 联动线全文）
+  function traceLaneDSummaryHtml(laneD) {
+    if (!laneD || !laneD.summary_line) return '';
+    const link = (laneD.engines || []).find((n) => traceKindOf(n) === 'evidence');
+    const tip = _esc((link && link.label_human ? link.label_human + ' — ' : '')
+      + '点开看 Lane D 全行');
+    return `<span class="trace-sleeve-summary" title="${tip}"><span class="tss-label">决策引擎状态</span>${laneD.summary_line}</span>`;
+  }
+
   function traceLaneBHtml(items) {
     if (!items || !items.length) return '<div class="trace-ghost">今天没有 open 仓位。</div>';
     return items.map((it) => {
@@ -207,6 +265,7 @@
           <span>Decision Trace</span>
           <span class="trace-verdict">${verdict}</span>
           <span style="margin-left:auto;font-weight:400;letter-spacing:0;text-transform:none">为什么是这个结论 → 点开看全程</span>
+          ${traceLaneDSummaryHtml(d.lane_d)}
         </summary>
         <div class="trace-body">
           ${traceLegendHtml()}
@@ -226,6 +285,10 @@
             <div class="trace-lane-title">Lane C · 地形参考（只描述，不决策）</div>
             <div style="font-size:0.76rem;color:var(--text);line-height:1.6">${laneC.narrative || '—'}</div>
             <div class="trace-disclaimer">${laneC.disclaimer || ''}</div>
+          </div>
+          <div class="trace-lane">
+            <div class="trace-lane-title">Lane D · 决策引擎状态（真实决策——区别于 Lane C 只描述）</div>
+            ${traceLaneDHtml(d.lane_d)}
           </div>
         </div>
       </details>`;
@@ -265,6 +328,8 @@
     anchorSummaryHtml: traceAnchorSummaryHtml,
     laneAHtml: traceLaneAHtml,
     laneBHtml: traceLaneBHtml,
+    laneDHtml: traceLaneDHtml,
+    laneDSummaryHtml: traceLaneDSummaryHtml,
     cardHtml: traceCardHtml,
     loadCard: traceLoadCard,
   };

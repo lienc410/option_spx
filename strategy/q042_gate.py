@@ -122,6 +122,34 @@ def log_gate(result: GateResult | None, bp_source: dict | None = None,
         f.write(json.dumps(row) + "\n")
 
 
+def read_latest_gate_row() -> Optional[dict]:
+    """最新一行联合门（F3）状态——SPEC-135.5 Lane D 联动线的唯一数据源。
+
+    与写入方（log_gate）同居本文件：读的就是日度落盘的 gate ledger，装配层
+    不重推 compute_gate 公式。跳过 blocked_fire 反事实行（那是漏单审计
+    payload，不是门状态）。文件缺失 / 解析失败 → None（fail-soft）。
+    """
+    if not GATE_LOG.exists():
+        return None
+    latest: Optional[dict] = None
+    try:
+        with GATE_LOG.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if "blocked_fire" in row:
+                    continue
+                latest = row
+    except OSError:
+        return None
+    return latest
+
+
 def log_blocked_fire(sleeve: str, reason: str, would_be_contracts: int,
                      ddath: float, date: str = "") -> None:
     """Append a counterfactual blocked-fire record (SPEC-094.2 F5.2).

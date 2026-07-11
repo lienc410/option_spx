@@ -365,3 +365,384 @@ def lane_c_terrain(date_str: str) -> dict:
     except Exception as exc:
         out["narrative"] = f"地形数据不可用（fail-soft）: {exc}"
     return out
+
+
+# ═══ SPEC-135.5 — Lane D「Sleeve 决策引擎泳道」═══════════════════════════════
+# 语义：这些引擎真实决策（armed/触发/容量分配/信号），区别于 Lane C 的
+# "只描述不决策"。每台引擎一行（人话主行 + badge + hover 三件套），
+# stage="sleeve"，kind/stage 契约沿 SPEC-135.1。
+#
+# 数据同源铁律（AC：静态断言零旁路重推，tests/test_spec_135_5.py）：
+#   DD Overlay   ← web.server.q042_state_payload（= /api/q042/state 同一组装点）
+#   联动线       ← strategy.q042_gate.read_latest_gate_row（F3 联合门日度落盘，
+#                  main_bp/cap/src 逐字段照抄；公式只活在 q042_gate.compute_gate）
+#   Aftermath    ← web.server.aftermath_state_payload（selector.is_aftermath 同函数）
+#   压力状态机   ← strategy.sleeve_governance 生产函数（_latest_market_stress /
+#                  booster_signal_conditions / active_spx_cap / booster_mode /
+#                  ladder_mode——与 /api/sleeve-governance/state 同一批真值函数）
+#   ES Ladder    ← web.server.hvladder_live_payload.status_human（与首页
+#                  Stress Put Ladder 卡同一 copy 源，词不在本层重组）
+# badge 词表 = DESIGN.md Action State + Signal-outcome states（ARMED/WATCHING/
+# SIGNAL/HOLD/NO ENTRY/WARNING/CALM/BLOCKED），不得自造。
+# web.server 的 import 全部惰性（调用时 web.server 必已在 sys.modules——
+# 唯一生产调用方就是 /api/decision-trace 路由本身）。
+
+LANE_D_SEMANTICS = ("决策引擎状态——它们真实决策（armed/触发/容量/信号），"
+                    "区别于 Lane C 的只描述")
+
+
+def _sleeve_node(check: str, label_human: str, *, summary: str | None = None,
+                 badge_word: str | None = None, badge_label: str | None = None,
+                 detail: str = "", inputs: dict | None = None,
+                 outcome: str = "info", code_ref: str = "",
+                 kind: str = "verdict") -> dict:
+    """Lane D 节点（135.1 契约字段 + badge/summary 纯附加两字段）。"""
+    node = {
+        "layer": "sleeve", "check": check, "label_human": label_human,
+        "detail": detail, "inputs": inputs or {}, "outcome": outcome,
+        "code_ref": code_ref, "branch_taken": True,
+        "kind": kind, "stage": "sleeve",
+        "summary": summary,
+    }
+    if badge_word:
+        node["badge"] = {"word": badge_word, "label": badge_label or badge_word}
+    return node
+
+
+def _lane_d_dd_overlay() -> list[dict]:
+    """DD Overlay 引擎行 + 联动线（本泳道的灵魂）。"""
+    nodes: list[dict] = []
+    try:
+        from web.server import q042_state_payload
+        from signals.q042_trigger import (_DD4_THRESHOLD, _DD15_THRESHOLD,
+                                          _REARM_THRESHOLD)
+        st = q042_state_payload()
+        ddath = st.get("ddath_pct")                    # 已是 % 值（负 = 回撤）
+        degraded = bool(st.get("ath_degraded"))
+        a = st.get("sleeve_a") or {}
+        b = st.get("sleeve_b") or {}
+        a_pos, b_pos = a.get("active_position"), b.get("active_position")
+        trig_a = _DD4_THRESHOLD * 100                  # -4.0
+        trig_b = _DD15_THRESHOLD * 100                 # -15.0
+        rearm = _REARM_THRESHOLD * 100                 # -2.0
+
+        def _strike(v) -> str:
+            return f"{v:g}" if isinstance(v, (int, float)) else "—"
+
+        def _pos_phrase(tag: str, p: dict) -> str:
+            return (f"Sleeve {tag} 已挂仓（{p.get('contracts', '—')} 张 "
+                    f"{_strike(p.get('long_strike'))}/{_strike(p.get('short_strike'))} "
+                    f"put spread，{p.get('expiry_date', '—')} 到期还剩 "
+                    f"{p.get('days_to_expiry', '—')} 天）")
+
+        if a_pos or b_pos:
+            phrases = [_pos_phrase(t, p) for t, p in (("A", a_pos), ("B", b_pos)) if p]
+            label = "DD Overlay：" + "；".join(phrases)
+            badge_word, badge_label = "HOLD", "HOLD"
+            summary = "DD Overlay HOLD"
+            outcome = "info"
+        elif a.get("armed") and b.get("armed"):
+            if degraded:
+                label = "DD Overlay：双 sleeve 待命中"
+            else:
+                gap = ddath - trig_a                   # 距 A 触发线还差几个百分点
+                label = (f"DD Overlay：双 sleeve 待命中（回撤 {ddath:+.1f}%，"
+                         f"距 Sleeve A 触发线 {trig_a:.0f}% 还差 {gap:.1f}pp）")
+            badge_word, badge_label = "ARMED", "ARMED ×2"
+            summary = "DD Overlay ARMED×2"
+            outcome = "info"
+        elif b.get("in_watching"):
+            label = (f"DD Overlay：Sleeve B 已进 watching（{trig_b:.0f}% 外触发后等 "
+                     f"MA10 收复，窗口自 {b.get('watch_start_date') or '—'}）"
+                     + ("" if a.get("armed") else "；Sleeve A 未武装"))
+            badge_word, badge_label = "WATCHING", "WATCHING"
+            summary = "DD Overlay WATCHING"
+            outcome = "info"
+        elif a.get("armed") or b.get("armed"):
+            armed_tag = "A" if a.get("armed") else "B"
+            label = (f"DD Overlay：仅 Sleeve {armed_tag} 待命"
+                     + ("" if degraded else f"（回撤 {ddath:+.1f}%）"))
+            badge_word, badge_label = "ARMED", f"ARMED {armed_tag}"
+            summary = f"DD Overlay ARMED（{armed_tag}）"
+            outcome = "info"
+        else:
+            label = (f"DD Overlay：已触发过、等待重新武装"
+                     f"（回撤回到 {rearm:.0f}% 以内才重新 armed）")
+            badge_word, badge_label = "NO ENTRY", "NO ENTRY"
+            summary = "DD Overlay 待重新武装"
+            outcome = "info"
+        if degraded:
+            # SPEC-094.2 F7 语义：state ATH 缺失/为 0 → ddath 是中性填充值，
+            # 不是真回撤读数——显式标注 + 琥珀提示档
+            label += "｜⚠ ATH 基准缺失（degraded，F7）——回撤读数不可用"
+            outcome = "advisory"
+        nodes.append(_sleeve_node(
+            "dd_overlay", label,
+            summary=summary, badge_word=badge_word, badge_label=badge_label,
+            detail=(f"ddATH = SPX 收盘 ÷ 2007 起 running ATH − 1 = "
+                    f"{'不可用（ATH degraded）' if degraded else f'{ddath:+.2f}%'} · "
+                    f"Sleeve A 触发线 {trig_a:.0f}%（T+1 直接开）· "
+                    f"Sleeve B 外触发线 {trig_b:.0f}% 后等 MA10 收复 · "
+                    f"re-arm 线 {rearm:.0f}% · Sleeve A 生产档 cap "
+                    f"{a.get('production_cap_pct', '—')}%（{a.get('stage', '—')}，"
+                    f"paper）· Sleeve B research_only"),
+            inputs={"date": st.get("date"), "ddath_pct": ddath,
+                    "ath_degraded": degraded,
+                    "sleeve_a_armed": a.get("armed"),
+                    "sleeve_b_armed": b.get("armed"),
+                    "sleeve_b_in_watching": b.get("in_watching"),
+                    "positions": [p.get("trade_id") for p in (a_pos, b_pos) if p]},
+            outcome=outcome,
+            code_ref="SPEC-094 F1 · signals/q042_trigger · /api/q042/state"))
+    except Exception as exc:
+        nodes.append(_sleeve_node(
+            "dd_overlay", f"DD Overlay：状态不可用（fail-soft）: {exc}",
+            summary="DD Overlay 不可用", detail=str(exc),
+            code_ref="SPEC-094 F1"))
+
+    # 联动线：主策略 BP → DD Overlay 容量档位（F3 联合门第一次有显示面；
+    # 数据 = gate log 最新行 main_bp/cap/src 逐字段照抄，公式不在此重推）
+    try:
+        from strategy.q042_gate import (_MAIN_BP_BUDGET, read_latest_gate_row)
+        row = read_latest_gate_row()
+        budget = _MAIN_BP_BUDGET
+        if row is None:
+            nodes.append(_sleeve_node(
+                "dd_overlay_main_linkage",
+                "与主策略的联动：联合门 gate log 尚无记录（F3 日更 09:40 ET 落盘）",
+                kind="evidence",
+                code_ref="SPEC-094.2 F3 · strategy/q042_gate"))
+        else:
+            main_bp = row.get("main_bp_pct")
+            cap = row.get("q042_combined_cap")
+            a_allow = row.get("sleeve_a_allowance")
+            b_allow = row.get("sleeve_b_allowance")
+            binding = bool(row.get("gate_binding"))
+            src = row.get("bp_source") or {}
+            inputs = {"date": row.get("date"), "main_bp_pct": main_bp,
+                      "q042_combined_cap": cap,
+                      "sleeve_a_allowance": a_allow,
+                      "sleeve_b_allowance": b_allow,
+                      "gate_binding": binding,
+                      "src": src.get("source"),
+                      "src_timestamp": src.get("timestamp")}
+            if row.get("gate_available") is False or main_bp is None:
+                label = ("与主策略的联动：主策略 BP 读数不可用 → 联合门 "
+                         "fail-closed，DD Overlay 容量归零")
+                outcome = "advisory"
+            elif not binding:
+                label = (f"与主策略的联动：主策略 BP 占用 {main_bp:.1f}% vs "
+                         f"预算线 {budget:.0f}% → DD Overlay 容量档位 "
+                         f"{a_allow:.1f}%（联合门未压缩）")
+                outcome = "pass"
+            elif cap and cap > 0:
+                label = (f"与主策略的联动：主策略 BP 占用 {main_bp:.1f}% 挤占 "
+                         f"{budget:.0f}% 预算线 → DD Overlay 容量档位被压缩到 "
+                         f"{a_allow:.1f}%")
+                outcome = "advisory"
+            else:
+                label = (f"与主策略的联动：主策略 BP 占用 {main_bp:.1f}% ≥ "
+                         f"{budget:.0f}% 预算线 → DD Overlay 容量归零"
+                         "（双 sleeve 禁开）")
+                outcome = "veto"       # 真拦截：overlay 开仓被联合门实际挡下
+            nodes.append(_sleeve_node(
+                "dd_overlay_main_linkage", label, kind="evidence",
+                detail=(f"gate log {row.get('date')} 行：main_bp "
+                        f"{main_bp if main_bp is not None else '—'}% · combined cap {cap}% · "
+                        f"Sleeve A 档 {a_allow}% / B 档 {b_allow}% · "
+                        f"binding={binding} · BP 读数源 {src.get('source') or '—'} "
+                        f"@ {src.get('timestamp') or '—'}"
+                        "（公式与判定只活在 q042_gate.compute_gate；本行只读日度落盘）"),
+                inputs=inputs, outcome=outcome,
+                code_ref="SPEC-094 F3 / SPEC-094.2 · strategy/q042_gate"))
+    except Exception as exc:
+        nodes.append(_sleeve_node(
+            "dd_overlay_main_linkage",
+            f"与主策略的联动：联合门读数不可用（fail-soft）: {exc}",
+            kind="evidence", detail=str(exc),
+            code_ref="SPEC-094.2 F3"))
+    return nodes
+
+
+def _lane_d_aftermath() -> dict:
+    """Aftermath 余波窗口引擎行（is_aftermath 与 selector 同一函数）。"""
+    try:
+        from web.server import aftermath_state_payload
+        am = aftermath_state_payload()
+        vix = am.get("vix")
+        peak = am.get("vix_peak_10d")
+        off = am.get("off_peak_pct")
+        thr_peak = am.get("threshold_peak_min")
+        thr_off = am.get("threshold_off_peak_pct")
+        regime = am.get("regime") or "—"
+        detail = (f"触发三条件（is_aftermath，与 selector 同一函数）："
+                  f"10 日 VIX 峰值 ≥ {thr_peak:.0f}（现 {peak if peak is not None else '—'}）· "
+                  f"自峰值回落 ≥ {thr_off:.0f}%（现 {off if off is not None else '—'}%）· "
+                  f"VIX < 40（现 {vix}）")
+        inputs = {k: am.get(k) for k in
+                  ("active", "vix", "vix_peak_10d", "off_peak_pct",
+                   "threshold_peak_min", "threshold_off_peak_pct",
+                   "threshold_vix_max", "regime", "reason", "date")}
+        if am.get("active"):
+            return _sleeve_node(
+                "aftermath_window",
+                (f"Aftermath 余波窗口：已激活（VIX 从 10 日峰值 {peak} 回落 "
+                 f"{off:.0f}%，HIGH_VOL 特批结构解锁）"),
+                summary="Aftermath SIGNAL", badge_word="SIGNAL",
+                detail=detail, inputs=inputs, outcome="pass",
+                code_ref="strategy/selector.is_aftermath · /api/aftermath/state")
+        reason = str(am.get("reason") or "")
+        if reason.startswith("no_peak_data"):
+            why = "10 日 VIX 峰值数据缺失"
+        elif reason.startswith("peak_below_threshold"):
+            why = (f"10 日峰值 {peak} 未达 {thr_peak:.0f}，无恐慌尖峰可回落"
+                   f"——当前 regime {regime}")
+        elif reason.startswith("vix_above_extreme"):
+            why = f"VIX {vix} 仍在 40 极端区上方"
+        elif reason.startswith("insufficient_off_peak"):
+            why = f"VIX {vix} 距峰值 {peak} 只回落 {off}%（需 ≥{thr_off:.0f}%）"
+        else:
+            why = "触发条件未满足"
+        return _sleeve_node(
+            "aftermath_window", f"Aftermath 余波窗口：未激活（{why}）",
+            summary="Aftermath 未激活", badge_word="NO ENTRY",
+            detail=detail, inputs=inputs, outcome="info",
+            code_ref="strategy/selector.is_aftermath · /api/aftermath/state")
+    except Exception as exc:
+        return _sleeve_node(
+            "aftermath_window",
+            f"Aftermath 余波窗口：状态不可用（fail-soft）: {exc}",
+            summary="Aftermath 不可用", detail=str(exc),
+            code_ref="strategy/selector.is_aftermath")
+
+
+def _lane_d_stress_machine() -> dict:
+    """Sleeve 压力状态机引擎行（SPEC-103/105/108 生产函数同源）。"""
+    try:
+        from strategy.sleeve_governance import (_latest_market_stress,
+                                                active_spx_cap,
+                                                booster_mode,
+                                                booster_signal_conditions,
+                                                ladder_mode)
+        market = _latest_market_stress()
+        bmode, lmode = booster_mode(), ladder_mode()
+        if market.get("status") != "available":
+            return _sleeve_node(
+                "sleeve_stress_machine",
+                (f"Sleeve 压力状态机：市场读数不可用"
+                 f"（{market.get('reason') or '—'}）——fail-closed，"
+                 "booster 不给、cap 按常规档"),
+                summary="压力机读数不可用",
+                detail=f"booster {bmode} / entry ladder {lmode}",
+                inputs={"status": market.get("status"),
+                        "reason": market.get("reason"),
+                        "booster_mode": bmode, "ladder_mode": lmode},
+                code_ref="SPEC-103/105 · strategy/sleeve_governance")
+        cond = booster_signal_conditions(market)
+        cap_pct, cap_regime = active_spx_cap(market)
+        regime_human = {
+            "second_leg": f"二次下探 episode（SPX PM cap 压到 {cap_pct:.0f}%）",
+            "stress": f"stress episode 进行中（SPX PM cap 压到 {cap_pct:.0f}%）",
+            "booster": f"benign booster 生效（SPX PM cap 提到 {cap_pct:.0f}%）",
+            "booster_shadow": (f"benign 条件全数满足（booster 处 shadow 档，"
+                               f"生产 cap 仍 {cap_pct:.0f}%）"),
+            "normal": f"正常态（SPX PM cap {cap_pct:.0f}%）",
+        }.get(cap_regime, f"{cap_regime}（SPX PM cap {cap_pct:.0f}%）")
+        stressed = bool(market.get("stress_episode_active")) or \
+            bool(market.get("second_leg_active"))
+        ddath = market.get("ddath")
+        vix5 = market.get("vix_5d_change")
+        ivp = market.get("ivp252")
+
+        def _fx(key: str) -> str:
+            return "✓" if cond.get(key) else "✗"
+
+        detail = (
+            "warm-up/benign 条件逐条（B4）："
+            f"数据齐备 {_fx('warmed')} · 无 stress {_fx('no_stress')} · "
+            f"无二次下探 {_fx('no_second_leg')} · "
+            f"SPX>MA50 {_fx('trend_ok')}（{market.get('spx_close')} vs "
+            f"{market.get('ma50')}）· "
+            f"ddATH>-4% {_fx('ddath_ok')}（现 "
+            f"{f'{ddath * 100:+.1f}%' if ddath is not None else '—'}）· "
+            f"VIX<22 {_fx('vix_ok')}（现 {market.get('vix')}）· "
+            f"VIX 5d 变化≤+1.5 {_fx('vix5d_ok')}（现 "
+            f"{vix5 if vix5 is not None else '—'}）· "
+            f"IVP252<55（或 VIX<15 逃逸）{_fx('ivp_gate_pass')}（现 "
+            f"{ivp if ivp is not None else '—'}）；"
+            "stress 合成 = VIX≥22 ∨ 20d 回撤≤−4% ∨ 60d 回撤≤−4%"
+        )
+        return _sleeve_node(
+            "sleeve_stress_machine",
+            (f"Sleeve 压力状态机：{regime_human} · booster {bmode} / "
+             f"entry ladder {lmode}"),
+            summary=f"压力机 {'WARNING' if stressed else 'CALM'}",
+            badge_word="WARNING" if stressed else "CALM",
+            detail=detail,
+            inputs={"cap_pct": cap_pct, "cap_regime": cap_regime,
+                    "booster_mode": bmode, "ladder_mode": lmode,
+                    "stress_episode_active": market.get("stress_episode_active"),
+                    "second_leg_active": market.get("second_leg_active"),
+                    "vix": market.get("vix"), "ddath": ddath,
+                    "dd_20d": market.get("dd_20d"),
+                    "dd_60d": market.get("dd_60d"),
+                    "conditions": {k: bool(v) for k, v in cond.items()}},
+            outcome="advisory" if stressed else "info",
+            code_ref="SPEC-103/105/108 · strategy/sleeve_governance")
+    except Exception as exc:
+        return _sleeve_node(
+            "sleeve_stress_machine",
+            f"Sleeve 压力状态机：状态不可用（fail-soft）: {exc}",
+            summary="压力机不可用", detail=str(exc),
+            code_ref="SPEC-103 · strategy/sleeve_governance")
+
+
+def _lane_d_es_ladder() -> dict:
+    """ES Ladder 引擎行——与首页 Stress Put Ladder 卡同一 copy 源
+    （status_human 只在 hvladder_live_payload 组装）。"""
+    try:
+        from web.server import hvladder_live_payload
+        hv = hvladder_live_payload()
+        sh = hv.get("status_human") or {}
+        label = (f"ES Ladder（Stress Put Ladder /ES）：{sh.get('slots_text')} · "
+                 f"{sh.get('state_text')}")
+        vix_c = hv.get("vix_current")
+        avg5 = hv.get("vix_5td_avg")
+        cad = hv.get("cadence_elapsed_trading_days")
+        return _sleeve_node(
+            "es_ladder", label,
+            summary=f"ES Ladder {sh.get('badge_label')}",
+            badge_word=sh.get("badge_word"), badge_label=sh.get("badge_label"),
+            detail=(f"VIX {f'{vix_c:.1f}' if isinstance(vix_c, (int, float)) else '—'} / 门槛 "
+                    f"{hv.get('threshold')}（5 日均 "
+                    f"{f'{avg5:.1f}' if isinstance(avg5, (int, float)) else '—'}）· "
+                    f"cadence 距上次 entry {cad if cad is not None else '—'} "
+                    f"个交易日 · {hv.get('research_only_note')}"),
+            inputs={"active_slots": hv.get("active_slots"),
+                    "max_slots": hv.get("max_slots"),
+                    "vix_current": vix_c, "threshold": hv.get("threshold"),
+                    "blockers": hv.get("blockers"),
+                    "signal_live": hv.get("signal_live"),
+                    "status": hv.get("status")},
+            outcome="info",
+            code_ref="SPEC-104 / Q071 HV Ladder · /api/hvladder/live")
+    except Exception as exc:
+        return _sleeve_node(
+            "es_ladder", f"ES Ladder：状态不可用（fail-soft）: {exc}",
+            summary="ES Ladder 不可用", detail=str(exc),
+            code_ref="SPEC-104 / Q071 HV Ladder")
+
+
+def lane_d_sleeves() -> dict:
+    """Lane D 全泳道（当日现算；历史不存档，v1 与 Lane B 同口径）。"""
+    engines = _lane_d_dd_overlay() + [
+        _lane_d_aftermath(),
+        _lane_d_stress_machine(),
+        _lane_d_es_ladder(),
+    ]
+    summary_line = " · ".join(n["summary"] for n in engines if n.get("summary"))
+    return {
+        "semantics": LANE_D_SEMANTICS,
+        "engines": engines,
+        "summary_line": summary_line or None,
+    }

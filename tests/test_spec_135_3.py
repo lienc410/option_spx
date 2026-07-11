@@ -185,30 +185,30 @@ class UiAuditTests(unittest.TestCase):
         self.assertIn(".trace-anchor.a-advisory .a-icon { color: var(--orange); }", self.css)
 
     def test_legend_line_always_visible_both_pages(self) -> None:
-        """图例常显一行（§3）：● 通过 · ⚠ 提示（不拦） · ⛔ 拦截 · ▶ 今日结论"""
+        """图例常显一行（§3）：● 通过 · ⚠ 提示（不拦） · ⛔ 拦截 · ▶ 今日结论
+        （0d5991f 整卡单源后图例活在共享 cardHtml 内，两页同一挂载）"""
         for token in ("通过", "提示（不拦）", "拦截", "今日结论"):
             self.assertIn(token, self.tr)
-        self.assertIn("TraceRender.legendHtml()", self.spx)
-        self.assertIn("TraceRender.legendHtml()", self.home)
+        self.assertIn("${traceLegendHtml()}", self.tr)          # 图例在整卡内
+        self.assertIn("TraceRender.loadCard('decision-trace')", self.spx)
+        self.assertIn("TraceRender.loadCard('decision-trace')", self.home)
 
     def test_homepage_anchor_home_and_expand(self) -> None:
-        """SPEC-135.4 §1 改版：独立摘要卡已删（同页两处渲染点是 135.3 的
-        spec 设计错误），锚点故事唯一的家 = SPX 卡理由区 + 展开入口。"""
+        """SPEC-135.4 §1（0d5991f 再改版对齐）：首页决策链唯一渲染点 = 共享
+        Decision Trace 整卡（PM 2026-07-08：与 /spx 完全一样）。独立摘要卡、
+        锚点摘要块、展开入口全部退役——两处并存即信息漂移。"""
         self.assertNotIn('id="trace-summary"', self.home)
         self.assertNotIn("loadTraceSummary", self.home)
-        self.assertEqual(self.home.count("TraceRender.anchorSummaryHtml("), 1)
-        for token in ("展开完整决策链", "expandFullTrace"):
-            self.assertIn(token, self.home)
+        self.assertNotIn("TraceRender.anchorSummaryHtml(", self.home)
+        self.assertNotIn("expandFullTrace", self.home)
+        self.assertEqual(self.home.count('id="decision-trace"'), 1)
 
     def test_spx_card_rationale_uses_trace_anchors_not_bare_text(self) -> None:
-        """AC: G2 文案不再以裸长文本出现在 SPX 卡——理由区渲染 trace 锚点
-        序列（同 copy 源），裸 rationale 只是无 trace 的降级路径。"""
-        self.assertIn("TraceRender.anchorSummaryHtml(rec.trace)", self.home)
-        # 裸文本赋值只存在于降级 else 分支
-        i = self.home.find("const _anchorsHtml")
-        j = self.home.find("rationale-spx').textContent = rec.rationale")
-        self.assertGreater(j, i, "裸 rationale 赋值必须在锚点渲染之后的降级分支")
-        self.assertIn("} else if (rec.rationale) {", self.home)
+        """AC: G2 文案不再以裸长文本出现在 SPX 卡。0d5991f 后首页不再自渲染
+        理由区——决策叙事（含 G2）只经共享整卡（trace 节点）呈现。"""
+        self.assertNotIn('id="rationale-spx"', self.home)
+        self.assertNotIn("rec.rationale", self.home)   # 裸长文本零渲染路径
+        self.assertIn("TraceRender.loadCard('decision-trace')", self.home)
 
     def test_hover_carries_full_detail(self) -> None:
         # 锚点摘要 hover title = detail + 溯源（pm-clear 命令等完整文本由此
