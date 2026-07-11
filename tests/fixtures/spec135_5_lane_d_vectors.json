@@ -1,0 +1,324 @@
+{
+ "_provenance": "SPEC-135.5 AC：7/11 快照固定测试用例（双 sleeve armed + main_bp 15.8% 联动线）。gate 行由 q042_gate.compute_gate 生成（公式唯一真值）；expected_lane_d = 冻结回归锁，重生成必须在 commit message 注明。生成脚本：scripts/gen_spec135_5_vectors.py",
+ "expected_lane_d": {
+  "engines": [
+   {
+    "badge": {
+     "label": "ARMED ×2",
+     "word": "ARMED"
+    },
+    "branch_taken": true,
+    "check": "dd_overlay",
+    "code_ref": "SPEC-094 F1 · signals/q042_trigger · /api/q042/state",
+    "detail": "ddATH = SPX 收盘 ÷ 2007 起 running ATH − 1 = -0.90% · Sleeve A 触发线 -4%（T+1 直接开）· Sleeve B 外触发线 -15% 后等 MA10 收复 · re-arm 线 -2% · Sleeve A 生产档 cap 12.5%（stage_1，paper）· Sleeve B research_only",
+    "inputs": {
+     "ath_degraded": false,
+     "date": "2026-07-11",
+     "ddath_pct": -0.9,
+     "positions": [],
+     "sleeve_a_armed": true,
+     "sleeve_b_armed": true,
+     "sleeve_b_in_watching": false
+    },
+    "kind": "verdict",
+    "label_human": "DD Overlay：双 sleeve 待命中（回撤 -0.9%，距 Sleeve A 触发线 -4% 还差 3.1pp）",
+    "layer": "sleeve",
+    "outcome": "info",
+    "stage": "sleeve",
+    "summary": "DD Overlay ARMED×2"
+   },
+   {
+    "branch_taken": true,
+    "check": "dd_overlay_main_linkage",
+    "code_ref": "SPEC-094 F3 / SPEC-094.2 · strategy/q042_gate",
+    "detail": "gate log 2026-07-11 行：main_bp 15.8% · combined cap 12.5% · Sleeve A 档 12.5% / B 档 0.0% · binding=False · BP 读数源 sleeve_governance_runtime.pools.spx_pm_bp_pct(all) @ 2026-07-11T09:40:00-04:00（公式与判定只活在 q042_gate.compute_gate；本行只读日度落盘）",
+    "inputs": {
+     "date": "2026-07-11",
+     "gate_binding": false,
+     "main_bp_pct": 15.8,
+     "q042_combined_cap": 12.5,
+     "sleeve_a_allowance": 12.5,
+     "sleeve_b_allowance": 0.0,
+     "src": "sleeve_governance_runtime.pools.spx_pm_bp_pct(all)",
+     "src_timestamp": "2026-07-11T09:40:00-04:00"
+    },
+    "kind": "evidence",
+    "label_human": "与主策略的联动：主策略 BP 占用 15.8% vs 预算线 60% → DD Overlay 容量档位 12.5%（联合门未压缩）",
+    "layer": "sleeve",
+    "outcome": "pass",
+    "stage": "sleeve",
+    "summary": null
+   },
+   {
+    "badge": {
+     "label": "NO ENTRY",
+     "word": "NO ENTRY"
+    },
+    "branch_taken": true,
+    "check": "aftermath_window",
+    "code_ref": "strategy/selector.is_aftermath · /api/aftermath/state",
+    "detail": "触发三条件（is_aftermath，与 selector 同一函数）：10 日 VIX 峰值 ≥ 28（现 18.41）· 自峰值回落 ≥ 10%（现 18.36%）· VIX < 40（现 15.03）",
+    "inputs": {
+     "active": false,
+     "date": "2026-07-11",
+     "off_peak_pct": 18.36,
+     "reason": "peak_below_threshold (18.4 < 28.0)",
+     "regime": "NORMAL",
+     "threshold_off_peak_pct": 10.0,
+     "threshold_peak_min": 28.0,
+     "threshold_vix_max": 40.0,
+     "vix": 15.03,
+     "vix_peak_10d": 18.41
+    },
+    "kind": "verdict",
+    "label_human": "Aftermath 余波窗口：未激活（10 日峰值 18.41 未达 28，无恐慌尖峰可回落——当前 regime NORMAL）",
+    "layer": "sleeve",
+    "outcome": "info",
+    "stage": "sleeve",
+    "summary": "Aftermath 未激活"
+   },
+   {
+    "badge": {
+     "label": "CALM",
+     "word": "CALM"
+    },
+    "branch_taken": true,
+    "check": "sleeve_stress_machine",
+    "code_ref": "SPEC-103/105/108 · strategy/sleeve_governance",
+    "detail": "warm-up/benign 条件逐条（B4）：数据齐备 ✓ · 无 stress ✓ · 无二次下探 ✓ · SPX>MA50 ✓（7537.0 vs 7301.2）· ddATH>-4% ✓（现 -0.9%）· VIX<22 ✓（现 15.03）· VIX 5d 变化≤+1.5 ✓（现 0.3）· IVP252<55（或 VIX<15 逃逸）✓（现 24.0）；stress 合成 = VIX≥22 ∨ 20d 回撤≤−4% ∨ 60d 回撤≤−4%",
+    "inputs": {
+     "booster_mode": "shadow",
+     "cap_pct": 80.0,
+     "cap_regime": "booster_shadow",
+     "conditions": {
+      "ddath_ok": true,
+      "ivp_gate_pass": true,
+      "ivp_ok": true,
+      "low_vix_escape_ok": false,
+      "no_second_leg": true,
+      "no_stress": true,
+      "trend_ok": true,
+      "vix5d_ok": true,
+      "vix_ok": true,
+      "warmed": true
+     },
+     "dd_20d": -0.011,
+     "dd_60d": -0.015,
+     "ddath": -0.009,
+     "ladder_mode": "shadow",
+     "second_leg_active": false,
+     "stress_episode_active": false,
+     "vix": 15.03
+    },
+    "kind": "verdict",
+    "label_human": "Sleeve 压力状态机：benign 条件全数满足（booster 处 shadow 档，生产 cap 仍 80%） · booster shadow / entry ladder shadow",
+    "layer": "sleeve",
+    "outcome": "info",
+    "stage": "sleeve",
+    "summary": "压力机 CALM"
+   },
+   {
+    "badge": {
+     "label": "NO ENTRY",
+     "word": "NO ENTRY"
+    },
+    "branch_taken": true,
+    "check": "es_ladder",
+    "code_ref": "SPEC-104 / Q071 HV Ladder · /api/hvladder/live",
+    "detail": "VIX 15.0 / 门槛 22.0（5 日均 15.9）· cadence 距上次 entry — 个交易日 · Research-only / paper-only per SPEC-104. NO PRODUCTION EXECUTION.",
+    "inputs": {
+     "active_slots": 0,
+     "blockers": [
+      "vix_ok"
+     ],
+     "max_slots": 5,
+     "signal_live": false,
+     "status": "ok",
+     "threshold": 22.0,
+     "vix_current": 15.03
+    },
+    "kind": "verdict",
+    "label_human": "ES Ladder（Stress Put Ladder /ES）：slots 0/5 · blocked: VIX",
+    "layer": "sleeve",
+    "outcome": "info",
+    "stage": "sleeve",
+    "summary": "ES Ladder NO ENTRY"
+   }
+  ],
+  "semantics": "决策引擎状态——它们真实决策（armed/触发/容量/信号），区别于 Lane C 的只描述",
+  "summary_line": "DD Overlay ARMED×2 · Aftermath 未激活 · 压力机 CALM · ES Ladder NO ENTRY"
+ },
+ "inputs": {
+  "aftermath_state": {
+   "active": false,
+   "date": "2026-07-11",
+   "off_peak_pct": 18.36,
+   "reason": "peak_below_threshold (18.4 < 28.0)",
+   "regime": "NORMAL",
+   "threshold_off_peak_pct": 10.0,
+   "threshold_peak_min": 28.0,
+   "threshold_vix_max": 40.0,
+   "trend": "FALLING",
+   "vix": 15.03,
+   "vix_peak_10d": 18.41
+  },
+  "gate_log_rows": [
+   {
+    "date": "2026-07-10",
+    "gate_binding": false,
+    "main_bp_pct": 16.2,
+    "q042_combined_cap": 12.5,
+    "sleeve_a_allowance": 12.5,
+    "sleeve_b_allowance": 0.0
+   },
+   {
+    "bp_source": {
+     "source": "sleeve_governance_runtime.pools.spx_pm_bp_pct(all)",
+     "timestamp": "2026-07-11T09:40:00-04:00"
+    },
+    "date": "2026-07-11",
+    "gate_binding": false,
+    "main_bp_pct": 15.8,
+    "q042_combined_cap": 12.5,
+    "sleeve_a_allowance": 12.5,
+    "sleeve_b_allowance": 0.0
+   },
+   {
+    "blocked_fire": {
+     "ddath": -0.0421,
+     "reason": "allowance_zero",
+     "sleeve": "B",
+     "would_be_contracts": 1
+    },
+    "date": "2026-07-11"
+   }
+  ],
+  "gate_row_failclosed": {
+   "bp_source": {
+    "source": "sleeve_governance_runtime.pools.spx_pm_bp_pct(all)",
+    "timestamp": "2026-07-11T09:40:00-04:00"
+   },
+   "date": "2026-07-11",
+   "gate_available": false,
+   "gate_binding": true,
+   "main_bp_pct": null,
+   "q042_combined_cap": 0.0,
+   "sleeve_a_allowance": 0.0,
+   "sleeve_b_allowance": 0.0
+  },
+  "gate_row_squeezed": {
+   "bp_source": {
+    "source": "sleeve_governance_runtime.pools.spx_pm_bp_pct(all)",
+    "timestamp": "2026-07-11T09:40:00-04:00"
+   },
+   "date": "2026-07-11",
+   "gate_binding": true,
+   "main_bp_pct": 55.0,
+   "q042_combined_cap": 5.0,
+   "sleeve_a_allowance": 5.0,
+   "sleeve_b_allowance": 0.0
+  },
+  "gate_row_zero": {
+   "bp_source": {
+    "source": "sleeve_governance_runtime.pools.spx_pm_bp_pct(all)",
+    "timestamp": "2026-07-11T09:40:00-04:00"
+   },
+   "date": "2026-07-11",
+   "gate_binding": true,
+   "main_bp_pct": 65.0,
+   "q042_combined_cap": 0.0,
+   "sleeve_a_allowance": 0.0,
+   "sleeve_b_allowance": 0.0
+  },
+  "hvladder_live": {
+   "active_slots": 0,
+   "blockers": [
+    "vix_ok"
+   ],
+   "cadence_elapsed_trading_days": null,
+   "date": "2026-07-11",
+   "errors": {
+    "trend": null,
+    "vix": null
+   },
+   "execution_allowed": false,
+   "gate_status": {
+    "cadence_ok": true,
+    "slots_ok": true,
+    "trend_ok": true,
+    "vix_ok": false,
+    "warmed": true
+   },
+   "last_signal": null,
+   "latest_close_date": "2026-07-10",
+   "max_slots": 5,
+   "production_allocation_pct": 0.0,
+   "production_status": "research_only",
+   "quote_time": null,
+   "research_only_note": "Research-only / paper-only per SPEC-104. NO PRODUCTION EXECUTION.",
+   "signal_live": false,
+   "status": "ok",
+   "status_human": {
+    "badge_label": "NO ENTRY",
+    "badge_word": "NO ENTRY",
+    "blockers_human": [
+     "VIX"
+    ],
+    "slots_text": "slots 0/5",
+    "state_text": "blocked: VIX"
+   },
+   "threshold": 22.0,
+   "trend": {
+    "error": null,
+    "ok": true,
+    "trend_ok": true,
+    "warmed": true
+   },
+   "vix_5td_avg": 15.89,
+   "vix_current": 15.03,
+   "vix_gate_distance": -6.97,
+   "vix_source": "schwab",
+   "vix_stale": false
+  },
+  "market_stress": {
+   "dd_20d": -0.011,
+   "dd_60d": -0.015,
+   "ddath": -0.009,
+   "ivp252": 24.0,
+   "ma50": 7301.2,
+   "second_leg_active": false,
+   "source": "live_cache_quote_best_effort",
+   "spx_close": 7537.0,
+   "status": "available",
+   "stress_episode_active": false,
+   "vix": 15.03,
+   "vix_5d_change": 0.3
+  },
+  "q042_state": {
+   "ath_degraded": false,
+   "ath_running_max": 7605.5,
+   "combined_bp_pct": 0.0,
+   "date": "2026-07-11",
+   "ddath_pct": -0.9,
+   "monitors": {},
+   "sleeve_a": {
+    "active_position": null,
+    "armed": true,
+    "production_cap_pct": 12.5,
+    "stage": "stage_1",
+    "stats": {},
+    "target_cap_pct": 17.5
+   },
+   "sleeve_b": {
+    "active_position": null,
+    "armed": true,
+    "in_watching": false,
+    "production_cap_pct": 0.0,
+    "production_status": "research_only",
+    "stats": {},
+    "watch_start_date": null
+   },
+   "spx_close": 7537.0
+  }
+ }
+}
