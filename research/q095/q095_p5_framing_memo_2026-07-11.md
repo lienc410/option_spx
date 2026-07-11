@@ -1,6 +1,6 @@
 # Q095 P5 Framing Memo — 供需/流动性信号家族（预注册，待 PM ratify）
 
-**Date**: 2026-07-11 · **Status**: PRE-REGISTERED, NOT STARTED
+**Date**: 2026-07-11 · **Status**: **RATIFIED（PM 2026-07-11）**；A 组待数据采集（breadth/PCR 无本地历史源，见执行注记），期限结构维度可先行；B 组挂 SPEC-132 无需启动动作
 
 ## 假设（PM 2026-07-11 补充）
 

@@ -1,6 +1,6 @@
 # Q095 P2 Framing Memo — 模式切换赛跑（预注册，待 PM ratify 杀标）
 
-**Date**: 2026-07-11 · **Status**: PRE-REGISTERED, NOT STARTED — 杀标经 PM ratify 后开跑
+**Date**: 2026-07-11 · **Status**: **RATIFIED（PM 2026-07-11"其他问题，我同意"）— 事实层开跑**
 
 ## 假设（PM 2026-07-11 修正版）
 

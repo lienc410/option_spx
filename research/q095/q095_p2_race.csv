@@ -1,0 +1,5 @@
+classifier,flip_rate_pct,rev5_rate_pct,lag_median_td,miss_rate_pct,dwell_median_td,race_window_td,K1,K2,verdict
+C1_ER20,16.54,64.7,0.0,41.1,2.0,2.0,DEAD,DEAD,DEAD
+C2_RangeATR,8.71,36.5,0.0,45.3,2.0,2.0,DEAD,DEAD,DEAD
+C3_MA20slope,7.6,27.4,0.0,43.1,2.0,2.0,pass,DEAD,DEAD
+C4_ADX,4.32,21.9,0.0,50.3,2.0,2.0,pass,DEAD,DEAD
