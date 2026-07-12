@@ -152,6 +152,39 @@ def main() -> int:
         g = bd[bd.dir == d]
         print(f"[{d:>4}] n={len(g)} fwd20med {g.ret20_pct.median():+.1f}% "
               f"dd<=-7%: {(g.dd20_pct <= -7).mean()*100:.0f}%")
+
+    # ── P3c(PM 追问 2026-07-12): 量能第二层能否区分 4 崩盘上破 vs 118 良性 ──
+    # 预注册三个标准度量(无切点搜索): V1 破箱日量/前20TD中位;
+    # V2 破箱前5日均量/前60TD中位; V3 破箱日量/箱内中位。
+    # 裁定: 零分离——4例落在良性分布 43-79 分位(V1 居中 46-60),置换
+    # p=0.79-0.96,全捕获阈值误伤 53-88%。崩盘前的弱上破在现货日线量能
+    # 维度与普通再锚定不可区分(既非缩量假突破也非放量 blow-off)。
+    vol = pd.read_pickle(ROOT / "data" / "market_cache" / "yahoo__GSPC__max__1d.pkl")
+    vi = pd.to_datetime(vol.index)
+    if vi.tz is not None:
+        vi = vi.tz_localize(None)
+    vol.index = vi.normalize()
+    vv = vol["Volume"].reindex(close.index).astype(float).values
+    crash_brk = {"2018-01-22", "2020-02-12", "2020-08-28", "2025-02-18"}
+    urows = []
+    for s, e in eps15:
+        b = e + 1
+        if b >= len(v) or b < 60:
+            continue
+        hi = v[s:e+1].max()
+        if v[b] <= hi:
+            continue
+        urows.append(dict(brk=str(close.index[b].date()),
+                          crash=str(close.index[b].date()) in crash_brk,
+                          V1=round(vv[b] / np.median(vv[b-20:b]), 3),
+                          V2=round(np.mean(vv[b-4:b+1]) / np.median(vv[b-60:b]), 3),
+                          V3=round(vv[b] / np.median(vv[s:e+1]), 3)))
+    uv = pd.DataFrame(urows)
+    uv.to_csv(OUT / "q097_p3c_upbreak_volume.csv", index=False)
+    for m in ("V1", "V2", "V3"):
+        x, y = uv[uv.crash][m], uv[~uv.crash][m]
+        print(f"[{m}] 崩盘4例均值 {x.mean():.2f} vs 良性 {y.mean():.2f} | "
+              f"分位 {[round((y < xi).mean()*100) for xi in x]}")
     return 0
 
 
