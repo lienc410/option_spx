@@ -212,6 +212,25 @@ class Fixture711Tests(unittest.TestCase):
         self.assertIn("-15", dd["detail"])
         self.assertTrue(dd["code_ref"])
 
+    def test_settled_backfill_position_does_not_render_hold(self) -> None:
+        """2026-07-11 生产实锤回归锁：payload 的 active_position 携带已结算
+        历史仓（is_active=False，grandfather 补录）时，DD Overlay 必须仍按
+        armed 渲染 ARMED，而非 HOLD（HOLD=有活仓，词表语义）。"""
+        import copy
+        import tempfile
+        vec = copy.deepcopy(VECTORS["inputs"])
+        vec["q042_state"]["sleeve_a"]["active_position"] = {
+            "trade_id": "A-2026-03-12", "is_active": False,
+            "days_to_expiry": 0, "contracts": 1,
+            "long_strike": 6675, "short_strike": 7005,
+            "expiry_date": "2026-06-11", "current_pnl": 16329.0,
+        }
+        with tempfile.TemporaryDirectory() as td:
+            lane_d = _lane_d_with(vec, Path(td))
+        dd = lane_d["engines"][0]
+        self.assertEqual(dd["badge"]["word"], "ARMED")
+        self.assertIn("待命中", dd["label_human"])
+
     def test_node_schema_135_1_contract_plus_lane_d_fields(self) -> None:
         from tests.test_spec_135_1 import BASE_FIELDS
         for n in self.lane_d["engines"]:

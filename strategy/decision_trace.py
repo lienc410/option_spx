@@ -496,7 +496,12 @@ def _lane_d_dd_overlay() -> list[dict]:
         degraded = bool(st.get("ath_degraded"))
         a = st.get("sleeve_a") or {}
         b = st.get("sleeve_b") or {}
-        a_pos, b_pos = a.get("active_position"), b.get("active_position")
+        # payload 的 active_position 可能携带已结算历史仓（is_active=False，如
+        # grandfather 补录）——HOLD 语义 = 有活仓，必须按 is_active 过滤，否则
+        # 零持仓被渲染成 HOLD（词表违规，2026-07-11 生产实测抓获）
+        def _live(p):
+            return p if (p and p.get("is_active", True)) else None
+        a_pos, b_pos = _live(a.get("active_position")), _live(b.get("active_position"))
         trig_a = _DD4_THRESHOLD * 100                  # -4.0
         trig_b = _DD15_THRESHOLD * 100                 # -15.0
         rearm = _REARM_THRESHOLD * 100                 # -2.0
