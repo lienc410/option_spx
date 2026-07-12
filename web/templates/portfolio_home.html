@@ -1117,6 +1117,57 @@ body {
     </div>
   </div>
 
+  <!-- ── SPEC-141 F4 hero strip start（纯新增；Open Position / Portfolio Snapshot 两 section 逐字节不动） ── -->
+  <style>
+    .state-hero-strip { display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+      padding: 9px 14px; margin-bottom: 14px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      text-decoration: none; transition: background 0.15s, border-color 0.15s; }
+    .state-hero-strip:hover { background: var(--surface-hi); border-color: var(--border-2); }
+    .shs-label { font-family: var(--f-ui); font-size: 0.60rem; font-weight: 700;
+      letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-2); }
+    .shs-item { font-family: var(--f-mono); font-size: 0.66rem; color: var(--text); white-space: nowrap; }
+    .shs-item .shs-k { color: var(--text-2); }
+    .shs-go { margin-left: auto; font-family: var(--f-ui); font-size: 0.64rem; color: var(--gold); white-space: nowrap; }
+  </style>
+  <a class="state-hero-strip" id="state-hero-strip" href="/state-map">
+    <span class="shs-label">State</span>
+    <span class="shs-item" id="shs-vol"><span class="shs-k">VOL</span> —</span>
+    <span class="shs-item" id="shs-structure"><span class="shs-k">STRUCT</span> —</span>
+    <span class="shs-item" id="shs-dip"><span class="shs-k">DIP</span> —</span>
+    <span class="shs-item" id="shs-ammo"><span class="shs-k">AMMO</span> —</span>
+    <span class="shs-go">State Map →</span>
+  </a>
+  <script>
+  // SPEC-141 F4 — 一行状态摘要（/api/state-surface 只读；失败一律显示 n/a 不空白）
+  (function () {
+    const set = (id, k, v) => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '<span class="shs-k">' + k + '</span> ' + v;
+    };
+    fetch('/api/state-surface').then(r => r.json()).then(s => {
+      const okf = f => f && f.status === 'ok';
+      const vol = s.vol_axis || {};
+      set('shs-vol', 'VOL', okf(vol) ? vol.state + ' ' + vol.vix : 'n/a');
+      const st = s.structure_axis || {};
+      set('shs-structure', 'STRUCT', okf(st)
+        ? st.state + (st.state === 'RANGE' && st.episode_day != null ? ' D' + st.episode_day : '')
+        : 'n/a');
+      const dip = (s.events || {}).dip || {};
+      set('shs-dip', 'DIP', okf(dip)
+        ? (dip.active ? 'ACTIVE' : 'ddATH ' + dip.ddath_pct + '% (Δ ' + dip.dist_pp + 'pp)')
+        : 'n/a');
+      const ammo = s.ammo || {};
+      set('shs-ammo', 'AMMO', okf(ammo) ? (ammo.ready ? 'ready ✓' : 'short ✗') : 'n/a');
+    }).catch(() => {
+      ['shs-vol|VOL', 'shs-structure|STRUCT', 'shs-dip|DIP', 'shs-ammo|AMMO'].forEach(p => {
+        const [id, k] = p.split('|'); set(id, k, 'n/a');
+      });
+    });
+  })();
+  </script>
+  <!-- ── SPEC-141 F4 hero strip end ── -->
+
   <!-- Regime banner -->
   <div class="regime-banner" id="regime-banner" style="display:none"></div>
 

@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>State Map · SPX Strategy</title>
+<script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec108"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec139">
+<script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
+<style>
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+html { font-size:14px; }
+body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-height:100vh; line-height:1.55; }
+
+.nav { position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:50px;background:var(--nav-bg-strong);backdrop-filter:blur(12px);border-bottom:1px solid var(--border); }
+.nav-brand { font-family:var(--f-display);font-size:1.05rem;color:var(--gold); }
+.nav-brand em { font-style:italic; }
+.nav-links { display:flex;gap:2px; }
+.nav-link { font-size:0.76rem;padding:5px 10px;border-radius:5px;color:var(--text-2);text-decoration:none;transition:0.15s; }
+.nav-link:hover { color:var(--text);background:var(--surface-hi); }
+.nav-link.active { color:var(--gold);background:var(--gold-bg); }
+.nav-right { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2); }
+
+.page { max-width:880px;margin:0 auto;padding:28px 24px 60px; }
+.page-hero { margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border); }
+.page-hero h1 { font-family:var(--f-display);font-size:1.7rem;font-weight:400; }
+.page-hero h1 em { font-style:italic;color:var(--gold); }
+.page-meta { font-family:var(--f-mono);font-size:0.65rem;color:var(--text-2);margin-top:6px; }
+.page-sub { font-family:var(--f-ui);font-size:0.68rem;color:var(--text);margin-top:6px; }
+
+.spec-ref { font-family:var(--f-mono);font-size:0.52rem;color:var(--text-2);letter-spacing:0.04em;margin-left:5px; }
+.na { font-family:var(--f-mono);font-size:0.66rem;color:var(--text-2);font-style:italic; }
+
+/* ── Layer frames（布局即架构：Layer 0→3 纵向层框） ── */
+.layer-frame { background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px; }
+.layer-head { display:flex;align-items:baseline;gap:9px;margin-bottom:10px;flex-wrap:wrap; }
+.layer-no { font-family:var(--f-mono);font-size:0.60rem;font-weight:600;color:var(--gold);letter-spacing:0.10em; }
+.layer-title { font-family:var(--f-ui);font-size:0.62rem;font-weight:700;letter-spacing:0.13em;text-transform:uppercase;color:var(--text-2); }
+.layer-sub { font-family:var(--f-ui);font-size:0.62rem;color:var(--text); }
+
+/* ── Layer 0: veto lights ── */
+.veto-strip { display:flex;gap:10px;flex-wrap:wrap; }
+.veto-light { flex:1 1 150px;display:flex;align-items:center;gap:8px;background:var(--surface-hi);border:1px solid var(--border);border-radius:7px;padding:8px 10px; }
+.veto-dot { width:9px;height:9px;border-radius:9999px;flex:0 0 9px; }
+.dot-ok  { background:var(--green);box-shadow:0 0 5px var(--green-border); }
+.dot-bad { background:var(--red);box-shadow:0 0 5px var(--red-border); }
+.dot-na  { background:transparent;border:1.5px solid var(--text-2); }
+.veto-name { font-family:var(--f-ui);font-size:0.60rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text); }
+.veto-val { font-family:var(--f-mono);font-size:0.60rem;color:var(--text-2);margin-left:auto;white-space:nowrap; }
+.layer-note { font-family:var(--f-ui);font-size:0.62rem;color:var(--text);margin-top:9px;line-height:1.6; }
+
+/* ── Layer 1: axes + event lights ── */
+.axis-row { margin-bottom:12px; }
+.axis-label { font-family:var(--f-ui);font-size:0.58rem;font-weight:600;letter-spacing:0.10em;text-transform:uppercase;color:var(--text-2);margin-bottom:5px; }
+.axis-track { display:flex;gap:4px;flex-wrap:wrap; }
+.axis-seg { flex:1 1 0;min-width:72px;text-align:center;font-family:var(--f-mono);font-size:0.62rem;padding:6px 4px;border-radius:6px;border:1px solid var(--border);color:var(--text-2);background:var(--surface-hi);letter-spacing:0.04em;white-space:nowrap; }
+.axis-seg.lit-calm    { color:var(--green);background:var(--green-bg);border-color:var(--green-border);font-weight:600; }
+.axis-seg.lit-normal  { color:var(--blue);background:var(--blue-bg);border-color:var(--blue-border);font-weight:600; }
+.axis-seg.lit-high    { color:var(--orange);background:var(--orange-bg);border-color:var(--orange-border);font-weight:600; }
+.axis-seg.lit-extreme { color:var(--red);background:var(--red-bg);border-color:var(--red-border);font-weight:600; }
+.axis-seg.lit-up      { color:var(--green);background:var(--green-bg);border-color:var(--green-border);font-weight:600; }
+.axis-seg.lit-range   { color:var(--blue);background:var(--blue-bg);border-color:var(--blue-border);font-weight:600; }
+.axis-seg.lit-down    { color:var(--red);background:var(--red-bg);border-color:var(--red-border);font-weight:600; }
+.axis-seg.lit-mixed   { color:var(--text);background:var(--gray-bg);border-color:var(--gray-border);font-weight:600; }
+.axis-val { font-family:var(--f-mono);font-size:0.64rem;color:var(--text);margin-top:5px; }
+.axis-note { font-family:var(--f-ui);font-size:0.60rem;color:var(--text);margin-top:3px; }
+
+.event-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:4px; }
+.event-light { background:var(--surface-hi);border:1px solid var(--border);border-radius:7px;padding:8px 10px; }
+.event-light.clickable { cursor:pointer;transition:border-color 0.15s; }
+.event-light.clickable:hover { border-color:var(--gold-border); }
+.event-hd { display:flex;align-items:center;gap:7px; }
+.event-name { font-family:var(--f-ui);font-size:0.58rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text); }
+.event-val { font-family:var(--f-mono);font-size:0.60rem;color:var(--text);margin-top:4px;line-height:1.5; }
+.event-cn { font-family:var(--f-ui);font-size:0.58rem;color:var(--text);margin-top:2px; }
+
+/* DIP distance mini-gauge */
+.dipgauge { margin-top:6px; }
+.dipgauge-track { position:relative;height:6px;background:var(--border-2);border-radius:9999px;overflow:hidden; }
+.dipgauge-fill { height:100%;background:var(--orange);border-radius:9999px; }
+.dipgauge-scale { display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:0.52rem;color:var(--text-2);margin-top:2px; }
+
+/* ── Layer 2: engine cards ── */
+.engine-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:10px; }
+.engine-card { background:var(--surface-hi);border:1px solid var(--border);border-radius:9px;padding:11px 12px;display:flex;flex-direction:column;gap:7px; }
+.engine-hd { display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid var(--border);padding-bottom:7px; }
+.engine-name { font-family:var(--f-display);font-size:0.95rem;color:var(--text); }
+.engine-name em { font-style:italic;color:var(--text-2);font-size:0.68rem; }
+.engine-badge { font-family:var(--f-ui);font-size:0.60rem;font-weight:600;text-transform:uppercase;letter-spacing:0.10em;padding:2px 8px;border-radius:9999px; }
+.badge-on      { background:var(--green-bg);color:var(--green);border:1px solid var(--green-border); }
+.badge-standby { background:var(--gray-bg);color:var(--text-2);border:1px solid var(--gray-border); }
+.engine-row { display:flex;flex-direction:column;gap:1px; }
+.engine-key { font-family:var(--f-ui);font-size:0.52rem;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;color:var(--text-2); }
+.engine-val { font-family:var(--f-ui);font-size:0.62rem;color:var(--text);line-height:1.55; }
+.engine-live { border-top:1px solid var(--border);padding-top:7px;margin-top:auto; }
+.engine-live-line { font-family:var(--f-mono);font-size:0.62rem;color:var(--text);line-height:1.6; }
+
+/* ── Layer 3: pools（绝对刻度条 + 金色刻度线；标签放条外侧防重叠） ── */
+.pool-grid { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
+.pool-block { background:var(--surface-hi);border:1px solid var(--border);border-radius:9px;padding:11px 12px; }
+.pool-hd { display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px; }
+.pool-name { font-family:var(--f-ui);font-size:0.60rem;font-weight:700;letter-spacing:0.11em;text-transform:uppercase;color:var(--text-2); }
+.pool-total { font-family:var(--f-mono);font-size:0.72rem;color:var(--text); }
+.bar-block { margin-bottom:10px; }
+.bar-hd { display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px; }
+.bar-name { font-family:var(--f-ui);font-size:0.56rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-2); }
+.bar-val { font-family:var(--f-mono);font-size:0.62rem;color:var(--text); }
+.bar-ticks { position:relative;height:13px; }
+.bar-tick-label { position:absolute;top:0;font-family:var(--f-mono);font-size:0.52rem;color:var(--gold);white-space:nowrap; }
+.bar-track { position:relative;height:9px;background:var(--border-2);border-radius:9999px; }
+.bar-fill { position:absolute;top:0;left:0;bottom:0;border-radius:9999px; }
+.fill-bp   { background:var(--blue); }
+.fill-cash { background:var(--gold); }
+.bar-tick { position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--gold);border-radius:1px; }
+.bar-scale { display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:0.52rem;color:var(--text-2);margin-top:2px; }
+.pool-rows { margin-top:6px;display:flex;flex-direction:column;gap:4px; }
+.pool-row { display:flex;justify-content:space-between;gap:8px;font-family:var(--f-mono);font-size:0.60rem;color:var(--text); }
+.pool-row .pr-key { font-family:var(--f-ui);font-size:0.56rem;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-2);white-space:nowrap; }
+.pool-row .pr-val { text-align:right; }
+.pr-ok { color:var(--green); } .pr-bad { color:var(--red); } .pr-warn { color:var(--orange); }
+.pool-note { font-family:var(--f-ui);font-size:0.58rem;color:var(--text);margin-top:7px;line-height:1.55; }
+
+/* ── Timeline（90 天状态色带） ── */
+.tl-strip-label { font-family:var(--f-ui);font-size:0.56rem;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;color:var(--text-2);margin:7px 0 3px; }
+.tl-strip { display:flex;gap:1px;height:14px;border-radius:3px;overflow:hidden; }
+.tl-cell { flex:1 1 0;min-width:2px; }
+.tl-cell.bf { opacity:0.55; }
+.c-calm { background:var(--green); } .c-normal { background:var(--blue); }
+.c-high { background:var(--orange); } .c-extreme { background:var(--red); }
+.c-up { background:var(--green); } .c-range { background:var(--blue); }
+.c-down { background:var(--red); } .c-mixed { background:var(--gray-border); }
+.c-na { background:var(--border-2); }
+.tl-legend { display:flex;gap:12px;flex-wrap:wrap;margin-top:8px; }
+.tl-key { display:flex;align-items:center;gap:4px;font-family:var(--f-mono);font-size:0.55rem;color:var(--text-2); }
+.tl-chip { width:9px;height:9px;border-radius:2px; }
+.tl-range { display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:0.55rem;color:var(--text-2);margin-top:4px; }
+
+/* ── Rehearsal panel（触发预演） ── */
+.rehearsal-hd { display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none; }
+.rehearsal-body { display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px; }
+.rehearsal-body.open { display:block; }
+.reh-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin-bottom:9px; }
+.reh-item { background:var(--surface-hi);border:1px solid var(--border);border-radius:7px;padding:8px 10px; }
+.reh-key { font-family:var(--f-ui);font-size:0.54rem;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;color:var(--text-2);margin-bottom:3px; }
+.reh-val { font-family:var(--f-mono);font-size:0.66rem;color:var(--text); }
+.reh-advisory { font-family:var(--f-ui);font-size:0.66rem;color:var(--text);line-height:1.65;background:var(--gold-bg);border:1px solid var(--gold-border);border-radius:7px;padding:9px 12px; }
+
+.footer { text-align:center;padding:20px 0 0;font-size:0.65rem;color:var(--text-muted); }
+
+@media (max-width:900px) {
+  .engine-grid { grid-template-columns:1fr; }
+  .pool-grid { grid-template-columns:1fr; }
+}
+@media (max-width:480px) {
+  .axis-seg { min-width:60px;font-size:0.56rem;padding:5px 2px; }
+  .veto-light { flex:1 1 100%; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav-brand">SPX <em>Strategy</em></span>
+  {% set nav_active = 'statemap' %}{% include "_nav.html" %}
+  <div class="nav-right"><span id="nav-date">—</span></div>
+</nav>
+
+<div class="page">
+
+  <div class="page-hero">
+    <h1>State <em>Map</em></h1>
+    <div class="page-meta" id="hero-meta">—</div>
+    <div class="page-sub">四层决策架构的活版——当前状态点亮：生存否决 → 市场状态 → 三引擎 → 资源双池<span class="spec-ref">SPEC-141</span></div>
+  </div>
+
+  <!-- ── LAYER 0 — Survival Veto ── -->
+  <div class="layer-frame" id="layer0">
+    <div class="layer-head">
+      <span class="layer-no">LAYER 0</span>
+      <span class="layer-title">Survival Veto</span>
+      <span class="layer-sub">宪法层，一字不动——任何下层逻辑不得越过</span>
+    </div>
+    <div class="veto-strip" id="veto-strip">
+      <div class="veto-light"><span class="veto-dot dot-na" id="dot-extreme"></span><span class="veto-name">Extreme Halt</span><span class="veto-val" id="val-extreme">n/a</span></div>
+      <div class="veto-light"><span class="veto-dot dot-na" id="dot-secondleg"></span><span class="veto-name">Second-Leg</span><span class="veto-val" id="val-secondleg">n/a</span></div>
+      <div class="veto-light"><span class="veto-dot dot-na" id="dot-caps"></span><span class="veto-name">Governance Caps</span><span class="veto-val" id="val-caps">n/a</span></div>
+      <div class="veto-light"><span class="veto-dot dot-na" id="dot-cashfloor"></span><span class="veto-name">Cash Floor</span><span class="veto-val" id="val-cashfloor">n/a</span></div>
+    </div>
+    <div class="layer-note">VIX ≥ 35 全停 · second-leg（dd60 ≤ −8% 且 VIX ≥ 25）禁新短 vol · R1-R6 治理 cap · 现金 floor $30k · 2008 型锁死保留<span class="spec-ref">SPEC-103/104</span></div>
+  </div>
+
+  <!-- ── LAYER 1 — Market State ── -->
+  <div class="layer-frame" id="layer1">
+    <div class="layer-head">
+      <span class="layer-no">LAYER 1</span>
+      <span class="layer-title">Market State</span>
+      <span class="layer-sub">统一状态面——两轴 + 事件灯（shadow 只读，不路由）</span>
+    </div>
+
+    <div class="axis-row">
+      <div class="axis-label">Vol Axis (VIX)</div>
+      <div class="axis-track" id="vol-track">
+        <span class="axis-seg" data-seg="CALM">CALM &lt;15</span>
+        <span class="axis-seg" data-seg="NORMAL">NORMAL 15-22</span>
+        <span class="axis-seg" data-seg="HIGH">HIGH 22-35</span>
+        <span class="axis-seg" data-seg="EXTREME">EXTREME ≥35</span>
+      </div>
+      <div class="axis-val" id="vol-val">n/a</div>
+    </div>
+
+    <div class="axis-row">
+      <div class="axis-label">Structure Axis (Price)</div>
+      <div class="axis-track" id="structure-track">
+        <span class="axis-seg" data-seg="TREND_UP">TREND-UP</span>
+        <span class="axis-seg" data-seg="RANGE">RANGE</span>
+        <span class="axis-seg" data-seg="TREND_DOWN">TREND-DOWN</span>
+        <span class="axis-seg" data-seg="MIXED">MIXED</span>
+      </div>
+      <div class="axis-val" id="structure-val">n/a</div>
+      <div class="axis-note">RANGE = 094.4 因果分段（episode 检测器）；trend 信号与本轴并存——6 月实况：RANGE 与 BULLISH 共存</div>
+    </div>
+
+    <div class="axis-row">
+      <div class="axis-label">Trend Signal</div>
+      <div class="axis-val" id="trend-val">n/a</div>
+    </div>
+
+    <div class="event-grid">
+      <div class="event-light clickable" id="light-dip" title="Open trigger rehearsal">
+        <div class="event-hd"><span class="veto-dot dot-na" id="dot-dip"></span><span class="event-name">DIP</span></div>
+        <div class="event-val" id="val-dip">n/a</div>
+        <div class="dipgauge" id="dip-gauge" style="display:none">
+          <div class="dipgauge-track"><div class="dipgauge-fill" id="dip-gauge-fill" style="width:0%"></div></div>
+          <div class="dipgauge-scale"><span>ddATH 0%</span><span id="dip-gauge-max">trigger</span></div>
+        </div>
+        <div class="event-cn">点击展开触发预演</div>
+      </div>
+      <div class="event-light">
+        <div class="event-hd"><span class="veto-dot dot-na" id="dot-aftermath"></span><span class="event-name">Aftermath</span></div>
+        <div class="event-val" id="val-aftermath">n/a</div>
+      </div>
+      <div class="event-light">
+        <div class="event-hd"><span class="veto-dot dot-na" id="dot-backwardation"></span><span class="event-name">Backwardation</span></div>
+        <div class="event-val" id="val-backwardation">n/a</div>
+      </div>
+      <div class="event-light">
+        <div class="event-hd"><span class="veto-dot dot-na" id="dot-secondleg2"></span><span class="event-name">Second-Leg</span></div>
+        <div class="event-val" id="val-secondleg2">n/a</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── LAYER 2 — Engines（静态身份块 = doc §4 矩阵文案真值源） ── -->
+  <div class="layer-frame" id="layer2">
+    <div class="layer-head">
+      <span class="layer-no">LAYER 2</span>
+      <span class="layer-title">Engines</span>
+      <span class="layer-sub">三个物理不同的收益引擎——方向决定什么时候输，premium 决定长期赚多少</span>
+    </div>
+    <div class="engine-grid">
+
+      <div class="engine-card" id="card-premium">
+        <div class="engine-hd">
+          <span class="engine-name">Premium <em>theta</em></span>
+          <span id="badge-premium"><span class="na">n/a</span></span>
+        </div>
+        <div class="engine-row"><span class="engine-key">Payoff</span><span class="engine-val">短 vol theta 收割——收权利金赚时间价值衰减</span></div>
+        <div class="engine-row"><span class="engine-key">Eats</span><span class="engine-val">BP（SPX PM 池）</span></div>
+        <div class="engine-row"><span class="engine-key">Structures</span><span class="engine-val">IC（CALM 权利金薄，弱）· BPS Δ0.30/0.15（NORMAL×TREND-UP）· IC = NORMAL×RANGE 的 NEUTRAL 路由（区间静态收割）· HV 半仓变体 + backwardation/ivp63 门（HIGH）· V3-A broken-wing IC 特批通道（HIGH×AFTERMATH）</span></div>
+        <div class="engine-row"><span class="engine-key">Takes over</span><span class="engine-val">NORMAL×RANGE 主战场；EXTREME 全停</span></div>
+        <div class="engine-row"><span class="engine-key">Sibling</span><span class="engine-val">/ES HV Ladder（demoted，production 0%）<span class="spec-ref">SPEC-104</span></span></div>
+        <div class="engine-live"><div class="engine-live-line" id="live-premium">n/a</div></div>
+      </div>
+
+      <div class="engine-card" id="card-trend">
+        <div class="engine-hd">
+          <span class="engine-name">Trend <em>delta+theta</em></span>
+          <span id="badge-trend"><span class="na">n/a</span></span>
+        </div>
+        <div class="engine-row"><span class="engine-key">Payoff</span><span class="engine-val">方向性看涨混合——79% 在区间顶部入场且整体赚钱（K3：震荡照常入场，不设 gate）</span></div>
+        <div class="engine-row"><span class="engine-key">Eats</span><span class="engine-val">BP 或 cash（BCD 吃 cash，一张标准整数下限）</span></div>
+        <div class="engine-row"><span class="engine-key">Structures</span><span class="engine-val">BCD carve 1 张标准（CALM×TREND-UP，IV_LOW）<span class="spec-ref">SPEC-113</span> · BPS 或 BCD 按 IVP 路由（NORMAL×TREND-UP）· BCS_HV（HIGH，bearish 时）</span></div>
+        <div class="engine-row"><span class="engine-key">Takes over</span><span class="engine-val">TREND-UP 为主；EXTREME 全停</span></div>
+        <div class="engine-row"><span class="engine-key">Sibling</span><span class="engine-val">Q078 Entry Ladder（shadow，执行 cadence 子行）<span class="spec-ref">SPEC-108.1</span></span></div>
+        <div class="engine-live"><div class="engine-live-line" id="live-trend">n/a</div></div>
+      </div>
+
+      <div class="engine-card" id="card-convexity">
+        <div class="engine-hd">
+          <span class="engine-name">Convexity <em>long gamma</em></span>
+          <span id="badge-convexity"><span class="na">n/a</span></span>
+        </div>
+        <div class="engine-row"><span class="engine-key">Payoff</span><span class="engine-val">长 gamma——capped debit call spread 吃回撤后的反弹凸性（Drawdown Overlay）</span></div>
+        <div class="engine-row"><span class="engine-key">Eats</span><span class="engine-val">cash（一次 12.5% NLV staged → 目标 17.5% 阶梯）<span class="spec-ref">SPEC-104</span></span></div>
+        <div class="engine-row"><span class="engine-key">Structures</span><span class="engine-val">ATM/+2.5% call spread D30（episode 型首选）· 现金不足 → BPS fallback Δ0.30/0.15（同预算收益差 3.7-7.4× 提醒）· sudden 型 → 空仓 advisory（该型短 vol 亏 4×）</span></div>
+        <div class="engine-row"><span class="engine-key">Takes over</span><span class="engine-val">DIP 事件接管（ddATH ≤ −4%，触发无 VIX 条件）；RANGE 期间戒备态——89% 触发源于区间内/破位后</span></div>
+        <div class="engine-row"><span class="engine-key">Sibling</span><span class="engine-val">Sleeve B（research-only，production cap 0）</span></div>
+        <div class="engine-live"><div class="engine-live-line" id="live-convexity">n/a</div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── LAYER 3 — Resource Pools（双池，绝对刻度） ── -->
+  <div class="layer-frame" id="layer3">
+    <div class="layer-head">
+      <span class="layer-no">LAYER 3</span>
+      <span class="layer-title">Resource Pools</span>
+      <span class="layer-sub">cash 与 BP 是两种不同的稀缺——账户 cash-bound 不是 BP-bound</span>
+    </div>
+    <div class="pool-grid">
+
+      <div class="pool-block" id="pool-cash">
+        <div class="pool-hd"><span class="pool-name">Cash Pool</span><span class="pool-total" id="cash-total">n/a</span></div>
+        <div class="bar-block" id="cash-bar-block" style="display:none">
+          <div class="bar-hd"><span class="bar-name">Committed debit</span><span class="bar-val" id="cash-bar-val">—</span></div>
+          <div class="bar-ticks" id="cash-ticks"></div>
+          <div class="bar-track" id="cash-track"><div class="bar-fill fill-cash" id="cash-fill" style="width:0%"></div></div>
+          <div class="bar-scale"><span>$0</span><span id="cash-scale-max">—</span></div>
+        </div>
+        <div class="pool-rows" id="cash-rows"><div class="pool-row"><span class="pr-key">Status</span><span class="pr-val na">n/a</span></div></div>
+        <div class="pool-note">弹药规则：liquid − 在场 debit ≥ Q042 reserve（12.5% NLV 现算）为绿；跌破 → 平静日补弹药，不在崩盘日卖资产。第二笔并发 BCD = 花掉一次抄底子弹。</div>
+      </div>
+
+      <div class="pool-block" id="pool-bp">
+        <div class="pool-hd"><span class="pool-name">BP Pool</span><span class="pool-total" id="bp-total">n/a</span></div>
+
+        <div class="bar-block">
+          <div class="bar-hd"><span class="bar-name">SPX PM</span><span class="bar-val" id="bp-spx-val">n/a</span></div>
+          <div class="bar-ticks" id="bp-spx-ticks"></div>
+          <div class="bar-track"><div class="bar-fill fill-bp" id="bp-spx-fill" style="width:0%"></div></div>
+          <div class="bar-scale"><span>0%</span><span>100%</span></div>
+        </div>
+
+        <div class="bar-block">
+          <div class="bar-hd"><span class="bar-name">Short-Vol</span><span class="bar-val" id="bp-sv-val">n/a</span></div>
+          <div class="bar-ticks" id="bp-sv-ticks"></div>
+          <div class="bar-track"><div class="bar-fill fill-bp" id="bp-sv-fill" style="width:0%"></div></div>
+          <div class="bar-scale"><span>0%</span><span>100%</span></div>
+        </div>
+
+        <div class="pool-rows" id="bp-rows"></div>
+        <div class="pool-note">所有条共用绝对 0-100% 刻度（同值必同长）；cap 为金色刻度线标注在各自绝对位置。/ES SPAN 为独立池（demoted）。</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Timeline — 90 天状态色带 ── -->
+  <div class="layer-frame" id="timeline">
+    <div class="layer-head">
+      <span class="layer-no">TIMELINE</span>
+      <span class="layer-title">Last 90 Trading Days</span>
+      <span class="layer-sub">状态历史色带——回填行（首跑简版）以半透明呈现</span>
+    </div>
+    <div id="tl-body"><span class="na">n/a</span></div>
+    <div class="tl-legend" id="tl-legend" style="display:none">
+      <span class="tl-key"><span class="tl-chip c-calm"></span>CALM / TREND-UP</span>
+      <span class="tl-key"><span class="tl-chip c-normal"></span>NORMAL / RANGE</span>
+      <span class="tl-key"><span class="tl-chip c-high"></span>HIGH</span>
+      <span class="tl-key"><span class="tl-chip c-extreme"></span>EXTREME / TREND-DOWN</span>
+      <span class="tl-key"><span class="tl-chip c-mixed"></span>MIXED</span>
+      <span class="tl-key"><span class="tl-chip c-na"></span>n/a</span>
+    </div>
+  </div>
+
+  <!-- ── Trigger Rehearsal（触发预演） ── -->
+  <div class="layer-frame" id="rehearsal">
+    <div class="rehearsal-hd" onclick="toggleRehearsal()">
+      <div class="layer-head" style="margin-bottom:0">
+        <span class="layer-no" id="rehearsal-caret">▸</span>
+        <span class="layer-title">Trigger Rehearsal</span>
+        <span class="layer-sub">若明天触发会发生什么——分型判定 → 弹药分支 → 建议结构（复用 094.4 分类器与路由，提示不拦）</span>
+      </div>
+    </div>
+    <div class="rehearsal-body" id="rehearsal-body">
+      <div class="reh-grid">
+        <div class="reh-item"><div class="reh-key">Trigger type if now</div><div class="reh-val" id="reh-type">n/a</div></div>
+        <div class="reh-item"><div class="reh-key">Ammo branch</div><div class="reh-val" id="reh-branch">n/a</div></div>
+        <div class="reh-item"><div class="reh-key">Would-be sizing (Sleeve A)</div><div class="reh-val" id="reh-sizing">n/a</div></div>
+        <div class="reh-item"><div class="reh-key">Cash vs need</div><div class="reh-val" id="reh-cash">n/a</div></div>
+      </div>
+      <div class="reh-advisory" id="reh-advisory">n/a</div>
+    </div>
+  </div>
+
+  <div class="footer">Unified state surface · shadow read-only · <span style="font-family:var(--f-mono)">SPEC-141</span></div>
+</div>
+
+<script>
+// ── SPEC-141 约束 1：引擎徽章词汇只有 ON / STANDBY 两词（armed 是行内字段） ──
+const BADGE_WORDS = { ON: 'ON', STANDBY: 'STANDBY' };
+
+const $ = id => document.getElementById(id);
+const NA = '<span class="na">n/a</span>';
+
+function fmtUsd(v, dec = 0) {
+  if (v == null || isNaN(v)) return 'n/a';
+  return '$' + Number(v).toLocaleString('en-US', { maximumFractionDigits: dec });
+}
+function fmtPct(v, dec = 1) {
+  if (v == null || isNaN(v)) return 'n/a';
+  return Number(v).toFixed(dec) + '%';
+}
+function ok(field) { return field && field.status === 'ok'; }
+
+function setDot(id, state) {
+  // veto/event 灯：点色不用词（绿=ok/未触发 · 红=触发/越界 · 空圈=n/a）
+  const el = $(id);
+  el.className = 'veto-dot ' + (state === true ? 'dot-ok' : state === false ? 'dot-bad' : 'dot-na');
+}
+
+function engineBadge(word) {
+  if (word !== 'ON' && word !== 'STANDBY') return NA;
+  const cls = word === 'ON' ? 'badge-on' : 'badge-standby';
+  return `<span class="engine-badge ${cls}">${BADGE_WORDS[word]}</span>`;
+}
+
+// ── 刻度线标签防碰撞（约束 3）：标签在条外侧（上方 tick 轨道），且按位置
+//    锚点换向（>78% 右锚 / <8% 左锚 / 其余居中），单条单标签 → 零重叠 ──
+function tickHtml(posPct, label) {
+  if (posPct == null || isNaN(posPct)) return { tick: '', label: '' };
+  let style;
+  if (posPct > 78)      style = `left:${posPct}%;transform:translateX(-100%)`;
+  else if (posPct < 8)  style = `left:${posPct}%`;
+  else                  style = `left:${posPct}%;transform:translateX(-50%)`;
+  return {
+    tick: `<span class="bar-tick" style="left:${posPct}%"></span>`,
+    label: `<span class="bar-tick-label" style="${style}">${label}</span>`,
+  };
+}
+
+function renderVeto(v) {
+  const map = [
+    ['extreme_ok', 'dot-extreme', 'val-extreme'],
+    ['second_leg_ok', 'dot-secondleg', 'val-secondleg'],
+    ['caps_ok', 'dot-caps', 'val-caps'],
+    ['cash_floor_ok', 'dot-cashfloor', 'val-cashfloor'],
+  ];
+  const d = (ok(v) && v.detail) || {};
+  for (const [key, dot, val] of map) {
+    const raw = ok(v) ? v[key] : 'n/a';
+    setDot(dot, raw === true ? true : raw === false ? false : null);
+    let txt = 'n/a';
+    if (raw !== 'n/a' && raw !== undefined) {
+      if (key === 'extreme_ok') txt = `VIX ${d.vix ?? '—'} / ${d.extreme_vix ?? 35}`;
+      if (key === 'second_leg_ok') txt = raw ? 'inactive' : 'ACTIVE';
+      if (key === 'caps_ok') txt = d.cap_regime ? `regime ${d.cap_regime}` : (raw ? 'within caps' : 'breach');
+      if (key === 'cash_floor_ok') txt = `${fmtUsd(d.liquid)} / ${fmtUsd(d.cash_floor_usd)}`;
+    }
+    $(val).textContent = txt;
+  }
+}
+
+function litAxis(trackId, state, clsMap) {
+  const track = $(trackId);
+  track.querySelectorAll('.axis-seg').forEach(seg => {
+    seg.className = 'axis-seg' + (seg.dataset.seg === state ? ' ' + (clsMap[state] || '') : '');
+  });
+}
+
+function renderLayer1(s) {
+  const vol = s.vol_axis || {};
+  if (ok(vol)) {
+    litAxis('vol-track', vol.state, { CALM: 'lit-calm', NORMAL: 'lit-normal', HIGH: 'lit-high', EXTREME: 'lit-extreme' });
+    $('vol-val').textContent = `VIX ${vol.vix}` +
+      (vol.dist_next != null ? ` · next threshold ${vol.next_threshold} (Δ ${vol.dist_next})` : '');
+  } else { $('vol-val').innerHTML = NA; }
+
+  const st = s.structure_axis || {};
+  if (ok(st)) {
+    litAxis('structure-track', st.state, { TREND_UP: 'lit-up', RANGE: 'lit-range', TREND_DOWN: 'lit-down', MIXED: 'lit-mixed' });
+    $('structure-val').textContent = st.state === 'RANGE'
+      ? `Day ${st.episode_day} · band ${Number(st.band_lo).toLocaleString()}–${Number(st.band_hi).toLocaleString()} · since ${st.episode_start}`
+      : st.state;
+  } else { $('structure-val').innerHTML = NA; }
+
+  const t = s.trend_signal || {};
+  $('trend-val').innerHTML = ok(t)
+    ? `${t.signal} · SPX ${Number(t.spx).toLocaleString()} vs MA50 ${t.ma_gap_pct >= 0 ? '+' : ''}${t.ma_gap_pct}%` +
+      (t.above_200 === false ? ' · below MA200' : '')
+    : NA;
+
+  const ev = s.events || {};
+  const dip = ev.dip || {};
+  if (ok(dip)) {
+    setDot('dot-dip', dip.active ? false : true);   // 触发=红（危险事件），未触发=绿
+    $('val-dip').textContent =
+      `ddATH ${dip.ddath_pct}% → trigger ${dip.trigger_pp}% (Δ ${dip.dist_pp}pp)` +
+      (dip.type_if_now ? ` · type-if-now: ${dip.type_if_now}` : '');
+    if (dip.gauge && dip.gauge.width_pct != null) {
+      $('dip-gauge').style.display = '';
+      $('dip-gauge-fill').style.width = dip.gauge.width_pct + '%';
+      $('dip-gauge-max').textContent = `trigger ${dip.trigger_pp}%`;
+    }
+  } else { setDot('dot-dip', null); $('val-dip').innerHTML = NA; }
+
+  const am = ev.aftermath || {};
+  if (ok(am)) {
+    setDot('dot-aftermath', am.active ? false : null);   // off=灰, on=红(事件灯语义)
+    $('val-aftermath').textContent = (am.active ? 'ACTIVE' : 'inactive') +
+      (am.peak10d != null ? ` · peak10d ${am.peak10d}` : '');
+  } else { setDot('dot-aftermath', null); $('val-aftermath').innerHTML = NA; }
+
+  const bw = ev.backwardation || {};
+  if (ok(bw)) {
+    setDot('dot-backwardation', bw.active ? false : null);
+    $('val-backwardation').textContent = (bw.active ? 'ACTIVE' : 'contango') +
+      (bw.vix3m != null ? ` · VIX3M ${bw.vix3m}` : '');
+  } else { setDot('dot-backwardation', null); $('val-backwardation').innerHTML = NA; }
+
+  const sl = ev.second_leg || {};
+  if (ok(sl)) {
+    setDot('dot-secondleg2', sl.active ? false : null);
+    $('val-secondleg2').textContent = (sl.active ? 'ACTIVE' : 'inactive') +
+      (sl.stress_episode_active ? ' · stress episode' : '');
+  } else { setDot('dot-secondleg2', null); $('val-secondleg2').innerHTML = NA; }
+}
+
+function renderEngines(s) {
+  const today = s.today || {};
+  const engines = (ok(today) && today.engines) || {};
+  const pos = s.positions || {};
+  const byEngine = (ok(pos) && pos.by_engine) || {};
+  const dip = (s.events || {}).dip || {};
+
+  $('badge-premium').innerHTML = engineBadge(engines.premium);
+  $('badge-trend').innerHTML = engineBadge(engines.trend);
+  $('badge-convexity').innerHTML = engineBadge(engines.convexity);
+
+  const route = ok(today) ? `${today.strategy || '—'} [${today.position_action || '—'}]` +
+    (today.resource ? ` · eats ${today.resource}` : '') : 'n/a';
+  // route 行只在归属(ON)引擎显示——避免同一路由在 STANDBY 卡重复(QA F3)
+  const liveLine = (eng, key) => eng === 'ON'
+    ? `Route today: ${route} · Open: ${ok(pos) ? (byEngine[key] ?? 0) : 'n/a'}`
+    : `今日未被路由 · Open: ${ok(pos) ? (byEngine[key] ?? 0) : 'n/a'}`;
+  $('live-premium').textContent = liveLine(engines.premium, 'premium');
+  $('live-trend').textContent = liveLine(engines.trend, 'trend');
+
+  // Q042 armed 是行内字段（约束 1），不是徽章
+  if (ok(dip)) {
+    const a = dip.sleeve_a || {}, b = dip.sleeve_b || {};
+    $('live-convexity').textContent =
+      `Trigger armed: ${a.armed ? 'yes' : 'no'} · ddATH ${dip.ddath_pct ?? '—'}%` +
+      ` · A pos: ${a.active_position ? 'open' : '—'} · B pos: ${b.active_position ? 'open' : '—'}`;
+  } else if (dip.sleeve_a) {
+    $('live-convexity').textContent =
+      `Trigger armed: ${dip.sleeve_a.armed ? 'yes' : 'no'} · ddATH n/a`;
+  } else {
+    $('live-convexity').innerHTML = NA;
+  }
+}
+
+function renderPools(s) {
+  const p = s.pools || {};
+  if (!ok(p)) {
+    $('cash-total').innerHTML = NA; $('bp-total').innerHTML = NA;
+    return;
+  }
+  // ── CASH POOL（0 → liquid 满格；金色弹药线在绝对位置） ──
+  const c = p.cash || {};
+  if (c.status === 'ok') {
+    $('cash-total').textContent = `liquid ${fmtUsd(c.liquid)}`;
+    $('cash-bar-block').style.display = '';
+    const g = c.committed || {};
+    $('cash-bar-val').textContent = `${fmtUsd(g.value)} (${fmtPct(c.utilization_pct)})`;
+    $('cash-scale-max').textContent = fmtUsd(c.liquid);
+    let ticks = '', labels = '';
+    if (c.ammo_line_pos_pct != null) {
+      const t = tickHtml(c.ammo_line_pos_pct, `ammo ${fmtUsd(c.ammo_line_usd)}`);
+      ticks += t.tick; labels += t.label;
+    }
+    $('cash-ticks').innerHTML = labels;
+    $('cash-track').innerHTML = `<div class="bar-fill fill-cash" style="width:${g.width_pct ?? 0}%"></div>` + ticks;
+    const rows = [];
+    rows.push(`<div class="pool-row"><span class="pr-key">In-flight debit</span><span class="pr-val">${fmtUsd(g.value)}</span></div>`);
+    if (c.reserve_need != null) {
+      const cls = c.ready ? 'pr-ok' : 'pr-bad';
+      rows.push(`<div class="pool-row"><span class="pr-key">Q042 reserve (12.5% NLV)</span><span class="pr-val ${cls}">${fmtUsd(c.reserve_need)} · ${c.ready ? 'ready' : 'short'}</span></div>`);
+      rows.push(`<div class="pool-row"><span class="pr-key">Concurrent BCD headroom</span><span class="pr-val">${c.bcd_headroom_count} × ${fmtUsd(c.bcd_standard_usd)}</span></div>`);
+    }
+    rows.push(`<div class="pool-row"><span class="pr-key">Floor</span><span class="pr-val">${fmtUsd(c.floor_usd)}</span></div>`);
+    $('cash-rows').innerHTML = rows.join('');
+  } else {
+    $('cash-total').innerHTML = NA;
+  }
+
+  // ── BP POOL（绝对 0-100% 刻度；cap 金色刻度线） ──
+  const bp = p.bp || {};
+  $('bp-total').textContent = bp.nlv_basis != null ? `NLV basis ${fmtUsd(bp.nlv_basis)}` : 'n/a';
+  const renderBpBar = (geom, fillId, valId, ticksId) => {
+    if (!geom || geom.width_pct == null) { $(valId).innerHTML = NA; return; }
+    $(fillId).style.width = geom.width_pct + '%';
+    $(valId).textContent = `${fmtPct(geom.value)} / cap ${geom.cap != null ? fmtPct(geom.cap, 0) : 'n/a'}`;
+    if (geom.cap_pos_pct != null) {
+      const t = tickHtml(geom.cap_pos_pct, `cap ${fmtPct(geom.cap, 0)}`);
+      $(ticksId).innerHTML = t.label;
+      $(fillId).parentElement.insertAdjacentHTML('beforeend', t.tick);
+    }
+  };
+  renderBpBar(bp.spx_pm, 'bp-spx-fill', 'bp-spx-val', 'bp-spx-ticks');
+  renderBpBar(bp.short_vol, 'bp-sv-fill', 'bp-sv-val', 'bp-sv-ticks');
+  const rows = [];
+  if (bp.es_span) rows.push(`<div class="pool-row"><span class="pr-key">/ES SPAN (demoted)</span><span class="pr-val">${fmtPct(bp.es_span.value)} / cap ${fmtPct(bp.es_span.cap, 0)}</span></div>`);
+  if (bp.combined) rows.push(`<div class="pool-row"><span class="pr-key">Combined</span><span class="pr-val">${fmtPct(bp.combined.value)} / cap ${fmtPct(bp.combined.cap, 0)}</span></div>`);
+  if (bp.cap_regime) rows.push(`<div class="pool-row"><span class="pr-key">Cap regime</span><span class="pr-val">${bp.cap_regime}</span></div>`);
+  $('bp-rows').innerHTML = rows.join('');
+}
+
+function renderTimeline(hist) {
+  if (!hist || !hist.length) {
+    $('tl-body').innerHTML = '<div class="axis-note">时间轴暂无数据——首跑回填随日度 job 落盘（data/state_surface.jsonl）</div>';
+    return;
+  }
+  const volCls = { CALM: 'c-calm', NORMAL: 'c-normal', HIGH: 'c-high', EXTREME: 'c-extreme' };
+  const stCls = { TREND_UP: 'c-up', RANGE: 'c-range', TREND_DOWN: 'c-down', MIXED: 'c-mixed' };
+  const cells = (key, cls) => hist.map(r => {
+    const c = cls[r[key]] || 'c-na';
+    const bf = r.backfill ? ' bf' : '';
+    return `<span class="tl-cell ${c}${bf}" title="${r.date} · ${r[key] || 'n/a'}${r.backfill ? ' (backfill)' : ''}"></span>`;
+  }).join('');
+  $('tl-body').innerHTML =
+    `<div class="tl-strip-label">Vol</div><div class="tl-strip">${cells('vol_state', volCls)}</div>` +
+    `<div class="tl-strip-label">Structure</div><div class="tl-strip">${cells('structure_state', stCls)}</div>` +
+    `<div class="tl-range"><span>${hist[0].date}</span><span>${hist[hist.length - 1].date}</span></div>`;
+  $('tl-legend').style.display = '';
+}
+
+function renderRehearsal(s) {
+  const r = s.rehearsal || {};
+  if (!ok(r)) {
+    $('reh-type').innerHTML = NA; $('reh-branch').innerHTML = NA;
+    $('reh-sizing').innerHTML = NA; $('reh-cash').innerHTML = NA;
+    $('reh-advisory').innerHTML = NA;
+    return;
+  }
+  $('reh-type').textContent = r.episode_type || 'n/a';
+  $('reh-branch').textContent = r.branch || 'n/a';
+  $('reh-sizing').textContent = (r.long_strike != null && r.contracts)
+    ? `long ${r.long_strike} / short ${r.short_strike} × ${r.contracts} ct @ ${fmtUsd(r.est_debit_per_contract)}/ct`
+    : 'n/a';
+  const ammo = r.ammo || {};
+  $('reh-cash').textContent = (ammo.liquid != null)
+    ? `liquid ${fmtUsd(ammo.liquid)} vs need ${fmtUsd(ammo.need)}`
+    : 'n/a';
+  $('reh-advisory').textContent = r.advisory || 'n/a';
+}
+
+function toggleRehearsal(forceOpen) {
+  const body = $('rehearsal-body');
+  const open = forceOpen === true ? true : !body.classList.contains('open');
+  body.classList.toggle('open', open);
+  $('rehearsal-caret').textContent = open ? '▾' : '▸';
+}
+
+$('light-dip').addEventListener('click', () => {
+  toggleRehearsal(true);
+  $('rehearsal').scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
+
+const _now = new Date();
+$('nav-date').textContent = _now.toISOString().slice(0, 10);
+
+fetch('/api/state-surface')
+  .then(r => r.json())
+  .then(s => {
+    const vol = s.vol_axis || {}, dip = (s.events || {}).dip || {};
+    $('hero-meta').textContent =
+      `${s.date || '—'} · VIX ${ok(vol) ? vol.vix : 'n/a'} · ddATH ${ok(dip) ? dip.ddath_pct + '%' : 'n/a'}`;
+    renderVeto(s.veto || {});
+    renderLayer1(s);
+    renderEngines(s);
+    renderPools(s);
+    renderTimeline(s.history || []);
+    renderRehearsal(s);
+  })
+  .catch(() => { $('hero-meta').textContent = '状态面数据不可用'; });
+</script>
+
+</body>
+</html>

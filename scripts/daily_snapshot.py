@@ -413,11 +413,26 @@ def build_record() -> dict | None:
     }
 
 
+def _state_surface_hook(today: str) -> None:
+    """SPEC-141 F2 — 状态面日志挂载（幂等一天一行 data/state_surface.jsonl，
+    首跑自动回填 90 TD 简版）。完全隔离：任何失败只打日志，绝不影响 snapshot。"""
+    try:
+        from strategy.state_surface import append_daily_log
+
+        res = append_daily_log(date=today)
+        print(f"[daily_snapshot] state_surface {res.get('status')} "
+              f"(backfilled={res.get('backfilled', 0)})")
+    except Exception as exc:
+        print(f"[daily_snapshot] state_surface log failed: {exc}", file=sys.stderr)
+
+
 def main() -> int:
     today = _today_et()
     if not _is_trading_day(today):
         print(f"[daily_snapshot] non-trading day {today} — skipping")
         return 0
+    # SPEC-141: 状态面日志有独立幂等，与 snapshot 的 already_recorded 互不耦合
+    _state_surface_hook(today)
     if _already_recorded(today):
         print(f"[daily_snapshot] already recorded for {today}")
         return 0

@@ -434,6 +434,34 @@ def margin_page():
     return render_template("margin.html")
 
 
+@app.route("/state-map")
+def state_map_page():
+    """SPEC-141 S2a — State Map：四层架构活版（Layer 0-3 + 90d 色带 + 预演）。"""
+    return render_template("state_map.html")
+
+
+@app.route("/api/state-surface")
+def api_state_surface():
+    """SPEC-141 F2 — 统一状态面（shadow 只读聚合）。
+
+    compute_state_surface 内部逐字段 fail-soft（子源失败 → 该字段 n/a），
+    本路由恒 200；history = data/state_surface.jsonl 最近 90 行（时间轴）。
+    """
+    from strategy.state_surface import compute_state_surface, read_history
+    try:
+        payload = compute_state_surface()
+    except Exception as exc:  # belt-and-braces：模块级失败也不 500
+        payload = {"spec": "SPEC-141", "status": "n/a", "error": str(exc)}
+    try:
+        payload["history"] = read_history(limit=90)
+    except Exception:
+        payload["history"] = []
+    return app.response_class(
+        json.dumps(_json_sanitize(payload), cls=_EnumEncoder, default=str),
+        mimetype="application/json",
+    )
+
+
 # ── Fund Exit (temporary, remove with fund_exit/ when fully exited) ──────────
 _FUND_DIR = Path(__file__).resolve().parent.parent / "fund_exit"
 
