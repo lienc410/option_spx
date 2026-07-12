@@ -3871,3 +3871,72 @@ Owner: Planner or PM
 
 - **来源**: Commit 6a2252c, three-party review cycle Q2 2026, AC tests 19/19, oldair deploy + cache 5/5
 
+
+---
+
+### R-20260706-03 — Q089: Timing Signal Dual Kill Verdict (CLOSED 2026-07-06)
+
+- **Charter**: Two directional timing candidates from Q085 signal battery survivor review; external validation + production governance
+- **P1 Verdict**: Both candidates **KILL CONFIRMED**
+  1. Entry-signal candidate (signal A): Fails forward gate on 2024+ live data; false-signal rate unacceptable
+  2. Exit-signal candidate (signal B): Semantic failure on forward window (signal fires point-in-time, does not govern 5-day evolution per feedback_short_dte_entry_signal_cannot_gate_forward)
+- **Rationale**: Both violations pre-registered in feedback; dual kill as single slot-preservation decision
+- **Production Impact**: Zero (candidates were research-only, no production codepath)
+- **Status**: **CLOSED 2026-07-06** — both verdicts entered DEFERRED.md permanent exclusion list
+- **来源**: Q085 external battery review + two independent gate violations
+
+---
+
+### R-20260707-01 — Q090: Partnership Book Native Migration + Two Daily Ops Pipelines (CLOSED 2026-07-07)
+
+- **Charter**: Move partnership book (家庭合伙账本) from Google Sheets mirror → native data/book/ ledger; establish two daily automatic ops pipelines (book refresh + decision log push)
+- **Execution**:
+  - SPEC-128 deployed: native engine @ data/book/, Quant→Planner workflow via JSON state
+  - Google Sheet retired (归档 → Drive backup, no longer source of truth)
+  - Two new launchd tasks: daily 17:50 ET book refresh (cache NLV) + daily 21:00 ET decision-log push (Telegram alert to PM on end-of-day book status)
+  - Frontend: /partnership tab now reads native engine data (real-time, no mirror lag)
+- **Governance Improvement**: Single source of truth; all historical decisions now in data/book/decisions.jsonl (searchable, auditable)
+- **Status**: **CLOSED 2026-07-07** — SPEC-128 production verified, two pipelines green, book retirement complete
+- **来源**: Ops consolidation Q2 2026
+
+---
+
+### R-20260707-02 — Nine-Batch SPEC Acceptance Run (SPEC-127/129/130/131×2/132×2/134/135×2): One Incident Remediated (CLOSED 2026-07-07)
+
+- **Batch Overview**: Nine SPEC from three-month accumulation, each with AC validation + integration smoke
+- **Incident Discovery & Remediation**:
+  - One deployment scenario uncovered inconsistent state initialization (SPEC-131 variant path)
+  - Root: decision-tree gating did not re-validate after 09:30 ET governance push
+  - Remediation: SPEC-135 patch 2 added re-validation checkpoint (no production data loss, scenario extinct per incident report)
+  - Incident formal closure: decision-tree now atomic across all nine SPEC paths
+- **New Product Launch** (concurrent with SPEC batch):
+  - Candlestick chart + decision pipeline: research prototype → production UI
+  - Live signal line (real-time decision state) now embedded in position cards
+  - Integrated with intraday governance (SPEC-107 semantics + decision log)
+  - Day-1 usage (7/7 morning signal) will be first live instance
+- **Morning Report 09:35** (Four First-Times):
+  1. First JPM T-3 real signal execution (SPEC-115 Phase B earnings IC)
+  2. First candlestick chart production render (new UI)
+  3. First decision-pipeline live fire (integrated state log)
+  4. First post-incident governance re-validation (SPEC-135 atomic path)
+- **Status**: **CLOSED 2026-07-07** — all nine SPEC + one incident + one new product delivery complete; day-1 budget pre-approved
+- **来源**: Q2 SPEC accumulation cycle
+
+
+---
+
+### R-20260712-01 — Q097→Q099 双轴质疑链收官：现任信号四轮对抗后全部件裁定完毕（CLOSED 2026-07-12）
+
+- **Charter**（PM 质疑链，五连击）: ①5% 箱体是 n=1 硬编码？②慢涨与真震荡混标？③两轴无效 + MA20/50 粗糙，四问分解；④"vs 常量"不是公平比较，要 vs 其他 trend 信号；⑤两段 episode 标签与体感不符（5-6 月"慢涨"、1-2 月"慢跌"）
+- **最终裁定**（全部经对抗性程序）:
+  1. **箱体 D1（5%/15TD）**: 获对手盘证书（4 候选死于预注册杀标，K3 崩盘真值 4/4）；RANGE 为市场默认态（82-96% 交易日），箱体测"非快速移动"
+  2. **Trend 信号 MA20/50**: 当前引擎 vs 最优常量 +$536k/26y；vs 4 标准挑战者族（带等占用先知校准优待）ΣPnL/资本效率/时代分层全胜；2022 熊市唯一正收益（+$12.9k vs 挑战者 −$12.6k~−$82.8k）
+  3. **子类型账本**: drift 端点标签段内不稳定（05-05 段 32 天翻 6 次；01-06 段实时 20 震荡/12 慢跌，稳定慢跌 03-05 才现），crossings 单调稳定；标签仅研究账本用，零生产消费（已 grep 验证）
+  4. **混淆矩阵翻案**（PM 连抓两例事后标签涂窗）: hindsight 口径"现任慢跌日 52% BULLISH"→ 实时 as-of 口径 4% BULLISH / 89% BEARISH。真正家族病人 = MA50/200（已确认慢跌日 98% BULLISH）与 MOM63（54%）。现任存活缺陷仅一个: **真震荡日 NEUTRAL 门只开 31%（58% 读 BULLISH）**
+  5. **该缺陷的修补路径三重认证死亡**: 质感零自相关（5-45TD 全横切，keystone）+ 两个因果翻译经济对齐反向/零信号（Q098 双杀）+ 机制理解（累积量天然晚触发，IC 撞破位）
+- **PM 原始担忧的最终溶解**: "慢涨慢跌被归 NEUTRAL"不存在（慢涨日 99% BULLISH、已确认慢跌日 89% BEARISH）；真病是 oscillation→BULLISH，且不可修
+- **方法学沉淀**: hindsight 标签毒害不止路由结论，**纯诊断表同样制造冤案**——"信号 vs 状态账本"类诊断必须 as-of 前缀标签（feedback_hindsight_label_leakage ④）；指控现任与 kill 候选同尺（ruler audit 先于 indictment）
+- **Superseded artifacts**: `research/q099/q099_signal_subtype_confusion.csv`（hindsight 版，由 findings §7 与 `_realtime.csv` 取代）；本链所有中间指控以 q099_findings §6c/§7 为准
+- **存活 actionable**: SPEC-142（状态转换 FYI 通知，DRAFT，PM gate）
+- **重开门槛**（登记）: 质感/子类型条件化路由再研究须全新**外生前瞻**构造 + 预注册 + front-load 稳健性；as-of drift/texture 门变体属已死家族，不是漏洞
+- **来源**: Q097/Q098/Q099 findings + addenda（research/q097-q099/），PM 五连质疑 2026-07-08→07-12
