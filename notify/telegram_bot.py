@@ -1518,13 +1518,19 @@ async def scheduled_push(bot: Bot, chat_id: str) -> None:
                 from strategy.exposure import evaluate_exposure_degrade
                 deg = evaluate_exposure_degrade(rec.strategy_key)
                 if deg.get("degraded"):
-                    _category = "STATE"
+                    # SPEC-140 §4 — outcome↔category 显式断言：敞口满 =
+                    # advisory（提示不拦）→ 语气降级 STATE（SPEC-131 先例）
+                    from notify.gateway import assert_outcome_category
+                    _category = assert_outcome_category("advisory", "STATE")
                     _title = f"条件满足，敞口已满 · {rec.strategy}"
                     _body = f"{_h(deg['copy'])}\n{'─' * 32}\n{_body}"
                 elif deg.get("note"):
                     _body = f"{_body}\n<i>{_h(deg['note'])}</i>"
             except Exception:
                 log.exception("SPEC-131 exposure degrade check failed (fail-soft)")
+        # SPEC-140 §3 — 晨报尾部深链（推送永远是摘要+深链）
+        from notify.gateway import TRACE_DEEPLINK
+        _body = f"{_body}\n{TRACE_DEEPLINK}"
         await apush(bot, chat_id, _category, "新开仓", f"晨报 · {_title}",
                     _body, dedupe_key="morning_push")
         _morning_snapshot = {
@@ -1683,16 +1689,33 @@ async def scheduled_eod_push(bot: Bot, chat_id: str) -> None:
 
 # ── SPEC-126: 15:55 pre-close digest ──────────────────────────────────────────
 # Merges the retired 15:30 governance / 16:03 snapshot / 16:15 overlay
-# scheduled pushes into ONE PM-ratified daily mail. Structure: 今日新仓裁决 /
-# 持仓动作清单 / 治理状态一行 / 异常区 (omitted when empty).
+# scheduled pushes into ONE PM-ratified daily mail. SPEC-140 §2 起结构为
+# Decision Trace 四泳道镜像（见 build_preclose_digest docstring）。
 
 def build_preclose_digest() -> tuple[str, str, str]:
     """Returns (category, title, body). Category is ACTION when anything is
-    actionable today, else FYI (quiet)."""
+    actionable today, else FYI (quiet).
+
+    SPEC-140 §2 — 四泳道镜像（内容同源，不新增信息量）：
+      A 今日新仓结论一行（trace final 同源，SPEC-136 沿用）
+      B 每个 open 仓一行（Lane B label 同源 strategy.decision_trace.
+        lane_b_positions——与 /api/decision-trace 同一函数；无仓写
+        "今天没有 open 仓位"）
+      D 引擎状态一行（lane_d_sleeves().summary_line 同源）＋ 联动线仅在非
+        "未压缩"档（advisory/veto）附一行；治理位（BCD halt / quote-gate，
+        系统状态）归 D 泳道渲染，halt 升 ACTION 现行为不变
+      异常区保留（reauth/推送失败等 actionable 才升 ACTION，现行为不变）
+    Lane C 明确不推（Q090 封账口径）：地形/Structure Map 描述层永不进
+    digest 或任何推送——状态活在网页（Decision Trace / State Map）。
+    收件预算不变（SPEC-140 AC）：仍是单条 digest（dedupe_key=
+    preclose_digest），分类规则（OPEN / dte≤7 / halt / 异常 → ACTION，否则
+    FYI）与 SPEC-126 行为零变化——B/D 泳道镜像行与尾部深链永不改变
+    category 或 dedupe。
+    """
     lines: list[str] = []
     actionable = False
 
-    # 1. 今日新仓裁决 — DESIGN.md push vocabulary: NO ENTRY, never WAIT
+    # A. 今日新仓结论一行 — DESIGN.md push vocabulary: NO ENTRY, never WAIT
     try:
         rec = get_recommendation(use_intraday=True)
         if rec.strategy_key == "reduce_wait":
@@ -1705,12 +1728,25 @@ def build_preclose_digest() -> tuple[str, str, str]:
     except Exception as exc:
         lines.append(f"<b>今日新仓裁决</b>：获取失败（{_h(exc)}）")
 
-    # 2. 持仓动作清单
+    # B. 每个 open 仓一行 — Lane B label 同源（SPEC-140 §1/§2：触发器语义
+    # 入 digest，与 /api/decision-trace Lane B 节点同一 copy 源）。
+    lane_b_by_tid: dict[str, dict] = {}
+    lane_b_extra: list[dict] = []
+    try:
+        from strategy.decision_trace import lane_b_positions
+        for row in lane_b_positions(datetime.now(ET).date().isoformat()):
+            if row.get("trade_id"):
+                lane_b_by_tid[str(row["trade_id"])] = row
+            else:
+                lane_b_extra.append(row)      # fail-soft info 行，如实透传
+    except Exception:
+        log.exception("digest lane_b assembly failed (fail-soft)")
     try:
         from strategy.state import read_all_positions
         _all = read_all_positions() or {}
         pos = _all.get("positions", [])
         _state_sk = _all.get("strategy_key") or ""
+        rendered_tids: set[str] = set()
         if pos:
             for p in pos:
                 dte = ""
@@ -1729,14 +1765,41 @@ def build_preclose_digest() -> tuple[str, str, str]:
                     _sk = strategy_descriptor(_sk).name
                 except Exception:
                     pass
-                lines.append(f"  · 持仓 {_h(p.get('trade_id', '?'))}"
-                             f"（{_h(_sk)}{dte}）")
-        else:
-            lines.append("  · 无持仓")
+                tid = str(p.get("trade_id", "?"))
+                rendered_tids.add(tid)
+                line = f"  · 持仓 {_h(tid)}（{_h(_sk)}{dte}）"
+                lb = lane_b_by_tid.get(tid)
+                if lb and lb.get("label_human"):
+                    line += f"：{_h(lb['label_human'])}"
+                lines.append(line)
+        # ledger 侧有 open BCD 而 state 缺席的行照发（真值不静默丢）
+        for tid, lb in lane_b_by_tid.items():
+            if tid not in rendered_tids and lb.get("label_human"):
+                lines.append(f"  · 持仓 {_h(tid)}：{_h(lb['label_human'])}")
+        for lb in lane_b_extra:
+            if lb.get("label_human"):
+                lines.append(f"  · {_h(lb['label_human'])}")
+        if not pos and not lane_b_by_tid:
+            lines.append("  · 今天没有 open 仓位")
     except Exception:
         lines.append("  · 持仓读取失败")
 
-    # 3. 治理状态一行
+    # D. 引擎状态一行 — Lane D 摘要条同源（SPEC-135.5 lane_d_sleeves，唯一
+    # copy 源）；联动线仅在非"未压缩"档（advisory/veto）附一行，行文 =
+    # 联动线节点 label_human 逐字（SPEC-140 §1 lane_d_linkage_label）。
+    try:
+        from strategy.decision_trace import lane_d_sleeves
+        _ld = lane_d_sleeves()
+        lines.append(f"<b>引擎</b>：{_h(_ld.get('summary_line') or '引擎状态不可用')}")
+        _link = next((n for n in (_ld.get("engines") or [])
+                      if n.get("check") == "dd_overlay_main_linkage"), None)
+        if _link and _link.get("outcome") in ("advisory", "veto"):
+            lines.append(f"  {_h(_link.get('label_human'))}")
+    except Exception:
+        log.exception("digest lane_d assembly failed (fail-soft)")
+        lines.append("<b>引擎</b>：引擎状态读取失败")
+
+    # D(治理位). 治理状态一行（系统状态；halt 升 ACTION 现行为不变）
     gov_bits: list[str] = []
     try:
         from strategy.bcd_governance import is_halted, quote_gate_status
@@ -1774,6 +1837,11 @@ def build_preclose_digest() -> tuple[str, str, str]:
     if anomalies:
         lines.append("<b>异常</b>：\n" + "\n".join(f"  ⚠ {_h(a)}" for a in anomalies))
         actionable = True
+
+    # 尾部深链（SPEC-140 §3：推送永远是摘要+深链）；Lane C 不出现在上面任何
+    # 一节——地形只描述不决策，永不推送（Q090 封账口径）。
+    from notify.gateway import TRACE_DEEPLINK
+    lines.append(TRACE_DEEPLINK)
 
     return ("ACTION" if actionable else "FYI",
             f"收盘前 digest · {datetime.now(ET):%m-%d %H:%M}",
