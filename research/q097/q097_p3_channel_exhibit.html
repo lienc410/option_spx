@@ -1,0 +1,173 @@
+<title>Q097 P3 · 崩盘前夜的斜通道</title>
+<style>
+:root{
+  --bg:#FAFAF8; --card:#FFFFFF; --ink:#22283D; --ink2:#5A6072; --grid:#ECECE6;
+  --chan:#0072B2; --chanfill:rgba(0,114,178,.08); --verm:#C24E00; --gold:#8F7420;
+  --fitwin:rgba(176,138,32,.10); --border:#E4E2DA; --tipbg:#FFFFFF;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#12141C; --card:#1A1E29; --ink:#E8E6DF; --ink2:#9AA0B0; --grid:#262B38;
+  --chan:#5FA8DC; --chanfill:rgba(95,168,220,.12); --verm:#E8763A; --gold:#C9A840;
+  --fitwin:rgba(201,168,64,.12); --border:#2A2F3D; --tipbg:#232837;
+}}
+:root[data-theme="dark"]{
+  --bg:#12141C; --card:#1A1E29; --ink:#E8E6DF; --ink2:#9AA0B0; --grid:#262B38;
+  --chan:#5FA8DC; --chanfill:rgba(95,168,220,.12); --verm:#E8763A; --gold:#C9A840;
+  --fitwin:rgba(201,168,64,.12); --border:#2A2F3D; --tipbg:#232837;
+}
+:root[data-theme="light"]{
+  --bg:#FAFAF8; --card:#FFFFFF; --ink:#22283D; --ink2:#5A6072; --grid:#ECECE6;
+  --chan:#0072B2; --chanfill:rgba(0,114,178,.08); --verm:#C24E00; --gold:#8F7420;
+  --fitwin:rgba(176,138,32,.10); --border:#E4E2DA; --tipbg:#FFFFFF;
+}
+body{background:var(--bg); color:var(--ink);
+  font-family:"DM Sans",-apple-system,"PingFang SC","Hiragino Sans GB",sans-serif;
+  margin:0; padding:22px 18px 40px; line-height:1.55;}
+.wrap{max-width:1180px; margin:0 auto;}
+h1{font-family:"Newsreader",Georgia,"Songti SC",serif; font-weight:600;
+  font-size:1.45rem; margin:0 0 6px; text-wrap:balance;}
+.sub{color:var(--ink2); font-size:.86rem; max-width:72ch; margin:0 0 14px;}
+.legend{display:flex; flex-wrap:wrap; gap:14px 20px; font-size:.78rem;
+  color:var(--ink2); margin:0 0 16px; align-items:center;}
+.legend span{display:inline-flex; align-items:center; gap:6px;}
+.sw{display:inline-block; width:22px; height:0; border-top:2.5px solid var(--chan);}
+.sw.px{border-top:2.5px solid var(--ink);}
+.sw.dash{border-top:2px dashed var(--chan);}
+.sw.trig{border-top:2px dashed var(--verm);}
+.sw.fit{width:16px; height:12px; border:none; background:var(--fitwin);}
+.grid{display:grid; grid-template-columns:repeat(2,1fr); gap:16px;}
+@media (max-width:820px){.grid{grid-template-columns:1fr;}}
+figure.panel{background:var(--card); border:1px solid var(--border); border-radius:8px;
+  margin:0; padding:12px 12px 6px; position:relative;}
+figure.panel h2{font-size:.95rem; margin:0 0 1px; font-weight:600;}
+figure.panel h2 .tag{color:var(--verm); font-weight:600;}
+figure.panel .meta{font-size:.75rem; color:var(--ink2); margin:0 0 6px;}
+figure.panel .meta b{color:var(--gold); font-weight:600;}
+svg{width:100%; height:auto; display:block; touch-action:none; cursor:crosshair;}
+.px-line{fill:none; stroke:var(--ink); stroke-width:1.7;}
+.rail{fill:none; stroke:var(--chan); stroke-width:1.6;}
+.rail-dash{fill:none; stroke:var(--chan); stroke-width:1.3; stroke-dasharray:5 4; opacity:.85;}
+.band-fill{fill:var(--chanfill); stroke:none;}
+.fitwin{fill:var(--fitwin); stroke:none;}
+.gridline{stroke:var(--grid); stroke-width:1;}
+.axis{font-size:10.5px; fill:var(--ink2);
+  font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;}
+.trigline{stroke:var(--verm); stroke-width:1.4; stroke-dasharray:5 4;}
+.trigmark{fill:var(--verm); font-size:11px;}
+.xhair{stroke:var(--gold); stroke-width:1; opacity:0; pointer-events:none;}
+.xdot{fill:var(--gold); opacity:0; pointer-events:none;}
+.tip{position:absolute; pointer-events:none; background:var(--tipbg);
+  border:1px solid var(--border); border-radius:6px; padding:6px 9px;
+  font-size:.76rem; box-shadow:0 3px 12px rgba(0,0,0,.14); opacity:0;
+  transition:opacity .08s; white-space:nowrap; z-index:5;}
+.tip .d{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace; font-weight:700;}
+.tip .v{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;}
+.tip .s{color:var(--ink2);}
+.tip .in{color:var(--chan); font-weight:600;} .tip .out{color:var(--verm); font-weight:600;}
+table{border-collapse:collapse; margin:22px 0 8px; font-size:.82rem; width:100%;
+  max-width:980px;}
+th,td{padding:6px 12px; text-align:right; border-bottom:1px solid var(--border);}
+th:first-child,td:first-child{text-align:left;}
+th{color:var(--ink2); font-weight:600; font-size:.75rem;}
+td .num{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;}
+.tblwrap{overflow-x:auto;}
+footer{color:var(--ink2); font-size:.74rem; max-width:80ch; margin-top:14px;}
+</style>
+<div class="wrap">
+<h1>崩盘前夜的斜通道 — 四个 K3 触发日全体成立</h1>
+<p class="sub">Q097 P3 冒烟测试的可视化：每格是一个已知"崩盘延续型" dip 触发日（K3 硬标，必须判 sudden）。蓝色通道 = 触发日<b>前一天</b>用之前 20 个交易日 OLS 拟合的平行斜线（残差带全部 ≤5% → 斜通道检测器会判"结构成立"，按 094.4 分型规则把崩盘日误判为 episode 型）。虚线为通道外推——四例价格都是<b>触发日当天</b>才跌出通道，零提前量；而水平 5% 箱的灯在 8–17 天前就已熄灭（正确判 sudden 的机制）。<b>鼠标悬停可读逐日日期与价格。</b></p>
+<div class="legend">
+  <span><i class="sw px"></i>SPX 收盘</span>
+  <span><i class="sw"></i>前夜拟合通道（20TD）</span>
+  <span><i class="sw dash"></i>通道外推</span>
+  <span><i class="sw fit"></i>拟合窗</span>
+  <span><i class="sw trig"></i>触发日</span>
+</div>
+<div class="grid" id="panels"></div>
+<div class="tblwrap">
+<table>
+<thead><tr><th>触发日</th><th>案例</th><th>前夜通道残差带</th><th>通道斜率</th><th>水平箱熄灯</th><th>跌出通道</th><th>后 20TD 最深</th></tr></thead>
+<tbody id="tbody"></tbody>
+</table>
+</div>
+<footer>方法：残差带 = 触发日前 20TD 收盘对 OLS 直线的 (max−min) 残差 ÷ 均价；通道 = 拟合线平移包住全部残差；≤5% 视作"通道成立"（与 5% 箱同宽口径）。W=15/30 的结果见 research/q097/q097_p3_channel_smoke.csv。水平箱熄灯 = D1（5%/15TD）最后一个 episode 的结束日距触发日的日历天数（&gt;7 天 ⇒ 094.4 因果分型正确判 sudden）。数据：SPX 日收盘（yahoo 缓存），生成于 2026-07-12。</footer>
+</div>
+<script>
+const DATA = [{"name": "VIX 冲击", "trigger": "2018-02-05", "trig_i": 60, "fit_lo": 40, "fit_hi": 59, "dates": ["2017-11-07", "2017-11-08", "2017-11-09", "2017-11-10", "2017-11-13", "2017-11-14", "2017-11-15", "2017-11-16", "2017-11-17", "2017-11-20", "2017-11-21", "2017-11-22", "2017-11-24", "2017-11-27", "2017-11-28", "2017-11-29", "2017-11-30", "2017-12-01", "2017-12-04", "2017-12-05", "2017-12-06", "2017-12-07", "2017-12-08", "2017-12-11", "2017-12-12", "2017-12-13", "2017-12-14", "2017-12-15", "2017-12-18", "2017-12-19", "2017-12-20", "2017-12-21", "2017-12-22", "2017-12-26", "2017-12-27", "2017-12-28", "2017-12-29", "2018-01-02", "2018-01-03", "2018-01-04", "2018-01-05", "2018-01-08", "2018-01-09", "2018-01-10", "2018-01-11", "2018-01-12", "2018-01-16", "2018-01-17", "2018-01-18", "2018-01-19", "2018-01-22", "2018-01-23", "2018-01-24", "2018-01-25", "2018-01-26", "2018-01-29", "2018-01-30", "2018-01-31", "2018-02-01", "2018-02-02", "2018-02-05", "2018-02-06", "2018-02-07", "2018-02-08", "2018-02-09", "2018-02-12", "2018-02-13", "2018-02-14", "2018-02-15", "2018-02-16", "2018-02-20", "2018-02-21", "2018-02-22", "2018-02-23", "2018-02-26", "2018-02-27", "2018-02-28", "2018-03-01", "2018-03-02", "2018-03-05", "2018-03-06"], "close": [2590.64, 2594.38, 2584.62, 2582.3, 2584.84, 2578.87, 2564.62, 2585.64, 2578.85, 2582.14, 2599.03, 2597.08, 2602.42, 2601.42, 2627.04, 2626.07, 2647.58, 2642.22, 2639.44, 2629.57, 2629.27, 2636.98, 2651.5, 2659.99, 2664.11, 2662.85, 2652.01, 2675.81, 2690.16, 2681.47, 2679.25, 2684.57, 2683.34, 2680.5, 2682.62, 2687.54, 2673.61, 2695.81, 2713.06, 2723.99, 2743.15, 2747.71, 2751.29, 2748.23, 2767.56, 2786.24, 2776.42, 2802.56, 2798.03, 2810.3, 2832.97, 2839.13, 2837.54, 2839.25, 2872.87, 2853.53, 2822.43, 2823.81, 2821.98, 2762.13, 2648.94, 2695.14, 2681.66, 2581.0, 2619.55, 2656.0, 2662.94, 2698.63, 2731.2, 2732.22, 2716.26, 2701.33, 2703.96, 2747.3, 2779.6, 2744.28, 2713.83, 2677.67, 2691.25, 2720.94, 2728.12], "upper": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 2808.01, 2812.64, 2817.28, 2821.91, 2826.54, 2831.17, 2835.81, 2840.44, 2845.07, 2849.71, 2854.34, 2858.97, 2863.6, 2868.24, 2872.87, 2877.5, 2882.14, 2886.77, 2891.4, 2896.03, 2900.67, 2905.3, 2909.93, 2914.57, 2919.2, 2923.83, 2928.46, 2933.1, 2937.73, 2942.36, 2946.99, 2951.63, 2956.26, 2960.89, 2965.53, 2970.16, 2974.79, 2979.42, 2984.06, 2988.69, 2993.32], "lower": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 2674.11, 2678.74, 2683.37, 2688.01, 2692.64, 2697.27, 2701.9, 2706.54, 2711.17, 2715.8, 2720.43, 2725.07, 2729.7, 2734.33, 2738.97, 2743.6, 2748.23, 2752.86, 2757.5, 2762.13, 2766.76, 2771.4, 2776.03, 2780.66, 2785.29, 2789.93, 2794.56, 2799.19, 2803.83, 2808.46, 2813.09, 2817.72, 2822.36, 2826.99, 2831.62, 2836.25, 2840.89, 2845.52, 2850.15, 2854.79, 2859.42], "out_i": 60, "band_pct": 4.8, "slope_yr": 42, "drop_pct": -6.6, "out_lag": 0, "box_off_days": 17, "box_off_date": "2018-01-19"}, {"name": "COVID 崩盘", "trigger": "2020-02-24", "trig_i": 60, "fit_lo": 40, "fit_hi": 59, "dates": ["2019-11-25", "2019-11-26", "2019-11-27", "2019-11-29", "2019-12-02", "2019-12-03", "2019-12-04", "2019-12-05", "2019-12-06", "2019-12-09", "2019-12-10", "2019-12-11", "2019-12-12", "2019-12-13", "2019-12-16", "2019-12-17", "2019-12-18", "2019-12-19", "2019-12-20", "2019-12-23", "2019-12-24", "2019-12-26", "2019-12-27", "2019-12-30", "2019-12-31", "2020-01-02", "2020-01-03", "2020-01-06", "2020-01-07", "2020-01-08", "2020-01-09", "2020-01-10", "2020-01-13", "2020-01-14", "2020-01-15", "2020-01-16", "2020-01-17", "2020-01-21", "2020-01-22", "2020-01-23", "2020-01-24", "2020-01-27", "2020-01-28", "2020-01-29", "2020-01-30", "2020-01-31", "2020-02-03", "2020-02-04", "2020-02-05", "2020-02-06", "2020-02-07", "2020-02-10", "2020-02-11", "2020-02-12", "2020-02-13", "2020-02-14", "2020-02-18", "2020-02-19", "2020-02-20", "2020-02-21", "2020-02-24", "2020-02-25", "2020-02-26", "2020-02-27", "2020-02-28", "2020-03-02", "2020-03-03", "2020-03-04", "2020-03-05", "2020-03-06", "2020-03-09", "2020-03-10", "2020-03-11", "2020-03-12", "2020-03-13", "2020-03-16", "2020-03-17", "2020-03-18", "2020-03-19", "2020-03-20", "2020-03-23"], "close": [3133.64, 3140.52, 3153.63, 3140.98, 3113.87, 3093.2, 3112.76, 3117.43, 3145.91, 3135.96, 3132.52, 3141.63, 3168.57, 3168.8, 3191.45, 3192.52, 3191.14, 3205.37, 3221.22, 3224.01, 3223.38, 3239.91, 3240.02, 3221.29, 3230.78, 3257.85, 3234.85, 3246.28, 3237.18, 3253.05, 3274.7, 3265.35, 3288.13, 3283.15, 3289.29, 3316.81, 3329.62, 3320.79, 3321.75, 3325.54, 3295.47, 3243.63, 3276.24, 3273.4, 3283.66, 3225.52, 3248.92, 3297.59, 3334.69, 3345.78, 3327.71, 3352.09, 3357.75, 3379.45, 3373.94, 3380.16, 3370.29, 3386.15, 3373.23, 3337.75, 3225.89, 3128.21, 3116.39, 2978.76, 2954.22, 3090.23, 3003.37, 3130.12, 3023.94, 2972.37, 2746.56, 2882.23, 2741.38, 2480.64, 2711.02, 2386.13, 2529.19, 2398.1, 2409.39, 2304.92, 2237.4], "upper": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 3295.47, 3302.66, 3309.85, 3317.04, 3324.22, 3331.41, 3338.6, 3345.79, 3352.98, 3360.17, 3367.35, 3374.54, 3381.73, 3388.92, 3396.11, 3403.3, 3410.49, 3417.67, 3424.86, 3432.05, 3439.24, 3446.43, 3453.62, 3460.8, 3467.99, 3475.18, 3482.37, 3489.56, 3496.75, 3503.94, 3511.12, 3518.31, 3525.5, 3532.69, 3539.88, 3547.07, 3554.25, 3561.44, 3568.63, 3575.82, 3583.01], "lower": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 3189.58, 3196.77, 3203.95, 3211.14, 3218.33, 3225.52, 3232.71, 3239.9, 3247.09, 3254.27, 3261.46, 3268.65, 3275.84, 3283.03, 3290.22, 3297.4, 3304.59, 3311.78, 3318.97, 3326.16, 3333.35, 3340.54, 3347.72, 3354.91, 3362.1, 3369.29, 3376.48, 3383.67, 3390.85, 3398.04, 3405.23, 3412.42, 3419.61, 3426.8, 3433.99, 3441.17, 3448.36, 3455.55, 3462.74, 3469.93, 3477.12], "out_i": 60, "band_pct": 3.2, "slope_yr": 55, "drop_pct": -33.0, "out_lag": 0, "box_off_days": 13, "box_off_date": "2020-02-11"}, {"name": "科技回调", "trigger": "2020-09-04", "trig_i": 60, "fit_lo": 40, "fit_hi": 59, "dates": ["2020-06-11", "2020-06-12", "2020-06-15", "2020-06-16", "2020-06-17", "2020-06-18", "2020-06-19", "2020-06-22", "2020-06-23", "2020-06-24", "2020-06-25", "2020-06-26", "2020-06-29", "2020-06-30", "2020-07-01", "2020-07-02", "2020-07-06", "2020-07-07", "2020-07-08", "2020-07-09", "2020-07-10", "2020-07-13", "2020-07-14", "2020-07-15", "2020-07-16", "2020-07-17", "2020-07-20", "2020-07-21", "2020-07-22", "2020-07-23", "2020-07-24", "2020-07-27", "2020-07-28", "2020-07-29", "2020-07-30", "2020-07-31", "2020-08-03", "2020-08-04", "2020-08-05", "2020-08-06", "2020-08-07", "2020-08-10", "2020-08-11", "2020-08-12", "2020-08-13", "2020-08-14", "2020-08-17", "2020-08-18", "2020-08-19", "2020-08-20", "2020-08-21", "2020-08-24", "2020-08-25", "2020-08-26", "2020-08-27", "2020-08-28", "2020-08-31", "2020-09-01", "2020-09-02", "2020-09-03", "2020-09-04", "2020-09-08", "2020-09-09", "2020-09-10", "2020-09-11", "2020-09-14", "2020-09-15", "2020-09-16", "2020-09-17", "2020-09-18", "2020-09-21", "2020-09-22", "2020-09-23", "2020-09-24", "2020-09-25", "2020-09-28", "2020-09-29", "2020-09-30", "2020-10-01", "2020-10-02", "2020-10-05"], "close": [3002.1, 3041.31, 3066.59, 3124.74, 3113.49, 3115.34, 3097.74, 3117.86, 3131.29, 3050.33, 3083.76, 3009.05, 3053.24, 3100.29, 3115.86, 3130.01, 3179.72, 3145.32, 3169.94, 3152.05, 3185.04, 3155.22, 3197.52, 3226.56, 3215.57, 3224.73, 3251.84, 3257.3, 3276.02, 3235.66, 3215.63, 3239.41, 3218.44, 3258.44, 3246.22, 3271.12, 3294.61, 3306.51, 3327.77, 3349.16, 3351.28, 3360.47, 3333.69, 3380.35, 3373.43, 3372.85, 3381.99, 3389.78, 3374.85, 3385.51, 3397.16, 3431.28, 3443.62, 3478.73, 3484.55, 3508.01, 3500.31, 3526.65, 3580.84, 3455.06, 3426.96, 3331.84, 3398.96, 3339.19, 3340.97, 3383.54, 3401.2, 3385.49, 3357.01, 3319.47, 3281.06, 3315.57, 3236.92, 3246.59, 3298.46, 3351.6, 3335.47, 3363.0, 3380.8, 3348.42, 3408.6], "upper": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 3394.28, 3404.64, 3415.01, 3425.37, 3435.73, 3446.1, 3456.46, 3466.83, 3477.19, 3487.56, 3497.92, 3508.29, 3518.65, 3529.02, 3539.38, 3549.75, 3560.11, 3570.48, 3580.84, 3591.2, 3601.57, 3611.93, 3622.3, 3632.66, 3643.03, 3653.39, 3663.76, 3674.12, 3684.49, 3694.85, 3705.22, 3715.58, 3725.95, 3736.31, 3746.67, 3757.04, 3767.4, 3777.77, 3788.13, 3798.5, 3808.86], "lower": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 3258.13, 3268.5, 3278.86, 3289.23, 3299.59, 3309.95, 3320.32, 3330.68, 3341.05, 3351.41, 3361.78, 3372.14, 3382.51, 3392.87, 3403.24, 3413.6, 3423.97, 3434.33, 3444.7, 3455.06, 3465.42, 3475.79, 3486.15, 3496.52, 3506.88, 3517.25, 3527.61, 3537.98, 3548.34, 3558.71, 3569.07, 3579.44, 3589.8, 3600.17, 3610.53, 3620.89, 3631.26, 3641.62, 3651.99, 3662.35, 3672.72], "out_i": 60, "band_pct": 4.0, "slope_yr": 76, "drop_pct": -6.3, "out_lag": 0, "box_off_days": 8, "box_off_date": "2020-08-27"}, {"name": "2025-02 回调", "trigger": "2025-02-27", "trig_i": 60, "fit_lo": 40, "fit_hi": 59, "dates": ["2024-11-27", "2024-11-29", "2024-12-02", "2024-12-03", "2024-12-04", "2024-12-05", "2024-12-06", "2024-12-09", "2024-12-10", "2024-12-11", "2024-12-12", "2024-12-13", "2024-12-16", "2024-12-17", "2024-12-18", "2024-12-19", "2024-12-20", "2024-12-23", "2024-12-24", "2024-12-26", "2024-12-27", "2024-12-30", "2024-12-31", "2025-01-02", "2025-01-03", "2025-01-06", "2025-01-07", "2025-01-08", "2025-01-10", "2025-01-13", "2025-01-14", "2025-01-15", "2025-01-16", "2025-01-17", "2025-01-21", "2025-01-22", "2025-01-23", "2025-01-24", "2025-01-27", "2025-01-28", "2025-01-29", "2025-01-30", "2025-01-31", "2025-02-03", "2025-02-04", "2025-02-05", "2025-02-06", "2025-02-07", "2025-02-10", "2025-02-11", "2025-02-12", "2025-02-13", "2025-02-14", "2025-02-18", "2025-02-19", "2025-02-20", "2025-02-21", "2025-02-24", "2025-02-25", "2025-02-26", "2025-02-27", "2025-02-28", "2025-03-03", "2025-03-04", "2025-03-05", "2025-03-06", "2025-03-07", "2025-03-10", "2025-03-11", "2025-03-12", "2025-03-13", "2025-03-14", "2025-03-17", "2025-03-18", "2025-03-19", "2025-03-20", "2025-03-21", "2025-03-24", "2025-03-25", "2025-03-26", "2025-03-27"], "close": [5998.74, 6032.38, 6047.15, 6049.88, 6086.49, 6075.11, 6090.27, 6052.85, 6034.91, 6084.19, 6051.25, 6051.09, 6074.08, 6050.61, 5872.16, 5867.08, 5930.85, 5974.07, 6040.04, 6037.59, 5970.84, 5906.94, 5881.63, 5868.55, 5942.47, 5975.38, 5909.03, 5918.25, 5827.04, 5836.22, 5842.91, 5949.91, 5937.34, 5996.66, 6049.24, 6086.37, 6118.71, 6101.24, 6012.28, 6067.7, 6039.31, 6071.17, 6040.53, 5994.57, 6037.88, 6061.48, 6083.57, 6025.99, 6066.44, 6068.5, 6051.97, 6115.07, 6114.63, 6129.58, 6144.15, 6117.52, 6013.13, 5983.25, 5955.25, 5956.06, 5861.57, 5954.5, 5849.72, 5778.15, 5842.63, 5738.52, 5770.2, 5614.56, 5572.07, 5599.3, 5521.52, 5638.94, 5675.12, 5614.66, 5675.29, 5662.89, 5667.56, 5767.57, 5776.65, 5712.2, 5693.31], "upper": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 6161.58, 6160.33, 6159.09, 6157.84, 6156.6, 6155.35, 6154.11, 6152.86, 6151.62, 6150.37, 6149.13, 6147.88, 6146.64, 6145.39, 6144.15, 6142.91, 6141.66, 6140.42, 6139.17, 6137.93, 6136.68, 6135.44, 6134.19, 6132.95, 6131.7, 6130.46, 6129.21, 6127.97, 6126.72, 6125.48, 6124.23, 6122.99, 6121.74, 6120.5, 6119.25, 6118.01, 6116.76, 6115.52, 6114.27, 6113.03, 6111.78], "lower": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 5977.66, 5976.41, 5975.17, 5973.92, 5972.68, 5971.43, 5970.19, 5968.94, 5967.7, 5966.45, 5965.21, 5963.96, 5962.72, 5961.47, 5960.23, 5958.98, 5957.74, 5956.49, 5955.25, 5954.01, 5952.76, 5951.52, 5950.27, 5949.03, 5947.78, 5946.54, 5945.29, 5944.05, 5942.8, 5941.56, 5940.31, 5939.07, 5937.82, 5936.58, 5935.33, 5934.09, 5932.84, 5931.6, 5930.35, 5929.11, 5927.86], "out_i": 60, "band_pct": 3.0, "slope_yr": -5, "drop_pct": -7.3, "out_lag": 0, "box_off_days": 13, "box_off_date": "2025-02-14"}];
+const W=580, H=350, L=54, R=14, T=16, B=28;
+const panels = document.getElementById('panels');
+const tbody = document.getElementById('tbody');
+const fmt = v => v.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
+
+DATA.forEach((p, pi) => {
+  const n = p.dates.length;
+  const vals = p.close.concat(p.upper.filter(v=>v!=null), p.lower.filter(v=>v!=null));
+  let y0 = Math.min(...vals), y1 = Math.max(...vals);
+  const pad = (y1-y0)*0.04; y0 -= pad; y1 += pad;
+  const X = i => L + i/(n-1)*(W-L-R);
+  const Y = v => T + (1-(v-y0)/(y1-y0))*(H-T-B);
+
+  const fig = document.createElement('figure'); fig.className='panel';
+  fig.innerHTML = `<h2>${p.trigger} · <span class="tag">${p.name}</span></h2>
+    <p class="meta">前夜通道残差带 <b>${p.band_pct}%</b> · 斜率 ${p.slope_yr>0?'+':''}${p.slope_yr}%/yr · 水平箱 <b>${p.box_off_days} 天前</b>已熄灯（${p.box_off_date}） · 触发日<b>当天</b>跌出通道 · 后 20TD 最深 ${p.drop_pct}%</p>`;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+
+  let g = '';
+  const yt = 4;
+  for(let k=0;k<=yt;k++){
+    const v = y0 + (y1-y0)*k/yt, y = Y(v);
+    g += `<line class="gridline" x1="${L}" x2="${W-R}" y1="${y}" y2="${y}"/>`;
+    g += `<text class="axis" x="${L-6}" y="${y+3.5}" text-anchor="end">${Math.round(v).toLocaleString()}</text>`;
+  }
+  [0, Math.round((n-1)/3), Math.round(2*(n-1)/3), n-1].forEach((i,k)=>{
+    g += `<text class="axis" x="${X(i)}" y="${H-9}" text-anchor="${k==0?'start':(k==3?'end':'middle')}">${k==0?p.dates[i]:p.dates[i].slice(5)}</text>`;
+  });
+  g += `<rect class="fitwin" x="${X(p.fit_lo)}" y="${T}" width="${X(p.fit_hi)-X(p.fit_lo)}" height="${H-T-B}"/>`;
+  let band = 'M';
+  for(let i=p.fit_lo;i<n;i++) band += `${X(i)},${Y(p.upper[i])} `;
+  for(let i=n-1;i>=p.fit_lo;i--) band += `${X(i)},${Y(p.lower[i])} `;
+  g += `<path class="band-fill" d="${band}Z"/>`;
+  const seg = (arr,a,b) => arr.slice(a,b+1).map((v,j)=>`${X(a+j)},${Y(v)}`).join(' ');
+  g += `<polyline class="rail" points="${seg(p.upper,p.fit_lo,p.fit_hi)}"/>`;
+  g += `<polyline class="rail" points="${seg(p.lower,p.fit_lo,p.fit_hi)}"/>`;
+  g += `<polyline class="rail-dash" points="${seg(p.upper,p.fit_hi,n-1)}"/>`;
+  g += `<polyline class="rail-dash" points="${seg(p.lower,p.fit_hi,n-1)}"/>`;
+  g += `<line class="trigline" x1="${X(p.trig_i)}" x2="${X(p.trig_i)}" y1="${T}" y2="${H-B}"/>`;
+  g += `<text class="trigmark" x="${X(p.trig_i)}" y="${T-3}" text-anchor="middle">▼</text>`;
+  g += `<polyline class="px-line" points="${p.close.map((v,i)=>`${X(i)},${Y(v)}`).join(' ')}"/>`;
+  g += `<line class="xhair" x1="0" x2="0" y1="${T}" y2="${H-B}"/>`;
+  g += `<circle class="xdot" r="3.5" cx="0" cy="0"/>`;
+  svg.innerHTML = g;
+  fig.appendChild(svg);
+  const tip = document.createElement('div'); tip.className='tip'; fig.appendChild(tip);
+  panels.appendChild(fig);
+
+  const xh = svg.querySelector('.xhair'), xd = svg.querySelector('.xdot');
+  svg.addEventListener('pointermove', ev => {
+    const r = svg.getBoundingClientRect();
+    const sx = (ev.clientX - r.left) * W / r.width;
+    let i = Math.round((sx - L)/(W-L-R)*(n-1));
+    i = Math.max(0, Math.min(n-1, i));
+    xh.setAttribute('x1',X(i)); xh.setAttribute('x2',X(i)); xh.style.opacity=1;
+    xd.setAttribute('cx',X(i)); xd.setAttribute('cy',Y(p.close[i])); xd.style.opacity=1;
+    let pos = '<span class="s">通道未定义</span>';
+    if(p.upper[i]!=null) pos = p.close[i]>p.upper[i] ? '<span class="out">通道外·上</span>'
+      : (p.close[i]<p.lower[i] ? '<span class="out">通道外·下</span>' : '<span class="in">通道内</span>');
+    tip.innerHTML = `<span class="d">${p.dates[i]}</span><br><span class="v">${fmt(p.close[i])}</span> · ${pos}`;
+    const fr = fig.getBoundingClientRect();
+    let tx = (X(i)/W)*fr.width + 14;
+    if (tx > fr.width - 150) tx -= 168;
+    tip.style.left = tx+'px';
+    tip.style.top = ((Y(p.close[i])/H)*fr.height - 8)+'px';
+    tip.style.opacity = 1;
+  });
+  svg.addEventListener('pointerleave', () => { tip.style.opacity=0; xh.style.opacity=0; xd.style.opacity=0; });
+
+  tbody.insertAdjacentHTML('beforeend',
+    `<tr><td class="num">${p.trigger}</td><td>${p.name}</td><td class="num">${p.band_pct}%</td>
+     <td class="num">${p.slope_yr>0?'+':''}${p.slope_yr}%/yr</td>
+     <td class="num">${p.box_off_date}（−${p.box_off_days}d）</td>
+     <td>触发日当天</td><td class="num">${p.drop_pct}%</td></tr>`);
+});
+</script>
