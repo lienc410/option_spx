@@ -26,6 +26,14 @@
 
 散落实践成文（代码内常量 + 断言）：`halt/veto → ALERT 或 ACTION（真拦截才响铃）；advisory → 语气降级 → STATE/FYI（131 先例）；pass/info → 不推`。防未来新门自行发明严重度。
 
+## 5. 推送哲学入宪（PM 提问驱动 2026-07-13，State Map 判例）
+
+DESIGN.md Push Vocabulary 节新增 doctrine 段（与 §3 映射表同批落）：
+
+> **Telegram = 打断权，预算稀缺**（晨报 1 + digest 1 + 事件铃，PM-ratified）。**推"事件"不推"状态"**：状态活在网页（Decision Trace=为什么 / State Map=现在在哪 / Structure Map=地形），状态跃迁且需行动才配打断；描述层永不推送（Q090 判例）。**三级信息架构**：PUSH（秒级读完，行动导向）→ DIGEST（每日四泳道快照）→ WEB（完整地图，按需拉取）；推送永远是摘要+深链，真值单源在代码。**新 surface 默认零新推送**——新页面不自带推送；其定义的新"需行动事件"按 §4 outcome↔category 映射进入现有预算。判例：SPEC-141 State Map 四层活版 = 纯拉取，零推送钩子；其各层内容的事件语义已由既有推送覆盖（否决灯翻灯→ALERT/digest、引擎=Lane D digest 行、双池=慢变量 digest 级、"贴近触发"≠行动信号不推）。
+
+**AC-5**: DESIGN.md doctrine 段落地 + SPEC-141 实现中零 gateway import 断言（State Map 模块不得携带推送钩子——写进 141 的验收由该 lane 执行，本 spec 提供契约文字）。
+
 ## AC 汇总
 
 §1 逐字相等断言×4；§2 digest 快照测试更新（结构 A/B/D + C 缺席断言）+ 收件预算不变断言（分类与 dedupe 行为零变化）；§3 DESIGN.md 表 + 深链渲染；§4 映射常量 + 全 gateway 调用点分类合规扫描；SPEC-136 既有同源断言全部沿用不回退；全量 pytest 零新增。
