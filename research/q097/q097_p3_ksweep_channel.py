@@ -127,6 +127,31 @@ def main() -> int:
     sm = pd.DataFrame(smoke)
     sm.to_csv(OUT / "q097_p3_channel_smoke.csv", index=False)
     print("\n" + sm.to_string(index=False))
+
+    # ── P3b(PM 追问 2026-07-12): 破箱方向 × 前向风险 ────────────────────
+    # 发现:四个 K3 崩盘触发全部发生在"弱上破"(顶上方 +0.18~0.81%)后
+    # 5-10TD 内;但 P(崩盘|上破)=4/122=3.3%,且下破尾部更重——上破不可
+    # 作为 veto gate(基率+n=4 切点+已死 point-in-time gate 家族三重反对)。
+    v = close.values
+    eps15 = find_eps(v, 15)
+    dirs = []
+    for s, e in eps15:
+        if e + 1 >= len(v):
+            continue
+        lo, hi = v[s:e+1].min(), v[s:e+1].max()
+        bc = v[e+1]
+        fwd = v[e+1:min(e+22, len(v))]
+        dirs.append(dict(brk=str(close.index[e+1].date()),
+                         dir='up' if bc > hi else 'down',
+                         poke_pct=round((bc/hi-1)*100 if bc > hi else (bc/lo-1)*100, 2),
+                         dd20_pct=round((fwd.min()/bc-1)*100, 1),
+                         ret20_pct=round((fwd[-1]/bc-1)*100, 1)))
+    bd = pd.DataFrame(dirs)
+    bd.to_csv(OUT / "q097_p3b_break_direction.csv", index=False)
+    for d in ('up', 'down'):
+        g = bd[bd.dir == d]
+        print(f"[{d:>4}] n={len(g)} fwd20med {g.ret20_pct.median():+.1f}% "
+              f"dd<=-7%: {(g.dd20_pct <= -7).mean()*100:.0f}%")
     return 0
 
 
