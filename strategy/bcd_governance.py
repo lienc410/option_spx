@@ -481,7 +481,8 @@ def evaluate_short_leg_actions(today: str, calls=None) -> list[dict]:
         except ValueError:
             continue
         triggers: list[str] = []
-        if short_dte <= SHORT_ACTION_DTE:
+        dte_hit = short_dte <= SHORT_ACTION_DTE
+        if dte_hit:
             triggers.append(f"短腿 {short_dte} DTE ≤ {SHORT_ACTION_DTE}")
         residual = None
         entry_credit = cur.get("entry_price")
@@ -489,8 +490,9 @@ def evaluate_short_leg_actions(today: str, calls=None) -> list[dict]:
             q = _leg_quote(calls, expiry, cur["strike"])
             if q is not None:
                 residual = float(q.mid)
-        if (residual is not None and entry_credit
-                and residual <= COLLAPSE_RESIDUAL_FRAC * float(entry_credit)):
+        collapse_hit = bool(residual is not None and entry_credit
+                            and residual <= COLLAPSE_RESIDUAL_FRAC * float(entry_credit))
+        if collapse_hit:
             triggers.append(
                 f"短腿残值 {residual:.2f} ≤ {COLLAPSE_RESIDUAL_FRAC:.0%} × 入场权利金 "
                 f"{float(entry_credit):.2f}（collapse buyback）")
@@ -507,6 +509,14 @@ def evaluate_short_leg_actions(today: str, calls=None) -> list[dict]:
             "short_entry_price": entry_credit,
             "triggers": triggers,
             "suggested_new_short": suggestion,
+            # SPEC-140 §1 — 结构化触发器标记（纯附加字段）：Lane B 人话主文
+            # 的唯一 copy 源 decision_trace.lane_b_action_label 据此渲染档位，
+            # 阈值判定只活在本引擎。
+            "dte_trigger": dte_hit,
+            "collapse_trigger": collapse_hit,
+            "residual_frac": (round(residual / float(entry_credit), 4)
+                              if (residual is not None and entry_credit)
+                              else None),
         })
     return actions
 
@@ -519,10 +529,15 @@ def _fmt_strike(v) -> str:
 
 
 def _action_message(a: dict) -> str:
+    # SPEC-140 §1 — 首行人话主文 = Decision Trace Lane B 同一 copy 源
+    # （decision_trace.lane_b_action_label，推送与 /api/decision-trace 逐字
+    # 相等是 AC）。原自写 "CLOSE 或 ROLL（二选一，今日执行）" 版被共享
+    # label 取代——语义不变（今日平掉/roll 二选一），行文单源、本模块零手写。
+    from strategy.decision_trace import lane_b_action_label
     lines = [
+        lane_b_action_label(a),
         f"短腿 C{_fmt_strike(a['short_strike'])} exp {a['short_expiry']}（{a['short_dte']} DTE）",
         "触发: " + "；".join(a["triggers"]),
-        "机械规则动作: CLOSE 或 ROLL（二选一，今日执行）",
     ]
     s = a.get("suggested_new_short")
     if s:
@@ -599,7 +614,11 @@ def daily_update(today: str, calls=None, regime: str | None = None,
             st["halt"] = {"at": today, "gates": fired,
                           "full_halt": any(f.get("full_halt") for f in fired)}
             _write_state(st)
-            push(_halt_message(fired, today))
+            # SPEC-140 §4 — outcome↔category 显式断言：halt（真拦截，BCD
+            # 暂停开新仓）→ ACTION（响铃档；例行复核语言由 _halt_message 管）
+            from notify.gateway import assert_outcome_category
+            push(_halt_message(fired, today),
+                 category=assert_outcome_category("halt", "ACTION"))
     except Exception as exc:
         log.exception("bcd gate evaluation failed")
         summary["gates_error"] = str(exc)

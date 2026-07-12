@@ -128,6 +128,49 @@ def _cash_context_line() -> str:
         return "Liquid cash n/a · 在场 debit 合计 n/a"
 
 
+def _linkage_status_line(gate, gate_available: bool) -> Optional[str]:
+    """SPEC-140 §1 — alert 状态行 = Decision Trace Lane D 联动线同一 copy 源
+    （strategy.decision_trace.lane_d_linkage_label；推送与 /api/decision-trace
+    节点逐字相等是 AC）。任何失败降级为 None，绝不阻断 alert 本体（AC16
+    同款隔离）。"""
+    try:
+        from strategy.decision_trace import lane_d_linkage_label
+        from strategy.q042_gate import _MAIN_BP_BUDGET
+        if not gate_available or gate is None:
+            label, _ = lane_d_linkage_label(
+                gate_available=False, main_bp=None, budget=_MAIN_BP_BUDGET,
+                cap=None, allowance=None, binding=True)
+        else:
+            label, _ = lane_d_linkage_label(
+                gate_available=True, main_bp=gate.main_bp_pct,
+                budget=_MAIN_BP_BUDGET, cap=gate.q042_combined_cap,
+                allowance=gate.sleeve_a_allowance, binding=gate.gate_binding)
+        return label
+    except Exception:
+        return None
+
+
+def _format_blocked_alert(*, sleeve_id: str, blocked_reason: str,
+                          contracts: int, est, ddath: float,
+                          gate, gate_available: bool) -> str:
+    """Build the blocked-fire alert body. SPEC-140 §1: 状态行（DD Overlay ↔
+    主策略联动档位）import trace 唯一 copy 源，不再自写第二套行文。"""
+    is_by_design = blocked_reason == "sleeve_b_production_cap_0_by_design"
+    est_s = f" @ ${est:,.0f}/ct" if est else ""
+    linkage = _linkage_status_line(gate, gate_available)
+    return (
+        f"⛔ Drawdown Overlay [Sleeve {sleeve_id}] 触发但被拦截\n"
+        f"原因: {blocked_reason}\n"
+        + (f"{linkage}\n" if linkage else "")
+        + f"ddATH: {ddath*100:+.2f}%\n"
+        f"Would-be sizing: {contracts} ct{est_s}\n"
+        + ("此为设计内拦截（Sleeve B 生产 cap=0），仅 FYI。\n" if is_by_design
+           else "请人工核查。\n")
+        + "PM 若手动入场须经 /api/q042/position/open 记录并同步 trigger state。\n"
+        + _cash_context_line()
+    )
+
+
 def _format_alert(spec: PendingOrderSpec) -> str:
     """Build the F5 Telegram alert (AC14)."""
     return (
@@ -498,22 +541,20 @@ def _process_sleeve_fire(
         if not dry_run:                                          # B6: no disk in dry-run
             log_blocked_fire(sleeve_id, blocked_reason, contracts, ddath, date=today_str)
         is_by_design = blocked_reason == "sleeve_b_production_cap_0_by_design"
-        category = "FYI" if is_by_design else "ACTION"          # N2 degrade
+        # SPEC-140 §4 — outcome↔category 显式断言：设计内拦截 = advisory
+        # （语气降级，N2）→ FYI；真拦截 = veto → ACTION（真拦截才响铃）。
+        from notify.gateway import assert_outcome_category
+        category = assert_outcome_category(
+            "advisory" if is_by_design else "veto",
+            "FYI" if is_by_design else "ACTION")
         if blocked_reason == "gate_unavailable":
             dedupe = gate_unavail_dedupe                         # N6 merge into one
         else:
             dedupe = f"q042_blocked_{sleeve_id}_{today_str}"
-        est_s = f" @ ${est:,.0f}/ct" if est else ""
-        body = (
-            f"⛔ Drawdown Overlay [Sleeve {sleeve_id}] 触发但被拦截\n"
-            f"原因: {blocked_reason}\n"
-            f"ddATH: {ddath*100:+.2f}%\n"
-            f"Would-be sizing: {contracts} ct{est_s}\n"
-            + ("此为设计内拦截（Sleeve B 生产 cap=0），仅 FYI。\n" if is_by_design
-               else "请人工核查。\n")
-            + "PM 若手动入场须经 /api/q042/position/open 记录并同步 trigger state。\n"
-            + _cash_context_line()
-        )
+        body = _format_blocked_alert(
+            sleeve_id=sleeve_id, blocked_reason=blocked_reason,
+            contracts=contracts, est=est, ddath=ddath,
+            gate=gate, gate_available=gate_available)
         if not dry_run:
             _send_gateway(category, "新开仓", "Drawdown Overlay（回撤加仓）被拦截",
                           body, dedupe, log)
@@ -655,11 +696,14 @@ def run_eod_evaluation(
 
         gate_unavail_dedupe = f"q042_gate_unavailable_{today_str}"
         if not gate_available and not dry_run:
+            # SPEC-140 §1 — 状态行 = Lane D 联动线 fail-closed 档同一 copy 源
+            _gate_line = _linkage_status_line(None, False)
             _send_gateway(
                 "ACTION", "系统状态", "Q042 gate 数据不可用",
                 (f"Q042 gate 数据不可用（{bp_detail.get('reason')}），"
                  f"trigger 被保守拦截，请人工核查。\n"
-                 f"数据源: {bp_detail.get('source')} · snapshot: {bp_detail.get('timestamp')}\n"
+                 + (f"{_gate_line}\n" if _gate_line else "")
+                 + f"数据源: {bp_detail.get('source')} · snapshot: {bp_detail.get('timestamp')}\n"
                  + _cash_context_line()),
                 gate_unavail_dedupe, log,
             )

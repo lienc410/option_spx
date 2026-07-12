@@ -454,7 +454,11 @@ class H5ActionEngineTests(unittest.TestCase):
         # 建议新短腿 = 45 DTE |Δ|0.30 行
         self.assertEqual(a["suggested_new_short"]["strike"], 7900.0)
         msg = gov._action_message(a)
-        self.assertIn("CLOSE 或 ROLL", msg)
+        # SPEC-140 §1：正文首行 = Lane B 唯一 copy 源（原自写 "CLOSE 或
+        # ROLL" 版被共享 label 取代；逐字断言见 tests/test_spec_140.py）
+        from strategy.decision_trace import lane_b_action_label
+        self.assertEqual(msg.splitlines()[0], lane_b_action_label(a))
+        self.assertIn("平掉或滚动（roll）", msg)
 
     def test_collapse_trigger_fires_below_15pct(self) -> None:
         # 短腿 40 DTE（不触发 21-DTE），残值 = 10% 入场权利金 → collapse
@@ -539,7 +543,11 @@ class H5ActionEngineTests(unittest.TestCase):
         with patch("notify.gateway.push", side_effect=_rec):
             summary = gov.daily_update(self.today, calls=self._chain(), dry_run=False)
         self.assertEqual(len(summary["short_leg_actions"]), 1)
-        action_pushes = [s for s in sent if "CLOSE 或 ROLL" in s.get("body", "")]
+        # SPEC-140 §1：body 主文换 Lane B 共享 label；ACTION 标题保留
+        # "CLOSE 或 ROLL" 措辞（title 不在单源范围）
+        action_pushes = [s for s in sent
+                         if "平掉或滚动" in s.get("body", "")
+                         and "CLOSE 或 ROLL" in s.get("title", "")]
         self.assertEqual(len(action_pushes), 1)
         p = action_pushes[0]
         self.assertEqual(p["category"], "ACTION")

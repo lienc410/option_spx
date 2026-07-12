@@ -277,26 +277,101 @@ def funding_trace(strategy_key: str) -> list[dict]:
     return nodes
 
 
-def lane_b_positions(today: str) -> list[dict]:
-    """Lane B「手上的仓位要动吗？」— 每个 open 仓位一行，人话触发器状态。"""
+# ═══ SPEC-140 §1 — Lane B/D 人话主文唯一 copy 源 ═════════════════════════════
+# 同一触发器的人话主文只此一处：推送（bcd_governance H-5 ACTION 正文首行、
+# q042 executor alert 状态行、15:55 digest 持仓行/联动线附行）与
+# /api/decision-trace 对应节点全部 import 下面的纯函数渲染——推送与网页
+# 逐字相等是 AC（tests/test_spec_140.py 断言 ×4），任何一方不得手写第二套。
+# 纯函数、零 I/O；触发器判定与阈值逻辑留在各自生产模块
+# （bcd_governance / q042_gate），这里只负责"人话怎么说"。
+# ES Ladder 状态已由 SPEC-135.5 同源（web.server.hvladder_live_payload
+# .status_human），验收沿用，不在此重复。
+
+_LANE_B_ACTION_TAIL = " → 规则要求今天平掉或滚动（roll），已推送提醒"
+
+
+def lane_b_action_label(action: dict) -> str:
+    """Lane B 触发行主文（21-DTE / collapse buyback 双触发，SPEC-127 §4）。
+
+    输入 = strategy.bcd_governance.evaluate_short_leg_actions 的 action dict
+    （dte_trigger / collapse_trigger / residual_frac 由触发器引擎判定并随
+    action 携带——阈值不在本层重推）。21-DTE 档行文与 SPEC-135 时期 Lane B
+    逐字一致；collapse 档为 SPEC-140 补齐的触发器专属行文（此前 Lane B 对
+    collapse 触发误用 DTE 行文渲染）。缺结构化标记的旧 action dict 按
+    DTE 档渲染（向后兼容）。"""
+    dte_hit = bool(action.get("dte_trigger", True))
+    collapse_hit = bool(action.get("collapse_trigger"))
+    frac = action.get("residual_frac")
+    frac_txt = f"{frac:.0%}" if isinstance(frac, (int, float)) else "—"
+    if dte_hit and collapse_hit:
+        return (f"卖出的近月 call 腿只剩 {action.get('short_dte')} 天到期，"
+                f"且残值只剩入场权利金的 {frac_txt}（collapse buyback）"
+                f"{_LANE_B_ACTION_TAIL}")
+    if collapse_hit:
+        return (f"卖出的近月 call 腿残值只剩入场权利金的 {frac_txt}"
+                f"（collapse buyback 触发）{_LANE_B_ACTION_TAIL}")
+    return (f"卖出的近月 call 腿只剩 {action.get('short_dte')} 天到期"
+            f"{_LANE_B_ACTION_TAIL}")
+
+
+def lane_b_hold_label(dte: int, action_dte_threshold: int) -> str:
+    """Lane B 未触发行主文（阈值 = bcd_governance.SHORT_ACTION_DTE，由调用方
+    传入——不在本层镜像常数）。"""
+    return (f"短腿还有 {dte} 天到期（>{action_dte_threshold} 天），"
+            "未触发任何管理规则 — 继续持有")
+
+
+def lane_d_linkage_label(*, gate_available: bool, main_bp, budget: float,
+                         cap, allowance, binding: bool) -> tuple[str, str]:
+    """Lane D「与主策略的联动」主文 + outcome（唯一 copy 源，SPEC-140 §1）。
+
+    消费方：_lane_d_dd_overlay 联动线节点、q042 executor 拦截/gate 不可用
+    alert 的状态行、digest D 泳道联动线附行。数值由调用方从生产真值传入
+    （gate log 最新行 / compute_gate 结果）；公式与判定只活在 q042_gate。
+    outcome：pass=未压缩 ／ advisory=压缩或 fail-closed ／ veto=容量归零
+    （真拦截：overlay 开仓被联合门实际挡下）。行文与 SPEC-135.5 逐字一致。"""
+    if not gate_available or main_bp is None:
+        return ("与主策略的联动：主策略 BP 读数不可用 → 联合门 "
+                "fail-closed，DD Overlay 容量归零", "advisory")
+    if not binding:
+        return (f"与主策略的联动：主策略 BP 占用 {main_bp:.1f}% vs "
+                f"预算线 {budget:.0f}% → DD Overlay 容量档位 "
+                f"{allowance:.1f}%（联合门未压缩）", "pass")
+    if cap and cap > 0:
+        return (f"与主策略的联动：主策略 BP 占用 {main_bp:.1f}% 挤占 "
+                f"{budget:.0f}% 预算线 → DD Overlay 容量档位被压缩到 "
+                f"{allowance:.1f}%", "advisory")
+    return (f"与主策略的联动：主策略 BP 占用 {main_bp:.1f}% ≥ "
+            f"{budget:.0f}% 预算线 → DD Overlay 容量归零"
+            "（双 sleeve 禁开）", "veto")
+
+
+def lane_b_positions(today: str, calls=None) -> list[dict]:
+    """Lane B「手上的仓位要动吗？」— 每个 open 仓位一行，人话触发器状态。
+
+    行文 = lane_b_action_label / lane_b_hold_label（SPEC-140 §1 唯一 copy
+    源，与 H-5 推送正文首行逐字相等）。calls: 可选当日 call 链（collapse
+    残值触发器需要链数据；缺省 None 与既有 /api 现算行为一致——只评估
+    DTE 触发）。"""
     items: list[dict] = []
     try:
-        from strategy.bcd_governance import evaluate_short_leg_actions, open_bcd_positions
+        from strategy.bcd_governance import (SHORT_ACTION_DTE,
+                                             evaluate_short_leg_actions,
+                                             open_bcd_positions)
         from strategy.campaign import current_short_leg
-        actions = {a["trade_id"]: a for a in evaluate_short_leg_actions(today, None)}
+        actions = {a["trade_id"]: a for a in evaluate_short_leg_actions(today, calls)}
         for pos in open_bcd_positions():
             cur = current_short_leg(pos)
             a = actions.get(pos["id"])
             if a:
-                text = (f"卖出的近月 call 腿只剩 {a['short_dte']} 天到期 → "
-                        "规则要求今天平掉或滚动（roll），已推送提醒")
+                text = lane_b_action_label(a)
                 state = "action"
             else:
                 from datetime import date as _date
                 try:
                     dte = (_date.fromisoformat(str(cur.get("expiry"))[:10])
                            - _date.fromisoformat(today)).days
-                    text = f"短腿还有 {dte} 天到期（>21 天），未触发任何管理规则 — 继续持有"
+                    text = lane_b_hold_label(dte, SHORT_ACTION_DTE)
                 except Exception:
                     text = "短腿到期日数据不可用"
                 state = "hold"
@@ -526,25 +601,12 @@ def _lane_d_dd_overlay() -> list[dict]:
                       "gate_binding": binding,
                       "src": src.get("source"),
                       "src_timestamp": src.get("timestamp")}
-            if row.get("gate_available") is False or main_bp is None:
-                label = ("与主策略的联动：主策略 BP 读数不可用 → 联合门 "
-                         "fail-closed，DD Overlay 容量归零")
-                outcome = "advisory"
-            elif not binding:
-                label = (f"与主策略的联动：主策略 BP 占用 {main_bp:.1f}% vs "
-                         f"预算线 {budget:.0f}% → DD Overlay 容量档位 "
-                         f"{a_allow:.1f}%（联合门未压缩）")
-                outcome = "pass"
-            elif cap and cap > 0:
-                label = (f"与主策略的联动：主策略 BP 占用 {main_bp:.1f}% 挤占 "
-                         f"{budget:.0f}% 预算线 → DD Overlay 容量档位被压缩到 "
-                         f"{a_allow:.1f}%")
-                outcome = "advisory"
-            else:
-                label = (f"与主策略的联动：主策略 BP 占用 {main_bp:.1f}% ≥ "
-                         f"{budget:.0f}% 预算线 → DD Overlay 容量归零"
-                         "（双 sleeve 禁开）")
-                outcome = "veto"       # 真拦截：overlay 开仓被联合门实际挡下
+            # SPEC-140 §1 — 联动线主文与 outcome 由唯一 copy 源渲染
+            # （lane_d_linkage_label；q042 executor alert 状态行同函数）
+            label, outcome = lane_d_linkage_label(
+                gate_available=row.get("gate_available") is not False,
+                main_bp=main_bp, budget=budget, cap=cap,
+                allowance=a_allow, binding=binding)
             nodes.append(_sleeve_node(
                 "dd_overlay_main_linkage", label, kind="evidence",
                 detail=(f"gate log {row.get('date')} 行：main_bp "

@@ -358,8 +358,12 @@ class TestSingleSource(unittest.TestCase):
         """Q087 C4/SPEC-123 §4b: one production implementation, no copies."""
         defs = []
         for p in REPO.rglob("*.py"):
-            if (any(x.startswith("venv") or x.startswith(".venv") for x in p.parts)
-                    or ".git" in p.parts or ".claude" in p.parts):
+            # 跳过判定用 REPO 相对路径（同 test_spec_126 扫描器）：绝对路径
+            # p.parts 在 .claude/worktrees/ 隔离 worktree 里会命中 ".claude"
+            # 把全仓跳光，扫描静默失效（SPEC-140 期间修复）。
+            parts = p.relative_to(REPO).parts
+            if (any(x.startswith("venv") or x.startswith(".venv") for x in parts)
+                    or ".git" in parts or ".claude" in parts):
                 continue
             try:
                 if re.search(r"^\s*def _effective_iv_signal\b",
@@ -371,9 +375,10 @@ class TestSingleSource(unittest.TestCase):
 
     def test_consumers_import_the_production_function(self):
         for p in REPO.rglob("*.py"):
-            if (any(x.startswith("venv") or x.startswith(".venv") for x in p.parts)
-                    or ".claude" in p.parts
-                    or p.name == "selector.py" or "prototype" in p.parts):
+            parts = p.relative_to(REPO).parts   # 同上：相对路径判定
+            if (any(x.startswith("venv") or x.startswith(".venv") for x in parts)
+                    or ".claude" in parts
+                    or p.name == "selector.py" or "prototype" in parts):
                 continue
             try:
                 src = p.read_text(encoding="utf-8")

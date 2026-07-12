@@ -110,6 +110,10 @@ class TestAC1StaticScan(unittest.TestCase):
 
 
 class TestAC2DigestHuman(unittest.TestCase):
+    # SPEC-140 §2：digest 为四泳道镜像——Lane B/D 装配统一 patch 固定向量
+    # （密闭：不读真 ledger、不 import web.server）。
+    _LANE_D = {"semantics": "…", "engines": [], "summary_line": "压力机 CALM"}
+
     def test_digest_strategy_name_and_dte_semantics(self):
         rec = MagicMock()
         rec.strategy_key = "reduce_wait"
@@ -120,6 +124,10 @@ class TestAC2DigestHuman(unittest.TestCase):
                        {"trade_id": "2026-06-03_bcd_001",
                         "strategy_key": "bull_call_diagonal",
                         "expiry": "2099-12-17"}]}), \
+             patch("strategy.decision_trace.lane_b_positions",
+                   return_value=[]), \
+             patch("strategy.decision_trace.lane_d_sleeves",
+                   return_value=dict(self._LANE_D)), \
              patch("strategy.bcd_governance.is_halted", return_value=None), \
              patch("strategy.bcd_governance.quote_gate_status",
                    return_value={"unlocked": False, "days": 3, "needed": 10,
@@ -141,6 +149,10 @@ class TestAC2DigestHuman(unittest.TestCase):
         with patch.object(bot, "get_recommendation", return_value=rec), \
              patch("strategy.state.read_all_positions",
                    return_value={"positions": []}), \
+             patch("strategy.decision_trace.lane_b_positions",
+                   return_value=[]), \
+             patch("strategy.decision_trace.lane_d_sleeves",
+                   return_value=dict(self._LANE_D)), \
              patch("strategy.bcd_governance.is_halted", return_value=None), \
              patch("strategy.bcd_governance.quote_gate_status",
                    return_value={"unlocked": False, "days": 3, "needed": 10,

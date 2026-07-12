@@ -15,6 +15,20 @@ Message contract (both enforced, missing → raise):
              关于持仓 X / 系统状态). Kills the HOLD-vs-NO ENTRY ambiguity: the
              reader always knows which object a state word refers to.
 
+about↔泳道契约 (SPEC-140 §3, DESIGN.md Push Vocabulary 同表)：about 首行与
+/spx Decision Trace 四泳道一一对应，推送人话主文与对应节点逐字同源：
+  关于新开仓 = Lane A（今天开不开新仓）
+  关于持仓 X = Lane B（手上的仓位要动吗）
+  系统状态   = Lane D（决策引擎状态）及治理/运维事件
+  Lane C（地形，只描述不决策）**永不推送**（Q090 封账口径）——digest 亦不
+  携带；不得为其新增任何 category。
+推送永远是摘要+深链（晨报与 15:55 digest 尾部附 TRACE_DEEPLINK），真值单源
+在代码。
+
+outcome↔category 显式映射 (SPEC-140 §4)：见 OUTCOME_CATEGORIES——halt/veto
+→ ALERT 或 ACTION（真拦截才响铃）；advisory → 语气降级 → STATE/FYI
+（SPEC-131 先例）；pass/info → 不推送。新门不得自行发明严重度。
+
 Vocabulary: new-entry verdict pushes use the DESIGN.md action-state words
 (NO ENTRY, not WAIT / 观望 / free text) — see DESIGN.md §Push Vocabulary.
 
@@ -50,7 +64,38 @@ ET = ZoneInfo("America/New_York")
 CATEGORY_EMOJI = {"ALERT": "🔴", "ACTION": "🟡", "STATE": "🔵", "FYI": "⚪"}
 _PRIORITY = {"FYI": 0, "STATE": 1, "ACTION": 2, "ALERT": 3}
 
+# SPEC-140 §3 — 推送永远是摘要+深链：晨报与 15:55 digest 尾部统一附此行
+# （单用户工具直链 /spx Decision Trace；事件类推送可选）。
+TRACE_DEEPLINK = "完整决策链 → https://spx.portimperialventures.com/spx"
+
+# SPEC-140 §4 — outcome↔category 显式映射（防未来新门自行发明严重度）。
+# trace outcome → 允许的推送 category：halt/veto = 真拦截才响铃；advisory =
+# 语气降级（SPEC-131 先例，评估为真、改变语气、不阻止任何东西）；pass/info
+# = 不推送（空元组——正确做法是根本不调用 push）。
+OUTCOME_CATEGORIES = {
+    "halt": ("ALERT", "ACTION"),
+    "veto": ("ALERT", "ACTION"),
+    "advisory": ("STATE", "FYI"),
+    "pass": (),
+    "info": (),
+}
+
 log = logging.getLogger("gateway")
+
+
+def assert_outcome_category(outcome: str, category: str) -> str:
+    """outcome-携带推送在调用点断言 category 合规（SPEC-140 §4）；合规原样
+    返回 category，违规 raise（契约违规必须响，不静默改写——同 prepare 的
+    category/about 校验哲学）。pass/info 传进来必 raise。"""
+    allowed = OUTCOME_CATEGORIES.get(outcome)
+    if allowed is None:
+        raise ValueError(f"gateway: unknown trace outcome {outcome!r} "
+                         f"(must be one of {sorted(OUTCOME_CATEGORIES)})")
+    if category not in allowed:
+        raise ValueError(
+            f"gateway: outcome {outcome!r} 不得推送为 {category!r}"
+            f"（允许: {allowed or '不推送'}）")
+    return category
 
 
 def escape(s) -> str:
