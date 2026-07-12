@@ -182,6 +182,31 @@ Daily mail budget (PM-ratified): 晨报 1 (09:35) + 收盘前 digest 1 (15:55) +
 event-driven ALERT/ACTION only. Routine governance/overlay evaluations fold
 into the digest; paper/shadow stays event-driven and silent.
 
+**about ↔ 泳道映射 (SPEC-140 §3).** 推送的 about 首行与 /spx Decision Trace
+四泳道一一对应；同一触发器的人话主文在推送与对应泳道节点**逐字同源**
+（copy 源：`strategy/decision_trace.py`，断言：`tests/test_spec_140.py`）。
+`notify/gateway.py` docstring 载同一契约：
+
+| about 首行 | Decision Trace 泳道 |
+|---|---|
+| 关于新开仓 | Lane A（今天开不开新仓） |
+| 关于持仓 X | Lane B（手上的仓位要动吗） |
+| 系统状态 | Lane D（决策引擎状态）及治理/运维事件 |
+| —— | Lane C（地形，只描述不决策）**永不推送**（Q090 封账口径） |
+
+晨报与 15:55 digest 尾部统一附深链 `完整决策链 →
+https://spx.portimperialventures.com/spx`（`notify/gateway.py
+TRACE_DEEPLINK`，单用户工具直链；事件类推送可选）。
+
+**outcome ↔ category 映射 (SPEC-140 §4).** 常量与断言：`notify/gateway.py
+OUTCOME_CATEGORIES` / `assert_outcome_category`。`halt`/`veto` → ALERT 或
+ACTION（真拦截才响铃）；`advisory` → 语气降级 → STATE/FYI（SPEC-131 先例）；
+`pass`/`info` → 不推送。新门不得自行发明严重度。
+
+**推送哲学 (SPEC-140 §5, PM 提问驱动 2026-07-13，State Map 判例).**
+
+> **Telegram = 打断权，预算稀缺**（晨报 1 + digest 1 + 事件铃，PM-ratified）。**推"事件"不推"状态"**：状态活在网页（Decision Trace=为什么 / State Map=现在在哪 / Structure Map=地形），状态跃迁且需行动才配打断；描述层永不推送（Q090 判例）。**三级信息架构**：PUSH（秒级读完，行动导向）→ DIGEST（每日四泳道快照）→ WEB（完整地图，按需拉取）；推送永远是摘要+深链，真值单源在代码。**新 surface 默认零新推送**——新页面不自带推送；其定义的新"需行动事件"按 §4 outcome↔category 映射进入现有预算。判例：SPEC-141 State Map 四层活版 = 纯拉取，零推送钩子；其各层内容的事件语义已由既有推送覆盖（否决灯翻灯→ALERT/digest、引擎=Lane D digest 行、双池=慢变量 digest 级、"贴近触发"≠行动信号不推）。
+
 ## Strategy Tier Badge Vocabulary
 
 Distinct from Action State Vocabulary. Action states change daily (HOLD → CLOSE → WAIT). Tier badges describe the **lifecycle stage** of a strategy and rarely change. Both can appear on the same card (action state in header right, tier badge inline next to strategy name).
@@ -413,3 +438,4 @@ Label decisions (2026-07-06): `DD Overlay` (nav-width form of display name
 | 2026-07-07 | Nav `Port BT` → `Gov BT`; route unchanged | Page content pivoted to the SPEC-103 governance backtest long ago — label said portfolio BP simulation, page showed regime/rules history (name-matches-content rule, same as Q042 precedent) |
 | 2026-07-07 | Journal + Performance bound as a page-tab family ("trading record" topic) | Two visit rhythms (daily ops vs periodic analytics) justify separate pages; tabs + ledger-unit labels + calendar deep-links express that they are two views of one topic |
 | 2026-07-11 | 字体自托管（SPEC-139）；theme.css cache-buster 全站统一 spec139 | 零外域姿态收官（Chart.js/lightweight-charts/字体全本地）；18 页钉旧版本号会在缓存期内丢 @font-face——版本键必须随 theme.css 内容变更全站同步 |
+| 2026-07-13 | 推送哲学入宪（SPEC-140 §5）：推"事件"不推"状态"、三级信息架构 PUSH→DIGEST→WEB、新 surface 默认零新推送；State Map（SPEC-141）=首个判例（纯拉取零推送钩子）；Lane B/D 文案单源 + about↔泳道 / outcome↔category 双映射入 Push Vocabulary | PM 提问"State Map 要不要推送"暴露 doctrine 只存在于口头判例；推送与网页此前存在三处手写第二套行文（H-5 "CLOSE 或 ROLL"、digest 持仓行、q042 状态行），逐字单源后新 surface 不再逐个重辩 |
