@@ -90,6 +90,8 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .badge-on      { background:var(--green-bg);color:var(--green);border:1px solid var(--green-border); }
 .badge-standby { background:var(--gray-bg);color:var(--text-2);border:1px solid var(--gray-border); }
 .engine-row { display:flex;flex-direction:column;gap:1px; }
+.engine-ul { margin:2px 0 0;padding-left:1.1em;font-family:var(--f-ui);font-size:0.62rem;color:var(--text);line-height:1.55; }
+.engine-ul li { margin:2px 0; }
 .engine-key { font-family:var(--f-ui);font-size:0.52rem;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;color:var(--text-2); }
 .engine-val { font-family:var(--f-ui);font-size:0.62rem;color:var(--text);line-height:1.55; }
 .engine-live { border-top:1px solid var(--border);padding-top:7px;margin-top:auto; }
@@ -217,7 +219,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
         <span class="axis-seg" data-seg="MIXED">MIXED</span>
       </div>
       <div class="axis-val" id="structure-val">n/a</div>
-      <div class="axis-note">RANGE = 094.4 因果分段（episode 检测器）；trend 信号与本轴并存——6 月实况：RANGE 与 BULLISH 共存</div>
+      <div class="axis-note">RANGE = 094.4 因果分段（episode 检测器）；起始日 = 自该日起价格未离开 5% 箱体（含上行段——箱体回答「被困多久」，不回答「何时失去方向」）；trend 信号与本轴并存（RANGE 可与 BULLISH 共存）</div>
     </div>
 
     <div class="axis-row">
@@ -233,19 +235,22 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
           <div class="dipgauge-track"><div class="dipgauge-fill" id="dip-gauge-fill" style="width:0%"></div></div>
           <div class="dipgauge-scale"><span>ddATH 0%</span><span id="dip-gauge-max">trigger</span></div>
         </div>
-        <div class="event-cn">点击展开触发预演</div>
+        <div class="event-cn">回撤触发：ddATH ≤ −4% 即抄底信号（Drawdown Overlay）· 点击展开触发预演</div>
       </div>
       <div class="event-light">
         <div class="event-hd"><span class="veto-dot dot-na" id="dot-aftermath"></span><span class="event-name">Aftermath</span></div>
         <div class="event-val" id="val-aftermath">n/a</div>
+        <div class="event-cn">恐慌回落窗：VIX 峰值 ≥28 后回落 ≥10% — 卖权特批通道开启</div>
       </div>
       <div class="event-light">
         <div class="event-hd"><span class="veto-dot dot-na" id="dot-backwardation"></span><span class="event-name">Backwardation</span></div>
         <div class="event-val" id="val-backwardation">n/a</div>
+        <div class="event-cn">期限倒挂：近月恐慌 &gt; 远月 — IC 禁入</div>
       </div>
       <div class="event-light">
         <div class="event-hd"><span class="veto-dot dot-na" id="dot-secondleg2"></span><span class="event-name">Second-Leg</span></div>
         <div class="event-val" id="val-secondleg2">n/a</div>
+        <div class="event-cn">二次下杀：暴跌反弹后再破位（dd60 ≤ −8% 且 VIX ≥ 25）— 卖权最危险窗口，触发即禁新短 vol<span class="spec-ref">Q072 · R6</span></div>
       </div>
     </div>
   </div>
@@ -266,7 +271,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
         </div>
         <div class="engine-row"><span class="engine-key">Payoff</span><span class="engine-val">短 vol theta 收割——收权利金赚时间价值衰减</span></div>
         <div class="engine-row"><span class="engine-key">Eats</span><span class="engine-val">BP（SPX PM 池）</span></div>
-        <div class="engine-row"><span class="engine-key">Structures</span><span class="engine-val">IC（CALM 权利金薄，弱）· BPS Δ0.30/0.15（NORMAL×TREND-UP）· IC = NORMAL×RANGE 的 NEUTRAL 路由（区间静态收割）· HV 半仓变体 + backwardation/ivp63 门（HIGH）· V3-A broken-wing IC 特批通道（HIGH×AFTERMATH）</span></div>
+        <div class="engine-row"><span class="engine-key">Structures</span><ul class="engine-ul"><li>IC（CALM 权利金薄，弱）</li><li>IC = NORMAL×RANGE 的 NEUTRAL 路由（区间静态收割）</li><li>HV 半仓变体 + backwardation/ivp63 门（HIGH）</li><li>V3-A broken-wing IC 特批通道（HIGH×AFTERMATH）</li></ul></div>
         <div class="engine-row"><span class="engine-key">Takes over</span><span class="engine-val">NORMAL×RANGE 主战场；EXTREME 全停</span></div>
         <div class="engine-row"><span class="engine-key">Sibling</span><span class="engine-val">/ES HV Ladder（demoted，production 0%）<span class="spec-ref">SPEC-104</span></span></div>
         <div class="engine-live"><div class="engine-live-line" id="live-premium">n/a</div></div>
@@ -279,7 +284,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
         </div>
         <div class="engine-row"><span class="engine-key">Payoff</span><span class="engine-val">方向性看涨混合——79% 在区间顶部入场且整体赚钱（K3：震荡照常入场，不设 gate）</span></div>
         <div class="engine-row"><span class="engine-key">Eats</span><span class="engine-val">BP 或 cash（BCD 吃 cash，一张标准整数下限）</span></div>
-        <div class="engine-row"><span class="engine-key">Structures</span><span class="engine-val">BCD carve 1 张标准（CALM×TREND-UP，IV_LOW）<span class="spec-ref">SPEC-113</span> · BPS 或 BCD 按 IVP 路由（NORMAL×TREND-UP）· BCS_HV（HIGH，bearish 时）</span></div>
+        <div class="engine-row"><span class="engine-key">Structures</span><ul class="engine-ul"><li>BCD carve 1 张标准（CALM×TREND-UP，IV_LOW）<span class="spec-ref">SPEC-113</span></li><li>BPS Δ0.30/0.15 或 BCD 按 IVP 路由（NORMAL×TREND-UP）</li><li>BCS_HV（HIGH，bearish 时）</li></ul></div>
         <div class="engine-row"><span class="engine-key">Takes over</span><span class="engine-val">TREND-UP 为主；EXTREME 全停</span></div>
         <div class="engine-row"><span class="engine-key">Sibling</span><span class="engine-val">Q078 Entry Ladder（shadow，执行 cadence 子行）<span class="spec-ref">SPEC-108.1</span></span></div>
         <div class="engine-live"><div class="engine-live-line" id="live-trend">n/a</div></div>
@@ -292,7 +297,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
         </div>
         <div class="engine-row"><span class="engine-key">Payoff</span><span class="engine-val">长 gamma——capped debit call spread 吃回撤后的反弹凸性（Drawdown Overlay）</span></div>
         <div class="engine-row"><span class="engine-key">Eats</span><span class="engine-val">cash（一次 12.5% NLV staged → 目标 17.5% 阶梯）<span class="spec-ref">SPEC-104</span></span></div>
-        <div class="engine-row"><span class="engine-key">Structures</span><span class="engine-val">ATM/+2.5% call spread D30（episode 型首选）· 现金不足 → BPS fallback Δ0.30/0.15（同预算收益差 3.7-7.4× 提醒）· sudden 型 → 空仓 advisory（该型短 vol 亏 4×）</span></div>
+        <div class="engine-row"><span class="engine-key">Structures</span><ul class="engine-ul"><li>ATM/+2.5% call spread D30（episode 型首选）</li><li>现金不足 → BPS fallback Δ0.30/0.15（收益差 3.7-7.4× 提醒）</li><li>sudden 型 → 空仓 advisory（该型短 vol 亏 4×）</li></ul></div>
         <div class="engine-row"><span class="engine-key">Takes over</span><span class="engine-val">DIP 事件接管（ddATH ≤ −4%，触发无 VIX 条件）；RANGE 期间戒备态——89% 触发源于区间内/破位后</span></div>
         <div class="engine-row"><span class="engine-key">Sibling</span><span class="engine-val">Sleeve B（research-only，production cap 0）</span></div>
         <div class="engine-live"><div class="engine-live-line" id="live-convexity">n/a</div></div>
@@ -484,7 +489,7 @@ function renderLayer1(s) {
   const ev = s.events || {};
   const dip = ev.dip || {};
   if (ok(dip)) {
-    setDot('dot-dip', dip.active ? false : true);   // 触发=红（危险事件），未触发=绿
+    setDot('dot-dip', dip.active ? false : null);   // 触发=红，未触发=灰（事件灯统一语义，PM QA 2026-07-13）
     $('val-dip').textContent =
       `ddATH ${dip.ddath_pct}% → trigger ${dip.trigger_pp}% (Δ ${dip.dist_pp}pp)` +
       (dip.type_if_now ? ` · type-if-now: ${dip.type_if_now}` : '');
