@@ -129,6 +129,22 @@ class TestTransportWiring(GatewayBase):
         self.assertNotIn("parse_mode", calls[1])
 
 
+# SPEC-140 §2 起 digest 为四泳道镜像：Lane B/D 装配（lane_b_positions /
+# lane_d_sleeves）在测试里统一 patch 成固定向量——密闭（不读真 ledger、
+# 不 import web.server）且确定性。
+_LANE_B_HOLD = [{"trade_id": "2026-06-03_bcd_001", "state": "hold",
+                 "label_human": "短腿还有 73 天到期（>21 天），"
+                                "未触发任何管理规则 — 继续持有",
+                 "code_ref": "SPEC-127 §4 (21-DTE/collapse)"}]
+_LANE_D_CALM = {"semantics": "…", "engines": [
+    {"check": "dd_overlay", "summary": "DD Overlay ARMED×2",
+     "label_human": "DD Overlay：双 sleeve 待命中", "outcome": "info"},
+    {"check": "dd_overlay_main_linkage", "summary": None, "outcome": "pass",
+     "label_human": "与主策略的联动：主策略 BP 占用 15.8% vs 预算线 60% → "
+                    "DD Overlay 容量档位 12.5%（联合门未压缩）"},
+], "summary_line": "DD Overlay ARMED×2 · Aftermath 未激活 · 压力机 CALM"}
+
+
 class TestDigest(unittest.TestCase):
     def test_three_sources_merged_and_anomaly_zone_omitted(self):
         import notify.telegram_bot as bot
@@ -141,6 +157,10 @@ class TestDigest(unittest.TestCase):
                        {"trade_id": "2026-06-03_bcd_001",
                         "strategy_key": "bull_call_diagonal",
                         "expiry": "2099-12-17"}]}), \
+             patch("strategy.decision_trace.lane_b_positions",
+                   return_value=list(_LANE_B_HOLD)), \
+             patch("strategy.decision_trace.lane_d_sleeves",
+                   return_value=dict(_LANE_D_CALM)), \
              patch("strategy.bcd_governance.is_halted", return_value=None), \
              patch("strategy.bcd_governance.quote_gate_status",
                    return_value={"unlocked": False, "days": 3, "needed": 10}), \
@@ -164,6 +184,10 @@ class TestDigest(unittest.TestCase):
         with patch.object(bot, "get_recommendation", return_value=rec), \
              patch("strategy.state.read_all_positions",
                    return_value={"positions": []}), \
+             patch("strategy.decision_trace.lane_b_positions",
+                   return_value=[]), \
+             patch("strategy.decision_trace.lane_d_sleeves",
+                   return_value=dict(_LANE_D_CALM)), \
              patch("strategy.bcd_governance.is_halted",
                    return_value={"at": "2026-07-06"}), \
              patch("strategy.bcd_governance.quote_gate_status",
