@@ -312,7 +312,7 @@ a.veto-light:hover { border-color:var(--gold-border); }
         </div>
         <div class="engine-row"><span class="engine-key">Payoff</span><span class="engine-val">长 gamma——capped debit call spread 吃回撤后的反弹凸性（Drawdown Overlay）</span></div>
         <div class="engine-row"><span class="engine-key">Eats</span><span class="engine-val">cash（一次 12.5% NLV staged → 目标 17.5% 阶梯）<span class="spec-ref">SPEC-104</span></span></div>
-        <div class="engine-row"><span class="engine-key">Structures</span><ul class="engine-ul"><li>ATM/+2.5% call spread D30（episode 型首选）</li><li>现金不足 → BPS fallback Δ0.30/0.15（收益差 3.7-7.4× 提醒）</li><li>sudden 型 → 空仓 advisory（该型短 vol 亏 4×）</li></ul></div>
+        <div class="engine-row"><span class="engine-key">Structures</span><ul class="engine-ul"><li>ATM/+5% call spread D30（episode 型首选）<!-- SPEC-094.5: 宽度 2.5%→5%, 2026-07-12 --></li><li>现金不足 → BPS fallback Δ0.30/0.15（收益差 3.7-7.4× 提醒）</li><li>sudden 型 → 空仓 advisory（该型短 vol 亏 4×）</li></ul></div>
         <div class="engine-row"><span class="engine-key">Takes over</span><span class="engine-val">DIP 事件接管（ddATH ≤ −4%，触发无 VIX 条件）；RANGE 期间戒备态——89% 触发源于区间内/破位后</span></div>
         <div class="engine-row"><span class="engine-key">Sibling</span><span class="engine-val">Sleeve B（research-only，production cap 0）</span></div>
         <div class="engine-live"><div class="engine-live-line" id="live-convexity">n/a</div></div>
