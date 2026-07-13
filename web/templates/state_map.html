@@ -696,9 +696,19 @@ function renderPools(s) {
     rows.push(`<div class="pool-row" title="溯源 active_spx_pm_cap_regime: ${bp.cap_regime}"><span class="pr-key">Cap regime</span><span class="pr-val">${regimeMap[bp.cap_regime] || bp.cap_regime}</span></div>`);
   }
   if (bp.asof) {
-    const ageH = (Date.now() - new Date(bp.asof)) / 3600000;
-    const stale = ageH > 30;
-    rows.push(`<div class="pool-row"><span class="pr-key">As of</span><span class="pr-val ${stale ? 'pr-warn' : ''}">${String(bp.asof).slice(0, 16).replace('T', ' ')}${stale ? ` ⚠ ${Math.round(ageH)}h 前（bot 09:40 未更新？）` : ''}</span></div>`);
+    // stale 判定对照「最近一个应跑的交易日 09:40 ET」而非墙钟——bot 周末不跑，
+    // 30h 墙钟阈值会在每个周日误报（2026-07-12 实测抓到）。市场假日仍可能
+    // 误报一次，可接受。
+    const nowET = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    const expected = new Date(nowET);
+    expected.setHours(9, 40, 0, 0);
+    if (nowET < expected) expected.setDate(expected.getDate() - 1);   // 今天还没到 09:40
+    while (expected.getDay() === 0 || expected.getDay() === 6) expected.setDate(expected.getDate() - 1);
+    const asofET = new Date(new Date(bp.asof).toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    const lagH = (expected - asofET) / 3600000;
+    const stale = lagH > 2;   // 容忍 2h（重跑/补写）
+    const expStr = `${String(expected.getMonth() + 1).padStart(2, '0')}-${String(expected.getDate()).padStart(2, '0')} 09:40`;
+    rows.push(`<div class="pool-row"><span class="pr-key">As of</span><span class="pr-val ${stale ? 'pr-warn' : ''}">${String(bp.asof).slice(0, 16).replace('T', ' ')}${stale ? ` ⚠ 缺 ${expStr} 快照（bot 未更新？）` : ''}</span></div>`);
   }
   $('bp-rows').innerHTML = rows.join('');
 }
