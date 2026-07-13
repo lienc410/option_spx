@@ -345,7 +345,7 @@ a.veto-light:hover { border-color:var(--gold-border); }
           <div class="bar-scale"><span>$0</span><span id="cash-scale-max">—</span></div>
         </div>
         <div class="pool-rows" id="cash-rows"><div class="pool-row"><span class="pr-key">Status</span><span class="pr-val na">n/a</span></div></div>
-        <div class="pool-note">读法：上条 = 池水位（蓝）对 floor / waterline 两条门线；下条 = 已花 debit（金）对 cap / DD ammo 两条上限。debit 越过 DD ammo 线 = 吃掉 DD Overlay 的抄底子弹 → 平静日补弹药，不在崩盘日卖资产。waterline ≈ 1 笔标准 BCD + 1 发 DD 触发 + floor（助记，hover Waterline 行看当前数值）。</div>
+        <div class="pool-note">读法：上条 = 池水位（蓝）对 floor / waterline 两条门线；下条 = 已花 debit（金）对 cap / DD ammo 两条上限。<br>debit 越过 DD ammo 线 = 吃掉 DD Overlay 的抄底子弹 → 平静日补弹药，不在崩盘日卖资产。<br>waterline ≈ 1 笔标准 BCD + 1 发 DD 触发 + floor（助记，hover Waterline 行看当前数值）。</div>
       </div>
 
       <div class="pool-block" id="pool-bp">
@@ -632,7 +632,13 @@ function renderPools(s) {
     const rows = [];
     if (c.waterline_state) {
       const wlK = (v) => v == null ? '—' : `$${Math.round(v / 1000)}k`;
-      const wlTip = `现金水位规则（只读，不拦单）：池 ≥ ${fmtUsd(c.waterline_self_usd)} 时主 debit × DD Overlay × 现金预算三方自洽；池 < ${fmtUsd(c.waterline_sell_usd)} 时 DD Overlay 触发日预期需卖 QQQ/SGOV 腾现金、或主动跳过该次。助记：1 笔标准 BCD ${wlK(c.bcd_standard_usd)} + 1 发 DD 触发 ${wlK(c.reserve_need)} + floor ${wlK(c.floor_usd)} ≈ ${wlK(c.waterline_self_usd)}（助记非推导，正式依据 = Q093 19y 重放；组件大幅变动时按该方法重校准）— 溯源 Q093 P1 R-b`;
+      const wlTip = [
+        `现金水位规则（只读，不拦单）`,
+        `池 ≥ ${fmtUsd(c.waterline_self_usd)}：主 debit × DD Overlay × 现金预算三方自洽`,
+        `池 < ${fmtUsd(c.waterline_sell_usd)}：DD Overlay 触发日预期需卖 QQQ/SGOV 腾现金、或主动跳过该次`,
+        `助记：1 笔标准 BCD ${wlK(c.bcd_standard_usd)} + 1 发 DD 触发 ${wlK(c.reserve_need)} + floor ${wlK(c.floor_usd)} ≈ ${wlK(c.waterline_self_usd)}`,
+        `（助记非推导，正式依据 = Q093 19y 重放；组件大幅变动时按该方法重校准）— 溯源 Q093 P1 R-b`,
+      ].join('\n');
       const margin = c.liquid - c.waterline_self_usd;
       const wl = c.waterline_state === 'ok'
         ? `<span class="pr-val pr-ok">✓ 高于 waterline ${fmtUsd(margin)} · 三方自洽</span>`

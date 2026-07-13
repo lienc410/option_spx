@@ -590,7 +590,7 @@ function renderDiscipline(trades) {
     <div class="kv"><span>Profit Factor</span><strong>${ls.pf == null ? '— (无亏损样本)' : ls.pf.toFixed(2)}</strong></div>
     <div class="kv"><span>Max Consecutive Losses</span><strong class="${ls.maxStreak >= 3 ? 'neg' : ''}">${ls.hasLosses ? ls.maxStreak : '0'}</strong></div>
     <div style="margin-top:8px">${chips}</div>
-    <div class="muted" style="font-size:0.68rem;margin-top:8px">manual / discretionary 占比高不是错误 — 但如果它们的平均结果差于规则内退出，就是纪律缺口。单元：per-leg（data/closed_trades.jsonl）。</div>`;
+    <div class="muted" style="font-size:0.68rem;margin-top:8px">manual / discretionary 占比高不是错误 — 但如果它们的平均结果差于规则内退出，就是纪律缺口。<br>单元：per-leg（data/closed_trades.jsonl）。</div>`;
 }
 
 // ── Daily strategy P&L calendar (from /api/strategy/cum-pnl day series) ──
