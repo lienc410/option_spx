@@ -3806,6 +3806,24 @@ async function loadResourceWaterline() {
           <div class="rw-title">现金通道 — BCD / T2 开仓</div>
           <div class="rw-status ${cashCls}">${cashLine}</div>
           <div class="rw-detail">池 <span class="rw-num">${usd(c.pool_usd)}</span>(两账户现金+货基)· 已投 <span class="rw-num">${usd(c.committed_usd)}</span>${c.utilization_pct != null ? '(<span class="rw-num">' + Number(c.utilization_pct).toFixed(1) + '%</span>)' : ''} · 预算线 <span class="rw-num">${Number(c.cap_pct).toFixed(0)}%</span></div>
+          ${(() => {
+            // 现金水位规则（只读参考，不拦单）——阈值来自 API 单一来源。
+            // 缺轨时池数字失真，跳过判定（与上方 F4 降级逻辑一致）。
+            const wSelf = c.waterline_self_consistent_usd, wSell = c.waterline_sell_or_skip_usd;
+            if (railGap || wSelf == null || c.pool_usd == null) return '';
+            let cls, txt;
+            if (c.pool_usd >= wSelf) {
+              cls = 'rw-green';
+              txt = `✓ 池 ≥ ${usd(wSelf)}：主 debit × DD Overlay × 现金预算三方自洽`;
+            } else if (c.pool_usd >= wSell) {
+              cls = 'rw-orange';
+              txt = `⚠ 池已跌破 ${usd(wSelf)} 自洽线 — DD Overlay 触发日可能需卖 QQQ/SGOV 腾现金，或主动跳过该次`;
+            } else {
+              cls = 'rw-red';
+              txt = `⚠ 池 < ${usd(wSell)} — DD Overlay 触发日预期必须卖 QQQ/SGOV 入场、或主动跳过（crash-day 卖资产成本自担）`;
+            }
+            return `<div class="rw-detail"><span class="rw-word ${cls}" style="font-size:inherit">现金水位</span> ${txt} <span class="spec-ref">Q093 P1 R-b</span></div>`;
+          })()}
         </div>
         <div>
           <div class="rw-title">崩盘预算 — defined-risk 新仓</div>

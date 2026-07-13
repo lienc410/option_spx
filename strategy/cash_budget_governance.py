@@ -45,6 +45,12 @@ CAP_PCT: float = 0.60          # hard cap: Σ debit / liquid ≤ 60%
 ALERT_PCT: float = 0.75        # concurrent alert: warn but allow
 CASH_FLOOR_USD: float = 30_000.0   # hard floor regardless of cap math
 
+# 现金水位运营规则（Q093 P1 R-b，2026-07-08 裁定）——只读显示，不拦单：
+#   池 ≥ $150k：主 debit × DD Overlay × 现金预算三方自洽（19y 重放 0 次抽穿）；
+#   池 < $100k：DD Overlay 触发日预期需卖 QQQ/SGOV 腾现金、或主动跳过该次。
+CASH_WATERLINE_SELF_CONSISTENT_USD: float = 150_000.0
+CASH_WATERLINE_SELL_OR_SKIP_USD: float = 100_000.0
+
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -523,6 +529,9 @@ def resource_waterline() -> dict:
             "floor_distance_usd": round(liquid_total - CASH_FLOOR_USD, 2),
             "standard_debit_usd": standard_debit,
             "fits_standard_debit": bool(cap_usd - l_opt >= standard_debit),
+            # Q093 P1 R-b 水位（只读显示，不拦单）
+            "waterline_self_consistent_usd": CASH_WATERLINE_SELF_CONSISTENT_USD,
+            "waterline_sell_or_skip_usd": CASH_WATERLINE_SELL_OR_SKIP_USD,
         },
         "crash_budget": {
             "worst_excess_usd": round(excess_worst, 0),
