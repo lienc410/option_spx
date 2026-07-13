@@ -3997,3 +3997,5 @@ Owner: Planner or PM
 - **实现（四层同步）**: signals/q042_trigger（状态机 v2 + schema 迁移 + 走查）、strategy/q042_sizing（b_rung_structure + compute_leap_sizing 单真值）、production/q042_executor+positions（多发循环、instrument 结算分支含 short_strike=0 毒化守卫、trade_id 槽位、击穿 FYI）、backtest/q042_engine（阶梯+LEAP 定价）、web（params/payload/手动开仓/draft/模板 rung 化）
 - **验收**: AC-94.7-1..7 全过；走查对齐 10/10；全套回归 81 passed；A 侧 38 事件零扰动
 - **文件**: research/q102/q102_p2_confirmatory.py + q102_p2_gates.csv + findings §7（P2 补记）；task/SPEC-094.7.md
+
+**R-20260712-04 反事实结算定格（2026-07-13 收盘）**: 漏火仓名义到期结算完成——SPX 收 7515.13 ≥ short 7450 → 满宽 $185/share；最终反事实 = 7 张 × (185 − 87.66) × 100 = **+$68,138**（INC debit 口径；CALIB $88.08 → +$67,844）。案卷关闭：事故已修（SPEC-094.6）、金额已定格、不补录不追单。同日 AC-94.2-8 正式 PASS（gate log `main_bp_pct: 12.88` + bp_source 全溯源块）——dead-gate 案全链关卷。
