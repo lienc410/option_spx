@@ -119,6 +119,7 @@ a.veto-light:hover { border-color:var(--gold-border); }
 .bar-fill { position:absolute;top:0;left:0;bottom:0;border-radius:9999px; }
 .fill-bp   { background:var(--blue); }
 .fill-cash { background:var(--gold); }
+.fill-level { background:var(--blue);opacity:0.75; }
 .bar-tick { position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--gold);border-radius:1px; }
 .bar-scale { display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:0.52rem;color:var(--text-2);margin-top:2px; }
 .pool-rows { margin-top:6px;display:flex;flex-direction:column;gap:4px; }
@@ -331,14 +332,20 @@ a.veto-light:hover { border-color:var(--gold-border); }
 
       <div class="pool-block" id="pool-cash">
         <div class="pool-hd"><span class="pool-name">Cash Pool</span><span class="pool-total" id="cash-total">n/a</span></div>
+        <div class="bar-block" id="cash-level-block" style="display:none">
+          <div class="bar-hd"><span class="bar-name">Pool level（池总量 vs 门线）</span><span class="bar-val" id="cash-level-val">—</span></div>
+          <div class="bar-ticks" id="cash-level-ticks"></div>
+          <div class="bar-track" id="cash-level-track"><div class="bar-fill fill-level" style="width:0%"></div></div>
+          <div class="bar-scale"><span>$0</span><span id="cash-level-scale-max">—</span></div>
+        </div>
         <div class="bar-block" id="cash-bar-block" style="display:none">
-          <div class="bar-hd"><span class="bar-name">Committed debit</span><span class="bar-val" id="cash-bar-val">—</span></div>
+          <div class="bar-hd"><span class="bar-name">Committed debit（已花额度 vs 上限）</span><span class="bar-val" id="cash-bar-val">—</span></div>
           <div class="bar-ticks" id="cash-ticks"></div>
           <div class="bar-track" id="cash-track"><div class="bar-fill fill-cash" id="cash-fill" style="width:0%"></div></div>
           <div class="bar-scale"><span>$0</span><span id="cash-scale-max">—</span></div>
         </div>
         <div class="pool-rows" id="cash-rows"><div class="pool-row"><span class="pr-key">Status</span><span class="pr-val na">n/a</span></div></div>
-        <div class="pool-note">弹药规则：liquid − 在场 debit ≥ Q042 reserve（12.5% NLV 现算）为绿；跌破 → 平静日补弹药，不在崩盘日卖资产。第二笔并发 BCD = 花掉一次抄底子弹。</div>
+        <div class="pool-note">读法：上条 = 池水位（蓝）对 floor / waterline 两条门线；下条 = 已花 debit（金）对 cap / ammo 两条上限。debit 越过 ammo 线 = 吃掉抄底子弹 → 平静日补弹药，不在崩盘日卖资产。</div>
       </div>
 
       <div class="pool-block" id="pool-bp">
@@ -580,37 +587,62 @@ function renderPools(s) {
   const c = p.cash || {};
   if (c.status === 'ok') {
     $('cash-total').textContent = `liquid ${fmtUsd(c.liquid)}`;
+
+    // ── Bar 1 · Pool level（水位计）：fill = liquid 本身；floor/waterline
+    //    是池总量的门线——刻在这里而不是 debit 条上（两者量纲不同）。──
+    const lv = c.level_gauge;
+    if (lv && lv.scale_max != null) {
+      $('cash-level-block').style.display = '';
+      $('cash-level-val').textContent = fmtUsd(c.liquid);
+      $('cash-level-scale-max').textContent = fmtUsd(lv.scale_max);
+      let lvTicks = '', lvLabels = '';
+      if (lv.floor_pos_pct != null) {
+        const t = tickHtml(lv.floor_pos_pct, `floor ${fmtUsd(c.floor_usd)}`);
+        lvTicks += t.tick; lvLabels += t.label;
+      }
+      if (lv.waterline_pos_pct != null) {
+        const t = tickHtml(lv.waterline_pos_pct, `waterline ${fmtUsd(c.waterline_self_usd)}`);
+        lvTicks += t.tick; lvLabels += t.label;
+      }
+      $('cash-level-ticks').innerHTML = lvLabels;
+      $('cash-level-track').innerHTML =
+        `<div class="bar-fill fill-level" style="width:${lv.fill_pct ?? 0}%"></div>` + lvTicks;
+    }
+
+    // ── Bar 2 · Committed debit：fill = 已花 debit；上限线 = cap（预算）+
+    //    ammo（抄底预留）——只挂约束这个量的线。──
     $('cash-bar-block').style.display = '';
     const g = c.committed || {};
     $('cash-bar-val').textContent = `${fmtUsd(g.value)} (${fmtPct(c.utilization_pct)})`;
     $('cash-scale-max').textContent = fmtUsd(c.liquid);
     let ticks = '', labels = '';
+    if (c.cap_pct != null) {
+      const t = tickHtml(c.cap_pct, `cap ${fmtPct(c.cap_pct, 0)}`);
+      ticks += t.tick; labels += t.label;
+    }
     if (c.ammo_line_pos_pct != null) {
       const t = tickHtml(c.ammo_line_pos_pct, `ammo ${fmtUsd(c.ammo_line_usd)}`);
       ticks += t.tick; labels += t.label;
     }
-    if (c.waterline_self_pos_pct != null) {
-      const t = tickHtml(c.waterline_self_pos_pct, `水位 ${fmtUsd(c.waterline_self_usd)}`);
-      ticks += t.tick; labels += t.label;
-    }
     $('cash-ticks').innerHTML = labels;
     $('cash-track').innerHTML = `<div class="bar-fill fill-cash" style="width:${g.width_pct ?? 0}%"></div>` + ticks;
+
+    // ── 行区：不重复条已表达的数字；键统一英文（语言规则）──
     const rows = [];
-    rows.push(`<div class="pool-row"><span class="pr-key">In-flight debit</span><span class="pr-val">${fmtUsd(g.value)}</span></div>`);
-    if (c.reserve_need != null) {
-      const cls = c.ready ? 'pr-ok' : 'pr-bad';
-      rows.push(`<div class="pool-row"><span class="pr-key">Q042 reserve (12.5% NLV)</span><span class="pr-val ${cls}">${fmtUsd(c.reserve_need)} · ${c.ready ? 'ready' : 'short'}</span></div>`);
-      rows.push(`<div class="pool-row"><span class="pr-key">Concurrent BCD headroom</span><span class="pr-val">${c.bcd_headroom_count} × ${fmtUsd(c.bcd_standard_usd)}</span></div>`);
-    }
-    rows.push(`<div class="pool-row"><span class="pr-key">Floor</span><span class="pr-val">${fmtUsd(c.floor_usd)}</span></div>`);
     if (c.waterline_state) {
       const wlTip = `现金水位规则（只读，不拦单）：池 ≥ ${fmtUsd(c.waterline_self_usd)} 时主 debit × DD Overlay × 现金预算三方自洽；池 < ${fmtUsd(c.waterline_sell_usd)} 时 DD Overlay 触发日预期需卖 QQQ/SGOV 腾现金、或主动跳过该次 — 溯源 Q093 P1 R-b`;
+      const margin = c.liquid - c.waterline_self_usd;
       const wl = c.waterline_state === 'ok'
-        ? `<span class="pr-val pr-ok">✓ ≥ ${fmtUsd(c.waterline_self_usd)} 三方自洽</span>`
+        ? `<span class="pr-val pr-ok">✓ 高于 waterline ${fmtUsd(margin)} · 三方自洽</span>`
         : c.waterline_state === 'below_self'
-          ? `<span class="pr-val pr-warn">⚠ 跌破 ${fmtUsd(c.waterline_self_usd)} 自洽线 — DD 触发日或需卖资产/跳过</span>`
-          : `<span class="pr-val pr-bad">⚠ < ${fmtUsd(c.waterline_sell_usd)} — DD 触发日须卖资产或跳过</span>`;
-      rows.push(`<div class="pool-row" title="${wlTip}"><span class="pr-key">现金水位</span>${wl}</div>`);
+          ? `<span class="pr-val pr-warn">⚠ 低于 waterline ${fmtUsd(-margin)} — DD 触发日或需卖资产/跳过</span>`
+          : `<span class="pr-val pr-bad">⚠ 池 < ${fmtUsd(c.waterline_sell_usd)} — DD 触发日须卖资产或跳过</span>`;
+      rows.push(`<div class="pool-row" title="${wlTip}"><span class="pr-key">Waterline</span>${wl}</div>`);
+    }
+    if (c.reserve_need != null) {
+      const cls = c.ready ? 'pr-ok' : 'pr-bad';
+      rows.push(`<div class="pool-row" title="DD Overlay 触发预留（production cap × NLV 现算）：liquid − 在场 debit ≥ 该值为 ready"><span class="pr-key">DD Overlay reserve</span><span class="pr-val ${cls}">${fmtUsd(c.reserve_need)} · ${c.ready ? 'ready' : 'short'}</span></div>`);
+      rows.push(`<div class="pool-row"><span class="pr-key">Concurrent BCD headroom</span><span class="pr-val">${c.bcd_headroom_count} × ${fmtUsd(c.bcd_standard_usd)}</span></div>`);
     }
     $('cash-rows').innerHTML = rows.join('');
   } else {

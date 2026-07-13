@@ -608,6 +608,17 @@ def compute_state_surface(today: Optional[str] = None) -> dict:
                     else "below_self" if liquid >= CASH_WATERLINE_SELL_OR_SKIP_USD
                     else "sell_or_skip"),
             }
+            # 池水位计（PM 2026-07-13 重画）：fill = liquid 本身；floor/水位线
+            # 约束的是池总量而非 committed debit——与 debit 条分离，两根条各自
+            # 量纲自洽。scale 锚定 max(liquid, 水位线) 保证门线始终在图内。
+            _scale = max(liquid * 1.05, CASH_WATERLINE_SELF_CONSISTENT_USD * 1.25)
+            cash["level_gauge"] = {
+                "scale_max": round(_scale, 2),
+                "fill_pct": round(min(100.0, liquid / _scale * 100.0), 2),
+                "floor_pos_pct": round(CASH_FLOOR_USD / _scale * 100.0, 2),
+                "waterline_pos_pct": round(
+                    CASH_WATERLINE_SELF_CONSISTENT_USD / _scale * 100.0, 2),
+            }
             if reserve is not None:
                 # 金色弹药刻度线：liquid − reserve_need 的绝对位置；
                 # committed 越过此线 = 抄底子弹被吃掉
