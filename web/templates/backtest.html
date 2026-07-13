@@ -9,7 +9,7 @@
 <script src="{{ url_for('static', filename='vendor/chartjs-adapter-date-fns-3.0.0.bundle.min.js') }}"></script>
 <script src="{{ url_for('static', filename='spec072_helpers.js') }}"></script>
 <script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec108"></script>
-<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec139">
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec141_1">
 <script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -2125,9 +2125,6 @@ function setPeriod(period, btn) {
   const oneYearBtn = document.getElementById('pbtn-1y');
   if (oneYearBtn) oneYearBtn.classList.add('active');
 })();
-document.getElementById('nav-date').textContent = today.toLocaleDateString('en-US',{
-  weekday:'short', month:'short', day:'numeric', year:'numeric'
-});
 
 // ── Toggle log ─────────────────────────────────────────────────────────
 function toggleLog() {

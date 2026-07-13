@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Book · 合伙账本</title>
 <script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=book2"></script>
-<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec139">
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec141_1">
 <script src="{{ url_for('static', filename='theme.js') }}?v=book2"></script>
 <style>
 *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
@@ -882,8 +882,6 @@ async function load() {
   }
 }
 
-document.getElementById('nav-date').textContent =
-  new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 load();
 </script>
 </body>

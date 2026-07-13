@@ -166,6 +166,22 @@ here first:
 `WAIT` is NOT in the vocabulary — "no valid setup today" is `NO ENTRY`
 (unified sitewide in SPEC-125).
 
+**Routing-state axis vs word-vocabulary axis (SPEC-141.1).** State Map 的引擎
+徽章 `ON`/`STANDBY` 是独立的「路由态」轴——回答"今天主策略把哪台引擎当主战场"；
+Action State / Signal-outcome 词表是「持仓/信号态」轴——回答"该引擎自己的信号
+与仓位处于什么状态"。同一台引擎两轴各有一读数（State Map 显 STANDBY 的引擎在
+Lane D 完全可以是 ARMED）：
+
+| State Map（引擎运行态 / 路由态轴） | Lane D / 词表（持仓/信号态轴） | 语义 |
+|---|---|---|
+| ON | （无对应——当日被路由） | 今天主策略路由到该引擎 |
+| STANDBY | ARMED / CALM / NO ENTRY | 待命，未被路由 |
+
+两轴**并存不互替**；页面内不得混轴借词——State Map 徽章只用 `ON`/`STANDBY`
+（Q042 armed 是行内字段，非徽章），Decision Trace / Lane D 徽章只用本节与
+Action State 词表词，不得出现 `ON`/`STANDBY`。静态扫描断言：
+`tests/test_spec_141_1.py`。
+
 ## Push Vocabulary (SPEC-126)
 
 Telegram pushes go through `notify/gateway.py` exclusively. Contract:
@@ -438,4 +454,5 @@ Label decisions (2026-07-06): `DD Overlay` (nav-width form of display name
 | 2026-07-07 | Nav `Port BT` → `Gov BT`; route unchanged | Page content pivoted to the SPEC-103 governance backtest long ago — label said portfolio BP simulation, page showed regime/rules history (name-matches-content rule, same as Q042 precedent) |
 | 2026-07-07 | Journal + Performance bound as a page-tab family ("trading record" topic) | Two visit rhythms (daily ops vs periodic analytics) justify separate pages; tabs + ledger-unit labels + calendar deep-links express that they are two views of one topic |
 | 2026-07-11 | 字体自托管（SPEC-139）；theme.css cache-buster 全站统一 spec139 | 零外域姿态收官（Chart.js/lightweight-charts/字体全本地）；18 页钉旧版本号会在缓存期内丢 @font-face——版本键必须随 theme.css 内容变更全站同步 |
+| 2026-07-12 | ON/STANDBY（State Map 路由态轴）与 ARMED/HOLD 等词表词（信号态轴）确立为两条并存词汇轴，页面内禁混轴借词 | 同一引擎 State Map 显 STANDBY、Lane D 显 ARMED——语义有对应但映射未成文会像 WAIT/NO ENTRY 一样漂移（SPEC-141.1 seam #2）；映射小表落在 Signal-outcome states 节 |
 | 2026-07-13 | 推送哲学入宪（SPEC-140 §5）：推"事件"不推"状态"、三级信息架构 PUSH→DIGEST→WEB、新 surface 默认零新推送；State Map（SPEC-141）=首个判例（纯拉取零推送钩子）；Lane B/D 文案单源 + about↔泳道 / outcome↔category 双映射入 Push Vocabulary | PM 提问"State Map 要不要推送"暴露 doctrine 只存在于口头判例；推送与网页此前存在三处手写第二套行文（H-5 "CLOSE 或 ROLL"、digest 持仓行、q042 状态行），逐字单源后新 surface 不再逐个重辩 |

@@ -711,3 +711,19 @@ button, select, input, textarea, optgroup {
   color: var(--text-2); background: var(--gray-bg); border: 1px solid var(--gray-border);
 }
 .t-badge.tb-blocked { opacity: 0.6; }
+
+/* ── SPEC-141.1 — State Map ↔ Trace 深链目标高亮（纯 CSS :target，零 JS）。
+      id="trace-<check>" 由 trace_render.js 同源生成；短暂高亮 = 一次性
+      keyframes 淡出；sticky nav 50px → scroll-margin 让锚点落在导航下方。 ── */
+.trace-node, .trace-anchor, .trace-lane, .trace-ev-inline span {
+  scroll-margin-top: 64px;
+}
+.trace-node:target, .trace-anchor:target, .trace-lane:target,
+.trace-ev-inline span:target {
+  animation: trace-target-flash 2.4s ease-out 1;
+  border-radius: 4px;
+}
+@keyframes trace-target-flash {
+  0%, 55% { background: var(--gold-bg); box-shadow: 0 0 0 1px var(--gold-border); }
+  100%    { background: transparent; box-shadow: none; }
+}
