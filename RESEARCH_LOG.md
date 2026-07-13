@@ -3979,3 +3979,12 @@ Owner: Planner or PM
 - **教训（登记 methodology）**: 可变运行时 state 进 git = 部署工具链成为策略语义的攻击面；"executor 从不打印自己的核心中间量（ATH/ddATH）" 是缺陷存活 6 周的直接原因——生产状态机的关键内生变量必须每日落日志
 
 **Addendum R-20260712-04（094.5 实施途中三连发现，同日）**: ①`backtest/q042_engine.py` 结构参数为本地 mirror（0.025 hardcode）——若按旧流程只改 `q042_sizing`，dashboard 回测将静默展示旧结构；②引擎自带的 raw-crossing+no-overlap 状态机重实现与 production 存在 armed-闩锁语义差，19y 漏 2 笔到期日再触发（2007-11-19/2015-12-14，均为亏单——如实入账后 A 版图 WR 70%→65% @5% 宽度）+ expiry 锚点差（交易日 entry+DTE vs production 的 signal+1 自然日+DTE）；③2026-07-11 一次 ad-hoc 短 `--start` 引擎调用把 old Air 的 dashboard 回测 CSV 刷成 2 行残表（挂了一天）。修复：参数改 import、信号流统一到 `get_q042_history`、expiry 对齐 production、默认 `--end` 当天、CSV untrack（运行时工件，两机各自再生）。**模式定名：同一策略语义在 repo 内存在 4 份实现（trigger 模块/executor/引擎/研究脚本），mirror 每多一份，参数变更的静默失效面翻倍**——后续任何 sleeve 级参数变更必须 grep 全部四层。
+
+### R-20260712-05 — Q102 P1: Sleeve B 深跌抄底重设计 exploratory（多发 re-arm × 离场 × 结构，CLOSED 2026-07-12）
+
+- **触发**: PM ratify 重开 B 设计（Q100 §5.3 单发问题）+ 三问：提前割肉救多发半山腰单？LEAP call 长线替代？宽度装不下反弹？
+- **设计**: rung 阶梯 {−15,−25,−35,−45}%（结构性步长）× {reclaim, immediate} × 离场 {持有, rung-stop, MA10-stop} × 结构 {宽度阶梯, LEAP ATM/ITM85 365d, 指数基准}；预注册 R1-R4（exploratory facts-only / 阈值禁拟合 / LEAP 括号 [0.75,1.0]×VIX + VIX3M 内证 / 同 friction）
+- **三答**: ①rung-stop 把深 rung 子集 −34.6k 翻 +27.1k（割半山腰满损）但杀 2020-03-09 V 型赢家，总账与持有打平；MA10 止损崩盘 whipsaw 全灭（Q097 确认型 gate 已死的又一实例）②LEAP 卡定价括号：VIX 平价跑输指数（+40k vs +84k），×0.75 现实端 3 倍指数（ITM85 +270.5k 最优，两端皆胜 ATM）；WR 50-60%/worst 满损 vs 指数 80%/−24k；SPX 单张超预算须走 XSP ③宽度按入场类型分裂：确认底该加宽（Q100 §5 +15% 最优），半山腰接刀加宽更糟（T3 全负、越宽越亏）
+- **结构性发现**: 深 rung 的 MA10 reclaim 是熊市反弹顶陷阱（2008 三连 −146.9k）——现任 B 活得好恰因 reclaim 只用在首次 −15%；该机制不可下放深 rung
+- **Confirmatory 预注册草案**: 候选收敛两个（ladder-immediate+rung-stop+5%/90；深 rung ITM85 LEAP via XSP）；promote 门槛 = CALIB+STRESS/两括号端同时 ≥ 指数基准；危机 LEAP 真实链为第一数据缺口；n 永远 <8 → thesis-based + 括号边界，PM 裁决；B 维持 production 0%
+- **文件**: research/q102/ q102_p1_b_redesign.py + 4 CSV + findings
