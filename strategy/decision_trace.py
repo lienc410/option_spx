@@ -346,6 +346,31 @@ def lane_d_linkage_label(*, gate_available: bool, main_bp, budget: float,
             "（双 sleeve 禁开）", "veto")
 
 
+def q101_staging_label(staging: dict) -> tuple[str, str]:
+    """SPEC-143 — Q101 aftermath 首笔 0.5× staging 三态人话主文 + outcome
+    （唯一 copy 源）。
+
+    消费方：selector._apply_aftermath_staging_live 的 Lane A trace 节点、
+    /api/recommendation 卡片 rationale 附注、/api/position/open-draft 的
+    legs_hint 附注——三处逐字相等是 AC（tests/test_spec_143.py，断言样式同
+    SPEC-140）；任何一方不得手写第二套。判定逻辑与常量只活在
+    strategy/aftermath_staging.py（本层只负责"人话怎么说"）。
+    outcome：advisory（态 1/3，⚠ 提示档改张数不拦推荐，非 veto）／
+    pass（态 2，实测通过按标准张数）。
+    """
+    state = staging.get("state")
+    s = staging.get("s")
+    if state == 2:
+        return (f"Q101 staging：skew 实测通过（s = {s:.2f} < 1.5× calm 基线）"
+                "——按标准张数", "pass")
+    if state == 3:
+        return (f"Q101 staging：实测 put 斜率 s = {s:.2f} ≥ 1.5× calm 基线，"
+                "维持 0.5× —— Q101 预承诺复判触发，通道处置待 Quant 重跑判定网格",
+                "advisory")
+    return ("Q101 staging：本窗口 skew 未实测，首笔 0.5×，实测落地后恢复",
+            "advisory")
+
+
 def lane_b_positions(today: str, calls=None) -> list[dict]:
     """Lane B「手上的仓位要动吗？」— 每个 open 仓位一行，人话触发器状态。
 
