@@ -352,7 +352,7 @@ a.veto-light:hover { border-color:var(--gold-border); }
         <div class="pool-hd"><span class="pool-name">BP Pool</span><span class="pool-total" id="bp-total">n/a</span></div>
 
         <div class="bar-block">
-          <div class="bar-hd"><span class="bar-name">SPX PM</span><span class="bar-val" id="bp-spx-val">n/a</span></div>
+          <div class="bar-hd"><span class="bar-name" title="R1 = 账户全量维持保证金（含 equity 持仓），非仅 SPX 期权占用 — SPEC-103 §R1">Account maint (R1)</span><span class="bar-val" id="bp-spx-val">n/a</span></div>
           <div class="bar-ticks" id="bp-spx-ticks"></div>
           <div class="bar-track"><div class="bar-fill fill-bp" id="bp-spx-fill" style="width:0%"></div></div>
           <div class="bar-scale"><span>0%</span><span>100%</span></div>
@@ -366,7 +366,7 @@ a.veto-light:hover { border-color:var(--gold-border); }
         </div>
 
         <div class="pool-rows" id="bp-rows"></div>
-        <div class="pool-note">所有条共用绝对 0-100% 刻度（同值必同长）；cap 为金色刻度线标注在各自绝对位置。/ES SPAN 为独立池（demoted）。</div>
+        <div class="pool-note">所有条共用绝对 0-100% 刻度（同值必同长）；cap 为金色刻度线标注在各自绝对位置。<br>Account maint (R1) = 账户全量维持保证金（含 equity），非仅 SPX 期权。<br>/ES SPAN 为独立券商池，governance 决策降权。</div>
       </div>
 
     </div>
@@ -661,23 +661,45 @@ function renderPools(s) {
 
   // ── BP POOL（绝对 0-100% 刻度；cap 金色刻度线） ──
   const bp = p.bp || {};
-  $('bp-total').textContent = bp.nlv_basis != null ? `NLV basis ${fmtUsd(bp.nlv_basis)}` : 'n/a';
-  const renderBpBar = (geom, fillId, valId, ticksId) => {
+  const railGap = bp.rail_complete === false;
+  $('bp-total').textContent = bp.nlv_basis != null
+    ? `NLV basis ${fmtUsd(bp.nlv_basis)}${railGap ? '（仅 ' + (bp.rails_present || []).join('+') + '）' : '（Schwab+ETrade）'}`
+    : 'n/a';
+  const renderBpBar = (geom, fillId, valId, ticksId, dollars) => {
     if (!geom || geom.width_pct == null) { $(valId).innerHTML = NA; return; }
     $(fillId).style.width = geom.width_pct + '%';
-    $(valId).textContent = `${fmtPct(geom.value)} / cap ${geom.cap != null ? fmtPct(geom.cap, 0) : 'n/a'}`;
+    const dStr = dollars != null ? ` ($${Math.round(dollars / 1000)}k)` : '';
+    $(valId).textContent = `${fmtPct(geom.value)}${dStr} / cap ${geom.cap != null ? fmtPct(geom.cap, 0) : 'n/a'}`;
     if (geom.cap_pos_pct != null) {
       const t = tickHtml(geom.cap_pos_pct, `cap ${fmtPct(geom.cap, 0)}`);
       $(ticksId).innerHTML = t.label;
       $(fillId).parentElement.insertAdjacentHTML('beforeend', t.tick);
     }
   };
-  renderBpBar(bp.spx_pm, 'bp-spx-fill', 'bp-spx-val', 'bp-spx-ticks');
+  renderBpBar(bp.spx_pm, 'bp-spx-fill', 'bp-spx-val', 'bp-spx-ticks', bp.spx_pm_dollars);
   renderBpBar(bp.short_vol, 'bp-sv-fill', 'bp-sv-val', 'bp-sv-ticks');
   const rows = [];
-  if (bp.es_span) rows.push(`<div class="pool-row"><span class="pr-key">/ES SPAN (demoted)</span><span class="pr-val">${fmtPct(bp.es_span.value)} / cap ${fmtPct(bp.es_span.cap, 0)}</span></div>`);
-  if (bp.combined) rows.push(`<div class="pool-row"><span class="pr-key">Combined</span><span class="pr-val">${fmtPct(bp.combined.value)} / cap ${fmtPct(bp.combined.cap, 0)}</span></div>`);
-  if (bp.cap_regime) rows.push(`<div class="pool-row"><span class="pr-key">Cap regime</span><span class="pr-val">${bp.cap_regime}</span></div>`);
+  if (railGap) {
+    rows.push(`<div class="pool-row"><span class="pr-key">Data rail</span><span class="pr-val pr-warn">⚠ ETrade 轨缺失 — basis 仅 Schwab，占用率相对全账户被高估</span></div>`);
+  }
+  if (bp.es_span) rows.push(`<div class="pool-row" title="独立券商 SPAN 池，不与 Schwab 账户共享 basis；governance 决策降权（demoted）"><span class="pr-key">/ES SPAN · 独立池</span><span class="pr-val">${fmtPct(bp.es_span.value)} / cap ${fmtPct(bp.es_span.cap, 0)}</span></div>`);
+  if (bp.combined) rows.push(`<div class="pool-row"><span class="pr-key">Combined (R3)</span><span class="pr-val">${fmtPct(bp.combined.value)}${bp.combined_dollars != null ? ` ($${Math.round(bp.combined_dollars / 1000)}k)` : ''} / cap ${fmtPct(bp.combined.cap, 0)}</span></div>`);
+  if (bp.cap_regime) {
+    // 内部枚举 token 人话化（booster_shadow 之类不直出）
+    const regimeMap = {
+      normal: 'normal',
+      booster_shadow: `booster 观察中（不改 cap，实际 ${bp.spx_pm && bp.spx_pm.cap != null ? fmtPct(bp.spx_pm.cap, 0) : '—'}）`,
+      booster_active: 'booster 生效（cap 提升）',
+      stress: 'stress 收紧',
+      second_leg: 'second-leg 阻断',
+    };
+    rows.push(`<div class="pool-row" title="溯源 active_spx_pm_cap_regime: ${bp.cap_regime}"><span class="pr-key">Cap regime</span><span class="pr-val">${regimeMap[bp.cap_regime] || bp.cap_regime}</span></div>`);
+  }
+  if (bp.asof) {
+    const ageH = (Date.now() - new Date(bp.asof)) / 3600000;
+    const stale = ageH > 30;
+    rows.push(`<div class="pool-row"><span class="pr-key">As of</span><span class="pr-val ${stale ? 'pr-warn' : ''}">${String(bp.asof).slice(0, 16).replace('T', ' ')}${stale ? ` ⚠ ${Math.round(ageH)}h 前（bot 09:40 未更新？）` : ''}</span></div>`);
+  }
   $('bp-rows').innerHTML = rows.join('');
 }
 

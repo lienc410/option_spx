@@ -490,7 +490,13 @@ def compute_state_surface(today: Optional[str] = None) -> dict:
         if debit is None:
             raise RuntimeError(f"open debit unavailable: {debit_err}")
         g = _need(gov, gov_err, "governance runtime")
-        nlv = _num(g.get("basis_dollars")) or _num((g.get("pools") or {}).get("nlv_basis"))
+        # 口径修正（2026-07-13）：DD Overlay 在 Schwab 下单，executor sizing 用
+        # Schwab NLV——reserve 分母改用 schwab view，而非 all-view basis（后者
+        # 在 ETrade 轨恢复后会翻倍，导致 reserve 显示与实际 sizing 脱钩）。
+        _pbv = (g.get("pools_by_view") or {}).get("schwab") or {}
+        nlv = (_num(_pbv.get("nlv_basis"))
+               or _num(g.get("basis_dollars"))
+               or _num((g.get("pools") or {}).get("nlv_basis")))
         if not nlv:
             raise RuntimeError("NLV basis unavailable in governance runtime")
         pct = float(q042_sleeve_cap_pct("A"))          # 12.5（SPEC-104 staged）
@@ -562,17 +568,33 @@ def compute_state_surface(today: Optional[str] = None) -> dict:
         g = _need(gov, gov_err, "governance runtime")
         p = g.get("pools") or {}
         caps = g.get("caps") or {}
+        _spx_pm_dollars = _num(p.get("spx_pm_bp_dollars"))
+        _es_dollars = _num(p.get("es_span_bp_dollars")) or 0.0
         bp = {
             "spx_pm": bar_geometry(_num(p.get("spx_pm_bp_pct")), 100.0,
                                    cap=_num(caps.get("active_spx_pm_cap_pct"))),
+            "spx_pm_dollars": _spx_pm_dollars,
             "short_vol": bar_geometry(_num(p.get("short_vol_bp_pct")), 100.0,
                                       cap=_num(caps.get("R4_short_vol_cap_pct"))),
             "es_span": bar_geometry(_num(p.get("es_span_bp_pct")) or 0.0, 100.0,
                                     cap=_num(caps.get("R2_es_span_cap_pct"))),
             "combined": {"value": _num(p.get("combined_bp_pct")),
                          "cap": _num(caps.get("R3_combined_cap_pct"))},
+            "combined_dollars": (_spx_pm_dollars + _es_dollars) if _spx_pm_dollars is not None else None,
             "cap_regime": g.get("active_spx_pm_cap_regime"),
             "nlv_basis": _num(p.get("nlv_basis")) or _num(g.get("basis_dollars")),
+            # 轨完整性 + 数据时间（2026-07-13 审计：7/10 09:40 ETrade 读数被
+            # 静默置零，view=all 写入 Schwab-only basis 无任何降级标）。
+            # sleeve_governance 是 SPEC-141 冻结的决策路径（AC-141-4 零 diff），
+            # 故在 shadow 层从 pools_by_view 推导：某券商 NLV≤0 时该 view 为
+            # None——即掉轨信号。
+            "asof": g.get("timestamp"),
+            "rail_complete": all(
+                (g.get("pools_by_view") or {}).get(v)
+                for v in ("schwab", "etrade")),
+            "rails_present": [
+                v for v in ("schwab", "etrade")
+                if (g.get("pools_by_view") or {}).get(v)],
         }
         cash: dict = {"status": "n/a",
                       "error": f"{cash_err or debit_err or 'liquid/debit unavailable'}"[:200]}
