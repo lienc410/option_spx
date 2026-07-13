@@ -345,7 +345,7 @@ a.veto-light:hover { border-color:var(--gold-border); }
           <div class="bar-scale"><span>$0</span><span id="cash-scale-max">—</span></div>
         </div>
         <div class="pool-rows" id="cash-rows"><div class="pool-row"><span class="pr-key">Status</span><span class="pr-val na">n/a</span></div></div>
-        <div class="pool-note">读法：上条 = 池水位（蓝）对 floor / waterline 两条门线；下条 = 已花 debit（金）对 cap / ammo 两条上限。debit 越过 ammo 线 = 吃掉抄底子弹 → 平静日补弹药，不在崩盘日卖资产。</div>
+        <div class="pool-note">读法：上条 = 池水位（蓝）对 floor / waterline 两条门线；下条 = 已花 debit（金）对 cap / DD ammo 两条上限。debit 越过 DD ammo 线 = 吃掉 DD Overlay 的抄底子弹 → 平静日补弹药，不在崩盘日卖资产。</div>
       </div>
 
       <div class="pool-block" id="pool-bp">
@@ -622,7 +622,7 @@ function renderPools(s) {
       ticks += t.tick; labels += t.label;
     }
     if (c.ammo_line_pos_pct != null) {
-      const t = tickHtml(c.ammo_line_pos_pct, `ammo $${Math.round(c.ammo_line_usd / 1000)}k`);
+      const t = tickHtml(c.ammo_line_pos_pct, `DD ammo $${Math.round(c.ammo_line_usd / 1000)}k`);
       ticks += t.tick; labels += t.label;
     }
     $('cash-ticks').innerHTML = labels;
