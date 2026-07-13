@@ -54,6 +54,8 @@ class Q042Position:
     expiry_date: str
     settled: bool
     exit_pnl: Optional[float]
+    instrument: str = "SPREAD"     # SPEC-094.7: SPREAD | XSP_LEAP
+    rung: Optional[float] = None   # SPEC-094.7: B 阶梯档位（A 为 None）
 
     @property
     def is_active(self) -> bool:
@@ -198,6 +200,36 @@ def get_active_positions(paper: bool = True) -> dict[str, Optional[Q042Position]
     return result
 
 
+def get_active_positions_list(paper: bool = True,
+                              today: Optional[str] = None) -> list[Q042Position]:
+    """SPEC-094.7 — 全部未结算未到期 open 仓（B 阶梯可多仓并发；A 至多一仓）。"""
+    today_str = today or date.today().isoformat()
+    out: list[Q042Position] = []
+    for t in _load_trades(paper):
+        if t.get("event", "open") != "open" or t.get("phantom") or t.get("settled"):
+            continue
+        expiry = _derive_expiry(t)
+        if expiry is not None and today_str >= expiry:
+            continue
+        out.append(Q042Position(
+            sleeve_id=t.get("sleeve_id", "?"),
+            trade_id=t.get("trade_id") or f"{t.get('sleeve_id','?')}-{t.get('signal_date','')}",
+            entry_date=t.get("entry_target_date", ""),
+            signal_date=t.get("signal_date", ""),
+            long_strike=int(t.get("long_strike", 0) or 0),
+            short_strike=int(t.get("short_strike", 0) or 0),
+            contracts=int(t.get("contracts", 0) or 0),
+            est_debit_per_contract=float(t.get("est_debit", 0) or 0),
+            fill_debit_per_contract=t.get("fill_debit"),
+            expiry_date=expiry or "",
+            settled=False,
+            exit_pnl=None,
+            instrument=t.get("instrument", "SPREAD"),
+            rung=t.get("rung"),
+        ))
+    return out
+
+
 def settle_expired_positions(
     spx_close: float,
     today: Optional[str] = None,
@@ -221,6 +253,7 @@ def settle_expired_positions(
     today_str = today or date.today().isoformat()
     trades = _load_trades(paper)
     settled_ids: list[str] = []
+    settled_trade_ids: list[str] = []      # SPEC-094.7: rung-aware state 清仓
     updated = False
 
     for t in trades:
@@ -236,16 +269,26 @@ def settle_expired_positions(
         if today_str < expiry:
             continue
 
-        # Cash-settled European: intrinsic value at expiry
-        long_k  = float(t.get("long_strike", 0))
-        short_k = float(t.get("short_strike", 0))
-        long_payoff  = max(0.0, spx_close - long_k)
-        short_payoff = max(0.0, spx_close - short_k)
+        # Cash-settled European: intrinsic value at expiry.
+        # SPEC-094.7: XSP_LEAP 行 = 单腿 long call、XSP 尺度（underlying =
+        # spx/10）——绝不可走 get("short_strike", 0) 默认路径（0 默认会把
+        # 整个标的当 short 腿赔付）。
         debit = float(t.get("fill_debit") or t.get("est_debit") or 0)
-        pnl_per_share = (long_payoff - short_payoff) - debit / _SPX_MULTIPLIER
+        if t.get("instrument") == "XSP_LEAP":
+            underlying = spx_close / 10.0
+            long_k = float(t.get("long_strike", 0))
+            pnl_per_share = max(0.0, underlying - long_k) - debit / _SPX_MULTIPLIER
+        else:
+            long_k  = float(t.get("long_strike", 0))
+            short_k = float(t.get("short_strike", 0))
+            long_payoff  = max(0.0, spx_close - long_k)
+            short_payoff = max(0.0, spx_close - short_k)
+            pnl_per_share = (long_payoff - short_payoff) - debit / _SPX_MULTIPLIER
         exit_pnl_total = pnl_per_share * _SPX_MULTIPLIER * int(t.get("contracts", 1))
 
         settled_ids.append(t.get("sleeve_id", "?"))
+        settled_trade_ids.append(
+            t.get("trade_id") or f"{t.get('sleeve_id', '?')}-{t.get('signal_date', '')}")
         if not dry_run:
             t["settled"] = True
             t["exit_pnl"] = round(exit_pnl_total, 2)
@@ -257,14 +300,21 @@ def settle_expired_positions(
         log_file = PAPER_LOG if paper else LIVE_LOG
         _atomic_write_jsonl(log_file, trades)   # N11
 
-        # AC20: clear active_position_id in sleeve state after expiry
+        # AC20: clear active_position_id in sleeve state after expiry.
+        # SPEC-094.7: A = 扁平槽；B = rungs 阶梯，按 trade_id 匹配对应档清仓
+        # （settled_ids 只有 sleeve 粒度，直接清 sleeve_b 会误伤并发档）。
         from signals.q042_trigger import load_state, save_state
         state = load_state()
-        for sid in settled_ids:
-            key = "sleeve_a" if str(sid).upper() == "A" else "sleeve_b"
-            if key in state:
-                state[key]["active_position_id"] = None
-                state[key]["active_position_expiry"] = None
+        for sid, tid in zip(settled_ids, settled_trade_ids):
+            if str(sid).upper() == "A":
+                if state.get("sleeve_a"):
+                    state["sleeve_a"]["active_position_id"] = None
+                    state["sleeve_a"]["active_position_expiry"] = None
+            else:
+                for rs in state.get("sleeve_b", {}).get("rungs", {}).values():
+                    if rs.get("active_position_id") == tid:
+                        rs["active_position_id"] = None
+                        rs["active_position_expiry"] = None
         save_state(state)
 
     return settled_ids

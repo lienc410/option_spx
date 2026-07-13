@@ -1,0 +1,8 @@
+cand,pass
+C1 全rung spread×持有,True
+C1s 全rung spread×rung-stop,False
+C1a 浅档 spread×持有,True
+C1as 浅档 spread×stop,True
+C1b 深档 spread×持有,False
+C2 深档 LEAP ITM85 365d,False
+C2b 深档 LEAP ITM85 730d,True

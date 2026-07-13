@@ -9,7 +9,9 @@ Design:
 
   Sleeve A: ddATH ≤ -4%, no MA filter, T+1 open, DTE/width from
             strategy.q042_sizing（SPEC-094.5 起 ATM/+5%, DTE 30——参数不再 mirror）.
-  Sleeve B: ddATH ≤ -15% outer crossing → MA10 reclaim, DTE 90, ATM/+5% (unchanged).
+  Sleeve B: SPEC-094.7 阶梯 {-15,-25,-35,-45}% touch 即 fire（reclaim 已删）；
+            浅档 -15% → ATM/+5% spread D90，深档 ≤-25% → ITM85 LEAP D730
+            （SPX-equiv 尺度; 生产走 XSP）。
   Both:     10% account sizing (account_pct 显示口径), hold to expiry.
 
 Acceptance criteria:
@@ -76,6 +78,15 @@ def _bs_call(S: float, K: float, T: float, sigma: float, r: float = 0.04) -> flo
     from pricing import core as _core
     return float(_core.call_price(S, K, T, sigma, r, q=0.0))
 
+def _price_leap(S: float, K: float, vix: float, dte: int) -> float:
+    """SPEC-094.7 深档 ITM LEAP（SPX-equiv per-share；σ=VIX×0.875 括号中点，
+    q=1.6%——与 strategy.q042_sizing.compute_leap_sizing est 同convention）。"""
+    from pricing import core as _core
+    from strategy.q042_sizing import _B_LEAP_VOL_MULT
+    sigma = max(vix * _B_LEAP_VOL_MULT / 100.0, 0.01)
+    return float(_core.call_price(S, K, dte / 365.0, sigma, 0.045, q=0.016))
+
+
 def _price_spread(S: float, K_long: float, K_short: float, vix: float, dte: int) -> float:
     T = dte / 365.0
     sigma_atm = max(vix / 100.0, 0.10) * _term_mult(dte)
@@ -102,6 +113,8 @@ class Q042Trade:
     account_pct: float
     win: bool
     status: str = "CLOSED"  # "CLOSED" (expired) or "OPEN" (in-flight at backtest end, MTM)
+    instrument: str = "SPREAD"     # SPEC-094.7: SPREAD | XSP_LEAP（CSV 尺度为 SPX-equiv）
+    rung: Optional[float] = None   # SPEC-094.7: B 阶梯档位
 
 
 @dataclass
@@ -167,6 +180,8 @@ class _ActivePos:
     contracts: float
     expiry_date: str
     account_at_entry: float
+    instrument: str = "SPREAD"
+    rung: Optional[float] = None
 
 
 # ── Main walk-forward ─────────────────────────────────────────────────────────
@@ -187,11 +202,14 @@ def run_backtest(start: str = "2007-01-01", end: str = "2026-05-10") -> Backtest
     from signals.q042_trigger import get_q042_history
     entries_a, entries_b = get_q042_history(df, start=start, end=end)
     sig_a_set = {pd.Timestamp(e["signal_date"]) for e in entries_a}
-    sig_b_set = {pd.Timestamp(e["signal_date"]) for e in entries_b}
+    # SPEC-094.7: B 阶梯——按日期聚合（gap 崩盘单日可多档），保留 rung/instrument/dte
+    sig_b_map: dict = {}
+    for e in entries_b:
+        sig_b_map.setdefault(pd.Timestamp(e["signal_date"]), []).append(e)
 
     # ── Step 2: walk-forward pricing and P&L ─────────────────────────────────
     active_a: Optional[_ActivePos] = None
-    active_b: Optional[_ActivePos] = None
+    active_b: dict = {}                     # SPEC-094.7: rung → _ActivePos（并发）
     trades_a: list[Q042Trade] = []
     trades_b: list[Q042Trade] = []
     daily_rows: list[DailyRow] = []
@@ -209,9 +227,12 @@ def run_backtest(start: str = "2007-01-01", end: str = "2026-05-10") -> Backtest
     def _maybe_expire(pos: Optional[_ActivePos], trades: list, today: str, close: float) -> Optional[_ActivePos]:
         if pos is None or today < pos.expiry_date:
             return pos
-        long_payoff  = max(0.0, close - pos.long_strike)
-        short_payoff = max(0.0, close - pos.short_strike)
-        pnl_ps = long_payoff - short_payoff - pos.debit_per_share  # per share, net
+        if pos.instrument == "XSP_LEAP":
+            pnl_ps = max(0.0, close - pos.long_strike) - pos.debit_per_share
+        else:
+            long_payoff  = max(0.0, close - pos.long_strike)
+            short_payoff = max(0.0, close - pos.short_strike)
+            pnl_ps = long_payoff - short_payoff - pos.debit_per_share  # per share, net
         pnl    = pnl_ps * 100 * pos.contracts                      # total dollar P&L
         # account_pct matches research: (pnl_pct_debit / 100) * sizing_pct * 100
         # = pnl_ps / debit_per_share * sizing_pct
@@ -223,10 +244,12 @@ def run_backtest(start: str = "2007-01-01", end: str = "2026-05-10") -> Backtest
             long_strike=pos.long_strike, short_strike=pos.short_strike,
             contracts=pos.contracts, debit_per_share=pos.debit_per_share,
             exit_pnl=round(pnl, 2), account_pct=round(pct, 4), win=pnl_ps > 0,
+            instrument=pos.instrument, rung=pos.rung,
         ))
         return None
 
-    def _enter(sleeve_id: str, signal_dt, i: int) -> Optional[_ActivePos]:
+    def _enter(sleeve_id: str, signal_dt, i: int,
+               meta: Optional[dict] = None) -> Optional[_ActivePos]:
         if i + 1 >= len(df): return None
         next_row = df.iloc[i + 1]
         S_entry   = float(next_row["open"])
@@ -234,11 +257,21 @@ def run_backtest(start: str = "2007-01-01", end: str = "2026-05-10") -> Backtest
         vix_val   = float(df.iloc[i]["vix"]) if not pd.isna(df.iloc[i]["vix"]) else 20.0
         ath_val   = float(ath.iloc[i])
         dd_val    = float(ddath.iloc[i])
-        dte = _DTE_A if sleeve_id == "A" else _DTE_B
-        otm = _OTM_A if sleeve_id == "A" else _OTM_B
-        K_long    = round(sig_close / 5) * 5
-        K_short   = round(sig_close * (1 + otm) / 5) * 5
-        debit_ps  = _price_spread(S_entry, float(K_long), float(K_short), vix_val, dte)
+        instrument = (meta or {}).get("instrument", "SPREAD")
+        rung = (meta or {}).get("rung")
+        if instrument == "XSP_LEAP":
+            # SPEC-094.7 深档：SPX-equiv 尺度（K 按 XSP $1 粒度 ×10 对齐生产取整）
+            from strategy.q042_sizing import _B_LEAP_K_RATIO, _XSP_SCALE
+            dte = int((meta or {}).get("dte", 730))
+            K_long  = float(round(sig_close * _B_LEAP_K_RATIO / _XSP_SCALE) * _XSP_SCALE)
+            K_short = 0.0
+            debit_ps = _price_leap(S_entry, K_long, vix_val, dte)
+        else:
+            dte = _DTE_A if sleeve_id == "A" else int((meta or {}).get("dte", _DTE_B))
+            otm = _OTM_A if sleeve_id == "A" else _OTM_B
+            K_long    = float(round(sig_close / 5) * 5)
+            K_short   = float(round(sig_close * (1 + otm) / 5) * 5)
+            debit_ps  = _price_spread(S_entry, K_long, K_short, vix_val, dte)
         if debit_ps <= 0: return None
         # Use fractional contracts (1.0) — research does not filter by affordability.
         # P&L is computed as % of debit (research methodology), so integer contracts
@@ -248,10 +281,11 @@ def run_backtest(start: str = "2007-01-01", end: str = "2026-05-10") -> Backtest
             signal_date=signal_dt.strftime("%Y-%m-%d"),
             entry_date=df.index[i + 1].strftime("%Y-%m-%d"),
             ath_at_signal=ath_val, ddath_at_signal=dd_val,
-            long_strike=float(K_long), short_strike=float(K_short),
+            long_strike=K_long, short_strike=K_short,
             debit_per_share=debit_ps, contracts=1.0,
             expiry_date=_exp_date(signal_dt.strftime("%Y-%m-%d"), dte),
             account_at_entry=_NLV_SEED,
+            instrument=instrument, rung=rung,
         )
 
     for i, (dt, row) in enumerate(df.iterrows()):
@@ -260,19 +294,25 @@ def run_backtest(start: str = "2007-01-01", end: str = "2026-05-10") -> Backtest
         vix   = float(row["vix"]) if not pd.isna(row["vix"]) else 20.0
 
         active_a = _maybe_expire(active_a, trades_a, today_str, close)
-        active_b = _maybe_expire(active_b, trades_b, today_str, close)
+        for rk in list(active_b):
+            active_b[rk] = _maybe_expire(active_b[rk], trades_b, today_str, close)
+            if active_b[rk] is None:
+                del active_b[rk]
 
         # Enter on signal dates (positions must be closed — no-overlap already guaranteed)
         if dt in sig_a_set and active_a is None:
             active_a = _enter("A", dt, i)
 
-        if dt in sig_b_set and active_b is None:
-            active_b = _enter("B", dt, i)
+        for meta in sig_b_map.get(dt, []):
+            if meta["rung"] not in active_b:
+                pos = _enter("B", dt, i, meta)
+                if pos is not None:
+                    active_b[meta["rung"]] = pos
 
         bp_a = (active_a.debit_per_share * 100 * active_a.contracts / account * 100
                 if active_a else 0.0)
-        bp_b = (active_b.debit_per_share * 100 * active_b.contracts / account * 100
-                if active_b else 0.0)
+        bp_b = sum(p.debit_per_share * 100 * p.contracts / account * 100
+                   for p in active_b.values())
         daily_rows.append(DailyRow(
             date=today_str,
             sleeve_a_bp_pct=round(bp_a, 2),
@@ -294,7 +334,10 @@ def run_backtest(start: str = "2007-01-01", end: str = "2026-05-10") -> Backtest
             return
         expiry_dt = datetime.strptime(pos.expiry_date, "%Y-%m-%d")
         dte_remaining = max(1, (expiry_dt - end_dt).days)
-        mtm_ps = _price_spread(end_close, pos.long_strike, pos.short_strike, end_vix, dte_remaining)
+        if pos.instrument == "XSP_LEAP":
+            mtm_ps = _price_leap(end_close, pos.long_strike, end_vix, dte_remaining)
+        else:
+            mtm_ps = _price_spread(end_close, pos.long_strike, pos.short_strike, end_vix, dte_remaining)
         pnl_ps = mtm_ps - pos.debit_per_share
         pnl = pnl_ps * 100 * pos.contracts
         pct = (pnl_ps / pos.debit_per_share) * _SIZING_PCT
@@ -306,10 +349,12 @@ def run_backtest(start: str = "2007-01-01", end: str = "2026-05-10") -> Backtest
             contracts=pos.contracts, debit_per_share=pos.debit_per_share,
             exit_pnl=round(pnl, 2), account_pct=round(pct, 4),
             win=pnl_ps > 0, status="OPEN",
+            instrument=pos.instrument, rung=pos.rung,
         ))
 
     _record_open(active_a, trades_a)
-    _record_open(active_b, trades_b)
+    for pos in active_b.values():
+        _record_open(pos, trades_b)
 
     return BacktestResult(trades_a=trades_a, trades_b=trades_b, daily_rows=daily_rows)
 
@@ -351,6 +396,7 @@ def write_trades_csv(result: BacktestResult) -> None:
             "ath_at_signal", "ddath_at_signal",
             "long_strike", "short_strike", "contracts",
             "debit_per_share", "exit_pnl", "account_pct", "status",
+            "instrument", "rung",       # SPEC-094.7（旧消费方按列名读，尾插安全）
         ])
         for t in result.all_trades:
             w.writerow([
@@ -359,6 +405,7 @@ def write_trades_csv(result: BacktestResult) -> None:
                 int(t.long_strike), int(t.short_strike), round(t.contracts, 0),
                 round(t.debit_per_share, 4), round(t.exit_pnl, 2), round(t.account_pct, 4),
                 t.status,
+                t.instrument, ("" if t.rung is None else t.rung),
             ])
     print(f"  wrote {TRADES_CSV}")
 

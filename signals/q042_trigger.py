@@ -7,15 +7,19 @@ Two independent state machines:
     Re-arm  : ddATH ≥ -2% after position closes
     MA filter: none — T+1 open immediately
 
-  Sleeve B — q042_sleeve_b_dd15_lenient_ma10reclaim
-    Trigger (outer): ddATH ≤ -15% → enters "watching" mode
-    Trigger (inner): first close > MA10 within 30 trading days
-    Re-arm  : ddATH ≥ -2% after position closes
+  Sleeve B — q042_sleeve_b_ladder (SPEC-094.7, Q102 P2 门槛判定落地)
+    Rungs   : ddATH ≤ {-15%, -25%, -35%, -45%} — 每档独立 armed，touch 即
+              fire（T+1，immediate；MA10 reclaim 机制已删——Q102 P1 证明
+              深档 reclaim 全部踩在熊市反弹顶）
+    Re-arm  : ddATH ≥ -2% → 全体 rung 复位（每档每周期一发）
+    结构路由 : rung -15% → SPX ATM/+5% spread D90；rung ≤ -25% →
+              XSP ITM85 LEAP D730（strategy/q042_sizing 单真值）
 
 ddATH = SPX_close / running_ATH_since_2007 - 1
 
 State is persisted to data/q042_state.json so that process restarts
-do not reset the armed / in_watching flags.
+do not reset the armed flags. sleeve_b schema v2 (rungs dict)；v1 →
+v2 迁移在 load 路径完成。
 """
 
 from __future__ import annotations
@@ -37,9 +41,23 @@ STATE_FILE = REPO_ROOT / "data" / "q042_state.json"
 _ATH_SEED_DATE = "2007-01-01"
 _REARM_THRESHOLD = -0.02   # ddATH ≥ -2% to re-arm
 _DD4_THRESHOLD   = -0.04   # Sleeve A trigger
-_DD15_THRESHOLD  = -0.15   # Sleeve B outer trigger
-_WATCH_DAYS      = 30      # trading days in Sleeve B watch window
-_MA10_WINDOW     = 10
+# SPEC-094.7 Sleeve B ladder（结构性 10pp 步长，Q102 预注册值，禁拟合调整）
+_B_RUNGS         = (-0.15, -0.25, -0.35, -0.45)
+_B_STOP_FLOOR    = -0.55   # 最深档的击穿告警下界（F3）
+_DD15_THRESHOLD  = _B_RUNGS[0]   # legacy alias（浅档 = 原 outer trigger）
+_WATCH_DAYS      = 30      # legacy（v1 reclaim 机制已删；保留常量防外部 import 断裂）
+_MA10_WINDOW     = 10      # legacy（同上）
+
+
+def _rung_key(rung: float) -> str:
+    """-0.15 → \"-15\"（state JSON 键；整数百分比，阶梯为结构性整数步长）。"""
+    return str(int(round(rung * 100)))
+
+
+def rung_breach_level(rung: float) -> float:
+    """持仓 rung 的击穿告警线 = 下一档 rung（最深档 → _B_STOP_FLOOR）。"""
+    idx = _B_RUNGS.index(rung)
+    return _B_RUNGS[idx + 1] if idx + 1 < len(_B_RUNGS) else _B_STOP_FLOOR
 
 
 @dataclass
@@ -62,6 +80,7 @@ class Q042Snapshot:
     sleeve_b: SleeveState
     combined_bp_pct: float
     ath_degraded: bool = False   # SPEC-094.2 F7: state ATH missing/0 (see snapshot)
+    sleeve_b_rungs: dict = None  # SPEC-094.7: 阶梯全量 {"-15": {...}, ...}
 
     def __str__(self) -> str:
         return (
@@ -74,6 +93,16 @@ class Q042Snapshot:
 
 # ── State persistence ────────────────────────────────────────────────────────
 
+def _default_sleeve_b() -> dict:
+    return {
+        "schema": 2,
+        "rungs": {_rung_key(r): {"armed": True, "active_position_id": None,
+                                 "active_position_expiry": None}
+                  for r in _B_RUNGS},
+        "breach_alerted": [],
+    }
+
+
 def _default_state() -> dict:
     return {
         "ath_running_max": 0.0,
@@ -83,21 +112,35 @@ def _default_state() -> dict:
             "active_position_id": None,
             "active_position_expiry": None,
         },
-        "sleeve_b": {
-            "armed": True,
-            "in_watching": False,
-            "watch_start_date": None,
-            "active_position_id": None,
-            "active_position_expiry": None,
-        },
+        "sleeve_b": _default_sleeve_b(),
         "combined_bp_pct": 0.0,
     }
+
+
+def migrate_sleeve_b(sb: dict) -> dict:
+    """v1（armed/in_watching/单仓）→ v2（rungs 阶梯）。幂等；v2 原样返回。
+
+    映射：v1 的 armed 与在场仓位归 -15 档（v1 只有一个 outer trigger）；
+    深档全新 armed=True；in_watching 丢弃（reclaim 机制已删——若正处
+    watching，v1 语义下 armed 已 False，migration 后 -15 档不 armed，
+    与"本周期已触发过"一致）。
+    """
+    if not isinstance(sb, dict) or sb.get("schema") == 2:
+        return sb if isinstance(sb, dict) else _default_sleeve_b()
+    v2 = _default_sleeve_b()
+    shallow = v2["rungs"][_rung_key(_B_RUNGS[0])]
+    shallow["armed"] = bool(sb.get("armed", True)) and not sb.get("in_watching", False)
+    shallow["active_position_id"] = sb.get("active_position_id")
+    shallow["active_position_expiry"] = sb.get("active_position_expiry")
+    return v2
 
 
 def load_state() -> dict:
     if STATE_FILE.exists():
         try:
-            return json.loads(STATE_FILE.read_text())
+            st = json.loads(STATE_FILE.read_text())
+            st["sleeve_b"] = migrate_sleeve_b(st.get("sleeve_b", {}))
+            return st
         except Exception:
             pass
     return _default_state()
@@ -164,56 +207,32 @@ def update_sleeve_a(
 def update_sleeve_b(
     state_b: dict,
     ddath: float,
-    spx_close: float,
-    ma10: float,
     today: str,
-    trading_calendar: pd.DatetimeIndex,
-) -> dict:
+) -> list[dict]:
     """
-    Advance Sleeve B state machine one day.
+    Advance Sleeve B ladder state machine one day (SPEC-094.7).
 
-    Re-arm  : not armed AND no active position AND no watching AND ddATH ≥ -2%.
-    Outer   : armed AND ddATH ≤ -15% → enter watching.
-    Inner   : in watching AND close > MA10 → fire.
-    Expire  : watching > 30 trading days → drop trigger.
+    Re-arm : ddATH ≥ -2% → 全体 rung armed=True（position-agnostic，同 A：
+             闩锁语义——armed 期间被在场仓位挡住的触发，仓位一到期即补发）。
+    Fire   : 对每个 rung r：armed AND ddATH ≤ r AND 该档无在场仓 → fire。
+             gap 崩盘单日可跨多档 → 返回多个 fire。armed 在 fire 时消耗。
 
-    Returns action dict: {"action": "enter_watching"|"fire_B"|"watch_expired"|"none"}
+    Returns list of action dicts: [{"action": "fire_B", "rung": -0.25,
+    "date": today}, ...]（无动作 → 空表）。调用方按 rung 路由结构
+    （strategy.q042_sizing：-15 → spread，≤ -25 → XSP LEAP）。
     """
-    has_pos = bool(state_b.get("active_position_id"))
-
-    # Re-arm: position-agnostic (same rationale as Sleeve A).
-    if (
-        not state_b["armed"]
-        and not state_b["in_watching"]
-        and ddath >= _REARM_THRESHOLD
-    ):
-        state_b["armed"] = True
-
-    if (
-        state_b["armed"]
-        and not state_b["in_watching"]
-        and ddath <= _DD15_THRESHOLD
-        and not has_pos
-    ):
-        state_b["in_watching"] = True
-        state_b["watch_start_date"] = today
-        state_b["armed"] = False
-        return {"action": "enter_watching"}
-
-    if state_b["in_watching"]:
-        days_in_watch = _trading_days_between(
-            state_b["watch_start_date"], today, trading_calendar
-        )
-        if days_in_watch > _WATCH_DAYS:
-            state_b["in_watching"] = False
-            state_b["watch_start_date"] = None
-            return {"action": "watch_expired"}
-        if spx_close > ma10:
-            state_b["in_watching"] = False
-            state_b["watch_start_date"] = None
-            return {"action": "fire_B", "date": today}
-
-    return {"action": "none"}
+    actions: list[dict] = []
+    rungs = state_b["rungs"]
+    if ddath >= _REARM_THRESHOLD:
+        for rk in rungs:
+            rungs[rk]["armed"] = True
+    for r in _B_RUNGS:
+        rs = rungs[_rung_key(r)]
+        has_pos = bool(rs.get("active_position_id"))
+        if rs["armed"] and ddath <= r and not has_pos:
+            rs["armed"] = False
+            actions.append({"action": "fire_B", "rung": r, "date": today})
+    return actions
 
 
 # ── Live snapshot ─────────────────────────────────────────────────────────────
@@ -271,17 +290,27 @@ def get_current_q042_snapshot(
             active_position_id=sa.get("active_position_id"),
             active_position_expiry=sa.get("active_position_expiry"),
         ),
-        sleeve_b=SleeveState(
-            sleeve_id="B",
-            armed=bool(sb.get("armed", True)),
-            in_watching=bool(sb.get("in_watching", False)),
-            watch_start_date=sb.get("watch_start_date"),
-            active_position_id=sb.get("active_position_id"),
-            active_position_expiry=sb.get("active_position_expiry"),
-        ),
+        sleeve_b=_sleeve_b_snapshot(sb),
         combined_bp_pct=float(state.get("combined_bp_pct", 0.0)),
         ath_degraded=ath_degraded,
+        sleeve_b_rungs=sb.get("rungs", {}),
     )
+
+
+def _sleeve_b_snapshot(sb: dict) -> SleeveState:
+    """v2 rungs → 向后兼容的聚合 SleeveState（armed = 任一 rung armed；
+    position 取最浅在场档；in_watching 恒 False——reclaim 机制已删）。"""
+    rungs = sb.get("rungs", {})
+    armed_any = any(r.get("armed", True) for r in rungs.values()) if rungs else True
+    pos_id, pos_exp = None, None
+    for r in _B_RUNGS:
+        rs = rungs.get(_rung_key(r), {})
+        if rs.get("active_position_id"):
+            pos_id, pos_exp = rs["active_position_id"], rs.get("active_position_expiry")
+            break
+    return SleeveState(sleeve_id="B", armed=armed_any, in_watching=False,
+                       watch_start_date=None, active_position_id=pos_id,
+                       active_position_expiry=pos_exp)
 
 
 # ── Walk-forward history (for backtest / AC1 verification) ───────────────────
@@ -303,8 +332,11 @@ def get_q042_history(
 
     Returns:
         (sleeve_a_entries, sleeve_b_entries) — each entry is a dict with
-        {signal_date, entry_date, ath_at_signal, ddath_at_signal}.
+        {signal_date, entry_date, ath_at_signal, ddath_at_signal}；B 侧另含
+        {rung, instrument, dte}（SPEC-094.7 阶梯）。
     """
+    from strategy.q042_sizing import b_rung_structure   # 结构路由单真值（lazy）
+
     df = spx_df.copy()
     df.index = pd.to_datetime(df.index).tz_localize(None)
     cols = {c.lower(): c for c in df.columns}
@@ -312,20 +344,11 @@ def get_q042_history(
         df = df.rename(columns={v: k for k, v in cols.items()})
     df = df.loc[start:end].copy()
 
-    trading_calendar = df.index
-    ma10 = df["close"].rolling(_MA10_WINDOW).mean()
-
     # Running ATH from 2007-01-01 (cumulative max)
     ath_series = df["close"].cummax()
 
     state_a: dict = {"armed": True, "active_position_id": None, "active_position_expiry": None}
-    state_b: dict = {
-        "armed": True,
-        "in_watching": False,
-        "watch_start_date": None,
-        "active_position_id": None,
-        "active_position_expiry": None,
-    }
+    state_b: dict = _default_sleeve_b()
 
     entries_a: list[dict] = []
     entries_b: list[dict] = []
@@ -335,20 +358,20 @@ def get_q042_history(
         spx_close = float(row["close"])
         ath = float(ath_series.iloc[i])
         ddath = spx_close / ath - 1.0
-        ma10_val = float(ma10.iloc[i]) if not pd.isna(ma10.iloc[i]) else spx_close
 
         # Check expiry for Sleeve A
         if state_a["active_position_expiry"] and today_str >= state_a["active_position_expiry"]:
             state_a["active_position_id"] = None
             state_a["active_position_expiry"] = None
 
-        # Check expiry for Sleeve B
-        if state_b["active_position_expiry"] and today_str >= state_b["active_position_expiry"]:
-            state_b["active_position_id"] = None
-            state_b["active_position_expiry"] = None
+        # Check expiry per Sleeve B rung
+        for rs in state_b["rungs"].values():
+            if rs["active_position_expiry"] and today_str >= rs["active_position_expiry"]:
+                rs["active_position_id"] = None
+                rs["active_position_expiry"] = None
 
         act_a = update_sleeve_a(state_a, ddath, today_str)
-        act_b = update_sleeve_b(state_b, ddath, spx_close, ma10_val, today_str, trading_calendar)
+        acts_b = update_sleeve_b(state_b, ddath, today_str)
 
         if act_a["action"] == "fire_A":
             entry_date = (dt + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
@@ -363,17 +386,23 @@ def get_q042_history(
             state_a["active_position_id"] = f"A-{today_str}"
             state_a["active_position_expiry"] = expiry
 
-        if act_b["action"] == "fire_B":
+        for act in acts_b:
+            rung = act["rung"]
+            struct = b_rung_structure(rung)
             entry_date = (dt + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-            expiry = (dt + pd.Timedelta(days=91)).strftime("%Y-%m-%d")  # entry+90 DTE (Sleeve B unchanged)
+            expiry = (dt + pd.Timedelta(days=1 + struct["dte"])).strftime("%Y-%m-%d")
             entries_b.append({
                 "signal_date": today_str,
                 "entry_date": entry_date,
                 "ath_at_signal": ath,
                 "ddath_at_signal": ddath,
+                "rung": rung,
+                "instrument": struct["instrument"],
+                "dte": struct["dte"],
             })
-            state_b["active_position_id"] = f"B-{today_str}"
-            state_b["active_position_expiry"] = expiry
+            rs = state_b["rungs"][_rung_key(rung)]
+            rs["active_position_id"] = f"B{_rung_key(rung)}-{today_str}"
+            rs["active_position_expiry"] = expiry
 
     return entries_a, entries_b
 

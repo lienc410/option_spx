@@ -2244,16 +2244,24 @@ def q042_state_payload() -> dict:
             "target_cap_pct": Q042_SLEEVE_A_TARGET_CAP_PCT,
         },
         "sleeve_b": {
+            # SPEC-094.7 阶梯（reclaim/watching 已删）；浅档结构键保留原名
             "otm_pct": _sz._OTM_PCT_B * 100.0,
             "otm_mult": 1.0 + _sz._OTM_PCT_B,
             "dte": _sz._DTE_B,
             "trigger_ddath_pct": _tr._DD15_THRESHOLD * 100.0,
-            "watch_days": _tr._WATCH_DAYS,
-            "ma_window": _tr._MA10_WINDOW,
+            "rungs_pct": [r * 100.0 for r in _tr._B_RUNGS],
+            "rearm_ddath_pct": _tr._REARM_THRESHOLD * 100.0,
+            "deep": {
+                "threshold_pct": _sz._B_DEEP_THRESHOLD * 100.0,
+                "instrument": "XSP_LEAP",
+                "k_ratio": _sz._B_LEAP_K_RATIO,
+                "dte": _sz._B_LEAP_DTE,
+            },
             "production_cap_pct": Q042_SLEEVE_B_PRODUCTION_CAP_PCT,
             "paper_sizing_pct": Q042_SLEEVE_B_PAPER_SIZING_PCT,
         },
     }
+    from production.q042_positions import get_active_positions_list
     snap = get_current_q042_snapshot()
     positions = get_active_positions(paper=True)
     stats = get_lifetime_stats(paper=True)
@@ -2292,12 +2300,16 @@ def q042_state_payload() -> dict:
             "stats": stats.get("A", {}),
         },
         "sleeve_b": {
-            "armed": snap.sleeve_b.armed,
+            "armed": snap.sleeve_b.armed,       # 任一 rung armed（聚合）
             "production_status": "research_only",
             "production_cap_pct": Q042_SLEEVE_B_PRODUCTION_CAP_PCT,
-            "in_watching": snap.sleeve_b.in_watching,
-            "watch_start_date": snap.sleeve_b.watch_start_date,
-            "active_position": _pos_dict(positions.get("B")),
+            "rungs": snap.sleeve_b_rungs or {},  # SPEC-094.7 阶梯全量
+            "active_position": _pos_dict(positions.get("B")),   # legacy 单仓
+            "active_positions": [                                 # 阶梯多仓
+                {**_pos_dict(pp), "instrument": pp.instrument, "rung": pp.rung}
+                for pp in get_active_positions_list(paper=True)
+                if pp.sleeve_id == "B"
+            ],
             "stats": stats.get("B", {}),
         },
         "combined_bp_pct": snap.combined_bp_pct,
@@ -2602,6 +2614,39 @@ def api_q042_draft():
     if sleeve not in ("A", "B"):
         return jsonify({"status": "error", "error": "sleeve must be A or B"}), 400
 
+    # SPEC-094.7: B 深档（rung ≤ -25%）→ XSP ITM LEAP 简化 draft（无 chain scan——
+    # 730DTE LEAP 链不在采集窗口内，strikes/est 供参考，PM 按真实 XSP 链核对）
+    rung_arg = flask_req.args.get("rung")
+    if sleeve == "B" and rung_arg not in (None, ""):
+        try:
+            rung = float(rung_arg)
+        except ValueError:
+            return jsonify({"status": "error", "error": "rung must be numeric"}), 400
+        from strategy.q042_sizing import _B_LEAP_DTE, b_rung_structure
+        if b_rung_structure(rung)["instrument"] == "XSP_LEAP":
+            try:
+                from schwab.client import get_spx_quote, get_vix_quote
+                spx_q = float(get_spx_quote().get("last") or 0)
+                vix_q = float(get_vix_quote().get("last") or 0)
+                from production.q042_executor import _fetch_nlv
+                nlv_q = float(_fetch_nlv() or 0)
+                from strategy.q042_sizing import compute_leap_sizing
+                k_xsp, _, cts, est = compute_leap_sizing(nlv_q, spx_q, vix_q)
+                exp = (datetime.now(_ET).date() + timedelta(days=1 + _B_LEAP_DTE)).isoformat()
+                return jsonify({
+                    "status": "ok", "sleeve": "B", "rung": rung,
+                    "instrument": "XSP_LEAP", "symbol": "XSP",
+                    "long_strike": k_xsp, "short_strike": None,
+                    "contracts": cts, "est_debit": est, "expiry": exp,
+                    "entry_target_date": (datetime.now(_ET).date() + timedelta(days=1)).isoformat(),
+                    "chain_message": "LEAP 无 chain scan——est 为括号中点估价，按真实 XSP 链核对后成交",
+                    "strike_scan": {"long_leg": [], "short_leg": [],
+                                    "long_recommended": None, "short_recommended": None,
+                                    "scan_fallback": True},
+                })
+            except Exception as exc:
+                return jsonify({"status": "unavailable", "reason": f"leap draft failed: {exc}"})
+
     try:
         from backtest.pricer import call_price
         from schwab.client import _bsm_delta_put, get_spx_quote, get_vix_quote
@@ -2770,7 +2815,25 @@ def api_q042_position_open():
     if sleeve not in ("A", "B"):
         return jsonify({"status": "error", "error": "sleeve_id must be A or B"}), 400
 
-    required = ["long_strike", "short_strike", "contracts", "expiry"]
+    # SPEC-094.7: B 带 rung（默认浅档 -15）；深档 = XSP 单腿 LEAP（无 short）
+    rung = None
+    instrument, symbol = "SPREAD", "SPX"
+    if sleeve == "B":
+        from signals.q042_trigger import _B_RUNGS
+        from strategy.q042_sizing import b_rung_structure
+        try:
+            rung = float(data.get("rung") if data.get("rung") not in (None, "") else -0.15)
+        except (TypeError, ValueError):
+            return jsonify({"status": "error", "error": "rung must be numeric"}), 400
+        if rung not in _B_RUNGS:
+            return jsonify({"status": "error",
+                            "error": f"rung must be one of {list(_B_RUNGS)}"}), 400
+        struct = b_rung_structure(rung)
+        instrument, symbol = struct["instrument"], struct["symbol"]
+
+    required = ["long_strike", "contracts", "expiry"]
+    if instrument != "XSP_LEAP":
+        required.append("short_strike")
     missing = [k for k in required if data.get(k) in (None, "")]
     if missing:
         return jsonify({"status": "error", "error": f"missing fields: {', '.join(missing)}"}), 400
@@ -2786,8 +2849,11 @@ def api_q042_position_open():
         "entry_target_date": data.get("entry_target_date") or (datetime.fromisoformat(signal_date).date() + timedelta(days=1)).isoformat(),
         "expiry":            data.get("expiry"),
         "option_type":       "CALL",
+        "instrument":        instrument,     # SPEC-094.7
+        "symbol":            symbol,
+        "rung":              rung,
         "long_strike":       int(data.get("long_strike")),
-        "short_strike":      int(data.get("short_strike")),
+        "short_strike":      int(data.get("short_strike") or 0),
         "contracts":         int(data.get("contracts")),
         "est_debit":         float(data.get("est_debit") or 0.0),
         "fill_debit":        float(data["fill_debit"]) if data.get("fill_debit") not in (None, "") else None,
@@ -2809,9 +2875,12 @@ def api_q042_position_open():
         from signals.q042_trigger import load_state as _q042_load_state
         from signals.q042_trigger import save_state as _q042_save_state
 
-        skey = "sleeve_a" if sleeve == "A" else "sleeve_b"
         tstate = _q042_load_state()
-        slot = tstate.setdefault(skey, {})
+        if sleeve == "A":
+            slot = tstate.setdefault("sleeve_a", {})
+        else:
+            from signals.q042_trigger import _rung_key
+            slot = tstate["sleeve_b"]["rungs"][_rung_key(rung)]
         cur_id = slot.get("active_position_id")
         if cur_id == rec["trade_id"]:
             state_synced = True                     # already synced — idempotent no-op

@@ -379,13 +379,14 @@ def test_ac6_gate_zero_blocks_sleeve_a(q042_env, monkeypatch):
 def test_ac6_fire_b_is_fyi_by_design(q042_env, monkeypatch):
     today = "2026-07-08"
     _write_json(q042_env["runtime"], _healthy_runtime())  # gate available
-    # Sleeve B fires via inner trigger: in_watching + close>ma10.
+    # SPEC-094.7: B 阶梯语义——-15 档 touch 即 fire（reclaim 场景已随机制删除）。
+    # ddath = 950/1150-1 = -17.4% → B -15 档 fire；Sleeve A 置 armed=False
+    # （深回撤中未 re-arm）保持本测试只观察 B 的 by-design 拦截。
     _write_json(q042_env["state_file"], _default_state(
-        ath_running_max=980.0,   # ddath = 950/980-1 = -3.06% (Sleeve A does NOT fire)
-        sleeve_b={"armed": False, "in_watching": True, "watch_start_date": today,
-                  "active_position_id": None, "active_position_expiry": None},
+        ath_running_max=1150.0,
+        sleeve_a={"armed": False, "active_position_id": None,
+                  "active_position_expiry": None},
     ))
-    # ma10 = 900 < spx_close 950 → inner fire_B; feed 12 flat closes at 900.
     _patch_market(monkeypatch, spx_close=950.0, today_str=today,
                   ma10_closes=[900.0] * 12)
 

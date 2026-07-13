@@ -3988,3 +3988,12 @@ Owner: Planner or PM
 - **结构性发现**: 深 rung 的 MA10 reclaim 是熊市反弹顶陷阱（2008 三连 −146.9k）——现任 B 活得好恰因 reclaim 只用在首次 −15%；该机制不可下放深 rung
 - **Confirmatory 预注册草案**: 候选收敛两个（ladder-immediate+rung-stop+5%/90；深 rung ITM85 LEAP via XSP）；promote 门槛 = CALIB+STRESS/两括号端同时 ≥ 指数基准；危机 LEAP 真实链为第一数据缺口；n 永远 <8 → thesis-based + 括号边界，PM 裁决；B 维持 production 0%
 - **文件**: research/q102/ q102_p1_b_redesign.py + 4 CSV + findings
+
+### R-20260713-01 — Q102 P2 confirmatory + SPEC-094.7 落地：Sleeve B 深跌阶梯（PM 授权自主推进，CLOSED 2026-07-13）
+
+- **P2 自审修尺**（ruler audit）: 指数基准补股息 1.8%/yr（保守向）、LEAP 深档子集单判、settle jitter 补测
+- **预注册门槛判定**（vs 含股息指数基准，CALIB+STRESS/两括号端同时）: 浅档 −15 immediate×持有×5%/90 ✅（+323/+164 vs +41）；深档 spread 全宽度 ❌；深档 ITM85 LEAP 365d ❌（×1.0 端败）、**730d ✅（+210/+132 vs +105）**；自动 rung-stop ❌（压力档 −2.1k）→ 降级 FYI 告警；jitter D75/90/105 全过。剂量-响应自洽：浅档买反弹（90d 够），深档买周期复原（要 2y 跑道）
+- **最终设计**: B = 阶梯 {−15,−25,−35,−45} touch 即 fire（reclaim 删除——深档 reclaim 是熊市反弹顶陷阱）、每档每周期一发、−2% 全档复位；浅档 SPX spread 5%/90，深档 XSP ITM85 LEAP 730d；持仓 rung 击穿 → FYI 一生一次（割肉裁量归 PM）；production cap 0 不动（paper-only）
+- **实现（四层同步）**: signals/q042_trigger（状态机 v2 + schema 迁移 + 走查）、strategy/q042_sizing（b_rung_structure + compute_leap_sizing 单真值）、production/q042_executor+positions（多发循环、instrument 结算分支含 short_strike=0 毒化守卫、trade_id 槽位、击穿 FYI）、backtest/q042_engine（阶梯+LEAP 定价）、web（params/payload/手动开仓/draft/模板 rung 化）
+- **验收**: AC-94.7-1..7 全过；走查对齐 10/10；全套回归 81 passed；A 侧 38 事件零扰动
+- **文件**: research/q102/q102_p2_confirmatory.py + q102_p2_gates.csv + findings §7（P2 补记）；task/SPEC-094.7.md

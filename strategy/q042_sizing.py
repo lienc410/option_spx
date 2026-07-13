@@ -29,10 +29,52 @@ from strategy.q042_pricing import estimate_debit
 _NLV_MINIMUM    = 200_000.0   # activation threshold
 _STRIKE_ROUND   = 5.0         # $5 increments
 _OTM_PCT_A      = 0.05        # Sleeve A: ATM/+5% (SPEC-094.5; 094.1 的 2.5% 被 Q100 P1 推翻)
-_OTM_PCT_B      = 0.05        # Sleeve B: ATM/+5%  (unchanged)
+_OTM_PCT_B      = 0.05        # Sleeve B 浅档: ATM/+5%  (unchanged)
 _DTE_A          = 30          # Sleeve A: 30 DTE   (SPEC-094.1)
-_DTE_B          = 90          # Sleeve B: 90 DTE   (unchanged)
+_DTE_B          = 90          # Sleeve B 浅档: 90 DTE (unchanged)
 _SPX_MULTIPLIER = 100         # SPX contract multiplier
+
+# SPEC-094.7 — Sleeve B 深档结构（Q102 P2 门槛：spread 全宽度深档 FAIL，
+# ITM85 LEAP 730d 两括号端 PASS）。paper-only；production cap 仍 0。
+_B_DEEP_THRESHOLD = -0.25     # rung ≤ 此值 → LEAP 结构
+_B_LEAP_K_RATIO   = 0.85      # ITM 股票替代惯例（≈0.8Δ），Q102 预注册值
+_B_LEAP_DTE       = 730       # 365d 括号一端 FAIL，730d 两端 PASS（周期复原跑道）
+_B_LEAP_VOL_MULT  = 0.875     # est 估价用括号 [0.75,1.0] 中点；真实 fill 走 pending-fill
+_XSP_SCALE        = 10.0      # XSP = SPX/10（SPX LEAP 单张超预算 → XSP 落地）
+
+
+def b_rung_structure(rung: float) -> dict:
+    """Sleeve B 结构路由（单真值；trigger 走查 / executor / engine 共用）。"""
+    if rung <= _B_DEEP_THRESHOLD:
+        return {"instrument": "XSP_LEAP", "dte": _B_LEAP_DTE, "symbol": "XSP"}
+    return {"instrument": "SPREAD", "dte": _DTE_B, "symbol": "SPX"}
+
+
+def compute_leap_sizing(
+    nlv: float,
+    spx_close: float,
+    vix: float,
+) -> Tuple[Optional[float], None, int, Optional[float]]:
+    """深档 XSP ITM LEAP sizing（SPEC-094.7 F2）。
+
+    Returns (long_strike_xsp, None, contracts, est_debit_per_contract_usd)。
+    K = round(S×0.85/10)（XSP $1 粒度）；est = BS(σ=VIX×0.875, q=1.6%,
+    r=4.5%)/10 ×100（per-contract USD）。est 仅供告警/草稿；paper 实际
+    fill 由 SPEC-094.3 pending-fill 流程记录。
+    """
+    if nlv < _NLV_MINIMUM:
+        return None, None, 0, None
+    from pricing import core as _core
+    k_xsp = float(round(spx_close * _B_LEAP_K_RATIO / _XSP_SCALE))
+    k_spx = k_xsp * _XSP_SCALE
+    sigma = max(vix * _B_LEAP_VOL_MULT / 100.0, 0.01)
+    px_spx = _core.call_price(spx_close, k_spx, _B_LEAP_DTE / 365.0, sigma,
+                              0.045, q=0.016)
+    debit_per_contract = px_spx / _XSP_SCALE * 100.0     # XSP per-contract USD
+    if debit_per_contract <= 0:
+        return k_xsp, None, 0, None
+    target = nlv * (Q042_SLEEVE_B_PAPER_SIZING_PCT / 100.0)
+    return k_xsp, None, int(target // debit_per_contract), round(debit_per_contract, 2)
 
 
 def q042_sleeve_cap_pct(sleeve_id: str = "A") -> float:

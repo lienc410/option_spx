@@ -245,19 +245,18 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
       <div class="spec-sleeve-card" style="border-top:3px solid var(--orange)">
         <div class="spec-sleeve-hd">
           <span class="spec-sleeve-id" style="color:var(--orange)">Sleeve B</span>
-          <span style="font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2)">dd15 + MA10 reclaim</span>
+          <span style="font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2)">深跌阶梯 · touch 即 fire</span>
         </div>
         <div class="spec-sleeve-body">
           <div class="spec-row"><span class="spec-row-key">结构</span><span class="spec-row-val" id="p-b-struct">—</span></div>
           <div class="spec-row"><span class="spec-row-key">Sizing</span><span class="spec-row-val" id="p-b-sizing">—</span></div>
-          <div class="spec-row"><span class="spec-row-key">触发（外）</span><span class="spec-row-val" id="p-b-trigger">—</span></div>
-          <div class="spec-row"><span class="spec-row-key">触发（内）</span><span class="spec-row-val"><b>close > MA10</b>（MA10 reclaim）</span></div>
-          <div class="spec-row"><span class="spec-row-key">入场时机</span><span class="spec-row-val">MA10 reclaim 日次日开盘（T+1）</span></div>
-          <div class="spec-row"><span class="spec-row-key">Watching 窗口</span><span class="spec-row-val" id="p-b-watch">—</span></div>
-          <div class="spec-row"><span class="spec-row-key">MA10</span><span class="spec-row-val" id="p-b-ma">—</span></div>
+          <div class="spec-row"><span class="spec-row-key">触发</span><span class="spec-row-val" id="p-b-trigger">—</span></div>
+          <div class="spec-row"><span class="spec-row-key">入场时机</span><span class="spec-row-val">touch 日次日开盘（T+1）——深档 reclaim 是熊市反弹顶陷阱（Q102 P1）</span></div>
+          <div class="spec-row"><span class="spec-row-key">深档结构</span><span class="spec-row-val" id="p-b-deep">—</span></div>
+          <div class="spec-row"><span class="spec-row-key">Re-arm</span><span class="spec-row-val" id="p-b-rearm">—</span></div>
           <div class="spec-divider"></div>
           <div class="spec-guard">
-            ⚠ 两个阶段缺一不可：先 dd15 进入 watching，再 MA10 reclaim 才入场。<br>30 日无 reclaim → 放弃，重新等待 dd15。
+            ⚠ 每档每周期一发；持仓 rung 被跌破下一档 → FYI 告警（自动止损被 Q102 门槛否决，割肉裁量归 PM）。<br>production cap 0%——触发只出告警，入场经手动 open（paper）。
           </div>
         </div>
       </div>
@@ -301,18 +300,18 @@ function _applyQ042Params(p) {
   if (p.sleeve_b?.trigger_ddath_pct != null) SLEEVE_B_THRESH = p.sleeve_b.trigger_ddath_pct;
   const a = p.sleeve_a || {}, b = p.sleeve_b || {};
   const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
-  set('p-hero-meta', `SPX call vertical (debit) · ddATH trigger · Sleeve A (dd${Math.abs(a.trigger_ddath_pct)}, ${a.dte}d) / Sleeve B (dd${Math.abs(b.trigger_ddath_pct)}+MA${b.ma_window}, ${b.dte}d)`);
+  set('p-hero-meta', `SPX call vertical (debit) · ddATH trigger · Sleeve A (dd${Math.abs(a.trigger_ddath_pct)}, ${a.dte}d) / Sleeve B ladder (${(b.rungs_pct||[]).map(r=>r).join('/')}%)`);
   set('p-gate', `min(${p.gate?.cap_max_pct}%, max(0%, ${p.gate?.main_bp_budget_pct}% − main_bp%))`);
   set('p-rearm', `仓位到期后 AND ddATH ≥ ${_pm(p.rearm_ddath_pct)}%`);
   set('p-a-struct', `<b>Long ATM call / Short ATM×${a.otm_mult} call</b>（+${a.otm_pct}% OTM）· <b>${a.dte} DTE</b>`);
   set('p-a-sizing', `<b>Stage 1: ${a.production_cap_pct}%</b> NLV（target ${a.target_cap_pct}%，production）`);
   set('p-a-trigger', `<b>ddATH ≤ ${_pm(a.trigger_ddath_pct)}%</b>（首次穿越）`);
   set('p-a-guard', `⚠ 仅第一次穿越触发；armed=False 后不再响应，直至仓位到期 + ddATH 回升 ≥ ${_pm(p.rearm_ddath_pct)}%。`);
-  set('p-b-struct', `<b>Long ATM call / Short ATM×${b.otm_mult} call</b>（+${b.otm_pct}% OTM）· <b>${b.dte} DTE</b>`);
-  set('p-b-sizing', `<b>Paper ${b.paper_sizing_pct}%</b> NLV（production ${b.production_cap_pct}% · research-only）`);
-  set('p-b-trigger', `<b>ddATH ≤ ${_pm(b.trigger_ddath_pct)}%</b> → 进入 Watching`);
-  set('p-b-watch', `最多 <b>${b.watch_days} 个交易日</b>；超时则放弃`);
-  set('p-b-ma', `SPX close ${b.ma_window} 日滚动均值`);
+  set('p-b-struct', `浅档 ${_pm(b.trigger_ddath_pct)}%：<b>Long ATM / Short ATM×${b.otm_mult} call</b>（+${b.otm_pct}%）· <b>${b.dte} DTE</b>`);
+  set('p-b-sizing', `<b>Paper ${b.paper_sizing_pct}%</b> NLV / entry（production ${b.production_cap_pct}% · research-only）`);
+  set('p-b-trigger', `阶梯 <b>${(b.rungs_pct||[]).map(r=>_pm(r)+'%').join(' / ')}</b>——touch 即 fire（每档每周期一发）`);
+  set('p-b-deep', `≤ ${_pm(b.deep?.threshold_pct)}%：<b>XSP ITM LEAP</b>（K=${b.deep?.k_ratio}×S · ${b.deep?.dte} DTE 单腿）<span class="spec-ref">SPEC-094.7</span>`);
+  set('p-b-rearm', `ddATH ≥ ${_pm(b.rearm_ddath_pct)}% → 全档复位`);
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -328,7 +327,6 @@ function sleeveState(s, pos) {
   // API 的 active_position = "最近 active 或最后已结算" —— 必须看 is_active，
   // 否则已到期结算的仓位会把 sleeve 渲染成「仓位开立中」（2026-07-12 实况）。
   if (pos && pos.is_active) return 'active';
-  if (s.in_watching) return 'watching';
   if (s.armed) return 'armed';
   if (pos && pos.is_active === false) return 'settled';   // 待 EOD re-arm 评估
   return 'unknown';
@@ -423,7 +421,7 @@ async function loadState() {
             <span class="sleeve-id" style="color:var(--orange)">Sleeve B</span>
             ${stateBadge(stateB)}
           </div>
-          <div class="sleeve-label">${Q042_PARAMS ? `SPX call vertical（debit）· ddATH ≤ ${_pm(Q042_PARAMS.sleeve_b.trigger_ddath_pct)}% + close > MA${Q042_PARAMS.sleeve_b.ma_window} · ATM/+${Q042_PARAMS.sleeve_b.otm_pct}% · ${Q042_PARAMS.sleeve_b.dte} DTE` : 'SPX call vertical（debit）'}</div>
+          <div class="sleeve-label">${Q042_PARAMS ? `深跌阶梯 ${(Q042_PARAMS.sleeve_b.rungs_pct||[]).map(r=>_pm(r)+'%').join('/')} · 浅档 spread +${Q042_PARAMS.sleeve_b.otm_pct}%/${Q042_PARAMS.sleeve_b.dte}D · 深档 XSP LEAP ${Q042_PARAMS.sleeve_b.deep?.dte}D` : '深跌阶梯（SPEC-094.7）'}</div>
         </div>
         <div class="sleeve-metrics">
           <div class="sleeve-metric-row">
@@ -431,12 +429,12 @@ async function loadState() {
             <span class="sm-value ${ddath <= SLEEVE_B_THRESH ? 'danger' : ddath <= -10 ? 'warn' : ''}">${ddath.toFixed(2)}%</span>
           </div>
           <div class="sleeve-metric-row">
-            <span class="sm-label">Watching since</span>
-            <span class="sm-value">${d.sleeve_b?.watch_start_date || '—'}</span>
+            <span class="sm-label">Rungs armed</span>
+            <span class="sm-value">${(() => { const rg = d.sleeve_b?.rungs || {}; const ks = Object.keys(rg).sort((x,y)=>Number(y)-Number(x)); return ks.length ? ks.map(k => `<span title="rung ${k}%" style="opacity:${rg[k].armed?1:0.35}">${k}${rg[k].active_position_id?'●':(rg[k].armed?'○':'×')}</span>`).join(' ') : '—'; })()}</span>
           </div>
           <div class="sleeve-metric-row">
-            <span class="sm-label">MA10 condition</span>
-            <span class="sm-value" id="ma10-badge">Loading…</span>
+            <span class="sm-label">Ladder positions</span>
+            <span class="sm-value">${(d.sleeve_b?.active_positions||[]).filter(p=>p.is_active).length || '0'} open</span>
           </div>
         </div>
         <div class="gauge-wrap">
@@ -599,7 +597,13 @@ async function openQ042Modal(kind, sleeve) {
           <label class="modal-label">Sleeve</label>
           <select id="q042-sleeve" class="modal-select" onchange="_q042LoadDraft()">
             <option value="A" ${sleeve==='A'?'selected':''}>A · dd${Math.abs(SLEEVE_A_THRESH)} · ${Q042_PARAMS?.sleeve_a?.dte ?? '—'}d · +${Q042_PARAMS?.sleeve_a?.otm_pct ?? '—'}%</option>
-            <option value="B" ${sleeve==='B'?'selected':''}>B · dd${Math.abs(SLEEVE_B_THRESH)}+MA${Q042_PARAMS?.sleeve_b?.ma_window ?? '—'} · ${Q042_PARAMS?.sleeve_b?.dte ?? '—'}d · +${Q042_PARAMS?.sleeve_b?.otm_pct ?? '—'}%</option>
+            <option value="B" ${sleeve==='B'?'selected':''}>B · 阶梯 ${(Q042_PARAMS?.sleeve_b?.rungs_pct||[]).join('/')}% · 浅spread/深LEAP</option>
+          </select>
+        </div>
+        <div class="modal-field" id="q042-rung-field" style="${sleeve==='B'?'':'display:none'}">
+          <label class="modal-label">B Rung <span style="color:var(--text-2);font-size:0.55rem;text-transform:none;letter-spacing:0">≤−25% = XSP LEAP 单腿</span></label>
+          <select id="q042-rung" class="modal-select" onchange="_q042LoadDraft()">
+            ${(Q042_PARAMS?.sleeve_b?.rungs_pct||[-15,-25,-35,-45]).map(r=>`<option value="${r/100}">${r}%</option>`).join('')}
           </select>
         </div>
         <div class="modal-field">
@@ -698,8 +702,11 @@ let _q042Draft = null;
 async function _q042LoadDraft() {
   const sleeve = document.getElementById('q042-sleeve').value;
   const hint = document.getElementById('q042-draft-hint');
+  const rungField = document.getElementById('q042-rung-field');
+  if (rungField) rungField.style.display = sleeve === 'B' ? '' : 'none';
+  const rung = sleeve === 'B' ? (document.getElementById('q042-rung')?.value || '-0.15') : '';
   try {
-    const d = await fetch('/api/q042/draft?sleeve=' + sleeve).then(r => r.json());
+    const d = await fetch('/api/q042/draft?sleeve=' + sleeve + (rung ? '&rung=' + rung : '')).then(r => r.json());
     if (d.status !== 'ok') {
       if (hint) hint.textContent = 'Draft unavailable: ' + (d.reason || d.error || 'unknown') + ' — fill manually';
       return;
@@ -837,14 +844,17 @@ function _q042SubmitOpen() {
   const short_strike = num($('q042-short'));
   const contracts    = num($('q042-contracts'));
   const expiry       = $('q042-exp');
-  if (!sleeve || !long_strike || !short_strike || !contracts || !expiry) {
-    _q042Msg('Fill sleeve / strikes / contracts / expiry', 'error'); return;
+  const rung = sleeve === 'B' ? Number(document.getElementById('q042-rung')?.value || -0.15) : null;
+  const isLeap = sleeve === 'B' && rung <= -0.25;   // 服务端 b_rung_structure 同判
+  if (!sleeve || !long_strike || !contracts || !expiry || (!isLeap && !short_strike)) {
+    _q042Msg(isLeap ? 'Fill sleeve / long strike / contracts / expiry' : 'Fill sleeve / strikes / contracts / expiry', 'error'); return;
   }
-  if (long_strike >= short_strike) {
+  if (!isLeap && long_strike >= short_strike) {
     _q042Msg('Long strike must be less than short strike for call debit spread', 'error'); return;
   }
   _q042Post('/api/q042/position/open', {
     sleeve_id:         sleeve,
+    rung:              rung,
     signal_date:       $('q042-sd'),
     entry_target_date: $('q042-entry-date'),
     expiry:            expiry,

@@ -68,6 +68,23 @@ class PendingOrderSpec:
     ath_at_signal: float
     vix_at_signal: float
     spx_close: float
+    # SPEC-094.7 — Sleeve B 阶梯字段（A 及 B 浅档默认值向后兼容）
+    rung: Optional[float] = None       # B 档位（-0.15/-0.25/-0.35/-0.45）
+    instrument: str = "SPREAD"         # SPREAD | XSP_LEAP
+    symbol: str = "SPX"                # SPX | XSP
+    dte: int = 0                       # 0 → legacy A30/B90 推导
+
+    @property
+    def trade_id(self) -> str:
+        if self.sleeve_id == "B" and self.rung is not None:
+            return f"B{int(round(self.rung * 100))}-{self.signal_date}"
+        return f"{self.sleeve_id}-{self.signal_date}"
+
+    @property
+    def dte_effective(self) -> int:
+        if self.dte:
+            return self.dte
+        return 30 if self.sleeve_id == "A" else 90
 
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -172,17 +189,24 @@ def _format_blocked_alert(*, sleeve_id: str, blocked_reason: str,
 
 
 def _format_alert(spec: PendingOrderSpec) -> str:
-    """Build the F5 Telegram alert (AC14)."""
+    """Build the F5 Telegram alert (AC14; SPEC-094.7 instrument-aware)."""
+    rung_s = (f" · rung {spec.rung*100:+.0f}%" if spec.rung is not None else "")
+    if spec.instrument == "XSP_LEAP":
+        strikes = f"Strikes: long K={spec.long_strike} (XSP, ITM 0.85×S 单腿)"
+        action = "→ Place XSP long call (LEAP) at T+1 open"
+    else:
+        strikes = f"Strikes: long K={spec.long_strike} / short K={spec.short_strike}"
+        action = f"→ Place {spec.symbol} call spread at T+1 open"
     return (
-        f"\U0001f7e2 Drawdown Overlay [Sleeve {spec.sleeve_id}] · SPX\n"
+        f"\U0001f7e2 Drawdown Overlay [Sleeve {spec.sleeve_id}{rung_s}] · {spec.symbol}\n"
         f"Entry: T+1 open (manual) — {spec.entry_target_date}\n"
-        f"Strikes: long K={spec.long_strike} / short K={spec.short_strike}\n"
-        f"DTE: {30 if spec.sleeve_id == 'A' else 90}\n"
+        f"{strikes}\n"
+        f"DTE: {spec.dte_effective}\n"
         f"Est debit: ${spec.est_debit_per_contract:,.0f} per contract\n"
         f"Contracts: {spec.contracts}\n"
         f"NLV at signal: ${spec.nlv_at_signal:,.0f}\n"
         f"ddATH at signal: {spec.ddath_at_signal*100:+.2f}%\n"
-        f"→ Place SPX call spread at T+1 open"
+        f"{action}"
     )
 
 
@@ -361,6 +385,7 @@ def _write_pending_record(spec: PendingOrderSpec) -> None:
     PM back-fills these fields after manual order execution.
     """
     record = {
+        "trade_id":         spec.trade_id,   # SPEC-094.7: B 阶梯多仓的槽位主键
         "sleeve_id":        spec.sleeve_id,
         "signal_date":      spec.signal_date,
         "entry_target_date":spec.entry_target_date,
@@ -369,7 +394,10 @@ def _write_pending_record(spec: PendingOrderSpec) -> None:
         "ddath_at_signal":  round(spec.ddath_at_signal, 4),
         "long_strike":      spec.long_strike,
         "short_strike":     spec.short_strike,
-        "dte":              30 if spec.sleeve_id == "A" else 90,  # SPEC-094.1
+        "instrument":       spec.instrument,  # SPEC-094.7: SPREAD | XSP_LEAP
+        "symbol":           spec.symbol,
+        "rung":             spec.rung,
+        "dte":              spec.dte_effective,
         "est_debit":        round(spec.est_debit_per_contract, 2),
         "fill_debit":       None,           # back-filled by PM
         "contracts":        spec.contracts,
@@ -385,6 +413,53 @@ def _write_pending_record(spec: PendingOrderSpec) -> None:
 # ── F1 (SPEC-094.3): pending-fill confirmation loop / phantom guard ──────────
 
 _PHANTOM_RELEASE_TRADING_DAYS = 5   # T+5 兜底释放（PM 2026-07-12 确认保留）
+
+
+def _find_state_slot(state: dict, sleeve: str, trade_id: str) -> Optional[dict]:
+    """SPEC-094.7 — 返回持有该 trade_id 的槽位引用（A 扁平 / B 按 rung 搜），
+    未找到 → None。调用方对引用置 None 即释放。"""
+    if sleeve == "A":
+        sa = state.get("sleeve_a", {})
+        return sa if sa.get("active_position_id") == trade_id else None
+    for rs in state.get("sleeve_b", {}).get("rungs", {}).values():
+        if rs.get("active_position_id") == trade_id:
+            return rs
+    return None
+
+
+def _check_rung_breach(state: dict, ddath: float, today_str: str,
+                       dry_run: bool, log: logging.Logger) -> None:
+    """SPEC-094.7 F3 — 在场 B 仓的 rung 击穿 FYI（每仓一生一次）。
+
+    自动止损在 Q102 P2 压力档跑输基准被否；改为纯事实告警：ddATH 跌破
+    该仓入场 rung 的下一档（-15→-25 … -45→-55 floor）→ FYI 一条，
+    是否割肉归 PM。文案 F2 禁令合规（只说是什么，不说做什么）。
+    """
+    from signals.q042_trigger import _B_RUNGS, _rung_key, rung_breach_level
+    sb = state.get("sleeve_b", {})
+    rungs = sb.get("rungs", {})
+    alerted: list = sb.setdefault("breach_alerted", [])
+    for r in _B_RUNGS:
+        rs = rungs.get(_rung_key(r), {})
+        pos_id = rs.get("active_position_id")
+        if not pos_id or pos_id in alerted:
+            continue
+        breach = rung_breach_level(r)
+        if ddath > breach:
+            continue
+        body = (
+            f"Sleeve B 在场仓位 {pos_id}（入场档 {r*100:+.0f}%）：当日 ddATH "
+            f"{ddath*100:+.2f}% 已跌破下一档 {breach*100:+.0f}%。\n"
+            f"到期日 {rs.get('active_position_expiry')}；历史上该形态既有继续下跌"
+            f"（2008-10 型）也有 V 型反转（2020-03 型），Q102 P2 档案两种路径均有实例。\n"
+            + _cash_context_line()
+        )
+        if dry_run:
+            log.info("[dry-run] F3(94.7) would alert rung breach %s — no push", pos_id)
+            continue
+        _send_gateway("FYI", "系统状态", "Q042 Sleeve B rung 击穿", body,
+                      f"q042_rungbreach_{pos_id}", log)
+        alerted.append(pos_id)
 
 
 def _check_pending_fills(state: dict, today_str: str, dry_run: bool,
@@ -443,7 +518,8 @@ def _check_pending_fills(state: dict, today_str: str, dry_run: bool,
             except Exception:
                 log.exception("F1(94.3) trading-day count failed for %s", trade_id)
                 continue
-            key = "sleeve_a" if sleeve == "A" else "sleeve_b"
+            # SPEC-094.7: A = 扁平槽；B = rungs 阶梯 → 按 trade_id 定位槽位引用
+            slot_ref = _find_state_slot(state, sleeve, trade_id)
 
             if n < _PHANTOM_RELEASE_TRADING_DAYS:
                 # ── 每日确认提醒（第 n+1 天，dedupe per trade_id per date）──
@@ -463,12 +539,11 @@ def _check_pending_fills(state: dict, today_str: str, dry_run: bool,
                 continue
 
             # ── T+5 兜底释放 ─────────────────────────────────────────────────
-            slot_id = state.get(key, {}).get("active_position_id")
-            slot_match = slot_id == trade_id
+            slot_match = slot_ref is not None
             if dry_run:
                 if slot_match:                 # 推演 on deep-copy only (F4/B6)
-                    state[key]["active_position_id"] = None
-                    state[key]["active_position_expiry"] = None
+                    slot_ref["active_position_id"] = None
+                    slot_ref["active_position_expiry"] = None
                 log.info("[dry-run] F1(94.3) would release phantom %s "
                          "(day %d, slot_match=%s) — no disk, no push",
                          trade_id, n, slot_match)
@@ -479,15 +554,15 @@ def _check_pending_fills(state: dict, today_str: str, dry_run: bool,
             rec["phantom_date"] = today_str
             dirty = True
             if slot_match:
-                state[key]["active_position_id"] = None
-                state[key]["active_position_expiry"] = None
+                slot_ref["active_position_id"] = None
+                slot_ref["active_position_expiry"] = None
             body = (
                 f"Q042 [Sleeve {sleeve}] 幽灵仓位已释放，sleeve 恢复可触发；"
                 f"若实际已成交请立即补录并手工恢复 state。\n"
                 f"trade_id: {trade_id} · entry_target_date: {entry}"
                 f" · 第 {n} 个交易日仍未确认 fill\n"
                 + ("" if slot_match else
-                   f"注意：state 槽位当前为 {slot_id!r}（与本记录不符，未清动），请人工核查。\n")
+                   "注意：state 无匹配该 trade_id 的槽位（未清动），请人工核查。\n")
                 + "armed 不回补（触发已按研究语义消耗）。账本记录已打 phantom 标记（保留审计链）。"
             )
             _send_gateway("ACTION", "系统状态", "Q042 幽灵仓位已释放", body,
@@ -509,6 +584,7 @@ def _process_sleeve_fire(
     nlv: float, spx_close: float, vix: float, ddath: float, ath: float,
     today_str: str, entry_date: str, expiry: str, dry_run: bool,
     log: logging.Logger, gate_unavail_dedupe: str,
+    rung: Optional[float] = None,
 ) -> Optional[PendingOrderSpec]:
     """Handle one sleeve's fire: gate check → sizing → fire or F5 blocked path.
 
@@ -516,16 +592,25 @@ def _process_sleeve_fire(
     None when held. The armed flag is ALREADY consumed by update_sleeve_* — that
     trigger semantic is invariant (漏单 is solved by F3 data + F5 auditability,
     not by re-arming). A held fire NEVER sets active_position_id.
+    SPEC-094.7: sleeve B 带 rung；结构路由（spread vs XSP LEAP）走
+    strategy.q042_sizing 单真值。
     """
     from strategy.q042_gate import log_ammo_advisory, log_blocked_fire
-    from strategy.q042_sizing import compute_sizing
+    from strategy.q042_sizing import (
+        b_rung_structure, compute_leap_sizing, compute_sizing,
+    )
 
     allowance = 0.0
     if gate_available and gate is not None:
         allowance = gate.sleeve_a_allowance if sleeve_id == "A" else gate.sleeve_b_allowance
 
     # Would-be sizing (computed regardless, for the counterfactual record).
-    long_k, short_k, contracts, est = compute_sizing(nlv, spx_close, vix, sleeve_id)
+    struct = (b_rung_structure(rung) if sleeve_id == "B" and rung is not None
+              else {"instrument": "SPREAD", "dte": 0, "symbol": "SPX"})
+    if struct["instrument"] == "XSP_LEAP":
+        long_k, short_k, contracts, est = compute_leap_sizing(nlv, spx_close, vix)
+    else:
+        long_k, short_k, contracts, est = compute_sizing(nlv, spx_close, vix, sleeve_id)
     contracts = int(contracts or 0)
 
     blocked_reason: Optional[str] = None
@@ -550,7 +635,8 @@ def _process_sleeve_fire(
         if blocked_reason == "gate_unavailable":
             dedupe = gate_unavail_dedupe                         # N6 merge into one
         else:
-            dedupe = f"q042_blocked_{sleeve_id}_{today_str}"
+            rung_tag = (f"{int(round(rung * 100))}" if rung is not None else "")
+            dedupe = f"q042_blocked_{sleeve_id}{rung_tag}_{today_str}"
         body = _format_blocked_alert(
             sleeve_id=sleeve_id, blocked_reason=blocked_reason,
             contracts=contracts, est=est, ddath=ddath,
@@ -566,14 +652,17 @@ def _process_sleeve_fire(
     # ── Real fire ─────────────────────────────────────────────────────────────
     spec = PendingOrderSpec(
         sleeve_id=sleeve_id, signal_date=today_str, entry_target_date=entry_date,
-        long_strike=long_k, short_strike=short_k, contracts=contracts,
+        long_strike=long_k, short_strike=short_k or 0, contracts=contracts,
         est_debit_per_contract=est, nlv_at_signal=nlv,
         ddath_at_signal=ddath, ath_at_signal=ath, vix_at_signal=vix,
         spx_close=spx_close,
+        rung=rung, instrument=struct["instrument"], symbol=struct["symbol"],
+        dte=struct["dte"],
     )
     if dry_run:
-        log.info("[dry-run] WOULD FIRE Sleeve %s: %s/%s x%d ct est $%.0f/ct",
-                 sleeve_id, long_k, short_k, contracts, est or 0.0)
+        log.info("[dry-run] WOULD FIRE Sleeve %s%s (%s): %s/%s x%d ct est $%.0f/ct",
+                 sleeve_id, f" rung {rung*100:+.0f}%" if rung is not None else "",
+                 struct["instrument"], long_k, short_k, contracts, est or 0.0)
         return spec
 
     # SPEC-094.4 F1: ammo routing advisory block appended AFTER the F5b cash
@@ -584,17 +673,23 @@ def _process_sleeve_fire(
         spx_close=spx_close, vix=vix, contracts=contracts, est_debit=est,
     )
     body = _format_alert(spec) + "\n" + _cash_context_line() + "\n" + advisory_line
+    rung_tag = (f"{int(round(rung * 100))}" if rung is not None else "")
     _send_gateway("ACTION", "新开仓", "Drawdown Overlay（回撤加仓）触发",
-                  body, f"q042_trigger_{sleeve_id}_{today_str}", log)
+                  body, f"q042_trigger_{sleeve_id}{rung_tag}_{today_str}", log)
     if ammo is not None:
         try:
             log_ammo_advisory(ammo, date=today_str)      # AC-94.4-2 paper 证据管道
         except Exception:
             log.exception("F1(94.4) ammo advisory gate-log write failed — alert unaffected (AC16)")
     _write_pending_record(spec)
-    key = "sleeve_a" if sleeve_id == "A" else "sleeve_b"
-    state[key]["active_position_id"] = f"{sleeve_id}-{today_str}"
-    state[key]["active_position_expiry"] = expiry
+    if sleeve_id == "A":
+        state["sleeve_a"]["active_position_id"] = spec.trade_id
+        state["sleeve_a"]["active_position_expiry"] = expiry
+    else:
+        from signals.q042_trigger import _rung_key
+        rs = state["sleeve_b"]["rungs"][_rung_key(rung)]
+        rs["active_position_id"] = spec.trade_id
+        rs["active_position_expiry"] = expiry
     return spec
 
 
@@ -647,20 +742,17 @@ def run_eod_evaluation(
         if dry_run:
             state = copy.deepcopy(state)   #推演 only; never persisted (F4)
 
-        # F1 step 2: state-level expiry cleanup (walk-forward parity) + idempotent
-        # double-clear of settle-returned sleeves. Must precede update_sleeve_* or
-        # the expiry-day trigger stays blocked by has_pos.
-        for sid in ("A", "B"):
-            key = "sleeve_a" if sid == "A" else "sleeve_b"
-            exp = state.get(key, {}).get("active_position_expiry")
-            if exp and str(exp) <= today_str:
-                state[key]["active_position_id"] = None
-                state[key]["active_position_expiry"] = None
-        for sid in settled_sleeves:
-            key = "sleeve_a" if str(sid).upper() == "A" else "sleeve_b"
-            if key in state:
-                state[key]["active_position_id"] = None
-                state[key]["active_position_expiry"] = None
+        # F1 step 2: state-level expiry cleanup (walk-forward parity)。settle 的
+        # AC20 已按 trade_id 精确清仓（SPEC-094.7）；此处按到期日兜底双清，
+        # must precede update_sleeve_* or the expiry-day trigger stays blocked.
+        sa = state.get("sleeve_a", {})
+        if sa.get("active_position_expiry") and str(sa["active_position_expiry"]) <= today_str:
+            sa["active_position_id"] = None
+            sa["active_position_expiry"] = None
+        for rs in state.get("sleeve_b", {}).get("rungs", {}).values():
+            if rs.get("active_position_expiry") and str(rs["active_position_expiry"]) <= today_str:
+                rs["active_position_id"] = None
+                rs["active_position_expiry"] = None
 
         # ── F1 (SPEC-094.3): pending-fill 确认 / T+5 幽灵释放 ─────────────────
         # 必须先于 update_sleeve_*：T+5 释放当日 sleeve 即恢复可 fire
@@ -690,9 +782,8 @@ def run_eod_evaluation(
         ddath = spx_close / ath - 1.0
         log.info("ath=%.2f ddath=%+.2f%% (prior_ath=%.2f)", ath, ddath * 100.0, prior_ath)
 
-        spx_hist = yf.Ticker("^GSPC").history(period="1mo", interval="1d")
-        ma10 = float(spx_hist["Close"].iloc[-10:].mean())
-        cal = pd.DatetimeIndex(pd.to_datetime(spx_hist.index).tz_localize(None))
+        # SPEC-094.7: MA10/calendar fetch 移除——B 的 reclaim 机制已删
+        # （深档 reclaim = 熊市反弹顶陷阱，Q102 P1 T2），阶梯 touch 即 fire。
 
         # ── F3: fail-closed account-level BP gate read ────────────────────────
         bp_detail = read_main_bp_source()
@@ -726,7 +817,6 @@ def run_eod_evaluation(
         entry_date  = (datetime.strptime(today_str, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
         # Expiry is DTE from entry (T+1), not signal (T). Aligns with backtest engine fix (R-20260510-15).
         expiry_a    = (datetime.strptime(entry_date, "%Y-%m-%d") + timedelta(days=30)).strftime("%Y-%m-%d")  # SPEC-094.1
-        expiry_b    = (datetime.strptime(entry_date, "%Y-%m-%d") + timedelta(days=90)).strftime("%Y-%m-%d")  # Sleeve B unchanged
 
         act_a = update_sleeve_a(state["sleeve_a"], ddath, today_str)
         if act_a["action"] == "fire_A":
@@ -739,16 +829,28 @@ def run_eod_evaluation(
             if spec is not None:
                 fired.append(spec)
 
-        act_b = update_sleeve_b(state["sleeve_b"], ddath, spx_close, ma10, today_str, cal)
-        if act_b["action"] == "fire_B":
+        # ── SPEC-094.7: Sleeve B 阶梯——gap 崩盘单日可多发，逐 rung 处理 ──────
+        from strategy.q042_sizing import b_rung_structure as _brs
+        for act_b in update_sleeve_b(state["sleeve_b"], ddath, today_str):
+            _dte_b = _brs(act_b["rung"])["dte"]
+            expiry_b = (datetime.strptime(entry_date, "%Y-%m-%d")
+                        + timedelta(days=_dte_b)).strftime("%Y-%m-%d")
             spec = _process_sleeve_fire(
                 sleeve_id="B", state=state, gate=gate, gate_available=gate_available,
                 nlv=nlv, spx_close=spx_close, vix=vix, ddath=ddath, ath=ath,
                 today_str=today_str, entry_date=entry_date, expiry=expiry_b,
                 dry_run=dry_run, log=log, gate_unavail_dedupe=gate_unavail_dedupe,
+                rung=act_b["rung"],
             )
             if spec is not None:
                 fired.append(spec)
+
+        # ── SPEC-094.7 F3: rung 击穿 FYI（自动止损被 Q102 门槛否决 → 事实告警，
+        # 割不割 PM 定）。每仓一生一次（state.breach_alerted 去重）。──────────
+        try:
+            _check_rung_breach(state, ddath, today_str, dry_run, log)
+        except Exception:
+            log.exception("F3(94.7) rung-breach check failed — EOD continues (AC16)")
 
         # ── F6: combined_bp_pct writer (debit/NLV, NOT maint/NLV — N10) ───────
         # B2: est_debit/fill_debit already PER-CONTRACT USD → do NOT ×100 again.
