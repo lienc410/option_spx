@@ -444,12 +444,14 @@ function engineBadge(word) {
 
 // ── 刻度线标签防碰撞（约束 3）：标签在条外侧（上方 tick 轨道），且按位置
 //    锚点换向（>78% 右锚 / <8% 左锚 / 其余居中），单条单标签 → 零重叠 ──
-function tickHtml(posPct, label) {
+function tickHtml(posPct, label, anchor) {
   if (posPct == null || isNaN(posPct)) return { tick: '', label: '' };
   let style;
-  if (posPct > 78)      style = `left:${posPct}%;transform:translateX(-100%)`;
-  else if (posPct < 8)  style = `left:${posPct}%`;
-  else                  style = `left:${posPct}%;transform:translateX(-50%)`;
+  if (anchor === 'right')      style = `left:${posPct}%;transform:translateX(-100%)`;
+  else if (anchor === 'left')  style = `left:${posPct}%`;
+  else if (posPct > 78)        style = `left:${posPct}%;transform:translateX(-100%)`;
+  else if (posPct < 8)         style = `left:${posPct}%`;
+  else                         style = `left:${posPct}%;transform:translateX(-50%)`;
   return {
     tick: `<span class="bar-tick" style="left:${posPct}%"></span>`,
     label: `<span class="bar-tick-label" style="${style}">${label}</span>`,
@@ -618,11 +620,11 @@ function renderPools(s) {
     $('cash-scale-max').textContent = fmtUsd(c.liquid);
     let ticks = '', labels = '';
     if (c.cap_pct != null) {
-      const t = tickHtml(c.cap_pct, `cap ${fmtPct(c.cap_pct, 0)}`);
+      const t = tickHtml(c.cap_pct, `cap ${fmtPct(c.cap_pct, 0)}`, 'right');
       ticks += t.tick; labels += t.label;
     }
     if (c.ammo_line_pos_pct != null) {
-      const t = tickHtml(c.ammo_line_pos_pct, `DD ammo $${Math.round(c.ammo_line_usd / 1000)}k`);
+      const t = tickHtml(c.ammo_line_pos_pct, `DD ammo $${Math.round(c.ammo_line_usd / 1000)}k`, 'left');
       ticks += t.tick; labels += t.label;
     }
     $('cash-ticks').innerHTML = labels;
