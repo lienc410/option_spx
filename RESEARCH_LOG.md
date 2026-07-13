@@ -3966,4 +3966,5 @@ Owner: Planner or PM
 - **独立性**: 窗口 = 生产 is_aftermath 直调（探针校准 99.24%/n=4,869）；n 修到 63-95 笔/86 窗口/26y；候选扩到 5（+对称 IC、BCS、cash）；三定价臂 FLAT（逐字 Q064，兼 call-flat 界）/SKEW1（实测中位）/SKEW2（2× 悲观），张成双向 bracket；摩擦按腿实测半价差（07-06 链，07-02 复测覆盖）F∈{1,2}
 - **核心发现**: ①Q064 "V3-A>BPS" 独立复现成立（6/6 组合同号负，t 至 −2.31）——结论对但 by luck not by design；②对称 IC 期望一致更高（+$157~311/笔，sign test p=0.0001）但任何现实臂不显著（中枢 t≈1.2）、$/BP-day 排名 SKEW2 翻转（定价脆弱）、CVaR 三臂一致差 ~2×（BP 归一后成立），配对解剖：其亏损恰集中 2020-03-02/2022-02-09/2008-09-19 延续性崩盘日 = 通道存在理由的反面；③**通道 edge 定价敏感**（vs cash: FLAT t=4.89 → SKEW1×F1 t=2.76 通过 → 单悲观即 no-verdict → 双悲观转负）——旧收益相当部分可能是 flat-σ 假象
 - **裁定（外审四项全 CONFIRM）**: 结构保留 V3-A；C2 列 documented challenger（复审条件预注册：实测斜率 ≤1.0× 且价差 ≤1.5×）；通道预承诺复判规则——下一窗口测得 s/f 后以 S=s、F=f 重跑网格直接出 verdict，不留裁量；首笔 0.5× sizing 选项供 PM；首笔真实成交强制 fill-vs-model 校准
-- **文件**: research/q101/ framing + e1/e1b runner + memo（含外审记录）+ 2 CSV
+- **文件**: research/q101/ framing + e1/e1b runner + memo（含外审记录 + §6 ratification）+ 2 CSV
+- **Ratify**: PM 2026-07-12 授权 Quant 裁决——三项全采纳（含首笔 0.5× staging；与 Q089 已杀 entry-wait 的区分：无价格择时，仅条件于确定信息到达）；实施 SPEC-143（live only，回测隔离）；Q101 CLOSED
