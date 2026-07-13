@@ -5893,6 +5893,32 @@ def _entry_resource_profile(strategy_key: str, liquid_cash) -> dict:
         return {"consumes": None, "error": "unavailable"}
 
 
+def _apply_aftermath_staging_to_draft(payload: dict, rec) -> dict:
+    """SPEC-143 — open-draft 张数应用 Q101 staging（live 推荐层 only）。
+
+    张数真值：标准张数 = _bp_preview_payload.recommended_contracts（本函数
+    调用前已写入 payload["contracts"]）；staging 态 1/3 降为
+    max(1, floor(标准 × 0.5))（strategy.aftermath_staging.staged_contracts，
+    AC-2 下限 ≥1）。卡片文案不在此重写：legs_hint 附注逐字取
+    rec.aftermath_staging["label_human"]（decision_trace.q101_staging_label
+    唯一 copy 源），模板零新增文案。rec 无 staging（非 aftermath 推荐 /
+    force override / 回测永不至此）→ no-op。
+    """
+    staging = getattr(rec, "aftermath_staging", None)
+    if not staging:
+        return payload
+    from strategy.aftermath_staging import staged_contracts
+
+    standard = int(payload.get("contracts") or 1)
+    payload["aftermath_staging"] = staging
+    if float(staging.get("factor") or 1.0) < 1.0:
+        payload["standard_contracts"] = standard
+        payload["contracts"] = staged_contracts(standard)
+    if staging.get("label_human"):
+        payload["legs_hint"] = f'{payload.get("legs_hint") or ""} · {staging["label_human"]}'.strip(" ·")
+    return payload
+
+
 @app.route("/api/position/open-draft")
 def api_position_open_draft():
     from backtest.pricer import call_price, put_price, find_strike_for_delta
@@ -6086,6 +6112,7 @@ def api_position_open_draft():
             1,
         )
         payload["contracts"] = bp_preview["recommended_contracts"]
+        _apply_aftermath_staging_to_draft(payload, rec)
         payload["bp_preview"] = {
             **bp_preview,
             "bp_usage_dollars": round((bp_preview["bp_per_contract"] or 0.0) * payload["contracts"], 2)

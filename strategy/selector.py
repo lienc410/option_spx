@@ -330,6 +330,10 @@ class Recommendation:
     # 门链含静默通过/治理/最终输出），由 decision_trace 收集器自吐。
     # 纯附加字段：不参与任何路由决策（AC：注入前后路由 bit-identical）。
     trace: list = field(default_factory=list, repr=False)
+    # SPEC-143 — Q101 aftermath 首笔 0.5× staging（live 推荐层 only）。
+    # 只由 _apply_aftermath_staging_live（get_recommendation 内）写入；
+    # select_strategy 本体永不触碰 → 回测路径恒为 None（回测隔离 AC-4）。
+    aftermath_staging: dict | None = None
 
     def summary(self) -> str:
         """Single-line summary for quick reading."""
@@ -1751,8 +1755,56 @@ def get_recommendation(
     trend_snap = get_current_trend(spx_data, current_spx=current_spx)
 
     rec = select_strategy(vix_snap, iv_snap, trend_snap, params)
+    rec = _apply_aftermath_staging_live(rec, vix_data, params)
     rec = _eval_overlay_f_live(rec, params)
     return _apply_bcd_governance_live(rec, vix_snap, iv_snap, trend_snap, params)
+
+
+def _apply_aftermath_staging_live(rec: Recommendation, vix_df,
+                                  params: StrategyParams = DEFAULT_PARAMS) -> Recommendation:
+    """SPEC-143 — Q101 aftermath 首笔 0.5× staging，LIVE-ONLY wrapper
+    （get_recommendation 路径；回测直接调 select_strategy，永不经过这里——
+    与 SPEC-123 D1 同一隔离拓扑，AC-4 回测输出逐字节不变）。
+
+    仅命中 aftermath V3-A 推荐（iron_condor_hv 且 rationale 带 aftermath
+    标记——与 web.server.api_aftermath_window_gates 同一判别口径；两条
+    aftermath 分支的 rationale 恒含该词，tests/test_spec_143.py 有双分支
+    行为断言防漂移）。三态判定在 strategy/aftermath_staging.py；人话文案
+    单源 decision_trace.q101_staging_label。advisory ⚠ 档：改张数与语气，
+    不拦推荐、不新增推送（SPEC-140 §4/§5 推送宪法）。
+    """
+    if rec.strategy_key != "iron_condor_hv" or "aftermath" not in (rec.rationale or ""):
+        return rec
+    try:
+        from strategy.aftermath_staging import evaluate_staging
+
+        staging = evaluate_staging(vix_df, params, today=rec.vix_snapshot.date)
+        label, outcome = T.q101_staging_label(staging)
+        staging = {**staging, "label_human": label, "outcome": outcome,
+                   "code_ref": "SPEC-143 · research/q101"}
+        rec.aftermath_staging = staging
+        rec.rationale += f"　[{label}]"
+        T.add("governance", "q101_aftermath_staging", label,
+              detail=(f"窗口起始 {staging['window_start']} · 窗口内读数 "
+                      f"{staging['reading_date'] or '无'} · "
+                      f"s = {staging['s'] if staging['s'] is not None else '—'}"
+                      f"（= (d15_moff − atm_moff) ÷ 4.52vp calm 中位基线）· "
+                      f"窗口首笔 = {'是' if staging['first_trade'] else '否'} · "
+                      f"张数系数 {staging['factor']:g}×——提示不拦：只降张数，"
+                      "不阻止开仓，不新增推送"),
+              inputs={k: staging[k] for k in
+                      ("state", "factor", "s", "window_start",
+                       "first_trade", "reading_date")},
+              outcome=outcome, code_ref="SPEC-143 · research/q101",
+              kind=("evidence" if outcome == "pass" else "verdict"),
+              stage="governance")
+        rec.trace = (rec.trace or []) + T.drain()
+    except Exception:
+        # staging must never break the recommendation path (fail-soft，
+        # 同 bcd governance wrapper 先例)
+        import logging
+        logging.getLogger("selector").exception("aftermath staging wrapper failed")
+    return rec
 
 
 def _apply_bcd_governance_live(rec: Recommendation, vix: VixSnapshot, iv: IVSnapshot,
