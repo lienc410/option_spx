@@ -193,7 +193,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 
     <!-- Shared structure -->
     <div class="spec-shared">
-      <div class="spec-shared-title">共用结构 — 两 Sleeve 相同</div>
+      <div class="spec-shared-title">共用规则 — 两 Sleeve 相同 <span style="font-weight:400;letter-spacing:0;text-transform:none;color:var(--text-2)">（结构参数 SPEC-094.1 起分叉，见下方各 sleeve 卡）</span></div>
       <div class="spec-grid">
         <div class="spec-item">
           <span class="spec-key">标的</span>
@@ -201,27 +201,11 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
         </div>
         <div class="spec-item">
           <span class="spec-key">方向 / 类型</span>
-          <span class="spec-val"><b>Long call vertical spread（debit）</b></span>
-        </div>
-        <div class="spec-item">
-          <span class="spec-key">Long leg</span>
-          <span class="spec-val"><b>ATM</b>（入场日 SPX close，取整到最近 $5）</span>
-        </div>
-        <div class="spec-item">
-          <span class="spec-key">Short leg</span>
-          <span class="spec-val"><b>ATM × 1.05</b>（+5% OTM，取整到最近 $5）</span>
-        </div>
-        <div class="spec-item">
-          <span class="spec-key">DTE 目标</span>
-          <span class="spec-val"><b>90 天</b></span>
+          <span class="spec-val"><b>Long call vertical spread（debit）</b>——做多回撤后的反弹</span>
         </div>
         <div class="spec-item">
           <span class="spec-key">平仓</span>
           <span class="spec-val"><b>持有至到期</b>（欧式现金结算，到期自动平）</span>
-        </div>
-        <div class="spec-item">
-          <span class="spec-key">每次 sizing</span>
-          <span class="spec-val"><b>Sleeve A Stage 1: 12.5%</b>（target 17.5%；Sleeve B research-only）</span>
         </div>
         <div class="spec-item">
           <span class="spec-key">Joint BP gate</span>
@@ -247,6 +231,8 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
           <span style="font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2)">dd4 · 即时触发</span>
         </div>
         <div class="spec-sleeve-body">
+          <div class="spec-row"><span class="spec-row-key">结构</span><span class="spec-row-val"><b>Long ATM call / Short ATM×1.025 call</b>（+2.5% OTM）· <b>30 DTE</b>（SPEC-094.1）</span></div>
+          <div class="spec-row"><span class="spec-row-key">Sizing</span><span class="spec-row-val"><b>Stage 1: 12.5%</b> NLV（target 17.5%，production）</span></div>
           <div class="spec-row"><span class="spec-row-key">触发</span><span class="spec-row-val"><b>ddATH ≤ −4%</b>（首次穿越）</span></div>
           <div class="spec-row"><span class="spec-row-key">MA filter</span><span class="spec-row-val"><b>无</b>——穿越后 T+1 开盘直接入场</span></div>
           <div class="spec-row"><span class="spec-row-key">入场时机</span><span class="spec-row-val">信号日次日开盘（T+1 open）</span></div>
@@ -264,6 +250,8 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
           <span style="font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2)">dd15 + MA10 reclaim</span>
         </div>
         <div class="spec-sleeve-body">
+          <div class="spec-row"><span class="spec-row-key">结构</span><span class="spec-row-val"><b>Long ATM call / Short ATM×1.05 call</b>（+5% OTM）· <b>90 DTE</b></span></div>
+          <div class="spec-row"><span class="spec-row-key">Sizing</span><span class="spec-row-val"><b>Paper 10%</b> NLV（production 0% · research-only）</span></div>
           <div class="spec-row"><span class="spec-row-key">触发（外）</span><span class="spec-row-val"><b>ddATH ≤ −15%</b> → 进入 Watching</span></div>
           <div class="spec-row"><span class="spec-row-key">触发（内）</span><span class="spec-row-val"><b>close > MA10</b>（MA10 reclaim）</span></div>
           <div class="spec-row"><span class="spec-row-key">入场时机</span><span class="spec-row-val">MA10 reclaim 日次日开盘（T+1）</span></div>
@@ -294,7 +282,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
   </div>
 
   <!-- C5: Active Positions -->
-  <div class="section-label">活跃仓位</div>
+  <div class="section-label">仓位（活跃 / 最近结算）</div>
   <div class="chart-wrap" style="padding:16px 20px">
     <div id="positions-area"><div class="loading-msg">Loading…</div></div>
   </div>
@@ -310,13 +298,17 @@ function stateBadge(state) {
   if (state === 'active')   return `<span class="state-badge badge-active">Active</span>`;
   if (state === 'watching') return `<span class="state-badge badge-watching">Watching</span>`;
   if (state === 'armed')    return `<span class="state-badge badge-armed">Armed</span>`;
+  if (state === 'settled')  return `<span class="state-badge badge-unknown">Settled</span>`;
   return `<span class="state-badge badge-unknown">—</span>`;
 }
 
-function sleeveState(s, hasPosition) {
-  if (hasPosition) return 'active';
+function sleeveState(s, pos) {
+  // API 的 active_position = "最近 active 或最后已结算" —— 必须看 is_active，
+  // 否则已到期结算的仓位会把 sleeve 渲染成「仓位开立中」（2026-07-12 实况）。
+  if (pos && pos.is_active) return 'active';
   if (s.in_watching) return 'watching';
   if (s.armed) return 'armed';
+  if (pos && pos.is_active === false) return 'settled';   // 待 EOD re-arm 评估
   return 'unknown';
 }
 
@@ -342,8 +334,8 @@ async function loadState() {
     const remA = (SLEEVE_A_THRESH - ddath).toFixed(2);  // negative = remaining to fall
     const remB = (SLEEVE_B_THRESH - ddath).toFixed(2);
 
-    const stateA = sleeveState(d.sleeve_a, !!d.sleeve_a?.active_position);
-    const stateB = sleeveState(d.sleeve_b, !!d.sleeve_b?.active_position);
+    const stateA = sleeveState(d.sleeve_a, d.sleeve_a?.active_position);
+    const stateB = sleeveState(d.sleeve_b, d.sleeve_b?.active_position);
 
     const ddCls = ddath <= SLEEVE_A_THRESH ? 'danger' : ddath <= -2.5 ? 'warn' : '';
 
@@ -355,7 +347,7 @@ async function loadState() {
             <span class="sleeve-id" style="color:var(--blue)">Sleeve A</span>
             ${stateBadge(stateA)}
           </div>
-          <div class="sleeve-label">SPX put spread · ddATH ≤ −4% trigger</div>
+          <div class="sleeve-label">SPX call vertical（debit）· ddATH ≤ −4% 触发 · ATM/+2.5% · 30 DTE</div>
         </div>
         <div class="sleeve-metrics">
           <div class="sleeve-metric-row">
@@ -380,7 +372,7 @@ async function loadState() {
             <div class="gauge-fill" style="width:${gaugePctA.toFixed(1)}%;background:${gaugeColor(gaugePctA)}"></div>
           </div>
           <div class="gauge-sub">
-            ${stateA === 'active' ? '<span style="color:var(--red)">●</span> 已触发，仓位开立中' : gaugePctA >= 100 ? '<span style="color:var(--orange)">▲</span> 已穿越阈值' : `还需下跌 ${Math.abs(remA)}% 触发`}
+            ${stateA === 'active' ? '<span style="color:var(--red)">●</span> 已触发，仓位开立中' : stateA === 'settled' ? '<span style="color:var(--text-2)">◐</span> 仓位已到期结算 · 待 EOD 评估 re-arm（ddATH ≥ −2%）' : gaugePctA >= 100 ? '<span style="color:var(--orange)">▲</span> 已穿越阈值' : `还需下跌 ${Math.abs(remA)}% 触发`}
           </div>
         </div>
         ${(() => {
@@ -408,7 +400,7 @@ async function loadState() {
             <span class="sleeve-id" style="color:var(--orange)">Sleeve B</span>
             ${stateBadge(stateB)}
           </div>
-          <div class="sleeve-label">SPX put spread · ddATH ≤ −15% + close > MA10</div>
+          <div class="sleeve-label">SPX call vertical（debit）· ddATH ≤ −15% + close > MA10 · ATM/+5% · 90 DTE</div>
         </div>
         <div class="sleeve-metrics">
           <div class="sleeve-metric-row">
@@ -433,7 +425,7 @@ async function loadState() {
             <div class="gauge-fill" style="width:${gaugePctB.toFixed(1)}%;background:${gaugeColor(gaugePctB)}"></div>
           </div>
           <div class="gauge-sub">
-            ${stateB === 'active' ? '<span style="color:var(--red)">●</span> 已触发，仓位开立中' : gaugePctB >= 100 ? '<span style="color:var(--orange)">▲</span> 已穿越阈值' : `还需下跌 ${Math.abs(remB)}% 触发`}
+            ${stateB === 'active' ? '<span style="color:var(--red)">●</span> 已触发，仓位开立中' : stateB === 'settled' ? '<span style="color:var(--text-2)">◐</span> 仓位已到期结算 · 待 EOD 评估 re-arm（ddATH ≥ −2%）' : gaugePctB >= 100 ? '<span style="color:var(--orange)">▲</span> 已穿越阈值' : `还需下跌 ${Math.abs(remB)}% 触发`}
           </div>
         </div>
         ${(() => {
@@ -445,23 +437,28 @@ async function loadState() {
         })()}
       </div>`;
 
-    // Positions table
+    // Positions table — API 返回「最近 active 或最后已结算」，已结算行必须
+    // 如实标注（realized，不再显示 DTE / Est. P&L 冒充活仓）。
     const posA = d.sleeve_a?.active_position, posB = d.sleeve_b?.active_position;
     const posRows = [posA ? { ...posA, sleeve: 'A' } : null, posB ? { ...posB, sleeve: 'B' } : null].filter(Boolean);
     if (posRows.length) {
       document.getElementById('positions-area').innerHTML = `
         <table class="pos-table">
-          <thead><tr><th>Sleeve</th><th>Entry</th><th>Expiry</th><th>Spread</th><th>Contracts</th><th>DTE</th><th>Est. P&L</th></tr></thead>
-          <tbody>${posRows.map(p => `
-            <tr>
+          <thead><tr><th>Sleeve</th><th>Status</th><th>Entry</th><th>Expiry</th><th>Spread</th><th>Contracts</th><th>DTE</th><th>P&L</th></tr></thead>
+          <tbody>${posRows.map(p => {
+            const settled = p.is_active === false;
+            return `
+            <tr style="${settled ? 'color:var(--text-2)' : ''}">
               <td>${p.sleeve}</td>
+              <td>${settled ? '<span class="state-badge badge-unknown">已结算</span>' : '<span class="state-badge badge-active">Active</span>'}</td>
               <td>${p.entry_date || '—'}</td>
               <td>${p.expiry_date || '—'}</td>
               <td>${p.long_strike} / ${p.short_strike}</td>
               <td>${p.contracts}</td>
-              <td>${p.days_to_expiry ?? '—'}</td>
-              <td style="color:${p.current_pnl >= 0 ? 'var(--green)' : 'var(--red)'}">${p.current_pnl != null ? (p.current_pnl >= 0 ? '+' : '') + '$' + Math.round(p.current_pnl).toLocaleString() : '—'}</td>
-            </tr>`).join('')}
+              <td>${settled ? '—' : (p.days_to_expiry ?? '—')}</td>
+              <td style="color:${p.current_pnl >= 0 ? 'var(--green)' : 'var(--red)'}">${p.current_pnl != null ? (p.current_pnl >= 0 ? '+' : '') + '$' + Math.round(p.current_pnl).toLocaleString() + (settled ? '<span style="color:var(--text-2);font-size:0.85em"> realized</span>' : '<span style="color:var(--text-2);font-size:0.85em"> est</span>') : '—'}</td>
+            </tr>`;
+          }).join('')}
           </tbody>
         </table>`;
     } else {
@@ -486,11 +483,15 @@ async function loadSpxChart() {
 
     // Update MA10 badge
     const ma10El = document.getElementById('ma10-badge');
-    if (ma10El && cur.ma10 != null) {
-      const above = cur.above_ma10;
-      ma10El.innerHTML = above
-        ? `<span style="color:var(--green)">✓ close > MA10 (${cur.ma10.toFixed(1)})</span>`
-        : `<span style="color:var(--red)">✗ close ≤ MA10 (${cur.ma10.toFixed(1)})</span>`;
+    if (ma10El) {
+      if (cur.ma10 != null) {
+        const above = cur.above_ma10;
+        ma10El.innerHTML = above
+          ? `<span style="color:var(--green)">✓ close > MA10 (${cur.ma10.toFixed(1)})</span>`
+          : `<span style="color:var(--red)">✗ close ≤ MA10 (${cur.ma10.toFixed(1)})</span>`;
+      } else {
+        ma10El.textContent = '—';
+      }
     }
 
     const area = document.getElementById('spx-chart-area');
