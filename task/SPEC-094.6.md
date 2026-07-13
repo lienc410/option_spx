@@ -56,4 +56,4 @@ tracking（untrack），不是 stash。
 3. **Rollback**：executor 两处 diff 摘除即回；untrack 不可逆但无害（备份链在）。
 
 ---
-Status: DRAFT → implementing 2026-07-12（与 SPEC-094.5 同批部署）
+Status: DEPLOYED 2026-07-12 (old Air state 重设 + untrack 落地 + tripwire 上线)
