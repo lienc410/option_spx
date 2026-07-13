@@ -19,3 +19,22 @@
   <a href="/funds"              class="nav-link{% if nav_active == 'funds'       %} active{% endif %}">Funds</a>
   <a href="/partnership"        class="nav-link{% if nav_active == 'partnership' %} active{% endif %}">Book</a>
 </div>
+{# SPEC-141.1 — nav 日期唯一写点（ET 交易日语义，与全站数据口径一致）。
+   根因：各页各写一套，State Map 用 toISOString()（UTC）——周日 20:00 ET 起
+   UTC 已翻次日，nav 显 07-13 而数据 07-12；其余页用浏览器本地时区，同类
+   漂移只是没被抓到。此处单源 ET 格式化；#nav-date 元素仍归各页 nav-right，
+   页面不含该元素时本脚本 no-op。 #}
+<script>
+(function () {
+  function setNavDate() {
+    var el = document.getElementById('nav-date');
+    if (el) el.textContent = new Date().toLocaleDateString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+      timeZone: 'America/New_York'
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setNavDate);
+  } else { setNavDate(); }
+})();
+</script>

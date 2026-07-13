@@ -7,7 +7,7 @@
 <script src="{{ url_for('static', filename='vendor/chart-4.4.0.umd.min.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/chartjs-plugin-zoom-2.0.1.min.js') }}"></script>
 <script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec108"></script>
-<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec139">
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec141_1">
 <script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -295,9 +295,6 @@ body { font-family: var(--f-ui); background: var(--bg); color: var(--text); min-
 const fmtPct = (n, d=2) => typeof n === 'number' ? (n * 100).toFixed(d) + '%' : '—';
 const fmtPP  = (n, d=2) => typeof n === 'number' ? (n > 0 ? '+' : '') + n.toFixed(d) + ' pp' : '—';
 const fmt    = (n, d=2) => typeof n === 'number' ? n.toFixed(d) : '—';
-document.getElementById('nav-date').textContent =
-  new Date().toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
-
 function colorCls(n, higherIsBetter = true) {
   if (typeof n !== 'number') return '';
   return (n > 0) === higherIsBetter ? 'up' : 'down';

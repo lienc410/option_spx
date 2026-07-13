@@ -6,7 +6,7 @@
 <title>SPX Strategy · Performance</title>
 <script src="{{ url_for('static', filename='vendor/chart-4.4.0.umd.min.js') }}"></script>
 <script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec108"></script>
-<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec139">
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec141_1">
 <script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -677,9 +677,6 @@ async function loadPerformance() {
   }
 }
 
-document.getElementById('nav-date').textContent = new Date().toLocaleDateString('en-US', {
-  year: 'numeric', month: 'short', day: 'numeric',
-});
 document.getElementById('exclude-paper-toggle').addEventListener('change', loadPerformance);
 loadPerformance();
 </script>

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Aftermath · Dashboard</title>
 <script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec108"></script>
-<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec139">
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec141_1">
 <script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
 <style>
 *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
@@ -144,9 +144,6 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 </div>
 
 <script>
-const now = new Date();
-document.getElementById('nav-date').textContent = now.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
-
 function fmt(n, dec) { return typeof n === 'number' ? n.toFixed(dec ?? 1) : '—'; }
 
 async function loadStatus() {

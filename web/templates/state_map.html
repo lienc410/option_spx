@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>State Map · SPX Strategy</title>
 <script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec108"></script>
-<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec139">
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec141_1">
 <script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
 <style>
 *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
@@ -41,6 +41,12 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 /* ── Layer 0: veto lights ── */
 .veto-strip { display:flex;gap:10px;flex-wrap:wrap; }
 .veto-light { flex:1 1 150px;display:flex;align-items:center;gap:8px;background:var(--surface-hi);border:1px solid var(--border);border-radius:7px;padding:8px 10px; }
+/* SPEC-141.1 — 深链到 /spx Decision Trace 对应节点：样式低调（继承色，
+   hover 只给边框/下划线暗示），高亮由目标端 CSS :target 承担 */
+a.veto-light { color:inherit;text-decoration:none;cursor:pointer;transition:border-color 0.15s; }
+a.veto-light:hover { border-color:var(--gold-border); }
+.engine-name a { color:inherit;text-decoration:none; }
+.engine-name a:hover { text-decoration:underline;text-decoration-color:var(--text-2);text-underline-offset:3px; }
 .veto-dot { width:9px;height:9px;border-radius:9999px;flex:0 0 9px; }
 .dot-ok  { background:var(--green);box-shadow:0 0 5px var(--green-border); }
 .dot-bad { background:var(--red);box-shadow:0 0 5px var(--red-border); }
@@ -182,11 +188,15 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
       <span class="layer-title">Survival Veto</span>
       <span class="layer-sub">宪法层，一字不动——任何下层逻辑不得越过</span>
     </div>
+    <!-- SPEC-141.1 — 四灯深链 /spx#trace-<check>（check 与后端 trace 节点同名）：
+         extreme→extreme_vol（selector 极端波动刹车门）· second_leg/caps→
+         sleeve_stress_machine（二次下探 episode 与 R-cap regime 同住该 Lane D 节点，
+         trace 无各自独立门行）· cash_floor→cash_floor（Lane A 资金层） -->
     <div class="veto-strip" id="veto-strip">
-      <div class="veto-light"><span class="veto-dot dot-na" id="dot-extreme"></span><span class="veto-name">Extreme Halt</span><span class="veto-val" id="val-extreme">n/a</span></div>
-      <div class="veto-light"><span class="veto-dot dot-na" id="dot-secondleg"></span><span class="veto-name">Second-Leg</span><span class="veto-val" id="val-secondleg">n/a</span></div>
-      <div class="veto-light"><span class="veto-dot dot-na" id="dot-caps"></span><span class="veto-name">Governance Caps</span><span class="veto-val" id="val-caps">n/a</span></div>
-      <div class="veto-light"><span class="veto-dot dot-na" id="dot-cashfloor"></span><span class="veto-name">Cash Floor</span><span class="veto-val" id="val-cashfloor">n/a</span></div>
+      <a class="veto-light" href="/spx#trace-extreme_vol" title="查看决策链对应节点"><span class="veto-dot dot-na" id="dot-extreme"></span><span class="veto-name">Extreme Halt</span><span class="veto-val" id="val-extreme">n/a</span></a>
+      <a class="veto-light" href="/spx#trace-sleeve_stress_machine" title="查看决策链对应节点"><span class="veto-dot dot-na" id="dot-secondleg"></span><span class="veto-name">Second-Leg</span><span class="veto-val" id="val-secondleg">n/a</span></a>
+      <a class="veto-light" href="/spx#trace-sleeve_stress_machine" title="查看决策链对应节点"><span class="veto-dot dot-na" id="dot-caps"></span><span class="veto-name">Governance Caps</span><span class="veto-val" id="val-caps">n/a</span></a>
+      <a class="veto-light" href="/spx#trace-cash_floor" title="查看决策链对应节点"><span class="veto-dot dot-na" id="dot-cashfloor"></span><span class="veto-name">Cash Floor</span><span class="veto-val" id="val-cashfloor">n/a</span></a>
     </div>
     <div class="layer-note">VIX ≥ 35 全停 · second-leg（dd60 ≤ −8% 且 VIX ≥ 25）禁新短 vol · R1-R6 治理 cap · 现金 floor $30k · 2008 型锁死保留<span class="spec-ref">SPEC-103/104</span></div>
   </div>
@@ -264,9 +274,13 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
     </div>
     <div class="engine-grid">
 
+      <!-- SPEC-141.1 — 引擎卡标题深链：Convexity→#trace-dd_overlay（唯一单一对应
+           lane_d 行）；Premium 相关 lane_d 行有二（aftermath_window 特批通道 +
+           es_ladder 兄弟策略）、Trend 在 Lane D 无行——两者按 spec fallback
+           链 Lane D 区块锚 #trace-lane-d -->
       <div class="engine-card" id="card-premium">
         <div class="engine-hd">
-          <span class="engine-name">Premium <em>theta</em></span>
+          <span class="engine-name"><a href="/spx#trace-lane-d" title="查看决策链对应节点">Premium <em>theta</em></a></span>
           <span id="badge-premium"><span class="na">n/a</span></span>
         </div>
         <div class="engine-row"><span class="engine-key">Payoff</span><span class="engine-val">短 vol theta 收割——收权利金赚时间价值衰减</span></div>
@@ -279,7 +293,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 
       <div class="engine-card" id="card-trend">
         <div class="engine-hd">
-          <span class="engine-name">Trend <em>delta+theta</em></span>
+          <span class="engine-name"><a href="/spx#trace-lane-d" title="查看决策链对应节点">Trend <em>delta+theta</em></a></span>
           <span id="badge-trend"><span class="na">n/a</span></span>
         </div>
         <div class="engine-row"><span class="engine-key">Payoff</span><span class="engine-val">方向性看涨混合——79% 在区间顶部入场且整体赚钱（K3：震荡照常入场，不设 gate）</span></div>
@@ -292,7 +306,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 
       <div class="engine-card" id="card-convexity">
         <div class="engine-hd">
-          <span class="engine-name">Convexity <em>long gamma</em></span>
+          <span class="engine-name"><a href="/spx#trace-dd_overlay" title="查看决策链对应节点">Convexity <em>long gamma</em></a></span>
           <span id="badge-convexity"><span class="na">n/a</span></span>
         </div>
         <div class="engine-row"><span class="engine-key">Payoff</span><span class="engine-val">长 gamma——capped debit call spread 吃回撤后的反弹凸性（Drawdown Overlay）</span></div>
@@ -662,9 +676,6 @@ $('light-dip').addEventListener('click', () => {
   toggleRehearsal(true);
   $('rehearsal').scrollIntoView({ behavior: 'smooth', block: 'center' });
 });
-
-const _now = new Date();
-$('nav-date').textContent = _now.toISOString().slice(0, 10);
 
 fetch('/api/state-surface')
   .then(r => r.json())

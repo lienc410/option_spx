@@ -22,6 +22,15 @@
 
   function _esc(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
 
+  // SPEC-141.1 — 节点稳定 DOM id（State Map 深链目标端）：id="trace-<check>"，
+  // check 即后端自吐的节点 check 名（已是稳定标识符，同源零映射表）。
+  // 只在整卡渲染（node/anchor/laneD/ev-inline）挂 id；首页锚点摘要
+  // （anchorSummaryHtml）不挂——同页整卡并存时 id 必须唯一。
+  function _idOf(n) {
+    if (!n || !n.check) return '';
+    return ` id="trace-${String(n.check).replace(/[^A-Za-z0-9_-]/g, '')}"`;
+  }
+
   // 图例常显一行（SPEC-135.3 §3——一行教会读图）
   function traceLegendHtml() {
     return `<div class="trace-legend">` +
@@ -46,7 +55,7 @@
     // hover/点击三件套：{检查了什么数据, 实际值 vs 阈值, code_ref}（SPEC-135 §0）
     // 溯源只在三件套"代码溯源"行与 tooltip，不进主行（SPEC-135.4）
     return `
-      <details class="trace-node t-${n.outcome}">
+      <details class="trace-node t-${n.outcome}"${_idOf(n)}>
         <summary title="点击展开：检查数据 · 实际值 vs 阈值 · 代码溯源${n.code_ref ? _esc('（' + n.code_ref + '）') : ''}">
           <span class="t-icon" style="color:${iconColor}">${icon}</span>
           <span>${n.label_human || n.check}</span>
@@ -67,7 +76,7 @@
     const flushShort = () => {
       if (shortRun.length > 1) {
         rows.push(`<div class="trace-ev-inline">${shortRun.map((n) =>
-          `<span title="${_esc(n.detail)}">✓ ${n.label_human}</span>`).join(' · ')}</div>`);
+          `<span${_idOf(n)} title="${_esc(n.detail)}">✓ ${n.label_human}</span>`).join(' · ')}</div>`);
       } else if (shortRun.length === 1) {
         rows.push(traceNodeHtml(shortRun[0]));
       }
@@ -109,7 +118,7 @@
       + '溯源: ' + (n.code_ref || '—'));
     return `
       <div class="trace-anchor-block">
-        <div class="trace-anchor ${kind === 'final' ? 'is-final' : ''} a-${cls}"
+        <div class="trace-anchor ${kind === 'final' ? 'is-final' : ''} a-${cls}"${_idOf(n)}
              ${hasEv ? `onclick="const g=document.getElementById('${groupId}'); if(g) g.style.display = g.style.display==='none' ? '' : 'none';"` : ''} title="${tip}">
           <span class="a-icon">${icon}</span>
           <span class="a-label">${n.label_human || n.check}</span>
@@ -200,7 +209,7 @@
     // 联动线等归属行（kind=evidence）缩进挂在引擎行下，常显不折叠
     const linkCls = traceKindOf(n) === 'evidence' ? ' trace-laned-link' : '';
     return `
-      <details class="trace-node t-${n.outcome}${linkCls}">
+      <details class="trace-node t-${n.outcome}${linkCls}"${_idOf(n)}>
         <summary title="点击展开：检查数据 · 实际值 vs 阈值 · 代码溯源${n.code_ref ? _esc('（' + n.code_ref + '）') : ''}">
           <span class="t-icon" style="color:${_iconColor(n)}">${icon}</span>
           ${badge}
@@ -286,12 +295,30 @@
             <div style="font-size:0.76rem;color:var(--text);line-height:1.6">${laneC.narrative || '—'}</div>
             <div class="trace-disclaimer">${laneC.disclaimer || ''}</div>
           </div>
-          <div class="trace-lane">
+          <div class="trace-lane" id="trace-lane-d">
             <div class="trace-lane-title">Lane D · 决策引擎状态（真实决策——区别于 Lane C 只描述）</div>
             ${traceLaneDHtml(d.lane_d)}
           </div>
         </div>
       </details>`;
+  }
+
+  // SPEC-141.1 — State Map 深链目标端就位：卡片异步渲染晚于浏览器原生
+  // fragment 定位，故渲染完成后做一次最小 reveal（开卡 + 解除折叠祖先），
+  // 再用 location.replace 重放同一 fragment——原生滚动与 CSS :target 高亮
+  // 全部交还浏览器（高亮零 JS，样式见 theme.css trace :target 段）。
+  function traceRevealHash(wrap) {
+    const h = location.hash || '';
+    if (!/^#trace-[A-Za-z0-9_-]+$/.test(h)) return;
+    const el = wrap.querySelector(h);
+    if (!el) return;
+    const card = wrap.querySelector('.trace-card');
+    if (card) card.open = true;
+    for (let p = el.parentElement; p && p !== wrap; p = p.parentElement) {
+      if (p.classList && p.classList.contains('trace-ev-group')) p.style.display = '';
+      if (p.tagName === 'DETAILS') p.open = true;
+    }
+    location.replace(h);
   }
 
   // 挂载/刷新整卡到某容器；保留展开态。onchange 日期切换走 window.loadDecisionTrace。
@@ -308,6 +335,7 @@
       const wasOpen = wrap.querySelector('.trace-card') && wrap.querySelector('.trace-card').open;
       wrap.innerHTML = traceCardHtml(data);
       if (wasOpen || dateStr) { const c = wrap.querySelector('.trace-card'); if (c) c.open = true; }
+      if (!dateStr) traceRevealHash(wrap);   // 首载才响应深链；日期切换不重定位
     } catch (_) {
       wrap.innerHTML = '';
     }

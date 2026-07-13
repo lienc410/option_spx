@@ -532,9 +532,11 @@ class UiAuditTests(unittest.TestCase):
         self.assertNotIn("#", rules_only)
 
     def test_asset_versions_bumped(self) -> None:
+        # SPEC-141.1：theme.css/trace_render.js 内容变更（trace :target 高亮 +
+        # 节点稳定 id）→ 版本键随内容全站同步（DESIGN.md Decisions Log 2026-07-11）
         for tpl in (self.spx, self.home):
-            self.assertIn("theme.css') }}?v=spec139", tpl)
-            self.assertIn("trace_render.js') }}?v=spec135_5_laned", tpl)
+            self.assertIn("theme.css') }}?v=spec141_1", tpl)
+            self.assertIn("trace_render.js') }}?v=spec141_1", tpl)
 
 
 if __name__ == "__main__":

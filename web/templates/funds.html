@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Funds · 基金清仓</title>
 <script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=funds1"></script>
-<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec139">
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec141_1">
 <script src="{{ url_for('static', filename='theme.js') }}?v=funds1"></script>
 <style>
 *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
@@ -641,9 +641,6 @@ load();
 loadTrades();
 loadPnl();
 
-// nav date
-const nd = document.getElementById('nav-date');
-if (nd) nd.textContent = new Date().toLocaleDateString('zh-CN',{month:'short',day:'numeric',weekday:'short'});
 </script>
 </body>
 </html>
