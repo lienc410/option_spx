@@ -723,20 +723,31 @@ $('light-dip').addEventListener('click', () => {
   $('rehearsal').scrollIntoView({ behavior: 'smooth', block: 'center' });
 });
 
-fetch('/api/state-surface')
-  .then(r => r.json())
-  .then(s => {
-    const vol = s.vol_axis || {}, dip = (s.events || {}).dip || {};
-    $('hero-meta').textContent =
-      `${s.date || '—'} · VIX ${ok(vol) ? vol.vix : 'n/a'} · ddATH ${ok(dip) ? dip.ddath_pct + '%' : 'n/a'}`;
-    renderVeto(s.veto || {});
-    renderLayer1(s);
-    renderEngines(s);
-    renderPools(s);
-    renderTimeline(s.history || []);
-    renderRehearsal(s);
-  })
-  .catch(() => { $('hero-meta').textContent = '状态面数据不可用'; });
+// 冷启动重试：web 重启后 state-surface 首次计算要初始化券商会话（10-20s），
+// 一次性 fetch 拿到降级 payload 会让 Layer 3 永远停在 n/a——降级时自动重试
+// （8s × 最多 3 次），全轨齐了就停。
+function loadStateSurface(attempt = 0) {
+  fetch('/api/state-surface')
+    .then(r => r.json())
+    .then(s => {
+      const vol = s.vol_axis || {}, dip = (s.events || {}).dip || {};
+      $('hero-meta').textContent =
+        `${s.date || '—'} · VIX ${ok(vol) ? vol.vix : 'n/a'} · ddATH ${ok(dip) ? dip.ddath_pct + '%' : 'n/a'}`;
+      renderVeto(s.veto || {});
+      renderLayer1(s);
+      renderEngines(s);
+      renderPools(s);
+      renderTimeline(s.history || []);
+      renderRehearsal(s);
+      const cashDegraded = ((s.pools || {}).cash || {}).status !== 'ok';
+      if (cashDegraded && attempt < 3) setTimeout(() => loadStateSurface(attempt + 1), 8000);
+    })
+    .catch(() => {
+      $('hero-meta').textContent = '状态面数据不可用';
+      if (attempt < 3) setTimeout(() => loadStateSurface(attempt + 1), 8000);
+    });
+}
+loadStateSurface();
 </script>
 
 </body>
