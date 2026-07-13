@@ -589,6 +589,10 @@ function renderPools(s) {
       const t = tickHtml(c.ammo_line_pos_pct, `ammo ${fmtUsd(c.ammo_line_usd)}`);
       ticks += t.tick; labels += t.label;
     }
+    if (c.waterline_self_pos_pct != null) {
+      const t = tickHtml(c.waterline_self_pos_pct, `水位 ${fmtUsd(c.waterline_self_usd)}`);
+      ticks += t.tick; labels += t.label;
+    }
     $('cash-ticks').innerHTML = labels;
     $('cash-track').innerHTML = `<div class="bar-fill fill-cash" style="width:${g.width_pct ?? 0}%"></div>` + ticks;
     const rows = [];
@@ -599,6 +603,15 @@ function renderPools(s) {
       rows.push(`<div class="pool-row"><span class="pr-key">Concurrent BCD headroom</span><span class="pr-val">${c.bcd_headroom_count} × ${fmtUsd(c.bcd_standard_usd)}</span></div>`);
     }
     rows.push(`<div class="pool-row"><span class="pr-key">Floor</span><span class="pr-val">${fmtUsd(c.floor_usd)}</span></div>`);
+    if (c.waterline_state) {
+      const wlTip = `现金水位规则（只读，不拦单）：池 ≥ ${fmtUsd(c.waterline_self_usd)} 时主 debit × DD Overlay × 现金预算三方自洽；池 < ${fmtUsd(c.waterline_sell_usd)} 时 DD Overlay 触发日预期需卖 QQQ/SGOV 腾现金、或主动跳过该次 — 溯源 Q093 P1 R-b`;
+      const wl = c.waterline_state === 'ok'
+        ? `<span class="pr-val pr-ok">✓ ≥ ${fmtUsd(c.waterline_self_usd)} 三方自洽</span>`
+        : c.waterline_state === 'below_self'
+          ? `<span class="pr-val pr-warn">⚠ 跌破 ${fmtUsd(c.waterline_self_usd)} 自洽线 — DD 触发日或需卖资产/跳过</span>`
+          : `<span class="pr-val pr-bad">⚠ < ${fmtUsd(c.waterline_sell_usd)} — DD 触发日须卖资产或跳过</span>`;
+      rows.push(`<div class="pool-row" title="${wlTip}"><span class="pr-key">现金水位</span>${wl}</div>`);
+    }
     $('cash-rows').innerHTML = rows.join('');
   } else {
     $('cash-total').innerHTML = NA;

@@ -577,7 +577,11 @@ def compute_state_surface(today: Optional[str] = None) -> dict:
         cash: dict = {"status": "n/a",
                       "error": f"{cash_err or debit_err or 'liquid/debit unavailable'}"[:200]}
         if liquid is not None and liquid > 0 and debit is not None:
-            from strategy.cash_budget_governance import CAP_PCT, CASH_FLOOR_USD
+            from strategy.cash_budget_governance import (
+                CAP_PCT, CASH_FLOOR_USD,
+                CASH_WATERLINE_SELF_CONSISTENT_USD,
+                CASH_WATERLINE_SELL_OR_SKIP_USD,
+            )
             inflight = debit
             a = ammo if ammo.get("status") == "ok" else {}
             reserve = _num(a.get("reserve_need"))
@@ -593,6 +597,16 @@ def compute_state_surface(today: Optional[str] = None) -> dict:
                 "floor_usd": CASH_FLOOR_USD,
                 "floor_pos_pct": round(min(100.0, CASH_FLOOR_USD / liquid * 100.0), 2),
                 "utilization_pct": round(inflight / liquid * 100.0, 1),
+                # 现金水位门线（Q093 P1 R-b，只读不拦单）——与 home Resource
+                # Waterline 卡同一常数源；state 供 Layer 3 行文与金色刻度线。
+                "waterline_self_usd": CASH_WATERLINE_SELF_CONSISTENT_USD,
+                "waterline_sell_usd": CASH_WATERLINE_SELL_OR_SKIP_USD,
+                "waterline_self_pos_pct": round(
+                    min(100.0, CASH_WATERLINE_SELF_CONSISTENT_USD / liquid * 100.0), 2),
+                "waterline_state": (
+                    "ok" if liquid >= CASH_WATERLINE_SELF_CONSISTENT_USD
+                    else "below_self" if liquid >= CASH_WATERLINE_SELL_OR_SKIP_USD
+                    else "sell_or_skip"),
             }
             if reserve is not None:
                 # 金色弹药刻度线：liquid − reserve_need 的绝对位置；
