@@ -7,18 +7,21 @@ Design:
   (find_triggers_ddath + apply_no_overlap), so AC21 reproduces research counts.
   P&L calculation uses walk-forward pricing.
 
-  Sleeve A: ddATH ≤ -4%, no MA filter, T+1 open, DTE 30, ATM/+2.5% (SPEC-094.1).
+  Sleeve A: ddATH ≤ -4%, no MA filter, T+1 open, DTE/width from
+            strategy.q042_sizing（SPEC-094.5 起 ATM/+5%, DTE 30——参数不再 mirror）.
   Sleeve B: ddATH ≤ -15% outer crossing → MA10 reclaim, DTE 90, ATM/+5% (unchanged).
-  Both:     10% account sizing, hold to expiry.
+  Both:     10% account sizing (account_pct 显示口径), hold to expiry.
 
 Acceptance criteria:
-  AC21: Reproduces Tier 3 research metrics within ±2%:
-    Sleeve A: n=25, win 64%, +99% / 19y, max DD -16.3%
-    Sleeve B: n=5, win 100%, +41% / 19y, max DD 0%
-  AC22: Outputs data/q042_backtest_trades.csv
+  AC21 (SPEC-094 验收时点冻结, 当时参数 ATM/+5%/D90): Sleeve A n=25 win 64%
+    +99%/19y maxDD -16.3%; Sleeve B n=5 win 100% +41%. 后续参数变更
+    (094.1/094.5) 使这些参考值成为历史验收记录; 活体校验 =
+    tests/test_spec_094_5.py 金行 + 信号流对齐。
+  AC22: Outputs data/q042_backtest_trades.csv（SPEC-094.6 起 untracked 运行时
+    工件——再生跑本引擎, 两机各自落盘, 不进 git）
   AC23: Outputs combined daily BP series (included in BacktestResult)
 
-Run with: python -m backtest.q042_engine [--start 2007-01-01] [--end 2026-05-10]
+Run with: python -m backtest.q042_engine [--start 2007-01-01] [--end <today>]
 """
 
 from __future__ import annotations
@@ -43,10 +46,13 @@ SPX_PKL = REPO_ROOT / "data" / "market_cache" / "yahoo__GSPC__max__1d.pkl"
 VIX_PKL = REPO_ROOT / "data" / "market_cache" / "yahoo__VIX__max__1d.pkl"
 TRADES_CSV = REPO_ROOT / "data" / "q042_backtest_trades.csv"
 
-_DTE_A      = 30    # Sleeve A: SPEC-094.1
-_DTE_B      = 90    # Sleeve B: unchanged
-_OTM_A      = 0.025 # Sleeve A: ATM/+2.5% (SPEC-094.1)
-_OTM_B      = 0.05  # Sleeve B: ATM/+5%  (unchanged)
+# SPEC-094.5: 结构参数唯一真值源 = strategy.q042_sizing（no-param-mirror——
+# 本文件此前 mirror 了 0.025，094.5 改宽度时若忘改这里，dashboard 回测将
+# 静默展示旧结构）。
+from strategy.q042_sizing import (  # noqa: E402
+    _DTE_A, _DTE_B, _OTM_PCT_A as _OTM_A, _OTM_PCT_B as _OTM_B,
+)
+
 _SIZING_PCT = 0.10
 _NLV_SEED   = 100_000.0
 _MA10_WIN   = 10
@@ -139,66 +145,11 @@ def _load_history(start: str, end: str) -> pd.DataFrame:
     return spx
 
 
-# ── Trigger detection (research methodology) ──────────────────────────────────
-
-def _find_triggers_ddath(
-    ddath: pd.Series,
-    thr: float,
-    rearm_at: float,
-) -> pd.DatetimeIndex:
-    """
-    Identical to research q042_ddath_full_scan.py find_triggers_ddath.
-    Fires on first ddATH ≤ -thr crossing; re-arms when ddATH ≥ rearm_at.
-    Position-agnostic — no-overlap applied separately.
-    """
-    triggers = []
-    armed = True
-    for dt, dd in ddath.items():
-        if armed and dd <= -thr:
-            triggers.append(dt)
-            armed = False
-        elif not armed and dd >= rearm_at:
-            armed = True
-    return pd.DatetimeIndex(triggers)
-
-
-def _apply_no_overlap(entries: pd.DatetimeIndex, dte: int) -> pd.DatetimeIndex:
-    if len(entries) == 0:
-        return entries
-    kept = [entries[0]]
-    last_close = entries[0] + pd.Timedelta(days=dte)
-    for e in entries[1:]:
-        if e >= last_close:
-            kept.append(e)
-            last_close = e + pd.Timedelta(days=dte)
-    return pd.DatetimeIndex(kept)
-
-
-def _find_sleeve_b_entries(
-    dd15_crossings: pd.DatetimeIndex,
-    close: pd.Series,
-    ma10: pd.Series,
-    trading_index: pd.DatetimeIndex,
-    watch_days: int = _WATCH_DAYS,
-) -> pd.DatetimeIndex:
-    """
-    For each dd15 crossing: wait for first close > MA10 within watch_days
-    trading days. Returns signal dates (MA10 reclaim dates).
-    """
-    entries = []
-    for crossing in dd15_crossings:
-        try:
-            cross_i = trading_index.get_loc(crossing)
-        except KeyError:
-            continue
-        for j in range(cross_i + 1, min(cross_i + watch_days + 1, len(trading_index))):
-            dt = trading_index[j]
-            c = float(close.iloc[j])
-            m = float(ma10.iloc[j]) if not pd.isna(ma10.iloc[j]) else c
-            if c > m:
-                entries.append(dt)
-                break
-    return pd.DatetimeIndex(entries)
+# ── Trigger detection ─────────────────────────────────────────────────────────
+# SPEC-094.5: raw-crossing + no-overlap 的本地重实现已删除——它与 production
+# 状态机存在 armed-闩锁语义差（漏到期日再触发）。信号流见 run_backtest Step 1
+# （signals.q042_trigger.get_q042_history）。冻结的研究方法学副本保留在
+# research/q062/q062_tier1_structure_scan.py。
 
 
 # ── Position tracker ──────────────────────────────────────────────────────────
@@ -227,16 +178,16 @@ def run_backtest(start: str = "2007-01-01", end: str = "2026-05-10") -> Backtest
     ath  = df["close"].cummax()
     ddath = df["close"] / ath - 1.0
 
-    # ── Step 1: compute trigger sets using research methodology ───────────────
-    raw_a  = _find_triggers_ddath(ddath, 0.04, -0.02)
-    sig_a  = _apply_no_overlap(raw_a, _DTE_A)
-
-    raw_b_cross = _find_triggers_ddath(ddath, 0.15, -0.02)
-    raw_b_entry = _find_sleeve_b_entries(raw_b_cross, df["close"], ma10, idx, _WATCH_DAYS)
-    sig_b  = _apply_no_overlap(raw_b_entry, _DTE_B)
-
-    sig_a_set = set(d for d in sig_a)
-    sig_b_set = set(d for d in sig_b)
+    # ── Step 1: trigger streams from the LIVE state machine ──────────────────
+    # SPEC-094.5: 本引擎原自带一份 raw-crossing + no-overlap 重实现，与
+    # production 状态机存在语义差——armed 在持仓期内闩锁（条件持续满足时
+    # 仓位到期日立即再 fire），重实现把持仓期内穿越直接丢弃，历史上漏
+    # 2007-11-19 / 2015-12-14 两笔到期日再触发。信号流唯一真值源 =
+    # signals.q042_trigger.get_q042_history（与 executor 同一状态机）。
+    from signals.q042_trigger import get_q042_history
+    entries_a, entries_b = get_q042_history(df, start=start, end=end)
+    sig_a_set = {pd.Timestamp(e["signal_date"]) for e in entries_a}
+    sig_b_set = {pd.Timestamp(e["signal_date"]) for e in entries_b}
 
     # ── Step 2: walk-forward pricing and P&L ─────────────────────────────────
     active_a: Optional[_ActivePos] = None
@@ -246,11 +197,14 @@ def run_backtest(start: str = "2007-01-01", end: str = "2026-05-10") -> Backtest
     daily_rows: list[DailyRow] = []
     account = _NLV_SEED
 
-    def _exp_date(entry_str: str, dte: int) -> str:
-        # Expiry is DTE calendar days from entry (T+1 open), not signal (T close).
-        # Live PM buys spread on entry day with X-DTE listed contract, then holds X days.
-        # Pre-fix used signal+DTE, causing trades to exit ~1 trading day early (Q062 R-20260510-15).
-        return (datetime.strptime(entry_str, "%Y-%m-%d") + timedelta(days=dte)).strftime("%Y-%m-%d")
+    def _exp_date(signal_str: str, dte: int) -> str:
+        # SPEC-094.5: expiry 锚点 = signal + 1 自然日 + DTE —— 与 production 逐位
+        # 一致（executor: entry_date = today+1 calendar, expiry = entry+DTE；
+        # signals.q042_trigger.get_q042_history 同）。此前用"交易日 entry + DTE"，
+        # 周五信号比 production 晚到期 2 天，挡掉到期日再触发（2007-11-19 类）。
+        # R-20260510-15 的本意（expiry 从 entry 起算而非 signal 起算）保持不变。
+        return (datetime.strptime(signal_str, "%Y-%m-%d")
+                + timedelta(days=1 + dte)).strftime("%Y-%m-%d")
 
     def _maybe_expire(pos: Optional[_ActivePos], trades: list, today: str, close: float) -> Optional[_ActivePos]:
         if pos is None or today < pos.expiry_date:
@@ -296,7 +250,7 @@ def run_backtest(start: str = "2007-01-01", end: str = "2026-05-10") -> Backtest
             ath_at_signal=ath_val, ddath_at_signal=dd_val,
             long_strike=float(K_long), short_strike=float(K_short),
             debit_per_share=debit_ps, contracts=1.0,
-            expiry_date=_exp_date(df.index[i + 1].strftime("%Y-%m-%d"), dte),
+            expiry_date=_exp_date(signal_dt.strftime("%Y-%m-%d"), dte),
             account_at_entry=_NLV_SEED,
         )
 
@@ -411,8 +365,10 @@ def write_trades_csv(result: BacktestResult) -> None:
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Q042 walk-forward backtest")
+    # 默认全窗口到今天：2026-07-11 一次 ad-hoc 短 --start 调用把 old Air 的
+    # CSV 刷成 2 行（dashboard 残表）。默认值必须产出完整诚实的表。
     p.add_argument("--start", default="2007-01-01")
-    p.add_argument("--end",   default="2026-05-10")
+    p.add_argument("--end",   default=datetime.now().strftime("%Y-%m-%d"))
     args = p.parse_args()
     print(f"running Q042 backtest {args.start} → {args.end} …")
     result = run_backtest(args.start, args.end)

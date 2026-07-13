@@ -17,11 +17,16 @@ year-bootstrap P=0.965 下通过全部预注册 R1 条件（+$292k/19y，$/cash-
 
 **F1 参数替换**：`strategy/q042_sizing.py` `_OTM_PCT_A 0.025 → 0.05`（单一真值源；
 41bfe45 之后前端经 `/api/q042/state` params 块读代码真值，零文案跟改）。
-**F2 回测账本再生**：新增 `scripts/q042_regen_backtest.py`（修复该 CSV 无生成器的
-可复现性缺口），从 `get_q042_history` walk-forward + 生产 INC 定价按**当前**
-sizing 常量再生 `data/q042_backtest_trades.csv`；schema/记账惯例逐列保持
-（1.0 contracts research scale，account_pct = ROI×10% legacy 显示惯例，
-到期=首个 ≥signal+1+DTE 交易日收盘内在价值结算，无摩擦）。
+**F2 回测账本再生（实施中改道至正典引擎）**：CSV 生成器 = `backtest/q042_engine.py`
+（SPEC-094 F8/AC22，实施时才定位到——初版曾新增重复的 regen 脚本，已退役）。
+引擎三处修正随本 spec 落地：①结构参数改 import `strategy.q042_sizing`
+（原地 mirror 0.025，本次改宽若忘同步将静默展示旧结构）；②信号流改调
+`signals.q042_trigger.get_q042_history`（引擎原重实现有 armed-闩锁语义差，
+历史漏 2007-11-19/2015-12-14 两笔到期日再触发）；③expiry 锚点改 signal+1
+自然日+DTE（production 逐位一致；原"交易日 entry+DTE"周五信号晚 2 天）；
+④默认 `--end` 改当天（2026-07-11 一次 ad-hoc 短窗口调用把 old Air 的 CSV
+刷成 2 行残表）。CSV 本身转为 untracked 运行时工件（.gitignore，两机各自
+用引擎再生）。
 **F3 F4-对账补账**：新增 `research/q042/q042_f4_tieout_d30.py`（old Air 跑，
 链归档在那边）：对最近 5 个交易日的 SPX 链快照，计算 D≈30 的 ATM/+5%（生产）
 与 ATM/+2.5%（legacy 参照）broker mid debit vs 生产模型 debit，追加至

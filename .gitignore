@@ -69,3 +69,6 @@ data/q072_daily_flags_runtime.csv
 data/q042_state.json
 data/closed_trades.jsonl
 data/capital_flows.jsonl
+# SPEC-094.5: dashboard 回测账本 = 运行时工件（backtest/q042_engine.py 再生，
+# 两机各自落盘；2026-07-11 一次 ad-hoc 短窗口调用曾把 old Air 版刷成 2 行）
+data/q042_backtest_trades.csv
