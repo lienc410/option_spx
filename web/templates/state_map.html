@@ -684,6 +684,37 @@ function renderPools(s) {
   }
   if (bp.es_span) rows.push(`<div class="pool-row" title="独立券商 SPAN 池，不与 Schwab 账户共享 basis；governance 决策降权（demoted）"><span class="pr-key">/ES SPAN · 独立池</span><span class="pr-val">${fmtPct(bp.es_span.value)} / cap ${fmtPct(bp.es_span.cap, 0)}</span></div>`);
   if (bp.combined) rows.push(`<div class="pool-row"><span class="pr-key">Combined (R3)</span><span class="pr-val">${fmtPct(bp.combined.value)}${bp.combined_dollars != null ? ` ($${Math.round(bp.combined_dollars / 1000)}k)` : ''} / cap ${fmtPct(bp.combined.cap, 0)}</span></div>`);
+  // 分策略资源行（对齐 Cash Pool 侧的 DD reserve / BCD headroom 模式）
+  if (bp.lanes) {
+    const L = bp.lanes;
+    const k$ = v => `$${Math.round(v / 1000)}k`;
+    const roomsStr = Object.entries(L.rooms_pct || {}).map(([k, v]) => `${k} 剩 ${v.toFixed(1)}pp`).join('，');
+    const bpsTip = [
+      `headroom = 各 cap 剩余空间取最小（${roomsStr}）→ binding ${L.binding_cap}`,
+      `标准仓 = bp_target_normal ${L.bp_target_normal_pct}% × NLV basis ≈ ${k$(L.bps_std_usd)}（显示估算）`,
+      `实际下单以当时 Schwab Option BP 为基数（HIGH_VOL 档 ${L.bp_target_high_vol_pct}%）`,
+    ].join('\n');
+    const bpsVal = L.short_vol_blocked
+      ? `<span class="pr-warn">second-leg 阻断中（R6）</span>`
+      : `${L.bps_headroom_n} × ~${k$(L.bps_std_usd)}（binding ${L.binding_cap}，剩 ${k$(L.room_usd)}）`;
+    rows.push(`<div class="pool-row" title="${bpsTip}"><span class="pr-key">BPS/IC headroom</span><span class="pr-val">${bpsVal}</span></div>`);
+    const afTip = [
+      `Aftermath = 崩后窗口 IC-HV 首笔，0.5× staging（证据缺口降档）`,
+      `需求 = bp_target_high_vol ${L.bp_target_high_vol_pct}% × NLV basis × ${L.staging_factor}`,
+      `ready = binding cap 剩余空间 ≥ 需求`,
+    ].join('\n');
+    const afCls = L.aftermath_ready ? '' : 'pr-warn';
+    rows.push(`<div class="pool-row" title="${afTip}"><span class="pr-key">Aftermath reserve <span class="spec-ref">SPEC-143</span></span><span class="pr-val ${afCls}">~${k$(L.aftermath_need_usd)} · ${L.aftermath_ready ? 'ready' : 'short'}</span></div>`);
+    if (L.es_ladder && L.es_ladder.bp_per_contract != null) {
+      const E = L.es_ladder;
+      const esTip = [
+        `SPAN/张为 TOS 实测常量（as-of ${E.bp_as_of}，90 天过期线）`,
+        `占独立 SPAN 池（上方 /ES SPAN 行），不占 SPX PM`,
+        `mode=${E.mode || '—'}：shadow = 纸上跟踪，无实仓指令`,
+      ].join('\n');
+      rows.push(`<div class="pool-row" title="${esTip}"><span class="pr-key">HV Ladder (ES)</span><span class="pr-val">${E.mode === 'shadow' ? 'shadow · ' : ''}$${Math.round(E.bp_per_contract).toLocaleString()}/张 SPAN</span></div>`);
+    }
+  }
   if (bp.cap_regime) {
     // 内部枚举 token 人话化（booster_shadow 之类不直出）
     const regimeMap = {

@@ -26,6 +26,16 @@ log = logging.getLogger("exposure")
 # 7/7 实值 33.5% 仍触发，保持原 ratify 意图）。
 EXPOSURE_DEGRADE_THRESHOLD_PCT = 30.0
 
+# Q088 A5 housekeeping（自 web/server.py 下沉，2026-07-12 state-surface lanes
+# 需要非 Flask 读取）：/ES per-contract SPAN margin 随 SPX 水位漂移，Schwab API
+# 不暴露 per-position futures-option margin（memory: research_pm_bp_calculation）
+# —— 保持"实测常量 + as-of 日期 + staleness 面"。过期时 /es BP gate payload 带
+# warning（PM 在 open-draft 流程可见），不静默用旧值 gate。
+# 刷新方式：TOS 读 1-lot /ES short put 实际 BP effect，更新这两个值。
+ES_BP_PER_CONTRACT = 20_529.0
+ES_BP_PER_CONTRACT_AS_OF = "2026-05-08"   # last TOS measurement (SPEC-089 era)
+ES_BP_STALE_AFTER_DAYS = 90
+
 
 def _num(value) -> float | None:
     try:

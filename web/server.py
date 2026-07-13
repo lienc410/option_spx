@@ -97,16 +97,14 @@ _signals_cache: dict[str, tuple[float, dict]] = {}
 _CACHE_TTL = 300  # 5 minutes
 _SIGNALS_CACHE_TTL = 3600  # 1 hour
 _STATS_SCHEMA_VERSION = "v3"  # bump: account_size 150k → 500k
-# Q088 A5 housekeeping: /ES per-contract SPAN margin drifts with the SPX level
-# and Schwab exposes no per-position futures-option margin via API (memory:
-# research_pm_bp_calculation) — so this stays a measured constant WITH an
-# as-of date and a staleness surface. When stale, the /es BP gate payload
-# carries a warning (PM sees it in the open-draft flow) instead of silently
-# gating on an outdated number. Refresh: read the actual BP effect of a 1-lot
-# /ES short put in TOS and update both values.
-_ES_BP_PER_CONTRACT = 20_529.0
-_ES_BP_PER_CONTRACT_AS_OF = "2026-05-08"   # last TOS measurement (SPEC-089 era)
-_ES_BP_STALE_AFTER_DAYS = 90
+# Q088 A5: /ES per-contract SPAN 实测常量单一真值已下沉 strategy/exposure.py
+# （state-surface lanes 非 Flask 读取，2026-07-12）；此处薄别名，既有调用点/
+# tests patch.object(srv, ...) 不变。刷新值改 strategy/exposure.py。
+from strategy.exposure import (  # noqa: E402
+    ES_BP_PER_CONTRACT as _ES_BP_PER_CONTRACT,
+    ES_BP_PER_CONTRACT_AS_OF as _ES_BP_PER_CONTRACT_AS_OF,
+    ES_BP_STALE_AFTER_DAYS as _ES_BP_STALE_AFTER_DAYS,
+)
 
 def _es_bp_staleness_warning() -> str | None:
     from datetime import date as _date

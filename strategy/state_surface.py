@@ -596,6 +596,63 @@ def compute_state_surface(today: Optional[str] = None) -> dict:
                 v for v in ("schwab", "etrade")
                 if (g.get("pools_by_view") or {}).get(v)],
         }
+
+        # ── per-strategy lanes（PM 2026-07-12：BP 侧对齐 cash 侧的分策略资源行）
+        # headroom 取所有 binding cap（R1/R3/R4，episode 时 R5/R6）剩余空间的
+        # 最小值——只报到 R1 会在 R3 combined 更紧时高估。标准仓 $ = bp_target
+        # × NLV basis 为显示估算（真实下单基数是当时 Schwab Option BP，
+        # web/server._bp_preview_payload；runtime 无 option BP 快照）。
+        def _bp_lanes() -> Optional[dict]:
+            basis = bp["nlv_basis"]
+            used_spx = _num(p.get("spx_pm_bp_pct"))
+            if not basis or used_spx is None:
+                return None
+            from strategy.aftermath_staging import Q101_STAGING_FACTOR
+            from strategy.exposure import (ES_BP_PER_CONTRACT,
+                                           ES_BP_PER_CONTRACT_AS_OF)
+            from strategy.selector import DEFAULT_PARAMS
+            used_sv = _num(p.get("short_vol_bp_pct")) or 0.0
+            used_comb = _num(p.get("combined_bp_pct"))
+            used_comb = used_spx if used_comb is None else used_comb
+            rooms = {
+                "R1": (_num(caps.get("active_spx_pm_cap_pct")) or 0.0) - used_spx,
+                "R3": (_num(caps.get("R3_combined_cap_pct")) or 0.0) - used_comb,
+                "R4": (_num(caps.get("R4_short_vol_cap_pct")) or 0.0) - used_sv,
+            }
+            if g.get("stress_episode_active"):
+                rooms["R5"] = (_num(caps.get("R5_spx_pm_stress_cap_pct")) or 0.0) - used_spx
+            if g.get("second_leg_active"):
+                rooms["R6"] = (_num(caps.get("R6_second_leg_spx_cap_pct")) or 0.0) - used_spx
+            binding = min(rooms, key=rooms.get)  # type: ignore[arg-type]
+            room_usd = max(0.0, rooms[binding]) / 100.0 * basis
+            std_usd = float(DEFAULT_PARAMS.bp_target_normal) * basis
+            # R6 episode 期间 short-vol 全面阻断（governance 决策层同款检查）
+            sv_blocked = bool(g.get("second_leg_active")) and bool(
+                caps.get("R6_second_leg_short_vol_block"))
+            aftermath_need = (float(DEFAULT_PARAMS.bp_target_high_vol)
+                              * basis * float(Q101_STAGING_FACTOR))
+            return {
+                "binding_cap": binding,
+                "rooms_pct": {k: round(v, 2) for k, v in rooms.items()},
+                "room_usd": round(room_usd, 2),
+                "bps_std_usd": round(std_usd, 2),
+                "bps_headroom_n": 0 if sv_blocked else int(room_usd // std_usd),
+                "bp_target_normal_pct": round(float(DEFAULT_PARAMS.bp_target_normal) * 100, 1),
+                "bp_target_high_vol_pct": round(float(DEFAULT_PARAMS.bp_target_high_vol) * 100, 1),
+                "short_vol_blocked": sv_blocked,
+                "staging_factor": float(Q101_STAGING_FACTOR),
+                "aftermath_need_usd": round(aftermath_need, 2),
+                "aftermath_ready": (not sv_blocked) and room_usd >= aftermath_need,
+                # 注意：runtime 的 ladder_active_positions/ladder_active_total_bp
+                # 实为门输入（existing_spx_positions / 账户 BP%），不是 ladder
+                # 自身持仓——不得当持仓展示。ladder 实仓走 es_span 池（上方已示）。
+                "es_ladder": {
+                    "mode": g.get("ladder_mode"),
+                    "bp_per_contract": ES_BP_PER_CONTRACT,
+                    "bp_as_of": ES_BP_PER_CONTRACT_AS_OF,
+                },
+            }
+        bp["lanes"] = _bp_lanes()
         cash: dict = {"status": "n/a",
                       "error": f"{cash_err or debit_err or 'liquid/debit unavailable'}"[:200]}
         if liquid is not None and liquid > 0 and debit is not None:

@@ -17,7 +17,9 @@ ATTRIBUTION_FILE = Path(__file__).resolve().parent.parent / "data" / "q041_portf
 
 
 _SLEEVE_SOURCE = "doc/q041_execution_prep_packet_2026-05-05.md"
-_ES_BP_PER_CONTRACT = 20_529.0
+# 单一真值 strategy/exposure.py（2026-07-12 下沉；此前与 server.py 双写字面量
+# 有 drift 风险）。_ES_CALIB_* 是独立校准锚点组，保持冻结不别名。
+from strategy.exposure import ES_BP_PER_CONTRACT as _ES_BP_PER_CONTRACT  # noqa: E402
 _ES_MULTIPLIER = 50.0
 _ES_CALIB_VIX = 19.0
 _ES_CALIB_SPAN = 20_529.0
