@@ -670,10 +670,25 @@ def run_eod_evaluation(
         except Exception:
             log.exception("F1(94.3) pending-fill check failed — EOD continues (AC16)")
 
-        ath = max(state.get("ath_running_max", 0.0), spx_close)
+        # ── SPEC-094.6: ATH 重置 tripwire ─────────────────────────────────────
+        # running ATH 语义 = 2007 起算（signals/q042_trigger docstring）。state 被
+        # 重建（git stash/clobber 类）时 ath 归 0，silent re-anchor 会把 ddATH 读浅
+        # ——2026-06-10 真 ddATH −4.51% 被读成 0%，漏掉一次 Sleeve A fire。归零
+        # 必须响，不静默重锚。
+        prior_ath = float(state.get("ath_running_max", 0.0) or 0.0)
+        if prior_ath <= 0.0 and not dry_run:
+            _send_gateway(
+                "ACTION", "系统状态", "Q042 state ATH 为 0 — 疑似 state 被重置",
+                (f"q042_state.json 的 ath_running_max 缺失/为 0，running ATH 将从"
+                 f"今日收盘 {spx_close:,.0f} 重锚——ddATH 会系统性读浅、trigger 失效。"
+                 f"请按 2007 起算真值人工重设（处置参照 R-20260712-04）。"),
+                f"q042_ath_reset_{today_str}", log,
+            )
+        ath = max(prior_ath, spx_close)
         state["ath_running_max"] = ath
         state["ath_last_update"] = today_str
         ddath = spx_close / ath - 1.0
+        log.info("ath=%.2f ddath=%+.2f%% (prior_ath=%.2f)", ath, ddath * 100.0, prior_ath)
 
         spx_hist = yf.Ticker("^GSPC").history(period="1mo", interval="1d")
         ma10 = float(spx_hist["Close"].iloc[-10:].mean())

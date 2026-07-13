@@ -347,3 +347,25 @@ The CNAME target must be exactly `6d4708bc-69de-4f96-a3d8-1fc32e4543f2.cfargotun
 | cloudflared (secondary) | — | metrics on `127.0.0.1:60124` |
 
 When adding a new app, **pick a port not in this table**. Recommended: 5100, 5200, 5300, ...
+
+---
+
+## SPX_strat 专属规则：运行时 state 与 git（SPEC-094.6，2026-07-12）
+
+**事故背景**：old Air 上用 `git stash` 解 pull 冲突，把 git-tracked 的
+`data/q042_state.json` 打回 HEAD 全零 6 次，Q042 running ATH 被静默重锚，
+2026-06-10 一次真实触发（ddATH −4.51%）被漏。
+
+**规则（不可协商）**：
+
+1. **old Air 上禁止 `git stash` / `git checkout -- <runtime file>` / `git reset --hard`。**
+   pull 被 dirty tracked 文件挡住时，正确处理是把该文件 untrack
+   （`git rm --cached` + `.gitignore`，走一个 spec），不是 stash。
+2. **运行时可变文件（state/ledger/log）永不 git-tracked。** 持久性由
+   SPEC-117.1 L1（日备）/L2（周备 iCloud）负责，git 只管代码与冻结的研究工件。
+   现有 ignore 清单见 `.gitignore` SPEC-094.6 节。
+3. **新增运行时文件时**：先进 `.gitignore` 再写代码；review 时检查
+   `git status` 不得出现它。
+4. tracked 研究工件（如 `q042_backtest_trades.csv`、`q042_f4_tieout_history.csv`）
+   只能由入库脚本再生/追加后**在本地机 commit**，old Air 只 pull——两边同改
+   必然拒绝 pull。

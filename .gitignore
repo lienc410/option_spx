@@ -61,3 +61,11 @@ data/q090_ohlc_runtime.json
 # Weekly regime-flags runtime copy (scripts/refresh_regime_flags.py) —
 # tracked research CSV stays frozen as reproducibility truth
 data/q072_daily_flags_runtime.csv
+
+# SPEC-094.6 runtime state must NEVER be git-tracked — git stash on old Air
+# reverted these to HEAD 6×, resetting Q042 running ATH (missed 2026-06-10
+# fire) and reverting realized-trade ledgers. Durability is owned by the
+# SPEC-117.1 L1/L2 backups, not by git.
+data/q042_state.json
+data/closed_trades.jsonl
+data/capital_flows.jsonl

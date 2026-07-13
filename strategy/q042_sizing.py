@@ -5,12 +5,13 @@ Single entry point: compute_sizing().
 Inputs:  NLV, current SPX close, current VIX, sleeve_id.
 Outputs: (long_strike, short_strike, contracts, est_debit_per_contract)
 
-Rules (from SPEC-094 F2, updated by SPEC-104):
+Rules (from SPEC-094 F2, updated by SPEC-104 / SPEC-094.1 / SPEC-094.5):
   - NLV < $200k → skip (return 0 contracts)
   - Sleeve A staged target debit = NLV × 12.5%
   - Sleeve B remains unchanged at NLV × 10% and is not production-routed
   - Long K  = ATM rounded to nearest $5
-  - Short K = ATM × 1.05 rounded to nearest $5
+  - Short K = ATM × 1.05 rounded to nearest $5 (Sleeve A: SPEC-094.5, DTE 30
+    保持; Sleeve B: 原始不变, DTE 90)
   - Contracts = floor(target_debit / est_debit_per_contract)
   - Symbol fixed = SPX (no XSP branch in MVP)
 """
@@ -27,7 +28,7 @@ from strategy.q042_pricing import estimate_debit
 
 _NLV_MINIMUM    = 200_000.0   # activation threshold
 _STRIKE_ROUND   = 5.0         # $5 increments
-_OTM_PCT_A      = 0.025       # Sleeve A: ATM/+2.5% (SPEC-094.1)
+_OTM_PCT_A      = 0.05        # Sleeve A: ATM/+5% (SPEC-094.5; 094.1 的 2.5% 被 Q100 P1 推翻)
 _OTM_PCT_B      = 0.05        # Sleeve B: ATM/+5%  (unchanged)
 _DTE_A          = 30          # Sleeve A: 30 DTE   (SPEC-094.1)
 _DTE_B          = 90          # Sleeve B: 90 DTE   (unchanged)
@@ -69,7 +70,7 @@ def compute_sizing(
         Returns (None, None, 0, None) if NLV below activation threshold.
 
     AC6 example: NLV $500k, SPX 7400, VIX 25, sleeve_id="A"
-        → (7400, 7585, n, ~est) [Sleeve A: ATM/+2.5%, DTE 30]
+        → (7400, 7770, n, ~est) [Sleeve A: ATM/+5%, DTE 30 — SPEC-094.5]
     AC7: NLV $150k → (None, None, 0, None)
     """
     if nlv < _NLV_MINIMUM:

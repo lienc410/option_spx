@@ -305,8 +305,11 @@ def test_ac3_historical_replay_directional_alignment():
     sigs = trades[trades.sleeve_id == "A"].signal_date.tolist()
     ref = pd.read_csv(REPO / "research" / "q095" / "q095_p6_bps_sub.csv")
     ref = ref[ref.pricing == "FLAT"].set_index("signal")["stratum"]
-    assert len(sigs) == 35 and len(ref) == 35
-    assert sorted(sigs) == sorted(ref.index)
+    # SPEC-094.5 起 CSV 由 scripts/q042_regen_backtest.py 再生并随数据窗口后延；
+    # P6 真值冻结在研究时点的 35 笔——对齐检查限定在这 35 笔（新信号无 P6 真值）。
+    assert len(ref) == 35
+    assert set(ref.index) <= set(sigs), "冻结真值信号必须仍在再生流内"
+    sigs = sorted(ref.index)
 
     live = {s: ex._classify_trigger_type(closes, s) for s in sigs}
     diffs = {s: {"p6": ref[s], "live": live[s]} for s in sigs if live[s] != ref[s]}

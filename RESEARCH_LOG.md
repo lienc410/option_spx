@@ -3968,3 +3968,12 @@ Owner: Planner or PM
 - **裁定（外审四项全 CONFIRM）**: 结构保留 V3-A；C2 列 documented challenger（复审条件预注册：实测斜率 ≤1.0× 且价差 ≤1.5×）；通道预承诺复判规则——下一窗口测得 s/f 后以 S=s、F=f 重跑网格直接出 verdict，不留裁量；首笔 0.5× sizing 选项供 PM；首笔真实成交强制 fill-vs-model 校准
 - **文件**: research/q101/ framing + e1/e1b runner + memo（含外审记录 + §6 ratification）+ 2 CSV
 - **Ratify**: PM 2026-07-12 授权 Quant 裁决——三项全采纳（含首笔 0.5× staging；与 Q089 已杀 entry-wait 的区分：无价格择时，仅条件于确定信息到达）；实施 SPEC-143（live only，回测隔离）；Q101 CLOSED
+
+### R-20260712-04 — 生产事故登记：q042_state.json stash-clobber → running ATH 反复重锚，2026-06-10 Sleeve A 漏火（SPEC-094.6 修复）
+
+- **发现路径**: SPEC-094.5 实施中再生回测账本，walk-forward 出现 2026-06-10 信号（真 ddATH −4.51%，ATH=7609.78 @ 06-02），与生产"从未 fire"矛盾 → old Air 取证
+- **机制（全时间线对账吻合）**: `data/q042_state.json` 被 git 追踪（2e4142b 提交全零默认值）；old Air 部署解 pull 冲突用 `git stash`（reflog 6 条：06-10 11:48 / 06-11 / 06-12 / 07-04×3）→ state 打回全零 → executor 次日 `max(0, close)` 静默重锚。06-10 上午 stash、16:15 EOD executor 拿 ath=0 → ddATH 读 0%（executor 06-02 亲历 SPX=7610 的记录被抹）→ 漏火。审计 7/7 读到的 7537.43 与 07-10 的 7575.39 均为 07-04 stash 后重锚痕迹（= 各自窗口 max close，精确匹配）
+- **反事实（当时 2.5%/D30 结构，executor 日志实值 S=7266.99/VIX=22.19/NLV=$556,827）**: strikes 7265/7450，INC/CALIB debit $87.7/$88.1 → 7 张、占用 ~$61.4k；07-10 收盘 7575.39 已满宽，**MTM ≈ +$68k（+110% on debit，两定价模型一致）**，2026-07-13（周一）到期结算。**不补录不追单**（T+1 语义已过 22TD，追进=追高 +4.2%，非本策略）
+- **总账取证**: closed_trades.jsonl / capital_flows.jsonl 同为 tracked+mutable 同向量；按 trade_id 逐行核对 **无损**（9 行全在，含 6/3 −$2,000×2 与 6/5 +$2,900×2，realized 与 G2 复审一致）；stash 内容与当前差异均为 c603a1a 手术后字段校正
+- **修复（SPEC-094.6，与 094.5 同批部署）**: ①三个运行时文件 untrack + .gitignore（持久性归 SPEC-117.1 备份链）②executor ATH 归零 tripwire（ACTION 告警，不再静默重锚）+ 每日 ath/ddATH 日志行（6 周不可见的直接原因）③old Air state ATH 重设 7609.78 ④runbook 立规：old Air 禁 stash、运行时文件禁 track
+- **教训（登记 methodology）**: 可变运行时 state 进 git = 部署工具链成为策略语义的攻击面；"executor 从不打印自己的核心中间量（ATH/ddATH）" 是缺陷存活 6 周的直接原因——生产状态机的关键内生变量必须每日落日志
