@@ -32,6 +32,11 @@
      等 monkeypatch）、logs/push_stats.json 与 data/.push_dedupe.json（本
      conftest 自动重定向）、data/q087_bcd_governance_state.json 等治理状态
      （范例：tests/test_spec_123.py 的 gov.*_PATH monkeypatch）。
+5. Overlay F shadow log（2026-07-13 顺序 flake 绊线第 2 触发时发现的漏项）
+   - strategy/overlay._SHADOW_LOG / _ALERT_LATEST 是相对路径，任何走
+     get_recommendation 全链的测试都在向真实 data/overlay_f_shadow.jsonl
+     追加（dev 机已积到 26MB）——本 conftest 自动重定向 tmp。需要断言
+     写路径行为的测试自行 patch 专用 tmp（范例：test_overlay_f_monitoring）。
 ════════════════════════════════════════════════════════════════════════════
 
 层 3 元断言：session 结束时断言真实 logs/push_stats.json 在会话期间零增量
@@ -130,6 +135,12 @@ def _hermetic_push(request, monkeypatch, tmp_path):
     monkeypatch.setattr(_ep, "PUSH_STATS", tmp_path / "push_stats.json")
     monkeypatch.setattr(_ep, "PUSH_LEDGER", tmp_path / "push_ledger.jsonl")  # SPEC-139 #22
     monkeypatch.setattr(_gw, "DEDUPE_PATH", tmp_path / "push_dedupe.json")
+
+    # 隔离清单 §5 — overlay F shadow 通道（相对路径，get_recommendation 全链
+    # 测试曾向真实 data/ 追加）；测试内自行 patch 者以其 patch 为准。
+    import strategy.overlay as _ov
+    monkeypatch.setattr(_ov, "_SHADOW_LOG", tmp_path / "overlay_f_shadow.jsonl")
+    monkeypatch.setattr(_ov, "_ALERT_LATEST", tmp_path / "overlay_f_alert_latest.txt")
 
     def _guarded_post(url, *args, **kwargs):
         if "api.telegram.org" in str(url):
