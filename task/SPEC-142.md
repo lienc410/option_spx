@@ -31,14 +31,16 @@ FYI 级（非 ACTION）；每轴每日至多一条；dry-run 沿 094.x 语义零
 
 ## 验收标准
 
-| AC# | 描述 |
-|---|---|
-| AC-142-1 | 合成日志对（TREND→RANGE / RANGE→TREND / NORMAL→HIGH）→ 各触发一条 FYI，模板字段正确 |
-| AC-142-2 | **负向断言**：推送正文不含 {IC, BPS, BCD, 建议, 优先, 更适合, 适合做}（F2 禁令） |
-| AC-142-3 | 进入 RANGE 附弹药行；liquid n/a 时弹药行显示 n/a 不阻塞 |
-| AC-142-4 | 无变化日/backfill 行/n-a 字段 → 零推送 |
-| AC-142-5 | dedupe 幂等；dry-run 零落盘零推送 |
-| AC-142-6 | 094.2(22)+094.3(13)+094.4(13)+141(26) 全绿 |
+| AC# | 描述 | 结果 |
+|---|---|---|
+| AC-142-1 | 合成日志对（TREND→RANGE / RANGE→TREND / NORMAL→HIGH）→ 各触发一条 FYI，模板字段正确 | ✅ 5 tests（含上/下破方向行、双轴同日 2 条） |
+| AC-142-2 | **负向断言**：推送正文不含 {IC, BPS, BCD, 建议, 优先, 更适合, 适合做}（F2 禁令） | ✅ 3 场景全模板扫描 + `_assert_clean` loud-raise 守卫（词表与 AC 同源断言） |
+| AC-142-3 | 进入 RANGE 附弹药行；liquid n/a 时弹药行显示 n/a 不阻塞 | ✅ |
+| AC-142-4 | 无变化日/backfill 行/n-a 字段 → 零推送 | ✅ 4 tests（含单轴 n/a 只跳该轴、陈旧日志 date mismatch skip） |
+| AC-142-5 | dedupe 幂等；dry-run 零落盘零推送 | ✅ dedupe key 每轴每日 + dry-run 不触 gateway |
+| AC-142-6 | 094.2(22)+094.3(13)+094.4(13)+141(26) 全绿 | ✅ 88 passed（含 142 的 14） |
+
+**部署验证（2026-07-12）**：old Air `10e5073`，生产日志 dry-run E2E：`{status: ok, date: 2026-07-11, flips: [], pushed: 0}`（最新两日 RANGE/NORMAL 无翻转，正确零推送）。首次实弹 = 下一个状态翻转日的 16:50 job。
 
 ## Handoff Contract
 
@@ -49,4 +51,4 @@ FYI 级（非 ACTION）；每轴每日至多一条；dry-run 沿 094.x 语义零
 5. **Rollback**：摘 hook 一行即回退，零策略影响。
 
 ---
-Status: DRAFT
+Status: DEPLOYED 2026-07-12 (commit 10e5073, old Air verified)
