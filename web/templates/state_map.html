@@ -596,12 +596,13 @@ function renderPools(s) {
       $('cash-level-val').textContent = fmtUsd(c.liquid);
       $('cash-level-scale-max').textContent = fmtUsd(lv.scale_max);
       let lvTicks = '', lvLabels = '';
+      const fmtKu = (v) => v == null ? '—' : `$${Math.round(v / 1000)}k`;
       if (lv.floor_pos_pct != null) {
-        const t = tickHtml(lv.floor_pos_pct, `floor ${fmtUsd(c.floor_usd)}`);
+        const t = tickHtml(lv.floor_pos_pct, `floor ${fmtKu(c.floor_usd)}`);
         lvTicks += t.tick; lvLabels += t.label;
       }
       if (lv.waterline_pos_pct != null) {
-        const t = tickHtml(lv.waterline_pos_pct, `waterline ${fmtUsd(c.waterline_self_usd)}`);
+        const t = tickHtml(lv.waterline_pos_pct, `waterline ${fmtKu(c.waterline_self_usd)}`);
         lvTicks += t.tick; lvLabels += t.label;
       }
       $('cash-level-ticks').innerHTML = lvLabels;
@@ -621,7 +622,7 @@ function renderPools(s) {
       ticks += t.tick; labels += t.label;
     }
     if (c.ammo_line_pos_pct != null) {
-      const t = tickHtml(c.ammo_line_pos_pct, `ammo ${fmtUsd(c.ammo_line_usd)}`);
+      const t = tickHtml(c.ammo_line_pos_pct, `ammo $${Math.round(c.ammo_line_usd / 1000)}k`);
       ticks += t.tick; labels += t.label;
     }
     $('cash-ticks').innerHTML = labels;
