@@ -390,6 +390,41 @@ def _effective_iv_signal(iv: IVSnapshot) -> IVSignal:
     return IVSignal.NEUTRAL
 
 
+def v3a_legs() -> list["Leg"]:
+    """SPEC-064 aftermath broken-wing V3-A leg definition — single source.
+
+    Both HIGH_VOL aftermath branches (BEARISH / NEUTRAL) in select_strategy
+    build their legs from this function, and the /api/aftermath/state display
+    payload (SPEC-144) exports the same structure. Do NOT restate these
+    numbers anywhere else (no-param-mirror house rule); tests assert the
+    payload equals the recommendation legs bit-for-bit.
+    """
+    return [
+        Leg("SELL", "CALL", 45, 0.12,
+            "Upper short wing — aftermath (broken-wing V3-A)"),
+        Leg("BUY",  "CALL", 45, 0.04,
+            "Upper long wing — broken-wing tighter (V3-A)"),
+        Leg("SELL", "PUT",  45, 0.12,
+            "Lower short wing — aftermath (broken-wing V3-A)"),
+        Leg("BUY",  "PUT",  45, 0.08,
+            "Lower long wing — symmetric (V3-A)"),
+    ]
+
+
+def hv_size_rule(params: "StrategyParams | None" = None) -> str:
+    """HIGH_VOL reduced-size sizing rule text — single source (SPEC-144).
+
+    Used verbatim by the aftermath V3-A recommendation branches and exported
+    as `sizing_note` by the /api/aftermath/state display payload.
+    """
+    p = params or DEFAULT_PARAMS
+    return (
+        f"{int(p.high_vol_size*100)}% size — risk ≤ "
+        f"{1.5*p.high_vol_size:.1f}% of account "
+        f"(HIGH_VOL, reduced exposure)"
+    )
+
+
 def is_aftermath(vix: VixSnapshot, params: "StrategyParams | None" = None) -> bool:
     """
     HIGH_VOL aftermath window:
@@ -813,21 +848,8 @@ def select_strategy(
                     vix=vix,
                     iv=iv,
                     trend=trend,
-                    legs=[
-                        Leg("SELL", "CALL", 45, 0.12,
-                            "Upper short wing — aftermath (broken-wing V3-A)"),
-                        Leg("BUY",  "CALL", 45, 0.04,
-                            "Upper long wing — broken-wing tighter (V3-A)"),
-                        Leg("SELL", "PUT",  45, 0.12,
-                            "Lower short wing — aftermath (broken-wing V3-A)"),
-                        Leg("BUY",  "PUT",  45, 0.08,
-                            "Lower long wing — symmetric (V3-A)"),
-                    ],
-                    size_rule=(
-                        f"{int(params.high_vol_size*100)}% size — risk ≤ "
-                        f"{1.5*params.high_vol_size:.1f}% of account "
-                        f"(HIGH_VOL, reduced exposure)"
-                    ),
+                    legs=v3a_legs(),
+                    size_rule=hv_size_rule(params),
                     rationale=(
                         f"HIGH_VOL + BEARISH + IV HIGH + aftermath (VIX peak={peak:.1f} → now={vix.vix:.1f}, "
                         f"-{drop_pct:.1f}% off peak) — bypass VIX_RISING / ivp63 gates per SPEC-064"
@@ -959,21 +981,8 @@ def select_strategy(
                     vix=vix,
                     iv=iv,
                     trend=trend,
-                    legs=[
-                        Leg("SELL", "CALL", 45, 0.12,
-                            "Upper short wing — aftermath (broken-wing V3-A)"),
-                        Leg("BUY",  "CALL", 45, 0.04,
-                            "Upper long wing — broken-wing tighter (V3-A)"),
-                        Leg("SELL", "PUT",  45, 0.12,
-                            "Lower short wing — aftermath (broken-wing V3-A)"),
-                        Leg("BUY",  "PUT",  45, 0.08,
-                            "Lower long wing — symmetric (V3-A)"),
-                    ],
-                    size_rule=(
-                        f"{int(params.high_vol_size*100)}% size — risk ≤ "
-                        f"{1.5*params.high_vol_size:.1f}% of account "
-                        f"(HIGH_VOL, reduced exposure)"
-                    ),
+                    legs=v3a_legs(),
+                    size_rule=hv_size_rule(params),
                     rationale=(
                         f"HIGH_VOL + NEUTRAL + IV HIGH + aftermath (VIX peak={peak:.1f} → now={vix.vix:.1f}, "
                         f"-{drop_pct:.1f}% off peak) — bypass VIX_RISING / ivp63 gates per SPEC-064"

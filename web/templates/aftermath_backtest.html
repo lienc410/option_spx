@@ -6,9 +6,9 @@
 <title>Aftermath · Backtest</title>
 <script src="{{ url_for('static', filename='vendor/chart-4.4.0.umd.min.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/chartjs-plugin-zoom-2.0.1.min.js') }}"></script>
-<script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec108"></script>
-<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec141_1">
-<script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
+<script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec144"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec144">
+<script src="{{ url_for('static', filename='theme.js') }}?v=spec144"></script>
 <style>
 *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
 html { font-size:14px; }
@@ -25,10 +25,10 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 
 .page { max-width:880px;margin:0 auto;padding:32px 24px 64px; }
 .page-hero { margin-bottom:24px; }
-.page-hero h1 { font-family:var(--f-display);font-size:1.80rem;font-weight:400;line-height:1.1;margin-bottom:6px; }
+.page-hero h1 { font-family:var(--f-display);font-size:1.70rem;font-weight:400;line-height:1.1;margin-bottom:6px; }
 .page-hero h1 em { font-style:italic;color:var(--text-2); }
 .page-meta { font-family:var(--f-ui);font-size:0.70rem;color:var(--text-2); }
-.tier-badge { display:inline-block;font-family:var(--f-ui);font-size:0.58rem;font-weight:500;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-muted);background:var(--gray-bg);border:1px solid var(--gray-border);padding:3px 8px;border-radius:5px;margin-left:10px;vertical-align:middle; }
+.tier-badge { display:inline-block;font-family:var(--f-ui);font-size:0.58rem;font-weight:500;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-2);background:var(--gray-bg);border:1px solid var(--gray-border);padding:3px 8px;border-radius:5px;margin-left:10px;vertical-align:middle; }
 .page-tabs { display:flex;gap:2px;margin-bottom:22px;padding-bottom:14px;border-bottom:1px solid var(--border); }
 .page-tab { font-family:var(--f-ui);font-size:0.72rem;padding:5px 14px;border-radius:5px;text-decoration:none;color:var(--text-2);border:1px solid transparent;transition:0.15s; }
 .page-tab.active { color:var(--text);background:var(--surface-hi);border-color:var(--border-2); }
@@ -44,7 +44,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 .metric-key { font-family:var(--f-ui);font-size:0.56rem;color:var(--text-2);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px; }
 .metric-val { font-family:var(--f-mono);font-size:1.30rem;font-weight:500;color:var(--text);line-height:1.1; }
 .metric-val.warn { color:var(--orange); }
-.metric-val.muted { color:var(--text-muted); }
+.metric-val.muted { color:var(--text-2); } /* SPEC-144: PM 要读的值禁 --text-muted */
 .metric-val.ok { color:var(--green); }
 
 .chart-hd { display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px; }
@@ -69,7 +69,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 
 .todo-list { display:flex;flex-direction:column;gap:10px; }
 .todo-row { display:flex;gap:14px;font-family:var(--f-ui);font-size:0.70rem;color:var(--text-2);line-height:1.5; }
-.todo-bullet { flex:0 0 18px;color:var(--text-muted);font-family:var(--f-mono); }
+.todo-bullet { flex:0 0 18px;color:var(--text-2);font-family:var(--f-mono); }
 .todo-text { flex:1; }
 
 .empty-msg { font-family:var(--f-ui);font-size:0.68rem;color:var(--text-muted);font-style:italic;padding:24px;text-align:center; }
@@ -100,7 +100,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
   <div class="page-hero">
     <h1>Aftermath<span class="tier-badge">Observation</span></h1>
     <div class="page-meta">Backtest · 历史 aftermath 窗口检测 · VIX peak 回落事件</div>
-    <div class="page-meta" style="color:var(--text-2)">行为归因（Q088 T1）：解锁日骑 <strong>iron_condor_hv</strong>——canonical BCS_HV/BPS_HV 路径在这两格被 aftermath 门消耗</div>
+    <div class="page-meta" style="color:var(--text-2)">行为归因（Q088 T1 = 2026-07 全账本回放审计）：窗口解锁日实际成交的策略是 <strong>iron_condor_hv</strong>（IC_HV，高波动 Iron Condor）——「高波动 × 看跌/中性」两格的常规路径（BCS_HV/BPS_HV 竖式价差）每天都被前置风控门挡下，aftermath 特批通道才是这两格实际在用的通道</div>
   </div>
 
   <div class="page-tabs">
@@ -109,7 +109,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
   </div>
 
   <div class="caveat-banner">
-    Aftermath 当前是 SPX selector 内嵌 condition，没有独立 backtest engine。本页基于 19yr SPX 历史 + VIX 数据动态扫描历史 aftermath window，作为观察用。后续如独立化为持仓策略，再加 P&L 归因。
+    Aftermath 当前是 SPX selector 的内嵌 condition（条件开关——不是独立持仓策略，只决定 SPX 主策略在窗口内切换到哪种结构），没有独立 backtest engine。本页基于 19yr SPX 历史 + VIX 数据动态扫描历史 aftermath window，作为观察用。后续如独立化为持仓策略，再加 P&L 归因。
   </div>
 
   <!-- Metric cards (observation-type) -->
@@ -124,7 +124,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
   <div class="card" id="perf-card">
     <div class="card-title">SPX Direction During Aftermath Windows
       <span style="font-size:0.62rem;font-weight:400;color:var(--text-2);text-transform:none;letter-spacing:normal;margin-left:8px">
-        — market-state distribution, NOT strategy P&amp;L (V3-A trade WR is 90.9% per Q064 R-20260512-03)
+        — market-state distribution, NOT strategy P&amp;L (V3-A = the aftermath broken-wing structure itself, see Dashboard tab; its trade WR is 90.9% per Q064 R-20260512-03)
       </span>
     </div>
     <div id="perf-grid" class="metric-grid" style="margin-bottom:0">
@@ -215,7 +215,10 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
     </div>
     <div style="margin-top:12px;padding:10px 12px;background:var(--surface-2);border-radius:6px;font-size:0.85rem;line-height:1.6;">
       <strong>结论：Aftermath broken-wing V3-A（SPEC-064）保留生产，不改代码。</strong><br>
-      V3-A 的价值不在结构 alpha，在于 <em>gate-bypass</em>——aftermath 期间 natural fallback 有 55–78% 概率被 VIX_RISING / ivp63 / backwardation guards 拦截走 reduce_wait。V3-A 绕过这些 guards，捕捉约 $30k+ alpha。独立 engine 方向已 DROP。
+      V3-A 的价值不在结构 alpha，在于 <em>gate-bypass</em>（特批绕门）——aftermath 期间常规策略路径有 55–78% 概率被 VIX_RISING / ivp63 / backwardation 三道风控门（恐慌仍在升级 / IV 处近 3 个月高位 / 期限结构倒挂）拦截走 reduce_wait（持币观望）。V3-A 绕过这些门，捕捉约 $30k+ alpha。独立 engine 方向已 DROP。
+    </div>
+    <div style="margin-top:8px;padding:10px 12px;background:var(--surface-2);border-radius:6px;font-size:0.78rem;line-height:1.6;color:var(--text-2)">
+      <strong style="color:var(--text)">Q101 复审勘误（2026-07-12，独立复现 + 外审 CONFIRMED）：</strong>结构保留不变，但上行 “$30k+ alpha” 属 flat-σ 定价时代口径——收入 edge 幅度对期权定价假设高度敏感（实测中枢定价下仍显著，悲观定价×悲观摩擦角落转不显著），收益预期应打折看待。首笔另有 0.5× staging 规则（SPEC-143，见 Dashboard ④）。详 <code>research/q101/q101_e1_memo.md</code>。
     </div>
   </div>
 
@@ -226,28 +229,28 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
       <div class="discipline-row">
         <div class="discipline-key">Entry</div>
         <div class="discipline-val">
-          Condition modifier — 不是独立持仓策略。当三个条件同时满足时，SPX 主策略切换到 <strong>broken-wing V3-A</strong> 结构：
-          <code>vix_peak_10d ≥ 28</code> · <code>off_peak ≥ 10%</code> · <code>vix &lt; 40</code>。
+          Condition modifier（条件开关）— 不是独立持仓策略。当三个条件同时满足时，SPX 主策略切换到 <strong>broken-wing V3-A</strong> 结构：
+          <code id="disc-cond-peak">—</code> · <code id="disc-cond-offpeak">—</code> · <code id="disc-cond-extreme">—</code>（阈值实时取 <code>/api/aftermath/state</code>，模板零硬编码）。
           仅在 SPX 同时为 <strong>HIGH_VOL</strong> 区间 + IV HIGH + Bearish/Neutral trend 时实际触发持仓。
         </div>
       </div>
       <div class="discipline-row">
         <div class="discipline-key">Exit</div>
         <div class="discipline-val">
-          继承 SPX 主策略规则 — 60% credit profit target · min hold 10 days · stop loss at 2× credit · roll at <code>DTE ≤ 21</code>。
+          继承 SPX 主策略规则 — <span id="disc-exit-human">—</span>（engine: <code id="disc-exit-rule">—</code>）。
         </div>
       </div>
       <div class="discipline-row">
         <div class="discipline-key">Sizing</div>
         <div class="discipline-val">
-          继承 SPX HIGH_VOL 参数 — BP target <code>14%</code> 账户；half-size (×0.50) 当 VIX trend rising 或 signals 混合。
+          继承 SPX HIGH_VOL 参数 — 基准 <code id="disc-size">—</code> size · 单笔 BP target <code id="disc-bp-target">—</code> 账户；首笔另有 Q101 staging（分批建仓）减半规则（SPEC-143，见 Dashboard ④）。
         </div>
       </div>
       <div class="discipline-row">
         <div class="discipline-key">Risk</div>
         <div class="discipline-val">
-          BP ceiling 继承 HIGH_VOL <code>50%</code>。Broken-wing 结构本身用上下不对称翼宽限制左尾损失，不需要额外停损。
-          窗口由 <code>vix ≥ 40</code> 或回峰自动 deactivate。
+          BP ceiling 继承 HIGH_VOL <code id="disc-bp-ceiling">—</code>。Broken-wing 结构本身用上下不对称翼宽限制左尾损失，不需要额外停损。
+          窗口在 VIX 冲回极端线（<code id="disc-extreme-line">—</code>）以上或回到峰值附近时自动 deactivate。
         </div>
       </div>
       <div class="discipline-row">
@@ -257,7 +260,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
         </div>
       </div>
       <div class="discipline-footnote">
-        Source: <code>strategy/selector.py</code> · <code>is_aftermath(vix)</code> (line 295) · constants <code>AFTERMATH_PEAK_VIX_10D_MIN = 28.0</code> / <code>AFTERMATH_OFF_PEAK_PCT = 0.10</code> (line 178).
+        Source: <code>strategy/selector.py</code> · <code>is_aftermath(vix)</code> / <code>v3a_legs()</code> · constants <code>AFTERMATH_PEAK_VIX_10D_MIN</code> / <code>AFTERMATH_OFF_PEAK_PCT</code> / <code>StrategyParams.extreme_vix</code>（数值由 <code>/api/aftermath/state</code> 实时渲染；本页不写行号与常量值，防镜像漂移）。
       </div>
     </div>
   </div>
@@ -270,6 +273,29 @@ let _spxFullHistory = null;   // full history array for range filtering
 let _spxFullDatasets = null;  // parallel full dataset arrays
 
 function fmt(n, dec) { return typeof n === 'number' ? n.toFixed(dec ?? 1) : '—'; }
+
+// SPEC-144 — Trading Discipline 阈值/出场/仓位数值全部由 /api/aftermath/state
+// 渲染（selector/catalog/StrategyParams 真值；模板零硬编码）。fail-soft：state
+// 缺字段时保留 "—" 占位。
+function fillDiscipline(state) {
+  if (!state || state.error) return;
+  const set = (id, txt) => { const el = document.getElementById(id); if (el && txt != null) el.textContent = txt; };
+  const p = v => (typeof v === 'number' ? (v * 100).toFixed(0) + '%' : null);
+  if (typeof state.threshold_peak_min === 'number')
+    set('disc-cond-peak', `vix_peak_10d ≥ ${state.threshold_peak_min.toFixed(0)}`);
+  if (typeof state.threshold_off_peak_pct === 'number')
+    set('disc-cond-offpeak', `off_peak ≥ ${state.threshold_off_peak_pct.toFixed(0)}%`);
+  if (typeof state.threshold_vix_max === 'number') {
+    set('disc-cond-extreme', `vix < ${state.threshold_vix_max.toFixed(0)}`);
+    set('disc-extreme-line', state.threshold_vix_max.toFixed(0));
+  }
+  set('disc-exit-human', state.exit_human);
+  set('disc-exit-rule', state.exit_rule_text);
+  const s = state.sizing || {};
+  set('disc-size', p(s.high_vol_size));
+  set('disc-bp-target', p(s.bp_target_high_vol));
+  set('disc-bp-ceiling', p(s.bp_ceiling_high_vol));
+}
 
 // Aftermath window background band colors (subtle, regime-level not trade-level).
 // Triangles ▲▽ removed (2026-05-12) to avoid confusion with trade entry/exit
@@ -362,6 +388,8 @@ async function loadAll() {
   const state   = stateRes.status==='fulfilled' ? stateRes.value : {};
   const hist    = histRes.status ==='fulfilled' ? histRes.value  : { windows: [] };
   const vixData = vixRes.status  ==='fulfilled' ? vixRes.value   : { history: [] };
+
+  fillDiscipline(state);
 
   // ── Summary metric cards ───────────────────────────────────────────────────
   const grid = document.getElementById('metric-grid');
@@ -585,7 +613,7 @@ function renderWindowsTable(windows, trades, gates) {
             const detail = typeof gateEntry === 'object' ? (gateEntry.detail || '')        : '';
             tradeCell = `<span style="color:var(--text-2);font-size:0.60rem;font-style:italic" title="${detail.replace(/"/g,'&quot;')}">${label}</span>`;
           } else {
-            tradeCell = '<span style="color:var(--text-muted)">—</span>';
+            tradeCell = '<span style="color:var(--text-2)">—</span>';
           }
         }
         return `
@@ -711,7 +739,7 @@ function buildSpxChart(history, allWindows, vixHistory, trades) {
                  callback:v=>{ const d=_spxFullHistory?.[Math.round(v)]?.date; return d?d.slice(0,7):''; }},
           grid:{color:'var(--theme-lit-094)'} },
         yP:  { position:'left',  ticks:{color:'var(--text-2)',font:{family:'JetBrains Mono',size:9}}, grid:{color:'var(--theme-lit-094)'} },
-        yOv: { position:'right', display:false, ticks:{color:'var(--text-2)',font:{family:'JetBrains Mono',size:9}}, grid:{drawOnChartArea:false}, title:{display:true,text:'Overlay',color:'var(--text-muted)',font:{family:'DM Sans',size:9}} },
+        yOv: { position:'right', display:false, ticks:{color:'var(--text-2)',font:{family:'JetBrains Mono',size:9}}, grid:{drawOnChartArea:false}, title:{display:true,text:'Overlay',color:'var(--text-2)',font:{family:'DM Sans',size:9}} },
       },
     },
   });

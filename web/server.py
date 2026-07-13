@@ -968,47 +968,165 @@ def api_aftermath_history():
         return jsonify({"error": str(exc), "windows": [], "total_windows": 0}), 200
 
 
+def _aftermath_staging_snapshot() -> "dict | None":
+    """实时 staging 三态（SPEC-143 evaluate_staging + q101_staging_label）。
+
+    仅供展示层（/api/aftermath/state）；fail-soft：任何一步失败 → None，
+    页面退回只显静态规则（SPEC-144 AC-4）。文案唯一 copy 源 =
+    decision_trace.q101_staging_label（与 selector live wrapper 同款组装）。
+    """
+    try:
+        from signals.vix_regime import fetch_vix_history
+        from strategy.aftermath_staging import evaluate_staging
+        from strategy.decision_trace import q101_staging_label
+
+        staging = evaluate_staging(fetch_vix_history(period="2y"))
+        label, outcome = q101_staging_label(staging)
+        return {**staging, "label_human": label, "outcome": outcome,
+                "code_ref": "SPEC-143 · research/q101"}
+    except Exception:
+        return None
+
+
 def aftermath_state_payload() -> dict:
     """Aftermath 窗口状态 payload — is_aftermath() 与 selector 同一函数。
 
     /api/aftermath/state 与 Decision Trace Lane D（SPEC-135.5）同一组装点
     （数据同源铁律，装配层禁旁路重推）。Aftermath = VIX peak回落 window，
-    active if: trailing 10d VIX peak >= 28 AND current VIX <= peak * (1 - 10%)
-    AND vix < 40.
+    active if: trailing 10d VIX peak >= AFTERMATH_PEAK_VIX_10D_MIN AND
+    current VIX <= peak * (1 - AFTERMATH_OFF_PEAK_PCT) AND
+    current VIX < params.extreme_vix（SPEC-118.1 单源；SPEC-144 修正本
+    payload 残留的 40 硬编码——[35,40) 区间 reason 曾误报 off-peak 不足）。
+
+    SPEC-144 additive 字段：reason_human / conditions / lookback_days /
+    v3a_legs / exit_rule_text / exit_human / sizing_note / sizing /
+    staging_rule / staging。既有字段名与语义不变。
     """
     from signals.vix_regime import get_current_snapshot
+    from strategy.aftermath_staging import (
+        Q101_SLOPE_RECHECK_MULT,
+        Q101_STAGING_FACTOR,
+    )
+    from strategy.catalog import strategy_descriptor
     from strategy.selector import (
+        DEFAULT_PARAMS,
+        hv_size_rule,
         is_aftermath,
+        v3a_legs,
+        AFTERMATH_LOOKBACK_DAYS,
         AFTERMATH_PEAK_VIX_10D_MIN,
         AFTERMATH_OFF_PEAK_PCT,
     )
     vix = get_current_snapshot()
     peak = vix.vix_peak_10d
     active = is_aftermath(vix)
+    extreme_vix = float(DEFAULT_PARAMS.extreme_vix)
     off_peak_pct = ((peak - vix.vix) / peak * 100.0) if peak and peak > 0 else None
+    thr_off = AFTERMATH_OFF_PEAK_PCT * 100
     reason = None
+    reason_human = None
     if not active:
         if peak is None:
             reason = "no_peak_data"
+            reason_human = f"近 {AFTERMATH_LOOKBACK_DAYS} 日 VIX 峰值数据缺失"
         elif peak < AFTERMATH_PEAK_VIX_10D_MIN:
             reason = f"peak_below_threshold ({peak:.1f} < {AFTERMATH_PEAK_VIX_10D_MIN})"
-        elif vix.vix >= 40.0:
-            reason = f"vix_above_extreme ({vix.vix:.1f} >= 40)"
-        elif off_peak_pct is not None and off_peak_pct < AFTERMATH_OFF_PEAK_PCT * 100:
-            reason = f"insufficient_off_peak ({off_peak_pct:.1f}% < {AFTERMATH_OFF_PEAK_PCT*100:.0f}%)"
+            reason_human = (f"近 {AFTERMATH_LOOKBACK_DAYS} 日 VIX 峰值 {peak:.1f} "
+                            f"未冲过 {AFTERMATH_PEAK_VIX_10D_MIN:.0f}——没有可回落的恐慌尖峰")
+        elif vix.vix >= extreme_vix:
+            reason = f"vix_above_extreme ({vix.vix:.1f} >= {extreme_vix:.0f})"
+            reason_human = (f"VIX {vix.vix:.1f} 仍在 {extreme_vix:.0f} 极端线上方"
+                            "——尾部风险过高，一律持币等待")
+        elif off_peak_pct is not None and off_peak_pct < thr_off:
+            reason = f"insufficient_off_peak ({off_peak_pct:.1f}% < {thr_off:.0f}%)"
+            reason_human = (f"VIX {vix.vix:.1f} 距峰值 {peak:.1f} 只回落 "
+                            f"{off_peak_pct:.1f}%（需 ≥{thr_off:.0f}%）——恐慌还没明显退潮")
         else:
             reason = "not_active"
+            reason_human = "触发条件未满足"
+
+    # ── SPEC-144 三条件 checklist（今日值 + 判定；阈值与 is_aftermath 同源常量）──
+    conditions = [
+        {
+            "key": "peak",
+            "label_human": (f"近 {AFTERMATH_LOOKBACK_DAYS} 个交易日 VIX 冲高到 "
+                            f"{AFTERMATH_PEAK_VIX_10D_MIN:.0f} 以上（有恐慌尖峰可回落）"),
+            "threshold": AFTERMATH_PEAK_VIX_10D_MIN,
+            "actual": round(peak, 2) if peak else None,
+            "actual_text": (f"现 {AFTERMATH_LOOKBACK_DAYS} 日峰值 {peak:.2f}"
+                            if peak else "峰值数据缺失"),
+            "met": bool(peak is not None and peak >= AFTERMATH_PEAK_VIX_10D_MIN),
+        },
+        {
+            "key": "off_peak",
+            "label_human": (f"当前 VIX 已从峰值回落 ≥{thr_off:.0f}%（恐慌顶峰已过）"),
+            "threshold": thr_off,
+            "actual": round(off_peak_pct, 2) if off_peak_pct is not None else None,
+            "actual_text": (f"现回落 {off_peak_pct:.1f}%"
+                            if off_peak_pct is not None else "无法计算（缺峰值）"),
+            "met": bool(off_peak_pct is not None and off_peak_pct >= thr_off),
+        },
+        {
+            "key": "below_extreme",
+            "label_human": (f"当前 VIX 仍在 {extreme_vix:.0f} 极端线以下"
+                            "（恐慌没有失控到必须持币）"),
+            "threshold": extreme_vix,
+            "actual": round(vix.vix, 2),
+            "actual_text": f"现 VIX {vix.vix:.2f}",
+            "met": bool(vix.vix < extreme_vix),
+        },
+    ]
+
+    import re as _re
+    desc = strategy_descriptor("iron_condor_hv")
+    _roll_dte = _re.search(r"(\d+)\s*DTE", desc.roll_rule_text)
+    exit_human = (
+        f"赚到 credit 的 {int(DEFAULT_PARAMS.profit_target*100)}% 即止盈"
+        f"（至少持有 {DEFAULT_PARAMS.min_hold_days} 天后才允许触发），"
+        f"或剩 {_roll_dte.group(1) if _roll_dte else '—'} DTE 强制平仓——先到先执行；"
+        f"浮亏达 {DEFAULT_PARAMS.stop_mult:g}× credit 止损"
+    )
+
     return {
         "active": active,
         "vix": round(vix.vix, 2),
         "vix_peak_10d": round(peak, 2) if peak else None,
         "off_peak_pct": round(off_peak_pct, 2) if off_peak_pct is not None else None,
-        "threshold_off_peak_pct": AFTERMATH_OFF_PEAK_PCT * 100,
+        "threshold_off_peak_pct": thr_off,
         "threshold_peak_min": AFTERMATH_PEAK_VIX_10D_MIN,
-        "threshold_vix_max": 40.0,
+        "threshold_vix_max": extreme_vix,
+        "lookback_days": AFTERMATH_LOOKBACK_DAYS,
         "regime": vix.regime.value if vix.regime else None,
         "trend": vix.trend.value if vix.trend else None,
         "reason": reason,
+        "reason_human": reason_human,
+        "conditions": conditions,
+        # ── 交易什么（selector V3-A 腿真值，SPEC-144 防漂移断言）─────────────
+        "v3a_legs": [
+            {"action": l.action, "option": l.option, "dte": l.dte,
+             "delta": l.delta, "note": l.note}
+            for l in v3a_legs()
+        ],
+        "strategy_key": "iron_condor_hv",
+        "strategy_name": desc.name,
+        # ── 出场/仓位（catalog + StrategyParams 真值）───────────────────────
+        "exit_rule_text": desc.roll_rule_text,
+        "exit_human": exit_human,
+        "sizing_note": hv_size_rule(DEFAULT_PARAMS),
+        "sizing": {
+            "high_vol_size": DEFAULT_PARAMS.high_vol_size,
+            "bp_target_high_vol": DEFAULT_PARAMS.bp_target_high_vol,
+            "bp_ceiling_high_vol": DEFAULT_PARAMS.bp_ceiling_high_vol,
+            "profit_target": DEFAULT_PARAMS.profit_target,
+            "min_hold_days": DEFAULT_PARAMS.min_hold_days,
+            "stop_mult": DEFAULT_PARAMS.stop_mult,
+        },
+        # ── Q101 staging（静态规则常量 + active 时实时三态，fail-soft null）──
+        "staging_rule": {
+            "factor": Q101_STAGING_FACTOR,
+            "recheck_mult": Q101_SLOPE_RECHECK_MULT,
+        },
+        "staging": _aftermath_staging_snapshot() if active else None,
         "date": datetime.now(_ET).date().isoformat(),
     }
 
