@@ -166,7 +166,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 
   <div class="page-hero">
     <h1>Drawdown <em>Overlay</em></h1><!-- SPEC-125 D10: display name per Decisions Log 2026-05-10; route stays /q042 -->
-    <div class="page-meta">SPX call vertical (debit) · ddATH trigger · Sleeve A (dd4, 30d) / Sleeve B (dd15+MA10, 90d)</div>
+    <div class="page-meta" id="p-hero-meta">SPX call vertical (debit) · ddATH trigger</div>
   </div>
 
   <div class="page-tabs">
@@ -209,7 +209,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
         </div>
         <div class="spec-item">
           <span class="spec-key">Joint BP gate</span>
-          <span class="spec-val">min(12.5%, max(0%, 60% − main_bp%))</span>
+          <span class="spec-val" id="p-gate">—</span>
         </div>
         <div class="spec-item">
           <span class="spec-key">叠仓</span>
@@ -217,7 +217,7 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
         </div>
         <div class="spec-item">
           <span class="spec-key">Re-arm 条件</span>
-          <span class="spec-val">仓位到期后 AND ddATH ≥ −2%</span>
+          <span class="spec-val" id="p-rearm">—</span>
         </div>
       </div>
     </div>
@@ -231,16 +231,14 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
           <span style="font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2)">dd4 · 即时触发</span>
         </div>
         <div class="spec-sleeve-body">
-          <div class="spec-row"><span class="spec-row-key">结构</span><span class="spec-row-val"><b>Long ATM call / Short ATM×1.025 call</b>（+2.5% OTM）· <b>30 DTE</b>（SPEC-094.1）</span></div>
-          <div class="spec-row"><span class="spec-row-key">Sizing</span><span class="spec-row-val"><b>Stage 1: 12.5%</b> NLV（target 17.5%，production）</span></div>
-          <div class="spec-row"><span class="spec-row-key">触发</span><span class="spec-row-val"><b>ddATH ≤ −4%</b>（首次穿越）</span></div>
+          <div class="spec-row"><span class="spec-row-key">结构</span><span class="spec-row-val" id="p-a-struct">—</span></div>
+          <div class="spec-row"><span class="spec-row-key">Sizing</span><span class="spec-row-val" id="p-a-sizing">—</span></div>
+          <div class="spec-row"><span class="spec-row-key">触发</span><span class="spec-row-val" id="p-a-trigger">—</span></div>
           <div class="spec-row"><span class="spec-row-key">MA filter</span><span class="spec-row-val"><b>无</b>——穿越后 T+1 开盘直接入场</span></div>
           <div class="spec-row"><span class="spec-row-key">入场时机</span><span class="spec-row-val">信号日次日开盘（T+1 open）</span></div>
           <div class="spec-row"><span class="spec-row-key">典型 ddATH</span><span class="spec-row-val">−4% ~ −8%（历史中位 ~−4.5%）</span></div>
           <div class="spec-divider"></div>
-          <div class="spec-guard">
-            ⚠ 仅第一次穿越触发；armed=False 后不再响应，直至仓位到期 + ddATH 回升 ≥ −2%。
-          </div>
+          <div class="spec-guard" id="p-a-guard">—</div>
         </div>
       </div>
 
@@ -250,13 +248,13 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
           <span style="font-family:var(--f-ui);font-size:0.60rem;color:var(--text-2)">dd15 + MA10 reclaim</span>
         </div>
         <div class="spec-sleeve-body">
-          <div class="spec-row"><span class="spec-row-key">结构</span><span class="spec-row-val"><b>Long ATM call / Short ATM×1.05 call</b>（+5% OTM）· <b>90 DTE</b></span></div>
-          <div class="spec-row"><span class="spec-row-key">Sizing</span><span class="spec-row-val"><b>Paper 10%</b> NLV（production 0% · research-only）</span></div>
-          <div class="spec-row"><span class="spec-row-key">触发（外）</span><span class="spec-row-val"><b>ddATH ≤ −15%</b> → 进入 Watching</span></div>
+          <div class="spec-row"><span class="spec-row-key">结构</span><span class="spec-row-val" id="p-b-struct">—</span></div>
+          <div class="spec-row"><span class="spec-row-key">Sizing</span><span class="spec-row-val" id="p-b-sizing">—</span></div>
+          <div class="spec-row"><span class="spec-row-key">触发（外）</span><span class="spec-row-val" id="p-b-trigger">—</span></div>
           <div class="spec-row"><span class="spec-row-key">触发（内）</span><span class="spec-row-val"><b>close > MA10</b>（MA10 reclaim）</span></div>
           <div class="spec-row"><span class="spec-row-key">入场时机</span><span class="spec-row-val">MA10 reclaim 日次日开盘（T+1）</span></div>
-          <div class="spec-row"><span class="spec-row-key">Watching 窗口</span><span class="spec-row-val">最多 <b>30 个交易日</b>；超时则放弃</span></div>
-          <div class="spec-row"><span class="spec-row-key">MA10</span><span class="spec-row-val">SPX close 10 日滚动均值</span></div>
+          <div class="spec-row"><span class="spec-row-key">Watching 窗口</span><span class="spec-row-val" id="p-b-watch">—</span></div>
+          <div class="spec-row"><span class="spec-row-key">MA10</span><span class="spec-row-val" id="p-b-ma">—</span></div>
           <div class="spec-divider"></div>
           <div class="spec-guard">
             ⚠ 两个阶段缺一不可：先 dd15 进入 watching，再 MA10 reclaim 才入场。30 日无 reclaim → 放弃，重新等待 dd15。
@@ -290,8 +288,32 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
 </div>
 
 <script>
-const SLEEVE_A_THRESH = -4.0;   // dd4
-const SLEEVE_B_THRESH = -15.0;  // dd15
+// 触发阈值以代码为真值（signals/q042_trigger.py），经 /api/q042/state
+// params 下发覆写；以下仅为 API 失败时的显示 fallback（no-param-mirror）。
+let SLEEVE_A_THRESH = -4.0;
+let SLEEVE_B_THRESH = -15.0;
+let Q042_PARAMS = null;   // /api/q042/state params 块缓存（modal 标签等复用）
+const _pm = (v, d) => v == null ? d : String(v).replace('-', '−');
+function _applyQ042Params(p) {
+  if (!p) return;
+  Q042_PARAMS = p;
+  if (p.sleeve_a?.trigger_ddath_pct != null) SLEEVE_A_THRESH = p.sleeve_a.trigger_ddath_pct;
+  if (p.sleeve_b?.trigger_ddath_pct != null) SLEEVE_B_THRESH = p.sleeve_b.trigger_ddath_pct;
+  const a = p.sleeve_a || {}, b = p.sleeve_b || {};
+  const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+  set('p-hero-meta', `SPX call vertical (debit) · ddATH trigger · Sleeve A (dd${Math.abs(a.trigger_ddath_pct)}, ${a.dte}d) / Sleeve B (dd${Math.abs(b.trigger_ddath_pct)}+MA${b.ma_window}, ${b.dte}d)`);
+  set('p-gate', `min(${p.gate?.cap_max_pct}%, max(0%, ${p.gate?.main_bp_budget_pct}% − main_bp%))`);
+  set('p-rearm', `仓位到期后 AND ddATH ≥ ${_pm(p.rearm_ddath_pct)}%`);
+  set('p-a-struct', `<b>Long ATM call / Short ATM×${a.otm_mult} call</b>（+${a.otm_pct}% OTM）· <b>${a.dte} DTE</b>`);
+  set('p-a-sizing', `<b>Stage 1: ${a.production_cap_pct}%</b> NLV（target ${a.target_cap_pct}%，production）`);
+  set('p-a-trigger', `<b>ddATH ≤ ${_pm(a.trigger_ddath_pct)}%</b>（首次穿越）`);
+  set('p-a-guard', `⚠ 仅第一次穿越触发；armed=False 后不再响应，直至仓位到期 + ddATH 回升 ≥ ${_pm(p.rearm_ddath_pct)}%。`);
+  set('p-b-struct', `<b>Long ATM call / Short ATM×${b.otm_mult} call</b>（+${b.otm_pct}% OTM）· <b>${b.dte} DTE</b>`);
+  set('p-b-sizing', `<b>Paper ${b.paper_sizing_pct}%</b> NLV（production ${b.production_cap_pct}% · research-only）`);
+  set('p-b-trigger', `<b>ddATH ≤ ${_pm(b.trigger_ddath_pct)}%</b> → 进入 Watching`);
+  set('p-b-watch', `最多 <b>${b.watch_days} 个交易日</b>；超时则放弃`);
+  set('p-b-ma', `SPX close ${b.ma_window} 日滚动均值`);
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function stateBadge(state) {
@@ -322,6 +344,7 @@ function gaugeColor(pct) {
 async function loadState() {
   try {
     const d = await (await fetch('/api/q042/state')).json();
+    _applyQ042Params(d.params);
     if (d.error) throw new Error(d.error);
 
     const ddath = d.ddath_pct ?? 0;
@@ -347,7 +370,7 @@ async function loadState() {
             <span class="sleeve-id" style="color:var(--blue)">Sleeve A</span>
             ${stateBadge(stateA)}
           </div>
-          <div class="sleeve-label">SPX call vertical（debit）· ddATH ≤ −4% 触发 · ATM/+2.5% · 30 DTE</div>
+          <div class="sleeve-label">${Q042_PARAMS ? `SPX call vertical（debit）· ddATH ≤ ${_pm(Q042_PARAMS.sleeve_a.trigger_ddath_pct)}% 触发 · ATM/+${Q042_PARAMS.sleeve_a.otm_pct}% · ${Q042_PARAMS.sleeve_a.dte} DTE` : 'SPX call vertical（debit）'}</div>
         </div>
         <div class="sleeve-metrics">
           <div class="sleeve-metric-row">
@@ -385,7 +408,7 @@ async function loadState() {
           const allocLabel = hasPos ? 'Allocated' : 'Potential allocation';
           const allocNote  = hasPos
             ? '(currently deployed)'
-            : '(used only after ddATH ≤ −4% triggers)';
+            : `(used only after ddATH ≤ ${_pm(SLEEVE_A_THRESH)}% triggers)`;
           return `<div style="padding:9px 16px;border-top:1px solid var(--border);background:var(--surface-hi);font-family:var(--f-mono);font-size:0.62rem;color:var(--text-2)"
                        title="armed=待 ddATH ≤ -4% 触发；触发后此 sleeve 可分配池上限为 ${cur} NLV，目标分阶 ramp 到 ${tgt}">
             <span style="color:var(--blue);font-weight:600">Production Ramp</span> <span class="spec-ref">SPEC-104</span> · Stage ${stage} of 4 · ${allocLabel} <strong style="color:var(--text)">${cur}</strong> <span style="color:var(--text-2);font-size:0.92em">${allocNote}</span> · Target <strong style="color:var(--text)">${tgt}</strong>
@@ -400,7 +423,7 @@ async function loadState() {
             <span class="sleeve-id" style="color:var(--orange)">Sleeve B</span>
             ${stateBadge(stateB)}
           </div>
-          <div class="sleeve-label">SPX call vertical（debit）· ddATH ≤ −15% + close > MA10 · ATM/+5% · 90 DTE</div>
+          <div class="sleeve-label">${Q042_PARAMS ? `SPX call vertical（debit）· ddATH ≤ ${_pm(Q042_PARAMS.sleeve_b.trigger_ddath_pct)}% + close > MA${Q042_PARAMS.sleeve_b.ma_window} · ATM/+${Q042_PARAMS.sleeve_b.otm_pct}% · ${Q042_PARAMS.sleeve_b.dte} DTE` : 'SPX call vertical（debit）'}</div>
         </div>
         <div class="sleeve-metrics">
           <div class="sleeve-metric-row">
@@ -575,8 +598,8 @@ async function openQ042Modal(kind, sleeve) {
         <div class="modal-field">
           <label class="modal-label">Sleeve</label>
           <select id="q042-sleeve" class="modal-select" onchange="_q042LoadDraft()">
-            <option value="A" ${sleeve==='A'?'selected':''}>A · dd4 · 30d · +2.5%</option>
-            <option value="B" ${sleeve==='B'?'selected':''}>B · dd15+MA10 · 90d · +5%</option>
+            <option value="A" ${sleeve==='A'?'selected':''}>A · dd${Math.abs(SLEEVE_A_THRESH)} · ${Q042_PARAMS?.sleeve_a?.dte ?? '—'}d · +${Q042_PARAMS?.sleeve_a?.otm_pct ?? '—'}%</option>
+            <option value="B" ${sleeve==='B'?'selected':''}>B · dd${Math.abs(SLEEVE_B_THRESH)}+MA${Q042_PARAMS?.sleeve_b?.ma_window ?? '—'} · ${Q042_PARAMS?.sleeve_b?.dte ?? '—'}d · +${Q042_PARAMS?.sleeve_b?.otm_pct ?? '—'}%</option>
           </select>
         </div>
         <div class="modal-field">
@@ -696,7 +719,9 @@ async function _q042LoadDraft() {
       const chainNote = d.chain_message
         ? ` · <span style="color:var(--orange)">${d.chain_message}</span>`
         : ` · live SPX chain (rows below)`;
-      const offsetLabel = sleeve === 'A' ? '+2.5%' : '+5%';
+      const offsetLabel = sleeve === 'A'
+        ? `+${Q042_PARAMS?.sleeve_a?.otm_pct ?? 2.5}%`
+        : `+${Q042_PARAMS?.sleeve_b?.otm_pct ?? 5}%`;
       hint.innerHTML = `Sleeve <b>${d.sleeve}</b> · SPX <b>${d.spx.toLocaleString()}</b> · VIX <b>${d.vix.toFixed(2)}</b> · ATM <b>${d.long_strike}</b> / ${offsetLabel} <b>${d.short_strike}</b> · width <b>${d.width}</b> · ${d.dte}d · debit <b>$${d.est_debit.toFixed(2)}</b> (BSM ref $${(d.model_bsm ?? d.est_debit).toFixed(2)}) · max loss <b>$${d.max_loss_per_contract.toFixed(0)}</b>/ct · max gain <b>$${d.max_gain_per_contract.toFixed(0)}</b>/ct${chainNote}.`;
     }
   } catch (e) {

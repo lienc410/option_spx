@@ -2225,7 +2225,37 @@ def q042_state_payload() -> dict:
         Q042_SLEEVE_A_STAGE_LABEL,
         Q042_SLEEVE_A_TARGET_CAP_PCT,
         Q042_SLEEVE_B_PRODUCTION_CAP_PCT,
+        Q042_SLEEVE_B_PAPER_SIZING_PCT,
     )
+    # 结构参数下发（no-param-mirror，PM 2026-07-13）：strike/DTE/sizing/触发
+    # 阈值以代码为唯一真值，前端零硬编码——显示层经此 params 块读取。
+    from strategy import q042_sizing as _sz
+    from signals import q042_trigger as _tr
+    from strategy import q042_gate as _gt
+    params = {
+        "strike_round_usd": _sz._STRIKE_ROUND,
+        "rearm_ddath_pct": _tr._REARM_THRESHOLD * 100.0,
+        "gate": {"cap_max_pct": _gt._COMBINED_CAP_MAX,
+                 "main_bp_budget_pct": _gt._MAIN_BP_BUDGET},
+        "sleeve_a": {
+            "otm_pct": _sz._OTM_PCT_A * 100.0,
+            "otm_mult": 1.0 + _sz._OTM_PCT_A,
+            "dte": _sz._DTE_A,
+            "trigger_ddath_pct": _tr._DD4_THRESHOLD * 100.0,
+            "production_cap_pct": Q042_SLEEVE_A_PRODUCTION_CAP_PCT,
+            "target_cap_pct": Q042_SLEEVE_A_TARGET_CAP_PCT,
+        },
+        "sleeve_b": {
+            "otm_pct": _sz._OTM_PCT_B * 100.0,
+            "otm_mult": 1.0 + _sz._OTM_PCT_B,
+            "dte": _sz._DTE_B,
+            "trigger_ddath_pct": _tr._DD15_THRESHOLD * 100.0,
+            "watch_days": _tr._WATCH_DAYS,
+            "ma_window": _tr._MA10_WINDOW,
+            "production_cap_pct": Q042_SLEEVE_B_PRODUCTION_CAP_PCT,
+            "paper_sizing_pct": Q042_SLEEVE_B_PAPER_SIZING_PCT,
+        },
+    }
     snap = get_current_q042_snapshot()
     positions = get_active_positions(paper=True)
     stats = get_lifetime_stats(paper=True)
@@ -2248,6 +2278,7 @@ def q042_state_payload() -> dict:
 
     return {
         "date": snap.date,
+        "params": params,
         "spx_close": snap.spx_close,
         "ath_running_max": snap.ath_running_max,
         # SPEC-094.2 F7: state ATH missing/0 — ddath is a neutral-0 filler,
