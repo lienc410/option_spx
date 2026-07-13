@@ -3,7 +3,7 @@
 > 未解决问题、阻塞项、待验证假设。双端均可更新，HC负责整合。
 > 状态：`open` / `blocked` / `resolved`
 
-最后更新：2026-07-04（**Q085 正式封账；Q087 框架就位**；P1b Tier-3 采集 + FOMC 意外线索；方法学遗产 8 条入档；Q087 审计框架："fail mode 现在存在吗"重审全账本）
+最后更新：2026-07-12（**Q042 执行层治理栈 standing items 登记**（AC-94.2-8 形式核查 / BPS fallback CALIB 前置验证 / 突发型 n≥8 复检 / 假日表 2027 运维项，见 Q042 条目 2026-07-12 addendum）；**Q048 补 SPEC-141 阶段性落地与 S2b/S4 余量**。Q089-Q099 研究线闭环与 SPEC-126~142 交付不在本文件重复——详见 `PROJECT_STATUS.md` Recent Meaningful Changes 2026-07-06→07-12 与 `RESEARCH_LOG.md` R-20260706-03~R-20260712-02）
 
 ---
 
@@ -1731,6 +1731,12 @@
 - **下一决策（PM）**：promote to Tier 2 / hold / drop. Tier 2 不会启动直到 PM 明确批准
 - **Q062 结构参数验证（2026-05-10）**：在 Sleeve A dd4（n=25）和 Sleeve B dd15+MA10（n=5）实际触发样本上独立验证（三 Tier）。结论：SPEC-094 参数（ATM/+5%, DTE 90, call spread）在 per-sleeve 基础测试中成立。进一步 Tier 1→2→3 全网格扫描（D30 候选）后 PM 决策升级为 **SPEC-094.1**：Sleeve A 替换为 D30/2.5%（AnnROE +9.94% vs baseline +5.02%，bootstrap p=0.09 PM 接受）。见 `task/SPEC-094.1.md` 和 `RESEARCH_LOG.md R-20260510-15`。
 - **SPEC-094.1 APPROVED（2026-05-10）**：Sleeve A 参数替换（DTE 90→30, offset 5%→2.5%, no-overlap 90→30 days）。Sleeve B 不变。当前 2026-03-12 仓位 grandfather 至 2026-06-10。Developer 10 ACs 待实施。
+- **2026-07-12 addendum — 执行层治理栈落地 + standing items**（Planner 补录）：2026-07-07 协同审计发现三处生产断裂（dead gate 44/44 `main_bp_pct=0.0` / 结算链路零调用 / SPEC-094.1 迁移漏改 expiry）→ `SPEC-094.2`（gate 修活 + fail-closed + 结算 wiring，DONE 2026-07-10）、`SPEC-094.3`（幽灵仓位防护：每日确认 + T+5 兜底释放 + phantom 标记，DONE 2026-07-12）、`SPEC-094.4`（触发告警弹药路由三分支，Q095 P6 规则 PM 2026-07-12 逐字 ratify，DONE 2026-07-12）。grandfather 线全关：2026-03-12 = paper 模拟触发（非人工开仓，审计措辞已勘误），补录 + 生产结算 `A-2026-03-12-002` exit_pnl +$16,329（2026-11 6mo 评审样本 n=1）。现金侧治理经 Q093 P1 裁定**不设闸门**（GOV 净成本 −$281k/19y），以 F5b 现金上下文行替代。**Standing items（open）**：
+  1. **AC-94.2-8 形式核查**（下一交易日）：判据已修订（`task/SPEC-094.2.md` 2026-07-11 预警）——gate log **`bp_source` 字段存在**且数值追踪现实（有仓>0 / 无仓=0）；全部 SPX 仓 2026-07-10 已平，main_bp≈0.0 是 true-zero 非 dead-zero，勿误读为死门复发。
+  2. **BPS fallback CALIB+成本验证**：首次 live BPS fallback 执行前后 Quant 须完成（`research_bs_flat_vix_pricing_bias` 强制；P6 结论 research-grade，已带 −2vp bracket）——SPEC-094.4 Quant standing obligation。
+  3. **突发型分层复检**：每积累 1 次新触发即更新 P6 分层账本；n=4 → **n≥8 时复检"空仓"分支**（SPEC-094.4 standing obligation）。
+  4. **假日表 2027 到期（运维项）**：`strategy/q078_ladder` 假日表只覆盖 2025-2026，表外年份 T+5 计数退化为纯周末口径（可能提早 1-2 交易日）；2027 前扩表或切 `pandas_market_calendars`（SPEC-094.3 handoff §④-6 / 运维提示）。
+  - **See**: `task/SPEC-094.2.md` / `task/SPEC-094.3.md` / `task/SPEC-094.4.md`, `doc/q042_aftermath_synergy_audit_2026-07-07.md`, `research/q093/`, `research/q095/q095_p6_findings_2026-07-12.md`
 
 ---
 
@@ -2020,6 +2026,7 @@
   - 暂不直接开 implementation Spec
   - `Q041` 继续按当前 attribution artifact + overlap-monitoring 双轨积累证据
 - **参考备忘**：`doc/q048_portfolio_state_architecture_transition_plan_seed_memo_2026-05-07.md`
+- **2026-07-12 更新（SPEC-141 阶段性落地，Planner 补录）**：统一状态机 × 三引擎 × 资源分配器重设计备忘录完成（`doc/unified_state_redesign_2026-07-13.md`，Tier 3 综合 + PM 五约束吸收）；`SPEC-141` S1（状态面模块 `strategy/state_surface.py`）+ S2a（State Map 四层活版）DONE 2026-07-12（shadow 只读，selector/executor/governance 零 diff）；`SPEC-142` 状态转换 FYI DEPLOYED；`SPEC-141.1` 三图接缝（互链/badge 映射/nav 日期）DONE。**仍开放**：**S2b**（资源卡重组 + 矩阵活化 + governance 卡瘦身）——动现有卡，按设计备忘须先走一次 design review 再实施，且 `/portfolio_old` 并行保留为施工前提（"新组织稳定使用后再议退役"）；**S4**（selector 消费状态面）远期，未立项 — `See: task/SPEC-141.md`, `task/SPEC-142.md`, `task/MAP_SURFACES_seams_2026-07-12.md`
 
 ### Q049 — Multi-Sleeve Read-Only Recommendation & Visualization Surface（由 Q048 收口出的窄实施方向）
 
