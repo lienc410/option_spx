@@ -426,6 +426,19 @@ def _state_surface_hook(today: str) -> None:
         print(f"[daily_snapshot] state_surface log failed: {exc}", file=sys.stderr)
 
 
+def _state_flip_hook(today: str) -> None:
+    """SPEC-142 — 状态转换 FYI（结构/Vol 轴翻转当日推送；gateway dedupe 幂等）。
+    完全隔离：任何失败只打日志，绝不影响 snapshot。摘除本调用即回退。"""
+    try:
+        from strategy.state_flip_notify import notify_state_flips
+
+        res = notify_state_flips(date=today)
+        print(f"[daily_snapshot] state_flip {res.get('status')} "
+              f"pushed={res.get('pushed', 0)}")
+    except Exception as exc:
+        print(f"[daily_snapshot] state_flip notify failed: {exc}", file=sys.stderr)
+
+
 def main() -> int:
     today = _today_et()
     if not _is_trading_day(today):
@@ -433,6 +446,8 @@ def main() -> int:
         return 0
     # SPEC-141: 状态面日志有独立幂等，与 snapshot 的 already_recorded 互不耦合
     _state_surface_hook(today)
+    # SPEC-142: 翻转比对必须在当日行落盘之后；幂等靠 gateway dedupe
+    _state_flip_hook(today)
     if _already_recorded(today):
         print(f"[daily_snapshot] already recorded for {today}")
         return 0
