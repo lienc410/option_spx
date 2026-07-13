@@ -1827,6 +1827,7 @@
 - **Q067 standing monitoring**（不主动启动）。触发条件：Q042 paper→live / B 样本扩充（n≥10）/ cap 上调 / live co-fire co-loss 出现
 - **PM 无需立即行动**：维持双 addon 现状
 - **Artifacts**：`task/q066_cofiring_2nd_quant_review_packet_2026-05-12_Review.md`，`doc/addon_greek_orthogonality_2026-05-12.md`，`research/q066/q066_memo_2026-05-12.md`
+- **勘误（2026-07-12，Planner 补录，原文保留不删改）**：本条 "low-overlap / non-redundant" 结论已被 **Q093 P2（2026-07-08）退役**——post-2020 同口径重叠率上修 **~5×**（4.63% vs 本条 0.9%）。上方 standing trigger（cap 上调 / paper→live）实际已于 2026-05-17 被 SPEC-104 同时满足但当时未执行；因原 hook 编号 Q067 已被 IVP jitter 研究占用并关闭，补执行以 **Q093** 立项：P2 判 co-fire 联合 cap **NO-GO**（joint/单边 worst 比 1.07-1.12 < 预注册 1.5×），live co-fire 监控维持 standing — `See: research/q093/q093_p2_findings_2026-07-08.md`，commit `e377519`
 
 ---
 
