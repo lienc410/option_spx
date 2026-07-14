@@ -377,7 +377,7 @@ a.veto-light:hover { border-color:var(--gold-border); }
         <span class="spec-ref">SPEC-145 · PM ratified 2026-07-13</span>
       </div>
     </div>
-    <div class="rehearsal-body" id="pb-body" style="display:none">
+    <div class="rehearsal-body" id="pb-body">
       <div class="pb-levels" id="pb-levels"><span class="na">n/a</span></div>
       <div class="pb-grid" id="pb-grid"><span class="na">loading…</span></div>
     </div>
@@ -634,8 +634,8 @@ loadStateSurface();
 // ── SPEC-145: Regime Playbook ──
 function togglePlaybook(forceOpen) {
   const b = document.getElementById('pb-body'), c = document.getElementById('pb-caret');
-  const open = forceOpen === true || b.style.display === 'none';
-  b.style.display = open ? '' : 'none';
+  const open = forceOpen === true ? true : !b.classList.contains('open');
+  b.classList.toggle('open', open);
   c.textContent = open ? '▾' : '▸';
 }
 async function loadPlaybook() {
