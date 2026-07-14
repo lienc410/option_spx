@@ -319,6 +319,7 @@ class Recommendation:
     overlay_f_factor: float = 1.0
     overlay_f_rationale: str = ""
     overlay_f_idle_bp_pct: float | None = None
+    data_notes: list = field(default_factory=list)  # SPEC-146: 数据来源披露（盘中回退等）
     overlay_f_sg_count: int | None = None
     overlay_f_fail_closed: bool = False
     shock_mode: str = "disabled"
@@ -1745,19 +1746,45 @@ def get_recommendation(
 
     current_vix: Optional[float] = None
     current_spx: Optional[float] = None
+    data_notes: list[str] = []
 
     if use_intraday:
+        # SPEC-146（2026-07-14）：盘中源失败不再静默回退——B1 silent-fallback
+        # 家族第 5 例实锤（07-13 晨报 yfinance 5m 失败 → 用周五收盘 15.03 显示
+        # VIX 15.0，真实早盘 16.3；当日 IVR 恰好未跨 30 界，路由侥幸未翻）。
+        # 修复：yfinance 5m → Schwab quote 双源；双双失败 → 显式披露进推送。
         try:
             vix_5m = fetch_vix_history(period="1d", interval="5m")
             current_vix = float(vix_5m["vix"].iloc[-1])
         except Exception:
-            pass  # Fall back to EOD close silently
+            try:
+                from schwab.client import get_vix_quote
+                q = get_vix_quote()
+                if q.get("last") not in (None, ""):
+                    current_vix = float(q["last"])
+                    data_notes.append("盘中 VIX 主源（yfinance 5m）失败——已用 Schwab 报价替代")
+            except Exception:
+                pass
+            if current_vix is None:
+                stale = float(vix_data["vix"].iloc[-1])
+                data_notes.append(
+                    f"⚠ 盘中 VIX 双源均失败——本推荐按上一收盘 {stale:.2f} 计算"
+                    f"（{vix_data.index[-1]:%m-%d}），盘中若波动放大请以实时读数复核 regime/IV 信号")
 
         try:
             spx_5m = fetch_spx_history(period="1d", interval="5m")
             current_spx = float(spx_5m["close"].iloc[-1])
         except Exception:
-            pass  # Fall back to EOD close silently
+            try:
+                from schwab.client import get_spx_quote
+                q = get_spx_quote()
+                if q.get("last") not in (None, ""):
+                    current_spx = float(q["last"])
+                    data_notes.append("盘中 SPX 主源失败——已用 Schwab 报价替代")
+            except Exception:
+                pass
+            if current_spx is None:
+                data_notes.append("⚠ 盘中 SPX 双源均失败——趋势信号按上一收盘计算")
 
     vix_snap   = get_current_snapshot(vix_data, current_vix=current_vix)
     iv_snap    = get_current_iv_snapshot(vix_data, current_vix=current_vix)
@@ -1766,7 +1793,10 @@ def get_recommendation(
     rec = select_strategy(vix_snap, iv_snap, trend_snap, params)
     rec = _apply_aftermath_staging_live(rec, vix_data, params)
     rec = _eval_overlay_f_live(rec, params)
-    return _apply_bcd_governance_live(rec, vix_snap, iv_snap, trend_snap, params)
+    rec = _apply_bcd_governance_live(rec, vix_snap, iv_snap, trend_snap, params)
+    if data_notes:
+        rec.data_notes.extend(data_notes)
+    return rec
 
 
 def _apply_aftermath_staging_live(rec: Recommendation, vix_df,

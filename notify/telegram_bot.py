@@ -224,6 +224,13 @@ def _format_recommendation(rec: Recommendation) -> str:
     macro = "\n⚠️ <b>SPX below 200MA</b> — reduce size 25–50% on bullish trades." if rec.macro_warning else ""
     bk    = "\n⚠️ <b>Backwardation:</b> spot VIX above VIX3M — Bull Put Spread skipped." if rec.backwardation else ""
 
+    # SPEC-146 — 数据来源披露：盘中源回退不再静默（07-13 晨报 VIX 15.0 实为
+    # 周五收盘的教训）。每条注记独立成行（feedback_multiline_notes）。
+    data_notes = ""
+    _notes = getattr(rec, "data_notes", None) or []
+    if _notes:
+        data_notes = "\n" + "\n".join(f"<i>{_h(n)}</i>" for n in _notes)
+
     entered_hint = ""
     if rec.position_action in ("OPEN", "CLOSE_AND_OPEN"):
         entered_hint = "\n\n<i>After executing: send /entered to record your position.</i>"
@@ -250,7 +257,7 @@ def _format_recommendation(rec: Recommendation) -> str:
         f"<b>Roll At:</b>   {_h(rec.roll_rule)}\n\n"
         f"<b>Why:</b> <i>{_h(rec.rationale)}</i>\n\n"
         f"<b>Signals:</b> {signals}"
-        f"{macro}{bk}\n"
+        f"{macro}{bk}{data_notes}\n"
         f"{'─' * 32}"
         f"{entered_hint}"
     )
@@ -839,7 +846,8 @@ def _format_etrade_reauth_message() -> str:
     )
 
 
-async def _safe_send(bot: Bot, chat_id: str, text: str, **kwargs) -> bool:
+async def _safe_send(bot: Bot, chat_id: str, text: str, *,
+                     meta: dict | None = None, **kwargs) -> bool:
     """H-4 (2026-07-06): unattended sends must never die on a formatting 400.
     Try HTML; on BadRequest (parse failure) resend as plain text — delivery
     beats formatting. Outcomes feed logs/push_stats.json via event_push so the
@@ -848,24 +856,35 @@ async def _safe_send(bot: Bot, chat_id: str, text: str, **kwargs) -> bool:
 
     SPEC-130: host guard first — same deny-by-default as event_push._send.
     Unattended bot sends only fire on hosts whose launchd plist declares
-    SPX_PUSH_ENABLE=1 (oldair production); everywhere else they go dark."""
+    SPX_PUSH_ENABLE=1 (oldair production); everywhere else they go dark.
+
+    SPEC-139 #22 缺口修复（2026-07-13）：本异步通道此前只记 push_stats、
+    从不写 send-ledger——bot 进程的全部排程推送（晨报 09:35 / digest 15:55 /
+    E-Trade / ladder / 盘中）在台账上隐身，只有同步 gateway.push（web/launchd
+    脚本）有记录。现完整镜像 event_push._send 的契约：真实送达（sent 或
+    plain fallback）后写 _record_ledger；`meta` 由 gateway.apush 组装传入，
+    裸调用 meta=None 仍记 null 字段行（与同步侧同语义）。台账写入严格位于
+    host guard 之后（禁发即禁记）。"""
     from telegram.error import BadRequest
-    from notify.event_push import (PUSH_ENABLE_ENV, _record_push, _to_plain,
-                                   push_enabled)
+    from notify.event_push import (PUSH_ENABLE_ENV, _record_ledger,
+                                   _record_push, _to_plain, push_enabled)
     if not push_enabled():
         log.info("telegram_bot: %s != 1 — unattended send suppressed "
                  "(SPEC-130 host guard)", PUSH_ENABLE_ENV)
         return False
+    quiet = bool(kwargs.get("disable_notification"))
     try:
         await bot.send_message(chat_id=chat_id, text=text,
                                parse_mode=ParseMode.HTML, **kwargs)
         _record_push("sent")
+        _record_ledger(meta, quiet=quiet, fallback=False)
         return True
     except BadRequest as exc:
         log.warning("telegram send BadRequest (%s) — retrying as plain text", exc)
         try:
             await bot.send_message(chat_id=chat_id, text=_to_plain(text), **kwargs)
             _record_push("fallback")
+            _record_ledger(meta, quiet=quiet, fallback=True)
             return True
         except Exception:
             log.exception("telegram plain-text retry failed")
