@@ -472,6 +472,7 @@ def test_ac6_template_consumes_geometry_only():
     assert "function tickHtml" not in tpl
     home = (TPL / "portfolio_home.html").read_text(encoding="utf-8")
     assert "PoolsRender.cashBlockHtml" in home
+    assert "PoolsRender.bpBlockHtml" in home      # PM 2026-07-13：三块齐
     assert "PoolsRender.crashBlockHtml" in home
 
 

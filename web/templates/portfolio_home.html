@@ -1337,7 +1337,8 @@ body {
       </div>
       <div id="resource-waterline-body"><div class="pool-grid">
         <div class="pool-block" id="home-pool-cash"><div class="snapshot-unavail">Loading resource waterline…</div></div>
-        <div class="pool-block" id="home-pool-crash"><div class="snapshot-unavail">Loading…</div></div>
+        <div class="pool-block" id="home-pool-bp"><div class="snapshot-unavail">Loading…</div></div>
+        <div class="pool-block" id="home-pool-crash" style="grid-column:1/-1"><div class="snapshot-unavail">Loading…</div></div>
       </div></div>
     </div>
   </div>
@@ -3763,18 +3764,21 @@ async function loadResourceWaterline() {
   // 独立读 /api/portfolio/resource-waterline 并自带一版渲染，标准仓口径
   // $22k vs State Map $40k（活漂移实例，Q096 裁决 40k 为唯一显示真值）。
   const cashEl = document.getElementById('home-pool-cash');
+  const bpEl = document.getElementById('home-pool-bp');
   const crashEl = document.getElementById('home-pool-crash');
-  if (!cashEl || !crashEl) return;
+  if (!cashEl || !bpEl || !crashEl) return;
   try {
     const s = (window._stateSurfacePromise
       ? await window._stateSurfacePromise
       : await fetch('/api/state-surface').then(r => r.json()));
     const p = s.pools || {};
     cashEl.innerHTML = PoolsRender.cashBlockHtml(p.cash, { note: false });
+    bpEl.innerHTML = PoolsRender.bpBlockHtml(p.bp, { note: false });
     crashEl.innerHTML = PoolsRender.crashBlockHtml(p.crash, { note: false });
   } catch (e) {
     console.warn('resource waterline render failed', e);
     cashEl.innerHTML = '<div class="snapshot-unavail">Resource waterline unavailable.</div>';
+    bpEl.innerHTML = '';
     crashEl.innerHTML = '';
   }
 }
