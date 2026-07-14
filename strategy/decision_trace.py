@@ -666,11 +666,12 @@ def _lane_d_aftermath() -> dict:
         off = am.get("off_peak_pct")
         thr_peak = am.get("threshold_peak_min")
         thr_off = am.get("threshold_off_peak_pct")
+        thr_max = am.get("threshold_vix_max")   # = params.extreme_vix（SPEC-144 单源）
         regime = am.get("regime") or "—"
         detail = (f"触发三条件（is_aftermath，与 selector 同一函数）："
                   f"10 日 VIX 峰值 ≥ {thr_peak:.0f}（现 {peak if peak is not None else '—'}）· "
                   f"自峰值回落 ≥ {thr_off:.0f}%（现 {off if off is not None else '—'}%）· "
-                  f"VIX < 40（现 {vix}）")
+                  f"VIX < {thr_max:.0f}（现 {vix}）")
         inputs = {k: am.get(k) for k in
                   ("active", "vix", "vix_peak_10d", "off_peak_pct",
                    "threshold_peak_min", "threshold_off_peak_pct",
@@ -690,7 +691,7 @@ def _lane_d_aftermath() -> dict:
             why = (f"10 日峰值 {peak} 未达 {thr_peak:.0f}，无恐慌尖峰可回落"
                    f"——当前 regime {regime}")
         elif reason.startswith("vix_above_extreme"):
-            why = f"VIX {vix} 仍在 40 极端区上方"
+            why = f"VIX {vix} 仍在 {thr_max:.0f} 极端区上方"
         elif reason.startswith("insufficient_off_peak"):
             why = f"VIX {vix} 距峰值 {peak} 只回落 {off}%（需 ≥{thr_off:.0f}%）"
         else:

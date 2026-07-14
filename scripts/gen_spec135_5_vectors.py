@@ -81,7 +81,7 @@ def build_inputs() -> dict:
     aftermath_state = {
         "active": False, "vix": 15.03, "vix_peak_10d": 18.41,
         "off_peak_pct": 18.36, "threshold_off_peak_pct": 10.0,
-        "threshold_peak_min": 28.0, "threshold_vix_max": 40.0,
+        "threshold_peak_min": 28.0, "threshold_vix_max": 35.0,  # SPEC-144: extreme_vix 单源
         "regime": "NORMAL", "trend": "FALLING",
         "reason": "peak_below_threshold (18.4 < 28.0)", "date": "2026-07-11",
     }

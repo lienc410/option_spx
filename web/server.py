@@ -884,7 +884,12 @@ def api_aftermath_history():
     """Historical scan of all aftermath windows.
 
     Aftermath active day: rolling-10d VIX peak >= 28 AND current VIX <= peak * 0.90
-    AND current VIX < 40. Consecutive active days are grouped into windows.
+    AND current VIX < params.extreme_vix. Consecutive active days are grouped
+    into windows.
+
+    SPEC-144 尾项（2026-07-13）：此处曾残留 vix < 40 硬编码（SPEC-118.1 把
+    is_aftermath 统一到 extreme_vix=35 时漏掉本扫描），backtest 页历史窗口
+    因此含 [35,40) 天、与生产判定口径不一致。已单源修正。
     """
     import time as _time
     # Memory cache (24h TTL — VIX history only adds one bar per day)
@@ -893,7 +898,12 @@ def api_aftermath_history():
         return jsonify(cached)
     try:
         import pandas as pd
-        from strategy.selector import AFTERMATH_PEAK_VIX_10D_MIN, AFTERMATH_OFF_PEAK_PCT
+        from strategy.selector import (
+            AFTERMATH_PEAK_VIX_10D_MIN,
+            AFTERMATH_OFF_PEAK_PCT,
+            DEFAULT_PARAMS as _AM_PARAMS,
+        )
+        _extreme = float(_AM_PARAMS.extreme_vix)
         vix_path = os.path.join(os.path.dirname(__file__), "..", "data", "market_cache", "yahoo__VIX__max__1d.pkl")
         df = pd.read_pickle(vix_path)
         vix = df["Close"].copy()
@@ -902,7 +912,7 @@ def api_aftermath_history():
 
         peak10 = vix.rolling(10, min_periods=10).max()
         off_peak = (peak10 - vix) / peak10
-        active = (peak10 >= AFTERMATH_PEAK_VIX_10D_MIN) & (off_peak >= AFTERMATH_OFF_PEAK_PCT) & (vix < 40.0)
+        active = (peak10 >= AFTERMATH_PEAK_VIX_10D_MIN) & (off_peak >= AFTERMATH_OFF_PEAK_PCT) & (vix < _extreme)
 
         # Group consecutive True spans into windows
         windows = []
@@ -956,7 +966,7 @@ def api_aftermath_history():
             "thresholds": {
                 "peak_min": AFTERMATH_PEAK_VIX_10D_MIN,
                 "off_peak_pct": AFTERMATH_OFF_PEAK_PCT * 100,
-                "vix_max": 40.0,
+                "vix_max": _extreme,
             },
         }
         _AFTERMATH_HISTORY_CACHE["data"] = payload
