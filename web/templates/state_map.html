@@ -180,7 +180,7 @@ a.veto-light:hover { border-color:var(--gold-border); }
     <div class="layer-head">
       <span class="layer-no">LAYER 0</span>
       <span class="layer-title">Survival Veto</span>
-      <span class="layer-sub">宪法层，一字不动——任何下层逻辑不得越过</span>
+      <span class="layer-sub">最高优先级的风控否决——触发即压倒一切下层逻辑，规则本身不做调参</span>
     </div>
     <!-- SPEC-141.1 — 四灯深链 /spx#trace-<check>（check 与后端 trace 节点同名）：
          extreme→extreme_vol（selector 极端波动刹车门）· second_leg/caps→
@@ -192,7 +192,7 @@ a.veto-light:hover { border-color:var(--gold-border); }
       <a class="veto-light" href="/spx#trace-sleeve_stress_machine" title="查看决策链对应节点"><span class="veto-dot dot-na" id="dot-caps"></span><span class="veto-name">Governance Caps</span><span class="veto-val" id="val-caps">n/a</span></a>
       <a class="veto-light" href="/spx#trace-cash_floor" title="查看决策链对应节点"><span class="veto-dot dot-na" id="dot-cashfloor"></span><span class="veto-name">Cash Floor</span><span class="veto-val" id="val-cashfloor">n/a</span></a>
     </div>
-    <div class="layer-note">VIX ≥ 35 全停 · second-leg（dd60 ≤ −8% 且 VIX ≥ 25）禁新短 vol · R1-R6 治理 cap · 现金 floor $30k · 2008 型锁死保留<span class="spec-ref">SPEC-103/104</span></div>
+    <div class="layer-note">VIX ≥ 35 停开一切新仓 · 二次下杀（60 日回撤 ≤ −8% 且 VIX ≥ 25）禁开新卖权 · 六条仓位/预算上限 · 现金底线 $30k · 深熊期长期锁死机制保留（2008 型行情）<span class="spec-ref">SPEC-103/104</span></div>
   </div>
 
   <!-- ── LAYER 1 — Market State ── -->
@@ -200,7 +200,7 @@ a.veto-light:hover { border-color:var(--gold-border); }
     <div class="layer-head">
       <span class="layer-no">LAYER 1</span>
       <span class="layer-title">Market State</span>
-      <span class="layer-sub">统一状态面——两轴 + 事件灯（shadow 只读，不路由）</span>
+      <span class="layer-sub">统一状态面——两轴 + 事件灯（只读展示，不直接触发交易）</span>
     </div>
 
     <div class="axis-row">
@@ -223,7 +223,7 @@ a.veto-light:hover { border-color:var(--gold-border); }
         <span class="axis-seg" data-seg="MIXED">MIXED</span>
       </div>
       <div class="axis-val" id="structure-val">n/a</div>
-      <div class="axis-note">RANGE = 094.4 因果分段（episode 检测器）；起始日 = 自该日起价格未离开 5% 箱体（含上行段——箱体回答「被困多久」，不回答「何时失去方向」）；trend 信号与本轴并存（RANGE 可与 BULLISH 共存）</div>
+      <div class="axis-note">RANGE 由箱体检测器逐日实时判定（不使用未来数据）；起始日 = 自该日起价格未离开一个 5% 宽的箱体（含上行段——箱体回答「被困多久」，不回答「何时失去方向」）；趋势信号与本轴并存（RANGE 可与 BULLISH 共存）<span class="spec-ref">SPEC-094.4</span></div>
     </div>
 
     <div class="axis-row">
@@ -239,12 +239,12 @@ a.veto-light:hover { border-color:var(--gold-border); }
           <div class="dipgauge-track"><div class="dipgauge-fill" id="dip-gauge-fill" style="width:0%"></div></div>
           <div class="dipgauge-scale"><span>ddATH 0%</span><span id="dip-gauge-max">trigger</span></div>
         </div>
-        <div class="event-cn">回撤触发：ddATH ≤ −4% 即抄底信号（Drawdown Overlay）· 点击展开触发预演</div>
+        <div class="event-cn">回撤触发：距历史高点回撤（ddATH）≤ −4% 即抄底信号（Drawdown Overlay）· 点击展开触发预演</div>
       </div>
       <div class="event-light">
         <div class="event-hd"><span class="veto-dot dot-na" id="dot-aftermath"></span><span class="event-name">Aftermath</span></div>
         <div class="event-val" id="val-aftermath">n/a</div>
-        <div class="event-cn">恐慌回落窗：VIX 峰值 ≥28 后回落 ≥10% — 卖权特批通道开启</div>
+        <div class="event-cn">恐慌见顶回落窗：VIX 峰值 ≥28 后回落 ≥10% — 开启一个受控的卖权入场窗口（平时该波动档位受限）</div>
       </div>
       <div class="event-light">
         <div class="event-hd"><span class="veto-dot dot-na" id="dot-backwardation"></span><span class="event-name">Backwardation</span></div>
@@ -254,7 +254,7 @@ a.veto-light:hover { border-color:var(--gold-border); }
       <div class="event-light">
         <div class="event-hd"><span class="veto-dot dot-na" id="dot-secondleg2"></span><span class="event-name">Second-Leg</span></div>
         <div class="event-val" id="val-secondleg2">n/a</div>
-        <div class="event-cn">二次下杀：暴跌反弹后再破位（dd60 ≤ −8% 且 VIX ≥ 25）— 卖权最危险窗口，触发即禁新短 vol<span class="spec-ref">Q072 · R6</span></div>
+        <div class="event-cn">二次下杀：暴跌反弹后再破位（60 日回撤 ≤ −8% 且 VIX ≥ 25）— 历史上卖权最危险的窗口，触发即禁开新卖权<span class="spec-ref">Q072 · R6</span></div>
       </div>
     </div>
   </div>
@@ -279,9 +279,9 @@ a.veto-light:hover { border-color:var(--gold-border); }
         </div>
         <div class="engine-row"><span class="engine-key">Payoff</span><span class="engine-val">短 vol theta 收割——收权利金赚时间价值衰减</span></div>
         <div class="engine-row"><span class="engine-key">Eats</span><span class="engine-val">BP（SPX PM 池）</span></div>
-        <div class="engine-row"><span class="engine-key">Structures</span><ul class="engine-ul"><li>IC（CALM 权利金薄，弱）</li><li>IC = NORMAL×RANGE 的 NEUTRAL 路由（区间静态收割）</li><li>HV 半仓变体 + backwardation/ivp63 门（HIGH）</li><li>V3-A broken-wing IC 特批通道（HIGH×AFTERMATH）</li></ul></div>
+        <div class="engine-row"><span class="engine-key">Structures</span><ul class="engine-ul"><li>iron condor（CALM 档权利金太薄，弱势结构）</li><li>NORMAL×RANGE 的默认结构 = IC（区间静态收割）</li><li>HIGH 档减半仓变体——需先通过期限结构与 IV 分位双检查</li><li>broken-wing IC——仅恐慌回落窗内开放<span class="spec-ref">V3-A</span></li></ul></div>
         <div class="engine-row"><span class="engine-key">Takes over</span><span class="engine-val">NORMAL×RANGE 主战场；EXTREME 全停</span></div>
-        <div class="engine-row"><span class="engine-key">Sibling</span><span class="engine-val">/ES HV Ladder（demoted，production 0%）<span class="spec-ref">SPEC-104</span></span></div>
+        <div class="engine-row"><span class="engine-key">Sibling</span><span class="engine-val">/ES 高波动卖权阶梯（已降级，仅研究未投产）<span class="spec-ref">SPEC-104</span></span></div>
         <div class="engine-live"><div class="engine-live-line" id="live-premium">n/a</div></div>
       </div>
 
@@ -290,11 +290,11 @@ a.veto-light:hover { border-color:var(--gold-border); }
           <span class="engine-name"><a href="/spx#trace-lane-d" title="查看决策链对应节点">Trend <em>delta+theta</em></a></span>
           <span id="badge-trend"><span class="na">n/a</span></span>
         </div>
-        <div class="engine-row"><span class="engine-key">Payoff</span><span class="engine-val">方向性看涨混合——79% 在区间顶部入场且整体赚钱（K3：震荡照常入场，不设 gate）</span></div>
+        <div class="engine-row"><span class="engine-key">Payoff</span><span class="engine-val">方向性看涨混合——79% 的单在区间顶部入场且长期整体赚钱；回测证实震荡期照常入场为正，无需额外过滤<span class="spec-ref">Q095 K3</span></span></div>
         <div class="engine-row"><span class="engine-key">Eats</span><span class="engine-val">BP 或 cash（BCD 吃 cash，一张标准整数下限）</span></div>
-        <div class="engine-row"><span class="engine-key">Structures</span><ul class="engine-ul"><li>BCD carve 1 张标准（CALM×TREND-UP，IV_LOW）<span class="spec-ref">SPEC-113</span></li><li>BPS Δ0.30/0.15 或 BCD 按 IVP 路由（NORMAL×TREND-UP）</li><li>BCS_HV（HIGH，bearish 时）</li></ul></div>
+        <div class="engine-row"><span class="engine-key">Structures</span><ul class="engine-ul"><li>bull call diagonal（BCD）1 张标准仓——低波动上升趋势且 IV 低位的专用格<span class="spec-ref">SPEC-113</span></li><li>BPS Δ0.30/0.15 或 BCD——按 IV 分位二选一（NORMAL×TREND-UP）</li><li>bear call spread 减半仓（HIGH 档、趋势转空时）</li></ul></div>
         <div class="engine-row"><span class="engine-key">Takes over</span><span class="engine-val">TREND-UP 为主；EXTREME 全停</span></div>
-        <div class="engine-row"><span class="engine-key">Sibling</span><span class="engine-val">Q078 Entry Ladder（shadow，执行 cadence 子行）<span class="spec-ref">SPEC-108.1</span></span></div>
+        <div class="engine-row"><span class="engine-key">Sibling</span><span class="engine-val">入场分批节奏（观察中，未投产）<span class="spec-ref">Q078 / SPEC-108.1</span></span></div>
         <div class="engine-live"><div class="engine-live-line" id="live-trend">n/a</div></div>
       </div>
 
@@ -305,9 +305,9 @@ a.veto-light:hover { border-color:var(--gold-border); }
         </div>
         <div class="engine-row"><span class="engine-key">Payoff</span><span class="engine-val">长 gamma——capped debit call spread 吃回撤后的反弹凸性（Drawdown Overlay）</span></div>
         <div class="engine-row"><span class="engine-key">Eats</span><span class="engine-val">cash（一次 12.5% NLV staged → 目标 17.5% 阶梯）<span class="spec-ref">SPEC-104</span></span></div>
-        <div class="engine-row"><span class="engine-key">Structures</span><ul class="engine-ul"><li>ATM/+5% call spread D30（episode 型首选）<!-- SPEC-094.5: 宽度 2.5%→5%, 2026-07-12 --></li><li>现金不足 → BPS fallback Δ0.30/0.15（收益差 3.7-7.4× 提醒）</li><li>sudden 型 → 空仓 advisory（该型短 vol 亏 4×）</li></ul></div>
-        <div class="engine-row"><span class="engine-key">Takes over</span><span class="engine-val">DIP 事件接管（ddATH ≤ −4%，触发无 VIX 条件）；RANGE 期间戒备态——89% 触发源于区间内/破位后</span></div>
-        <div class="engine-row"><span class="engine-key">Sibling</span><span class="engine-val">Sleeve B（research-only，production cap 0）</span></div>
+        <div class="engine-row"><span class="engine-key">Structures</span><ul class="engine-ul"><li>ATM/+5% call spread 30 天——回撤前有横盘铺垫时的首选<!-- SPEC-094.5: 宽度 2.5%→5%, 2026-07-12 --></li><li>现金不足时退用 bull put spread Δ0.30/0.15（提示：期望收益比 call spread 低 3.7-7.4×）</li><li>突发型崩盘（无横盘铺垫）→ 提示空仓等待（历史上该形态卖权亏损 4×）</li></ul></div>
+        <div class="engine-row"><span class="engine-key">Takes over</span><span class="engine-val">回撤事件接管（ddATH ≤ −4% 触发，不看 VIX）；RANGE 期间保持戒备——89% 的触发发生在区间内或破位后</span></div>
+        <div class="engine-row"><span class="engine-key">Sibling</span><span class="engine-val">深跌抄底阶梯 Sleeve B（仅研究，未投产）</span></div>
         <div class="engine-live"><div class="engine-live-line" id="live-convexity">n/a</div></div>
       </div>
 
@@ -319,7 +319,7 @@ a.veto-light:hover { border-color:var(--gold-border); }
     <div class="layer-head">
       <span class="layer-no">LAYER 3</span>
       <span class="layer-title">Resource Pools</span>
-      <span class="layer-sub">cash 与 BP 是两种不同的稀缺——账户 cash-bound 不是 BP-bound</span>
+      <span class="layer-sub">cash 与 BP 是两种不同的稀缺——本账户的瓶颈是现金，不是保证金额度</span>
     </div>
     <div class="pool-grid">
       <!-- 三块由 PoolsRender（共享单源）整块生成；占位 n/a 兜底 -->
@@ -334,7 +334,7 @@ a.veto-light:hover { border-color:var(--gold-border); }
     <div class="layer-head">
       <span class="layer-no">TIMELINE</span>
       <span class="layer-title">Last 90 Trading Days</span>
-      <span class="layer-sub">状态历史色带——回填行（首跑简版）以半透明呈现</span>
+      <span class="layer-sub">状态历史色带——历史回填的行以半透明显示，当日实测为实色</span>
     </div>
     <div id="tl-body"><span class="na">n/a</span></div>
     <div class="tl-legend" id="tl-legend" style="display:none">
@@ -353,7 +353,7 @@ a.veto-light:hover { border-color:var(--gold-border); }
       <div class="layer-head" style="margin-bottom:0">
         <span class="layer-no" id="rehearsal-caret">▸</span>
         <span class="layer-title">Trigger Rehearsal</span>
-        <span class="layer-sub">若明天触发会发生什么——分型判定 → 弹药分支 → 建议结构（复用 094.4 分类器与路由，提示不拦）</span>
+        <span class="layer-sub">若明天触发抄底信号会发生什么——崩盘形态判定 → 资金检查 → 对应结构（仅提示，不拦截交易）<span class="spec-ref">SPEC-094.4</span></span>
       </div>
     </div>
     <div class="rehearsal-body" id="rehearsal-body">
@@ -474,7 +474,7 @@ function renderLayer1(s) {
     setDot('dot-dip', dip.active ? false : null);   // 触发=红，未触发=灰（事件灯统一语义，PM QA 2026-07-13）
     $('val-dip').textContent =
       `ddATH ${dip.ddath_pct}% → trigger ${dip.trigger_pp}% (Δ ${dip.dist_pp}pp)` +
-      (dip.type_if_now ? ` · type-if-now: ${dip.type_if_now}` : '');
+      (dip.type_if_now ? ` · 若现在触发: ${({episode:'铺垫型(episode)',sudden:'突发型(sudden)'})[dip.type_if_now] || dip.type_if_now}` : '');
     if (dip.gauge && dip.gauge.width_pct != null) {
       $('dip-gauge').style.display = '';
       $('dip-gauge-fill').style.width = dip.gauge.width_pct + '%';
@@ -520,7 +520,7 @@ function renderEngines(s) {
   // route 行只在归属(ON)引擎显示——避免同一路由在 STANDBY 卡重复(QA F3)
   const liveLine = (eng, key) => eng === 'ON'
     ? `Route today: ${route} · Open: ${ok(pos) ? (byEngine[key] ?? 0) : 'n/a'}`
-    : `今日未被路由 · Open: ${ok(pos) ? (byEngine[key] ?? 0) : 'n/a'}`;
+    : `今日无新开仓派发 · Open: ${ok(pos) ? (byEngine[key] ?? 0) : 'n/a'}`;
   $('live-premium').textContent = liveLine(engines.premium, 'premium');
   $('live-trend').textContent = liveLine(engines.trend, 'trend');
 

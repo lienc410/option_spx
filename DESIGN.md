@@ -49,6 +49,23 @@ Single-user internal tool with bilingual author. Mixed Chinese/English is intent
 **Sentence-level violation example** (DO NOT do this):
 > `Daily selector tick decides entry — 上一笔 close 后立即可入下一笔。`
 
+### Comprehensibility Standard (PM 2026-07-13, first applied: State Map / Playbook)
+
+页面叙事文案（layer-sub / note / event-cn / 卡片行 / playbook 行）必须让**没参与
+本项目但懂期权的交易员**直接读懂：
+
+- **项目内部代号不得作为理解的必要条件**：组件名（selector / veto 层 / carve /
+  sleeve / rung）、治理门（G2 / D1 / R1-R6）、研究编号（Q095 / 094.4）、内部分型词
+  （episode 型 / sudden 型 / shadow / demoted / 路由）→ 一律翻译成通用交易语言
+  （"震荡期照常入场为正" / "突发型崩盘（无横盘铺垫）" / "仅研究未投产"）。
+- **研究编号只出现在 `spec-ref` 溯源标签里**，不出现在正文句子中。
+- **统计速记展开成白话**：t 值/Σ/CI/置换 p/分位 → "显著盈利（累计 +$X）"、
+  "无统计差异"、"概率 14% vs 7%"。
+- DESIGN.md 的 domain-jargon 豁免表仍然有效（BPS/IC/DTE/ddATH 等 token 可保留），
+  但首次出现的**非通用**缩写要带一次展开（如 "bull call diagonal（BCD）"）。
+- 共享文案常量（如 SPEC-142 破箱基率行）改写时必须在常量源头改，禁止在展示层
+  另写一份。
+
 This mixes an English imperative clause ("Daily selector tick decides entry") with Chinese prose ("上一笔 close 后立即可入下一笔") in the same element. The fix is to write the whole sentence in one language:
 > `Selector 每日 tick 决定是否新开仓 · 上一笔 close 后立即可入下一笔` ✓ (Chinese prose with jargon `tick`, `close`)
 
