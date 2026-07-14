@@ -92,7 +92,7 @@ def test_ac1_range_to_trend_fires_with_break_direction(tmp_path):
     (c,) = cap.calls
     assert c["title"] == "结构轴翻转：RANGE → TREND_UP"
     assert "向上破箱 @ 7,650.00（原箱体 7,259.22–7,609.78）" in c["body"]
-    assert "崩盘触发均发生在弱上破后 5–10TD" in c["body"]     # P3b 双面事实
+    assert "弱上破" in c["body"] and "5-10 个交易日" in c["body"]   # P3b 双面事实
     assert "3.3%" in c["body"]
 
 
@@ -106,7 +106,7 @@ def test_ac1_down_break_gets_down_line(tmp_path):
     notify_state_flips(date="2026-07-13", log_path=log, _push=cap)
     (c,) = cap.calls
     assert "向下破箱 @ 7,100.00" in c["body"]
-    assert "2026-03-13 型真裂口" in c["body"]
+    assert "2026-03-13" in c["body"] and "14% vs 7%" in c["body"]
 
 
 def test_ac1_vol_flip_fires_with_vix(tmp_path):

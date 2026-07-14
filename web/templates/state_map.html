@@ -649,12 +649,12 @@ async function loadPlaybook() {
       const cells = [
         ['ATH', fm(lv.ath)],
         ['Box', lv.band_lo ? fm(lv.band_lo) + '–' + fm(lv.band_hi) : '—'],
-        ['Box up-death', fm(lv.box_up_death)],
-        ['Weak-poke zone', lv.band_hi ? fm(lv.band_hi) + '–' + fm(lv.weak_poke_hi) : '—'],
-        ['A trigger −4%', fm(lv.a_trigger) + (lv.a_fires_before_box_death ? '（先于破箱）' : '')],
-        ['Box down-death', fm(lv.box_down_death)],
+        ['Box break ↑', fm(lv.box_up_death)],
+        ['Weak-break watch', lv.band_hi ? fm(lv.band_hi) + '–' + fm(lv.weak_poke_hi) : '—'],
+        ['Dip trigger −4%', fm(lv.a_trigger) + (lv.a_fires_before_box_death ? '（先于破箱）' : '')],
+        ['Box break ↓', fm(lv.box_down_death)],
       ];
-      (lv.b_rungs || []).forEach(r => cells.push([`B ${r.rung_pct}%`, fm(r.level) + (r.instrument === 'XSP_LEAP' ? ' LEAP' : ' sprd')]));
+      (lv.b_rungs || []).forEach(r => cells.push([`Ladder ${r.rung_pct}%`, fm(r.level) + (r.instrument === 'XSP_LEAP' ? ' LEAP' : ' spread')]));
       lvEl.innerHTML = cells.map(([k, v]) => `<div class="pb-lv"><span class="pb-lv-k">${k}</span><span class="pb-lv-v">${v}</span></div>`).join('');
     } else {
       lvEl.innerHTML = `<span class="na">点位不可用${d.ath_degraded ? '（ATH degraded——state 待人工复核）' : ''}</span>`;
