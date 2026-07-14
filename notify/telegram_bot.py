@@ -1780,7 +1780,9 @@ def build_preclose_digest() -> tuple[str, str, str]:
             if lb.get("label_human"):
                 lines.append(f"  · {_h(lb['label_human'])}")
         if not pos and not lane_b_by_tid:
-            lines.append("  · 今天没有 open 仓位")
+            # 排版注记（PM 2026-07-13）：此行是持仓清单为空的占位，不是上一行
+            # NO ENTRY 的理由——加"持仓："前缀消除缩进歧义
+            lines.append("  · 持仓：今天没有 open 仓位")
     except Exception:
         lines.append("  · 持仓读取失败")
 

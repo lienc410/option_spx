@@ -362,8 +362,11 @@ def quote_gate_status() -> dict:
         "unlocked_at": st.get("quote_gate_unlocked_at"),
         "days": len(days),
         "needed": QUOTE_GATE_DAYS,
+        # PM 2026-07-13：必须写明只统计 LOW_VOL 日 + 指明是哪个 BCD 格子
+        # （现行 NORMAL-carve BCD 正常在跑，与本门无关）
         "label_human": (f"真实报价已积累 {len(days)}/{QUOTE_GATE_DAYS} 天"
-                        f"（满 {QUOTE_GATE_DAYS} 天才评估 BCD 重开）"),
+                        f"（仅计 VIX<15 的 LOW_VOL 交易日；满 {QUOTE_GATE_DAYS} "
+                        f"天才评估 LOW_VOL 主格 BCD 重开——现行 BCD 不受此门影响）"),
     }
 
 
