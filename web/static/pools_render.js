@@ -22,27 +22,27 @@
   const REGIME_VOCAB = {
     normal: {
       en: 'NORMAL', short: 'normal',
-      note: '常规 cap 生效',
+      note: '常规仓位上限生效',
       color: 'var(--green)', bg: 'var(--green-bg)', border: 'var(--green-border)',
     },
     booster_shadow: {
-      en: 'BOOSTER · SHADOW', short: 'booster 观察中',
-      note: 'booster 观察中（不改 cap）',
+      en: 'BOOSTER · WATCH', short: '增仓条件观察中',
+      note: '增仓条件观察中（上限暂不变）',
       color: 'var(--blue)', bg: 'var(--blue-bg)', border: 'var(--blue-border)',
     },
     booster_active: {
-      en: 'BOOSTER', short: 'booster 生效',
-      note: 'booster 生效（cap 提升）',
+      en: 'BOOSTER', short: '增仓生效',
+      note: '增仓条件满足（仓位上限提升）',
       color: 'var(--blue)', bg: 'var(--blue-bg)', border: 'var(--blue-border)',
     },
     stress: {
-      en: 'STRESS EPISODE', short: 'stress 收紧',
-      note: 'SPX PM cap 收紧 · Stress Put Ladder 可入场',
+      en: 'STRESS', short: '压力期收紧',
+      note: '压力期：仓位上限收紧 · 高波动卖权阶梯可入场',
       color: 'var(--orange)', bg: 'var(--orange-bg)', border: 'var(--orange-border)',
     },
     second_leg: {
-      en: 'SECOND-LEG / R6', short: 'second-leg 阻断',
-      note: '全部 short-vol 入场阻断（R6）— 仅 DD Overlay 独立运行',
+      en: 'SECOND-LEG HALT', short: '二次下杀阻断',
+      note: '二次下杀：全部新卖权入场阻断 — 仅回撤抄底（DD Overlay）独立运行',
       color: 'var(--red)', bg: 'var(--red-bg)', border: 'var(--red-border)',
     },
   };
