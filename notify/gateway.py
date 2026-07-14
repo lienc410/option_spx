@@ -200,4 +200,9 @@ async def apush(bot, chat_id: str, category: str, about: str, title: str,
         return False
     text, quiet = prepared
     from notify.telegram_bot import _safe_send
-    return await _safe_send(bot, chat_id, text, disable_notification=quiet)
+    # SPEC-139 #22: 与同步 push 同契约——meta 传给 _safe_send，真实送达后
+    # 写 send-ledger（此前异步通道全部推送在台账隐身，2026-07-13 修复）。
+    meta = {"category": category, "about": about, "title": title,
+            "dedupe_key": dedupe_key}
+    return await _safe_send(bot, chat_id, text, disable_notification=quiet,
+                            meta=meta)
