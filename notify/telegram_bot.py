@@ -1692,6 +1692,46 @@ async def scheduled_eod_push(bot: Bot, chat_id: str) -> None:
 # scheduled pushes into ONE PM-ratified daily mail. SPEC-140 §2 起结构为
 # Decision Trace 四泳道镜像（见 build_preclose_digest docstring）。
 
+def _digest_health_bits(now, hb_path: Path | None = None,
+                        cs_path: Path | None = None) -> tuple[list[str], bool]:
+    """SPEC-117.2 — digest 健康令牌（ops 心跳 + 链体检）。
+
+    返回 (bits, escalate)：escalate=True 仅当 ops 心跳过期 >26h（反向心跳
+    唯一信号，digest 升 ACTION）。路径参数仅测试注入。
+    """
+    root = Path(__file__).resolve().parents[1]
+    hb_path = hb_path or root / "logs" / "ops_heartbeat_state.json"
+    cs_path = cs_path or root / "data" / "q041_chain_sanity_daily.jsonl"
+    bits: list[str] = []
+    escalate = False
+    try:
+        if hb_path.exists():
+            hb = json.loads(hb_path.read_text())
+            hb_ts = datetime.fromisoformat(hb["ts"])
+            age_h = (now - hb_ts).total_seconds() / 3600.0
+            if age_h > 26:
+                bits.append(f"⚠ ops 心跳过期（最后 {hb_ts:%m-%d %H:%M}——监控进程疑似停摆）")
+                escalate = True
+            elif int(hb.get("violations", 0)):
+                bits.append(f"⚠ ops {hb['violations']} 项违规（{hb_ts:%m-%d %H:%M}，详见当日 ACTION）")
+            else:
+                bits.append(f"ops {hb['total']}/{hb['total']} ✓（{hb_ts:%m-%d %H:%M}）")
+        else:
+            bits.append("⚠ ops 心跳状态缺失（升级部署后首日属正常，次日仍缺失请查）")
+    except Exception:
+        bits.append("ops 心跳读取失败")
+    try:
+        cs_lines = [l for l in cs_path.read_text().splitlines() if l.strip()] if cs_path.exists() else []
+        if cs_lines:
+            cs = json.loads(cs_lines[-1])
+            tok = "⚠" if cs.get("alert_fired") else "✓"
+            bits.append(f"链体检 {cs.get('s1_present', '—')}/{cs.get('s1_total', '—')} "
+                        f"{tok}（{cs.get('date', '—')}）")
+    except Exception:
+        pass                                     # 链体检令牌缺失不影响 digest
+    return bits, escalate
+
+
 def build_preclose_digest() -> tuple[str, str, str]:
     """Returns (category, title, body). Category is ACTION when anything is
     actionable today, else FYI (quiet).
@@ -1818,6 +1858,15 @@ def build_preclose_digest() -> tuple[str, str, str]:
     except Exception:
         gov_bits.append("治理状态读取失败")
     lines.append("<b>治理</b>：" + " · ".join(gov_bits))
+
+    # D(健康位). SPEC-117.2（PM 2026-07-13）：每日绿线推送退役，状态令牌并入
+    # digest。反向心跳搬家：ops state 过期 >26h = "监控自己死了"的唯一信号 →
+    # 本 digest 升 ACTION（原绿线的 dead-man 语义由 PM 必读的这条承接）。
+    health_bits, health_escalate = _digest_health_bits(datetime.now(ET))
+    if health_escalate:
+        actionable = True
+    if health_bits:
+        lines.append("<b>健康</b>：" + " · ".join(health_bits))
 
     # 4. 异常区 — omitted entirely when clean
     anomalies: list[str] = []

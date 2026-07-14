@@ -214,6 +214,20 @@ def run(now: datetime | None = None, *, dry_run: bool = False) -> list[str]:
     else:
         msg = f"✅ ops {n}/{n} green · {now:%m-%d %H:%M}" + push_note
 
+    # SPEC-117.2 — 状态落盘：15:55 digest 的"健康"令牌读此文件；反向心跳
+    # 语义搬进 digest（state 过期 >26h → digest 升 ACTION），绿线不再独立推送。
+    if not dry_run:
+        try:
+            state_path = ROOT / "logs" / "ops_heartbeat_state.json"
+            state_path.write_text(json.dumps({
+                "ts": now.isoformat(timespec="seconds"),
+                "total": n,
+                "violations": len(violations),
+                "first_violations": violations[:5],
+            }, ensure_ascii=False))
+        except Exception:
+            pass  # 状态写失败不拦告警主流程
+
     digest = _deferred_digest(now)
 
     if dry_run:
@@ -222,10 +236,12 @@ def run(now: datetime | None = None, *, dry_run: bool = False) -> list[str]:
             print(digest)
     else:
         from notify.gateway import escape, push as gw_push
-        # SPEC-126: violations need attention (ACTION, rings); the daily green
-        # line and the monthly DEFERRED digest are FYI (silent). Bodies are
-        # plain text (violation strings can carry '<') → whole-body escape.
-        gw_push("ACTION" if violations else "FYI", "系统状态", "", escape(msg))
+        # SPEC-126: violations need attention (ACTION, rings). SPEC-117.2
+        # (PM 2026-07-13): the daily green line no longer pushes — its
+        # reverse-heartbeat duty moved to the 15:55 digest 健康 token（stale
+        # state → digest ACTION）。Monthly DEFERRED digest unchanged (FYI).
+        if violations:
+            gw_push("ACTION", "系统状态", "", escape(msg))
         if digest:
             gw_push("FYI", "系统状态", "", escape(digest))
         print(msg)

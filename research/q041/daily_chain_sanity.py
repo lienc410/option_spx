@@ -324,11 +324,16 @@ def main(argv: list[str] | None = None) -> int:
     if not args.dry_run:
         _append_record(rec)
         report_text = _build_report(rec)
-        _send_telegram(report_text, log)
+        # SPEC-117.2（PM 2026-07-13）：全绿日不再独立推送体检报告——状态令牌
+        # 并入 15:55 digest（读 data/q041_chain_sanity_daily.jsonl 末行）；
+        # 异常日报告照发（给 ACTION 告警当上下文）。
         if rec.alert_fired:
+            _send_telegram(report_text, log)
             alert_text = _build_alert(rec)
             _send_telegram(alert_text, log, category="ACTION")
             log.warning("Alert fired:\n%s", alert_text)
+        else:
+            log.info("All green — report suppressed (SPEC-117.2):\n%s", report_text)
     else:
         log.info("[dry-run] report:\n%s", _build_report(rec))
         if rec.alert_fired:
