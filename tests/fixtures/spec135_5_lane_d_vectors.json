@@ -4,13 +4,13 @@
   "engines": [
    {
     "badge": {
-     "label": "ARMED ×2",
+     "label": "ARMED A+",
      "word": "ARMED"
     },
     "branch_taken": true,
     "check": "dd_overlay",
     "code_ref": "SPEC-094 F1 · signals/q042_trigger · /api/q042/state",
-    "detail": "ddATH = SPX 收盘 ÷ 2007 起 running ATH − 1 = -0.90% · Sleeve A 触发线 -4%（T+1 直接开）· Sleeve B 外触发线 -15% 后等 MA10 收复 · re-arm 线 -2% · Sleeve A 生产档 cap 12.5%（stage_1，paper）· Sleeve B research_only",
+    "detail": "ddATH = SPX 收盘 ÷ 2007 起 running ATH − 1 = -0.90% · Sleeve A 触发线 -4%（T+1 直接开）· Sleeve B 阶梯 -15/−25/−35/−45%（touch 即 fire，SPEC-094.7；浅档 spread D90，深档 XSP LEAP D730）· re-arm 线 -2%（全档复位）· Sleeve A 生产档 cap 12.5%（stage_1，paper）· Sleeve B research_only",
     "inputs": {
      "ath_degraded": false,
      "date": "2026-07-11",
@@ -18,14 +18,14 @@
      "positions": [],
      "sleeve_a_armed": true,
      "sleeve_b_armed": true,
-     "sleeve_b_in_watching": false
+     "sleeve_b_rungs_armed": 0
     },
     "kind": "verdict",
-    "label_human": "DD Overlay：双 sleeve 待命中（回撤 -0.9%，距 Sleeve A 触发线 -4% 还差 3.1pp）",
+    "label_human": "DD Overlay：待命中（A + B；回撤 -0.9%，距 Sleeve A 触发线 -4% 还差 3.1pp）",
     "layer": "sleeve",
     "outcome": "info",
     "stage": "sleeve",
-    "summary": "DD Overlay ARMED×2"
+    "summary": "DD Overlay ARMED（A + B）"
    },
    {
     "branch_taken": true,
@@ -146,7 +146,7 @@
    }
   ],
   "semantics": "决策引擎状态——它们真实决策（armed/触发/容量/信号），区别于 Lane C 的只描述",
-  "summary_line": "DD Overlay ARMED×2 · Aftermath 未激活 · 压力机 CALM · ES Ladder NO ENTRY"
+  "summary_line": "DD Overlay ARMED（A + B） · Aftermath 未激活 · 压力机 CALM · ES Ladder NO ENTRY"
  },
  "inputs": {
   "aftermath_state": {

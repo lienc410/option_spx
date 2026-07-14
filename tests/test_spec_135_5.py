@@ -201,9 +201,11 @@ class Fixture711Tests(unittest.TestCase):
             self.assertIn(n["kind"], ("verdict", "evidence"))
 
     def test_dd_overlay_double_armed_copy(self) -> None:
+        # 094.7 语义（070b058）：双 armed 文案 = "待命中（A + B；…）"，
+        # 旧 "双 sleeve 待命中" 已随 Sleeve B 阶梯化退役
         dd = self.lane_d["engines"][0]
         self.assertEqual(dd["badge"]["word"], "ARMED")
-        self.assertIn("双 sleeve 待命中", dd["label_human"])
+        self.assertIn("待命中（A + B", dd["label_human"])
         self.assertIn("-0.9%", dd["label_human"])          # 回撤读数
         self.assertIn("3.1pp", dd["label_human"])          # 距 A 触发线（-0.9 → -4）
         # hover 三件套：检查数据 / 实际值 vs 阈值 / code_ref
@@ -243,7 +245,7 @@ class Fixture711Tests(unittest.TestCase):
         expected = " · ".join(n["summary"] for n in self.lane_d["engines"]
                               if n.get("summary"))
         self.assertEqual(self.lane_d["summary_line"], expected)
-        self.assertIn("DD Overlay ARMED×2", self.lane_d["summary_line"])
+        self.assertIn("DD Overlay ARMED（A + B）", self.lane_d["summary_line"])
 
     def test_semantics_says_real_decisions(self) -> None:
         self.assertIn("真实决策", self.lane_d["semantics"])
@@ -252,10 +254,11 @@ class Fixture711Tests(unittest.TestCase):
     def test_options_terms_stay_english(self) -> None:
         """§0 术语铁律：期权/策略术语保留英文。"""
         blob = json.dumps(self.lane_d, ensure_ascii=False)
-        for term in ("DD Overlay", "Aftermath", "VIX", "MA10",
+        # MA10 随 094.7 Sleeve B 阶梯化退出默认文案，换 LEAP（阶梯深档术语）
+        for term in ("DD Overlay", "Aftermath", "VIX", "LEAP",
                      "booster", "slots"):
             self.assertIn(term, blob)
-        # 挂仓态的 "put spread" 术语在 EngineStateVariantTests 覆盖
+        # 挂仓态的 "call spread" 术语在 EngineStateVariantTests 覆盖
 
     def test_strict_json(self) -> None:
         raw = json.dumps(self.lane_d, ensure_ascii=False, allow_nan=False)
@@ -286,19 +289,23 @@ class EngineStateVariantTests(unittest.TestCase):
         self.assertIn("已挂仓", dd["label_human"])
         self.assertIn("2026-08-21", dd["label_human"])     # 到期
         self.assertIn("41", dd["label_human"])             # 剩余天数
-        self.assertIn("put spread", dd["label_human"])
+        # Sleeve A = call spread（3d20f75 修正的历史错标，断言锁新词防回潮）
+        self.assertIn("call spread", dd["label_human"])
+        self.assertNotIn("put spread", dd["label_human"])
         self.assertEqual(dd["inputs"]["positions"], ["q042_a_001"])
 
-    def test_dd_watching_state(self) -> None:
+    def test_dd_legacy_watching_state_degrades(self) -> None:
+        """094.7 阶梯 touch 即 fire，MA10 确认等待期（WATCHING 态）已随旧
+        Sleeve B 设计退役——遗留 state 文件里的 in_watching 字段必须被容忍
+        （不崩溃）且不再渲染 WATCHING 徽章。"""
         st = json.loads(json.dumps(VECTORS["inputs"]["q042_state"]))
         st["sleeve_a"]["armed"] = False
         st["sleeve_b"]["armed"] = False
-        st["sleeve_b"]["in_watching"] = True
-        st["sleeve_b"]["watch_start_date"] = "2026-07-08"
+        st["sleeve_b"]["in_watching"] = True                # 遗留字段
+        st["sleeve_b"]["watch_start_date"] = "2026-07-08"   # 遗留字段
         dd = self._dd(st)
-        self.assertEqual(dd["badge"]["word"], "WATCHING")
-        self.assertIn("MA10", dd["label_human"])
-        self.assertIn("2026-07-08", dd["label_human"])
+        self.assertEqual(dd["badge"]["word"], "NO ENTRY")
+        self.assertNotIn("WATCHING", json.dumps(dd, ensure_ascii=False))
 
     def test_dd_ath_degraded_f7_advisory(self) -> None:
         """F7 语义：ATH degraded 显式标注 + 琥珀档 + 不给假回撤读数。"""
