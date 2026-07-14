@@ -1,0 +1,48 @@
+#!/bin/bash
+# 多会话协作协议 v2（2026-07-13）——跨 lane 混合提交阻断
+# staged 文件命中 ≥2 个不同 lane 的 claims（data/.lane_claims.json）= 扫走签名，阻断。
+# 旁通：git commit --no-verify（必须在 commit message 说明原因）。
+# 详见 doc/MULTI_SESSION_PROTOCOL.md
+exec python3 - <<'EOF'
+import json, subprocess, sys, time
+from pathlib import Path
+
+claims_path = Path("data/.lane_claims.json")
+if not claims_path.exists():
+    sys.exit(0)
+try:
+    claims = json.loads(claims_path.read_text())
+except Exception:
+    sys.exit(0)   # claims 文件坏了不拦提交，只拦得住有效登记
+
+staged = subprocess.run(["git", "diff", "--cached", "--name-only"],
+                        capture_output=True, text=True).stdout.split()
+if not staged:
+    sys.exit(0)
+
+now = time.time()
+hits: dict[str, list[str]] = {}
+for lane, info in claims.items():
+    if not isinstance(info, dict):
+        continue
+    try:  # >24h 条目过期，避免忘清除造成永久阻塞
+        ts = info.get("ts", "")
+        import datetime
+        age = now - datetime.datetime.fromisoformat(ts).timestamp()
+        if age > 86400:
+            continue
+    except Exception:
+        pass
+    matched = sorted(set(info.get("files", [])) & set(staged))
+    if matched:
+        hits[lane] = matched
+
+if len(hits) >= 2:
+    print("✗ 多会话协议 v2：staged 文件横跨 %d 个 lane 的 claims——混合提交签名，阻断。" % len(hits))
+    for lane, files in hits.items():
+        print(f"  [{lane}] ({claims[lane].get('task','')}): " + ", ".join(files))
+    print("处置：unstage 不属于本 lane 的文件（git restore --staged <file>）后重新提交；")
+    print("确属本 lane 请先更新 data/.lane_claims.json；紧急旁通 --no-verify（message 说明原因）。")
+    sys.exit(1)
+sys.exit(0)
+EOF
