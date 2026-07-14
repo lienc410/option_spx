@@ -134,6 +134,21 @@ a.veto-light:hover { border-color:var(--gold-border); }
 
 .footer { text-align:center;padding:20px 0 0;font-size:0.65rem;color:var(--text-muted); }
 
+/* ── SPEC-145: Regime Playbook ── */
+.pb-levels { display:flex;gap:14px;flex-wrap:wrap;margin-bottom:11px;padding:8px 10px;background:var(--surface-hi);border:1px solid var(--border);border-radius:7px; }
+.pb-lv { display:flex;flex-direction:column;gap:1px; }
+.pb-lv-k { font-family:var(--f-ui);font-size:0.55rem;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;color:var(--text-2); }
+.pb-lv-v { font-family:var(--f-mono);font-size:0.70rem;color:var(--text); }
+.pb-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:10px; }
+@media (max-width:760px){ .pb-grid { grid-template-columns:1fr; } }
+.pb-card { background:var(--surface-hi);border:1px solid var(--border);border-radius:9px;padding:11px 12px; }
+.pb-card.active { border-color:var(--gold-border);box-shadow:0 0 0 1px var(--gold-border) inset; }
+.pb-hd { display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);padding-bottom:7px;margin-bottom:8px; }
+.pb-title { font-family:var(--f-ui);font-size:0.62rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--text); }
+.pb-sub { font-family:var(--f-ui);font-size:0.58rem;color:var(--text-2); }
+.pb-line { font-family:var(--f-ui);font-size:0.63rem;color:var(--text);line-height:1.65;margin-bottom:7px;padding-left:10px;border-left:2px solid var(--border-2); }
+.pb-line:last-child { margin-bottom:0; }
+
 @media (max-width:900px) {
   .engine-grid { grid-template-columns:1fr; }
   .pool-grid { grid-template-columns:1fr; }
@@ -349,6 +364,22 @@ a.veto-light:hover { border-color:var(--gold-border); }
         <div class="reh-item"><div class="reh-key">Cash vs need</div><div class="reh-val" id="reh-cash">n/a</div></div>
       </div>
       <div class="reh-advisory" id="reh-advisory">n/a</div>
+    </div>
+  </div>
+
+  <!-- ── SPEC-145: Regime Playbook（PM ratified 操作准则，点位/文案零静态） ── -->
+  <div class="layer-frame" id="playbook">
+    <div class="rehearsal-hd" onclick="togglePlaybook()">
+      <div class="layer-head" style="margin-bottom:0">
+        <span class="layer-no" id="pb-caret">▸</span>
+        <span class="layer-title">Playbook</span>
+        <span class="layer-sub">箱体内 / 上破 / 下破的操作准则——当前状态对应卡高亮；点位随 ATH/箱体逐日现算</span>
+        <span class="spec-ref">SPEC-145 · PM ratified 2026-07-13</span>
+      </div>
+    </div>
+    <div class="rehearsal-body" id="pb-body" style="display:none">
+      <div class="pb-levels" id="pb-levels"><span class="na">n/a</span></div>
+      <div class="pb-grid" id="pb-grid"><span class="na">loading…</span></div>
     </div>
   </div>
 
@@ -599,6 +630,50 @@ function loadStateSurface(attempt = 0) {
     });
 }
 loadStateSurface();
+
+// ── SPEC-145: Regime Playbook ──
+function togglePlaybook(forceOpen) {
+  const b = document.getElementById('pb-body'), c = document.getElementById('pb-caret');
+  const open = forceOpen === true || b.style.display === 'none';
+  b.style.display = open ? '' : 'none';
+  c.textContent = open ? '▾' : '▸';
+}
+async function loadPlaybook() {
+  try {
+    const d = await (await fetch('/api/regime-playbook')).json();
+    if (!d.scenarios) throw new Error(d.error || 'n/a');
+    const fm = v => v == null ? '—' : Number(v).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+    const lv = d.levels;
+    const lvEl = document.getElementById('pb-levels');
+    if (lv) {
+      const cells = [
+        ['ATH', fm(lv.ath)],
+        ['Box', lv.band_lo ? fm(lv.band_lo) + '–' + fm(lv.band_hi) : '—'],
+        ['Box up-death', fm(lv.box_up_death)],
+        ['Weak-poke zone', lv.band_hi ? fm(lv.band_hi) + '–' + fm(lv.weak_poke_hi) : '—'],
+        ['A trigger −4%', fm(lv.a_trigger) + (lv.a_fires_before_box_death ? '（先于破箱）' : '')],
+        ['Box down-death', fm(lv.box_down_death)],
+      ];
+      (lv.b_rungs || []).forEach(r => cells.push([`B ${r.rung_pct}%`, fm(r.level) + (r.instrument === 'XSP_LEAP' ? ' LEAP' : ' sprd')]));
+      lvEl.innerHTML = cells.map(([k, v]) => `<div class="pb-lv"><span class="pb-lv-k">${k}</span><span class="pb-lv-v">${v}</span></div>`).join('');
+    } else {
+      lvEl.innerHTML = `<span class="na">点位不可用${d.ath_degraded ? '（ATH degraded——state 待人工复核）' : ''}</span>`;
+    }
+    document.getElementById('pb-grid').innerHTML = d.scenarios.map(sc => `
+      <div class="pb-card ${sc.key === d.active_scenario ? 'active' : ''}">
+        <div class="pb-hd">
+          <span class="pb-title">${sc.title}</span>
+          <span class="pb-sub">${sc.subtitle}</span>
+          ${sc.key === d.active_scenario ? '<span class="engine-badge badge-on" style="margin-left:auto">NOW</span>' : ''}
+        </div>
+        ${sc.lines.map(l => `<div class="pb-line">${l.line}<span class="spec-ref">${l.ref}</span></div>`).join('')}
+      </div>`).join('');
+    if (d.active_scenario) togglePlaybook(true);   // 当前状态有对应卡 → 默认展开
+  } catch (e) {
+    document.getElementById('pb-grid').innerHTML = `<span class="na">playbook 不可用: ${e.message}</span>`;
+  }
+}
+loadPlaybook();
 </script>
 
 </body>

@@ -460,6 +460,20 @@ def api_state_surface():
     )
 
 
+@app.route("/api/regime-playbook")
+def api_regime_playbook():
+    """SPEC-145 — Regime Playbook（PM ratified 操作准则 + 当日动态点位）。
+
+    文案/参数全部单真值源现算（strategy/regime_playbook.py docstring），
+    零静态数字。fail-soft：任何子源失败 → 恒 200 + status n/a。
+    """
+    try:
+        from strategy.regime_playbook import build_payload
+        return jsonify(build_payload())
+    except Exception as exc:
+        return jsonify({"spec": "SPEC-145", "status": "n/a", "error": str(exc)})
+
+
 # ── Fund Exit (temporary, remove with fund_exit/ when fully exited) ──────────
 _FUND_DIR = Path(__file__).resolve().parent.parent / "fund_exit"
 
