@@ -120,6 +120,15 @@ def env(monkeypatch):
         "gov": _gov(),
         "liquid": {"total": 152_000.0, "source": "live", "error": None},
         "debit": {"total": 22_000.0},
+        # crash budget（2026-07-13 单源化并入 pools.crash）——密闭房：真函数
+        # 会走 broker import，必须 fake
+        "waterline": {"available": True, "partial": False, "rail_complete": True,
+                      "degraded_error": None,
+                      "crash_budget": {"worst_excess_usd": 210_000.0,
+                                       "buffer_usd": 25_000.0,
+                                       "deployable_usd": 185_000.0,
+                                       "options_sleeve_max_loss_usd": 22_000.0,
+                                       "scenario": "dd 55% × β1.2 × haircut ×1.5"}},
         "rec": _rec(),
         "positions": {"positions": [
             {"trade_id": "t1", "strategy_key": "bull_put_spread", "contracts": 2,
@@ -154,6 +163,8 @@ def env(monkeypatch):
                         maybe(lambda: e["liquid"]))
     monkeypatch.setattr("strategy.cash_budget_governance.get_open_debit_total_usd",
                         maybe(lambda: e["debit"]))
+    monkeypatch.setattr("strategy.cash_budget_governance.resource_waterline",
+                        maybe(lambda: e["waterline"]))
     monkeypatch.setattr("strategy.selector.get_recommendation",
                         lambda *a, **k: (_ for _ in ()).throw(e["rec"])
                         if isinstance(e["rec"], Exception) else e["rec"])
@@ -445,14 +456,45 @@ def test_ac6_pools_share_absolute_100_scale(env):
 
 
 def test_ac6_template_consumes_geometry_only():
-    """模板 JS 只消费 API 的 width_pct/cap_pos_pct，不自行重算宽度。"""
-    src = (TPL / "state_map.html").read_text(encoding="utf-8")
-    assert "geom.width_pct + '%'" in src
+    """渲染层只消费 API 的 width_pct/cap_pos_pct，不自行重算宽度。
+    2026-07-13 单源化：池渲染迁至共享 pools_render.js（State Map 与首页共用），
+    断言目标随迁；模板本身不得再内联池渲染。"""
+    src = (REPO / "web" / "static" / "pools_render.js").read_text(encoding="utf-8")
+    assert "geom.width_pct" in src
     assert "g.width_pct ?? 0" in src
     assert "cap_pos_pct" in src
     # 防碰撞：刻度线标签在条外侧轨道 + 位置感知锚点换向
     assert "bar-tick-label" in src
     assert "translateX(-100%)" in src and "translateX(-50%)" in src
+    # 模板不得回迁内联池渲染（两页必须同字节）
+    tpl = (TPL / "state_map.html").read_text(encoding="utf-8")
+    assert "PoolsRender.cashBlockHtml" in tpl
+    assert "function tickHtml" not in tpl
+    home = (TPL / "portfolio_home.html").read_text(encoding="utf-8")
+    assert "PoolsRender.cashBlockHtml" in home
+    assert "PoolsRender.crashBlockHtml" in home
+
+
+def test_pools_crash_budget_single_source(env):
+    """crash budget（Q091）单源并入 + 答案先行字段（首页状态句输入）。"""
+    s = ss.compute_state_surface(today=TODAY)
+    cr = s["pools"]["crash"]
+    assert cr["status"] == "ok"
+    assert cr["deployable_usd"] == 185_000.0
+    assert cr["scenario"].startswith("dd 55%")
+    cash = s["pools"]["cash"]
+    assert cash["bcd_standard_usd"] == 40_000.0     # Q096 display 单一真值
+    assert cash["cap_headroom_usd"] == pytest.approx(0.60 * 152_000.0 - 22_000.0)
+    assert cash["fits_standard_debit"] is True
+    assert cash["rail_complete"] is True
+
+
+def test_pools_crash_unavailable_failsoft(env):
+    """crash 子源失败不拖垮 cash 块（SPEC-141 fail-soft 姿态）。"""
+    env["waterline"] = RuntimeError("broker down")
+    s = ss.compute_state_surface(today=TODAY)
+    assert s["pools"]["crash"]["status"] == "n/a"
+    assert s["pools"]["cash"]["status"] == "ok"
 
 
 # ── AC-141-7 — hero 条纯新增（不动锚点逐字节一致） ─────────────────────────────

@@ -727,3 +727,37 @@ button, select, input, textarea, optgroup {
   0%, 55% { background: var(--gold-bg); box-shadow: 0 0 0 1px var(--gold-border); }
   100%    { background: transparent; box-shadow: none; }
 }
+
+/* ── PoolsRender — Resource Pools 共享样式（State Map Layer 3 + 首页
+   Resource Waterline 面板共用；渲染器 web/static/pools_render.js）。
+   2026-07-13 自 state_map.html 内联迁入——同题跨页同一设计，禁止回迁内联。 ── */
+.pool-grid { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
+.pool-block { background:var(--surface-hi);border:1px solid var(--border);border-radius:9px;padding:11px 12px; }
+.pool-hd { display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px; }
+.pool-name { font-family:var(--f-ui);font-size:0.60rem;font-weight:700;letter-spacing:0.11em;text-transform:uppercase;color:var(--text-2); }
+.pool-total { font-family:var(--f-mono);font-size:0.72rem;color:var(--text); }
+.pool-status { font-family:var(--f-ui);font-size:0.64rem;color:var(--text);line-height:1.55;margin-bottom:8px; }
+.pool-status .ps-word { font-weight:700; }
+.pool-status.ps-green .ps-word { color:var(--green); }
+.pool-status.ps-orange .ps-word { color:var(--orange); }
+.pool-status.ps-red .ps-word { color:var(--red); }
+.bar-block { margin-bottom:10px; }
+.bar-hd { display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px; }
+.bar-name { font-family:var(--f-ui);font-size:0.56rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-2); }
+.bar-val { font-family:var(--f-mono);font-size:0.62rem;color:var(--text); }
+.bar-ticks { position:relative;height:13px; }
+.bar-tick-label { position:absolute;top:0;font-family:var(--f-mono);font-size:0.52rem;color:var(--gold);white-space:nowrap; }
+.bar-track { position:relative;height:9px;background:var(--border-2);border-radius:9999px; }
+.bar-fill { position:absolute;top:0;left:0;bottom:0;border-radius:9999px; }
+.fill-bp   { background:var(--blue); }
+.fill-cash { background:var(--gold); }
+.fill-level { background:var(--blue);opacity:0.75; }
+.bar-tick { position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--gold);border-radius:1px; }
+.bar-scale { display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:0.52rem;color:var(--text-2);margin-top:2px; }
+.pool-rows { margin-top:6px;display:flex;flex-direction:column;gap:4px; }
+.pool-row { display:flex;justify-content:space-between;gap:8px;font-family:var(--f-mono);font-size:0.60rem;color:var(--text); }
+.pool-row .pr-key { font-family:var(--f-ui);font-size:0.56rem;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-2);white-space:nowrap; }
+.pool-row .pr-val { text-align:right; }
+.pr-ok { color:var(--green); } .pr-bad { color:var(--red); } .pr-warn { color:var(--orange); }
+.pool-note { font-family:var(--f-ui);font-size:0.58rem;color:var(--text);margin-top:7px;line-height:1.55; }
+@media (max-width: 720px) { .pool-grid { grid-template-columns:1fr; } }

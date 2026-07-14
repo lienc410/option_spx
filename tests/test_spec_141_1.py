@@ -135,13 +135,14 @@ def test_ac1d_target_highlight_is_pure_css():
 def test_ac1d_asset_versions_bumped_sitewide():
     """theme.css 内容变更 → 版本键全站同步（DESIGN.md Decisions Log 2026-07-11）。
 
-    当前版本键 spec144（SPEC-144 统一 bump；棘轮字面量随每次全站 bump 更新）。
+    当前版本键 pools1（2026-07-13 PoolsRender 共享样式入 theme.css；棘轮字面量
+    随每次全站 bump 更新）。
     """
     refs = 0
     for p in ALL_TEMPLATES:
         src = p.read_text(encoding="utf-8")
         for m in re.finditer(r"theme\.css'\) \}\}\?v=([a-z0-9_]+)", src):
-            assert m.group(1) == "spec144", f"{p.name} 钉旧版本 {m.group(1)}"
+            assert m.group(1) == "pools1", f"{p.name} 钉旧版本 {m.group(1)}"
             refs += 1
     assert refs >= 20
     for page in ("spx.html", "portfolio_home.html"):

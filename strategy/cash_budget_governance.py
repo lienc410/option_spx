@@ -51,6 +51,13 @@ CASH_FLOOR_USD: float = 30_000.0   # hard floor regardless of cap math
 CASH_WATERLINE_SELF_CONSISTENT_USD: float = 150_000.0
 CASH_WATERLINE_SELL_OR_SKIP_USD: float = 100_000.0
 
+# Quant 裁决 2026-07-13（Q096）：display 层「1 张标准 SPX BCD」用 live 口径
+# ≈ $40k——engine-canonical bcd_max_debit_usd=$22k 不是 live 指令（2026-06
+# 实测一张 $38-41k）。此前首页 Resource Waterline 用 22k、State Map 用 40k
+# 各算一版 headroom（2026-07-13 单源化时抓到的活漂移）；本常量为唯一显示
+# 真值，单张 ~$45k 时按 Q096 §3 复议并更新。display 估值，不进 sizing。
+BCD_STANDARD_DEBIT_DISPLAY_USD: float = 40_000.0
+
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -475,6 +482,16 @@ def resource_waterline() -> dict:
         try:
             mod = importlib.import_module(f"{broker}.client")
             bal = mod.get_account_balances()
+            # 未配置/未认证/stale 的券商必须走 errors 分支（rail 掉线），不能
+            # 当健康零轨计入——client 这三种状态不 raise 而是返回标志位 dict，
+            # 静默按 0 算会把 pool/crash budget 污染成权威值且 rail_complete
+            # 仍为 True（2026-07-13 单源化冒烟抓到；与 7/10 ETrade governance
+            # 静默归零同款模式）
+            if (not bal.get("configured") or not bal.get("authenticated")
+                    or bal.get("stale")):
+                raise RuntimeError(
+                    f"rail unavailable (configured={bal.get('configured')} "
+                    f"authenticated={bal.get('authenticated')} stale={bal.get('stale')})")
             pos = (mod.get_account_positions() or {}).get("positions") or []
             cash = _num(bal.get("cash_balance")) or 0.0
             cash_like = sum((_num(p.get("market_value")) or 0.0) for p in pos
@@ -504,11 +521,9 @@ def resource_waterline() -> dict:
         return {"available": False, "error": "; ".join(errors)}
 
     cap_usd = CAP_PCT * liquid_total
-    try:
-        from strategy.selector import DEFAULT_PARAMS
-        standard_debit = float(getattr(DEFAULT_PARAMS, "bcd_max_debit_usd", 22_000.0))
-    except Exception:
-        standard_debit = 22_000.0
+    # 标准仓口径改用 display 单一真值（原 bcd_max_debit_usd=22k 是 engine
+    # 参数，与 State Map 的 40k 形成两页两个 headroom——见常量处漂移记录）
+    standard_debit = BCD_STANDARD_DEBIT_DISPLAY_USD
     return {
         "available": True,
         "partial": bool(errors),

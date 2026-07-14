@@ -534,9 +534,9 @@ class UiAuditTests(unittest.TestCase):
     def test_asset_versions_bumped(self) -> None:
         # SPEC-141.1：theme.css/trace_render.js 内容变更（trace :target 高亮 +
         # 节点稳定 id）→ 版本键随内容全站同步（DESIGN.md Decisions Log 2026-07-11）
-        # theme.css 版本键当前 = spec144（SPEC-144 全站统一 bump；棘轮字面量）
+        # theme.css 版本键当前 = pools1（2026-07-13 PoolsRender 共享样式；棘轮字面量）
         for tpl in (self.spx, self.home):
-            self.assertIn("theme.css') }}?v=spec144", tpl)
+            self.assertIn("theme.css') }}?v=pools1", tpl)
             self.assertIn("trace_render.js') }}?v=spec141_1", tpl)
 
 

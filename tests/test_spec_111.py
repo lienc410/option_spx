@@ -497,11 +497,13 @@ class TestReviewTriggers(unittest.TestCase):
 class TestResourceWaterline(unittest.TestCase):
     """资源水位卡片数据源(Q091 常数实时算术,PM ratified 2026-07-07)。"""
 
-    _SCHWAB_BAL = {"cash_balance": 105_412.77, "maintenance_margin": 106_174.62,
+    _SCHWAB_BAL = {"configured": True, "authenticated": True, "stale": False,
+                   "cash_balance": 105_412.77, "maintenance_margin": 106_174.62,
                    "net_liquidation": 629_243.78, "option_buying_power": 523_069.16}
     _SCHWAB_POS = {"positions": [
         {"symbol": "NVDA", "asset_type": "EQUITY", "market_value": 490_513.0}]}
-    _ET_BAL = {"cash_balance": 46_933.24, "maintenance_margin": 127_867.66,
+    _ET_BAL = {"configured": True, "authenticated": True, "stale": False,
+               "cash_balance": 46_933.24, "maintenance_margin": 127_867.66,
                "net_liquidation": 625_452.73, "option_buying_power": 156_444.13}
     _ET_POS = {"positions": [
         {"symbol": "SPY", "asset_type": "EQ", "market_value": 545_467.0}]}
@@ -525,7 +527,7 @@ class TestResourceWaterline(unittest.TestCase):
         self.assertAlmostEqual(d["cash"]["pool_usd"], 152_346.01, places=2)
         self.assertAlmostEqual(d["cash"]["cap_headroom_usd"],
                                0.60 * 152_346.01 - 76_600.0, places=2)
-        self.assertFalse(d["cash"]["fits_standard_debit"])  # 14.8k < 22k
+        self.assertFalse(d["cash"]["fits_standard_debit"])  # 14.8k < 40k（Q096 display 真值）
         # crash side — hand arithmetic, both brokers, dd45%×β1.2×h2x
         exp = 0.0
         for bal, mv in ((self._SCHWAB_BAL, 490_513.0), (self._ET_BAL, 545_467.0)):

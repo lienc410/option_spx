@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>State Map · SPX Strategy</title>
 <script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec108"></script>
-<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec144">
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=pools1">
 <script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
+<script src="{{ url_for('static', filename='pools_render.js') }}?v=pools1"></script>
 <style>
 *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
 html { font-size:14px; }
@@ -103,31 +104,8 @@ a.veto-light:hover { border-color:var(--gold-border); }
 .engine-live { border-top:1px solid var(--border);padding-top:7px;margin-top:auto; }
 .engine-live-line { font-family:var(--f-mono);font-size:0.62rem;color:var(--text);line-height:1.6; }
 
-/* ── Layer 3: pools（绝对刻度条 + 金色刻度线；标签放条外侧防重叠） ── */
-.pool-grid { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
-.pool-block { background:var(--surface-hi);border:1px solid var(--border);border-radius:9px;padding:11px 12px; }
-.pool-hd { display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px; }
-.pool-name { font-family:var(--f-ui);font-size:0.60rem;font-weight:700;letter-spacing:0.11em;text-transform:uppercase;color:var(--text-2); }
-.pool-total { font-family:var(--f-mono);font-size:0.72rem;color:var(--text); }
-.bar-block { margin-bottom:10px; }
-.bar-hd { display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px; }
-.bar-name { font-family:var(--f-ui);font-size:0.56rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-2); }
-.bar-val { font-family:var(--f-mono);font-size:0.62rem;color:var(--text); }
-.bar-ticks { position:relative;height:13px; }
-.bar-tick-label { position:absolute;top:0;font-family:var(--f-mono);font-size:0.52rem;color:var(--gold);white-space:nowrap; }
-.bar-track { position:relative;height:9px;background:var(--border-2);border-radius:9999px; }
-.bar-fill { position:absolute;top:0;left:0;bottom:0;border-radius:9999px; }
-.fill-bp   { background:var(--blue); }
-.fill-cash { background:var(--gold); }
-.fill-level { background:var(--blue);opacity:0.75; }
-.bar-tick { position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--gold);border-radius:1px; }
-.bar-scale { display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:0.52rem;color:var(--text-2);margin-top:2px; }
-.pool-rows { margin-top:6px;display:flex;flex-direction:column;gap:4px; }
-.pool-row { display:flex;justify-content:space-between;gap:8px;font-family:var(--f-mono);font-size:0.60rem;color:var(--text); }
-.pool-row .pr-key { font-family:var(--f-ui);font-size:0.56rem;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-2);white-space:nowrap; }
-.pool-row .pr-val { text-align:right; }
-.pr-ok { color:var(--green); } .pr-bad { color:var(--red); } .pr-warn { color:var(--orange); }
-.pool-note { font-family:var(--f-ui);font-size:0.58rem;color:var(--text);margin-top:7px;line-height:1.55; }
+/* ── Layer 3: pools — 样式与渲染均为共享单源（theme.css + pools_render.js，
+   与首页 Resource Waterline 面板同题同设计），本页不得内联重定义 ── */
 
 /* ── Timeline（90 天状态色带） ── */
 .tl-strip-label { font-family:var(--f-ui);font-size:0.56rem;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;color:var(--text-2);margin:7px 0 3px; }
@@ -329,46 +307,10 @@ a.veto-light:hover { border-color:var(--gold-border); }
       <span class="layer-sub">cash 与 BP 是两种不同的稀缺——账户 cash-bound 不是 BP-bound</span>
     </div>
     <div class="pool-grid">
-
-      <div class="pool-block" id="pool-cash">
-        <div class="pool-hd"><span class="pool-name">Cash Pool</span><span class="pool-total" id="cash-total">n/a</span></div>
-        <div class="bar-block" id="cash-level-block" style="display:none">
-          <div class="bar-hd"><span class="bar-name">Pool level（池总量 vs 门线）</span><span class="bar-val" id="cash-level-val">—</span></div>
-          <div class="bar-ticks" id="cash-level-ticks"></div>
-          <div class="bar-track" id="cash-level-track"><div class="bar-fill fill-level" style="width:0%"></div></div>
-          <div class="bar-scale"><span>$0</span><span id="cash-level-scale-max">—</span></div>
-        </div>
-        <div class="bar-block" id="cash-bar-block" style="display:none">
-          <div class="bar-hd"><span class="bar-name">Committed debit（已花额度 vs 上限）</span><span class="bar-val" id="cash-bar-val">—</span></div>
-          <div class="bar-ticks" id="cash-ticks"></div>
-          <div class="bar-track" id="cash-track"><div class="bar-fill fill-cash" id="cash-fill" style="width:0%"></div></div>
-          <div class="bar-scale"><span>$0</span><span id="cash-scale-max">—</span></div>
-        </div>
-        <div class="pool-rows" id="cash-rows"><div class="pool-row"><span class="pr-key">Status</span><span class="pr-val na">n/a</span></div></div>
-        <div class="pool-note">读法：上条 = 池水位（蓝）对 floor / waterline 两条门线；下条 = 已花 debit（金）对 cap / DD ammo 两条上限。<br>debit 越过 DD ammo 线 = 吃掉 DD Overlay 的抄底子弹 → 平静日补弹药，不在崩盘日卖资产。<br>waterline ≈ 1 笔标准 BCD + 1 发 DD 触发 + floor（助记，hover Waterline 行看当前数值）。</div>
-      </div>
-
-      <div class="pool-block" id="pool-bp">
-        <div class="pool-hd"><span class="pool-name">BP Pool</span><span class="pool-total" id="bp-total">n/a</span></div>
-
-        <div class="bar-block">
-          <div class="bar-hd"><span class="bar-name" title="R1 = 账户全量维持保证金（含 equity 持仓），非仅 SPX 期权占用 — SPEC-103 §R1">Account maint (R1)</span><span class="bar-val" id="bp-spx-val">n/a</span></div>
-          <div class="bar-ticks" id="bp-spx-ticks"></div>
-          <div class="bar-track"><div class="bar-fill fill-bp" id="bp-spx-fill" style="width:0%"></div></div>
-          <div class="bar-scale"><span>0%</span><span>100%</span></div>
-        </div>
-
-        <div class="bar-block">
-          <div class="bar-hd"><span class="bar-name">Short-Vol</span><span class="bar-val" id="bp-sv-val">n/a</span></div>
-          <div class="bar-ticks" id="bp-sv-ticks"></div>
-          <div class="bar-track"><div class="bar-fill fill-bp" id="bp-sv-fill" style="width:0%"></div></div>
-          <div class="bar-scale"><span>0%</span><span>100%</span></div>
-        </div>
-
-        <div class="pool-rows" id="bp-rows"></div>
-        <div class="pool-note">所有条共用绝对 0-100% 刻度（同值必同长）；cap 为金色刻度线标注在各自绝对位置。<br>Account maint (R1) = 账户全量维持保证金（含 equity），非仅 SPX 期权。<br>/ES SPAN 为独立券商池，governance 决策降权。</div>
-      </div>
-
+      <!-- 三块由 PoolsRender（共享单源）整块生成；占位 n/a 兜底 -->
+      <div class="pool-block" id="pool-cash"><div class="pool-hd"><span class="pool-name">Cash Pool</span><span class="pool-total"><span class="na">n/a</span></span></div></div>
+      <div class="pool-block" id="pool-bp"><div class="pool-hd"><span class="pool-name">BP Pool</span><span class="pool-total"><span class="na">n/a</span></span></div></div>
+      <div class="pool-block" id="pool-crash" style="grid-column:1/-1"><div class="pool-hd"><span class="pool-name">Crash Budget</span><span class="pool-total"><span class="na">n/a</span></span></div></div>
     </div>
   </div>
 
@@ -442,21 +384,7 @@ function engineBadge(word) {
   return `<span class="engine-badge ${cls}">${BADGE_WORDS[word]}</span>`;
 }
 
-// ── 刻度线标签防碰撞（约束 3）：标签在条外侧（上方 tick 轨道），且按位置
-//    锚点换向（>78% 右锚 / <8% 左锚 / 其余居中），单条单标签 → 零重叠 ──
-function tickHtml(posPct, label, anchor) {
-  if (posPct == null || isNaN(posPct)) return { tick: '', label: '' };
-  let style;
-  if (anchor === 'right')      style = `left:${posPct}%;transform:translateX(-100%)`;
-  else if (anchor === 'left')  style = `left:${posPct}%`;
-  else if (posPct > 78)        style = `left:${posPct}%;transform:translateX(-100%)`;
-  else if (posPct < 8)         style = `left:${posPct}%`;
-  else                         style = `left:${posPct}%;transform:translateX(-50%)`;
-  return {
-    tick: `<span class="bar-tick" style="left:${posPct}%"></span>`,
-    label: `<span class="bar-tick-label" style="${style}">${label}</span>`,
-  };
-}
+// 刻度线/池渲染已单源化至 web/static/pools_render.js（与首页同题同设计共用）
 
 function renderVeto(v) {
   const map = [
@@ -580,168 +508,19 @@ function renderEngines(s) {
 }
 
 function renderPools(s) {
+  // 整块由 PoolsRender 共享单源生成（与首页 Resource Waterline 面板逐字节
+  // 同渲染）；本页只负责把 payload 塞进容器。
   const p = s.pools || {};
   if (!ok(p)) {
-    $('cash-total').innerHTML = NA; $('bp-total').innerHTML = NA;
+    const na = (name) => `<div class="pool-hd"><span class="pool-name">${name}</span><span class="pool-total">${NA}</span></div>`;
+    $('pool-cash').innerHTML = na('Cash Pool');
+    $('pool-bp').innerHTML = na('BP Pool');
+    $('pool-crash').innerHTML = na('Crash Budget');
     return;
   }
-  // ── CASH POOL（0 → liquid 满格；金色弹药线在绝对位置） ──
-  const c = p.cash || {};
-  if (c.status === 'ok') {
-    $('cash-total').textContent = `liquid ${fmtUsd(c.liquid)}`;
-
-    // ── Bar 1 · Pool level（水位计）：fill = liquid 本身；floor/waterline
-    //    是池总量的门线——刻在这里而不是 debit 条上（两者量纲不同）。──
-    const lv = c.level_gauge;
-    if (lv && lv.scale_max != null) {
-      $('cash-level-block').style.display = '';
-      $('cash-level-val').textContent = fmtUsd(c.liquid);
-      $('cash-level-scale-max').textContent = fmtUsd(lv.scale_max);
-      let lvTicks = '', lvLabels = '';
-      const fmtKu = (v) => v == null ? '—' : `$${Math.round(v / 1000)}k`;
-      if (lv.floor_pos_pct != null) {
-        const t = tickHtml(lv.floor_pos_pct, `floor ${fmtKu(c.floor_usd)}`);
-        lvTicks += t.tick; lvLabels += t.label;
-      }
-      if (lv.waterline_pos_pct != null) {
-        const t = tickHtml(lv.waterline_pos_pct, `waterline ${fmtKu(c.waterline_self_usd)}`);
-        lvTicks += t.tick; lvLabels += t.label;
-      }
-      $('cash-level-ticks').innerHTML = lvLabels;
-      $('cash-level-track').innerHTML =
-        `<div class="bar-fill fill-level" style="width:${lv.fill_pct ?? 0}%"></div>` + lvTicks;
-    }
-
-    // ── Bar 2 · Committed debit：fill = 已花 debit；上限线 = cap（预算）+
-    //    ammo（抄底预留）——只挂约束这个量的线。──
-    $('cash-bar-block').style.display = '';
-    const g = c.committed || {};
-    $('cash-bar-val').textContent = `${fmtUsd(g.value)} (${fmtPct(c.utilization_pct)})`;
-    $('cash-scale-max').textContent = fmtUsd(c.liquid);
-    let ticks = '', labels = '';
-    if (c.cap_pct != null) {
-      const t = tickHtml(c.cap_pct, `cap ${fmtPct(c.cap_pct, 0)}`, 'right');
-      ticks += t.tick; labels += t.label;
-    }
-    if (c.ammo_line_pos_pct != null) {
-      const t = tickHtml(c.ammo_line_pos_pct, `DD ammo $${Math.round(c.ammo_line_usd / 1000)}k`, 'left');
-      ticks += t.tick; labels += t.label;
-    }
-    $('cash-ticks').innerHTML = labels;
-    $('cash-track').innerHTML = `<div class="bar-fill fill-cash" style="width:${g.width_pct ?? 0}%"></div>` + ticks;
-
-    // ── 行区：不重复条已表达的数字；键统一英文（语言规则）──
-    const rows = [];
-    if (c.waterline_state) {
-      const wlK = (v) => v == null ? '—' : `$${Math.round(v / 1000)}k`;
-      const wlTip = [
-        `现金水位规则（只读，不拦单）`,
-        `池 ≥ ${fmtUsd(c.waterline_self_usd)}：主 debit × DD Overlay × 现金预算三方自洽`,
-        `池 < ${fmtUsd(c.waterline_sell_usd)}：DD Overlay 触发日预期需卖 QQQ/SGOV 腾现金、或主动跳过该次`,
-        `助记：1 笔标准 BCD ${wlK(c.bcd_standard_usd)} + 1 发 DD 触发 ${wlK(c.reserve_need)} + floor ${wlK(c.floor_usd)} ≈ ${wlK(c.waterline_self_usd)}`,
-        `（助记非推导，正式依据 = Q093 19y 重放；组件大幅变动时按该方法重校准）— 溯源 Q093 P1 R-b`,
-      ].join('\n');
-      const margin = c.liquid - c.waterline_self_usd;
-      const wl = c.waterline_state === 'ok'
-        ? `<span class="pr-val pr-ok">✓ 高于 waterline ${fmtUsd(margin)} · 三方自洽</span>`
-        : c.waterline_state === 'below_self'
-          ? `<span class="pr-val pr-warn">⚠ 低于 waterline ${fmtUsd(-margin)} — DD 触发日或需卖资产/跳过</span>`
-          : `<span class="pr-val pr-bad">⚠ 池 < ${fmtUsd(c.waterline_sell_usd)} — DD 触发日须卖资产或跳过</span>`;
-      rows.push(`<div class="pool-row" title="${wlTip}"><span class="pr-key">Waterline</span>${wl}</div>`);
-    }
-    if (c.reserve_need != null) {
-      const cls = c.ready ? 'pr-ok' : 'pr-bad';
-      rows.push(`<div class="pool-row" title="DD Overlay 触发预留（production cap × NLV 现算）：liquid − 在场 debit ≥ 该值为 ready"><span class="pr-key">DD Overlay reserve</span><span class="pr-val ${cls}">${fmtUsd(c.reserve_need)} · ${c.ready ? 'ready' : 'short'}</span></div>`);
-      rows.push(`<div class="pool-row"><span class="pr-key">Concurrent BCD headroom</span><span class="pr-val">${c.bcd_headroom_count} × ${fmtUsd(c.bcd_standard_usd)}</span></div>`);
-    }
-    $('cash-rows').innerHTML = rows.join('');
-  } else {
-    $('cash-total').innerHTML = NA;
-  }
-
-  // ── BP POOL（绝对 0-100% 刻度；cap 金色刻度线） ──
-  const bp = p.bp || {};
-  const railGap = bp.rail_complete === false;
-  $('bp-total').textContent = bp.nlv_basis != null
-    ? `NLV basis ${fmtUsd(bp.nlv_basis)}${railGap ? '（仅 ' + (bp.rails_present || []).join('+') + '）' : '（Schwab+ETrade）'}`
-    : 'n/a';
-  const renderBpBar = (geom, fillId, valId, ticksId, dollars) => {
-    if (!geom || geom.width_pct == null) { $(valId).innerHTML = NA; return; }
-    $(fillId).style.width = geom.width_pct + '%';
-    const dStr = dollars != null ? ` ($${Math.round(dollars / 1000)}k)` : '';
-    $(valId).textContent = `${fmtPct(geom.value)}${dStr} / cap ${geom.cap != null ? fmtPct(geom.cap, 0) : 'n/a'}`;
-    if (geom.cap_pos_pct != null) {
-      const t = tickHtml(geom.cap_pos_pct, `cap ${fmtPct(geom.cap, 0)}`);
-      $(ticksId).innerHTML = t.label;
-      $(fillId).parentElement.insertAdjacentHTML('beforeend', t.tick);
-    }
-  };
-  renderBpBar(bp.spx_pm, 'bp-spx-fill', 'bp-spx-val', 'bp-spx-ticks', bp.spx_pm_dollars);
-  renderBpBar(bp.short_vol, 'bp-sv-fill', 'bp-sv-val', 'bp-sv-ticks');
-  const rows = [];
-  if (railGap) {
-    rows.push(`<div class="pool-row"><span class="pr-key">Data rail</span><span class="pr-val pr-warn">⚠ ETrade 轨缺失 — basis 仅 Schwab，占用率相对全账户被高估</span></div>`);
-  }
-  if (bp.es_span) rows.push(`<div class="pool-row" title="独立券商 SPAN 池，不与 Schwab 账户共享 basis；governance 决策降权（demoted）"><span class="pr-key">/ES SPAN · 独立池</span><span class="pr-val">${fmtPct(bp.es_span.value)} / cap ${fmtPct(bp.es_span.cap, 0)}</span></div>`);
-  if (bp.combined) rows.push(`<div class="pool-row"><span class="pr-key">Combined (R3)</span><span class="pr-val">${fmtPct(bp.combined.value)}${bp.combined_dollars != null ? ` ($${Math.round(bp.combined_dollars / 1000)}k)` : ''} / cap ${fmtPct(bp.combined.cap, 0)}</span></div>`);
-  // 分策略资源行（对齐 Cash Pool 侧的 DD reserve / BCD headroom 模式）
-  if (bp.lanes) {
-    const L = bp.lanes;
-    const k$ = v => `$${Math.round(v / 1000)}k`;
-    const roomsStr = Object.entries(L.rooms_pct || {}).map(([k, v]) => `${k} 剩 ${v.toFixed(1)}pp`).join('，');
-    const bpsTip = [
-      `headroom = 各 cap 剩余空间取最小（${roomsStr}）→ binding ${L.binding_cap}`,
-      `标准仓 = bp_target_normal ${L.bp_target_normal_pct}% × NLV basis ≈ ${k$(L.bps_std_usd)}（显示估算）`,
-      `实际下单以当时 Schwab Option BP 为基数（HIGH_VOL 档 ${L.bp_target_high_vol_pct}%）`,
-    ].join('\n');
-    const bpsVal = L.short_vol_blocked
-      ? `<span class="pr-warn">second-leg 阻断中（R6）</span>`
-      : `${L.bps_headroom_n} × ~${k$(L.bps_std_usd)}（binding ${L.binding_cap}，剩 ${k$(L.room_usd)}）`;
-    rows.push(`<div class="pool-row" title="${bpsTip}"><span class="pr-key">BPS/IC headroom</span><span class="pr-val">${bpsVal}</span></div>`);
-    const afTip = [
-      `Aftermath = 崩后窗口 IC-HV 首笔，0.5× staging（证据缺口降档）`,
-      `需求 = bp_target_high_vol ${L.bp_target_high_vol_pct}% × NLV basis × ${L.staging_factor}`,
-      `ready = binding cap 剩余空间 ≥ 需求`,
-    ].join('\n');
-    const afCls = L.aftermath_ready ? '' : 'pr-warn';
-    rows.push(`<div class="pool-row" title="${afTip}"><span class="pr-key">Aftermath reserve <span class="spec-ref">SPEC-143</span></span><span class="pr-val ${afCls}">~${k$(L.aftermath_need_usd)} · ${L.aftermath_ready ? 'ready' : 'short'}</span></div>`);
-    if (L.es_ladder && L.es_ladder.bp_per_contract != null) {
-      const E = L.es_ladder;
-      const esTip = [
-        `SPAN/张为 TOS 实测常量（as-of ${E.bp_as_of}，90 天过期线）`,
-        `占独立 SPAN 池（上方 /ES SPAN 行），不占 SPX PM`,
-        `mode=${E.mode || '—'}：shadow = 纸上跟踪，无实仓指令`,
-      ].join('\n');
-      rows.push(`<div class="pool-row" title="${esTip}"><span class="pr-key">HV Ladder (ES)</span><span class="pr-val">${E.mode === 'shadow' ? 'shadow · ' : ''}$${Math.round(E.bp_per_contract).toLocaleString()}/张 SPAN</span></div>`);
-    }
-  }
-  if (bp.cap_regime) {
-    // 内部枚举 token 人话化（booster_shadow 之类不直出）
-    const regimeMap = {
-      normal: 'normal',
-      booster_shadow: `booster 观察中（不改 cap，实际 ${bp.spx_pm && bp.spx_pm.cap != null ? fmtPct(bp.spx_pm.cap, 0) : '—'}）`,
-      booster_active: 'booster 生效（cap 提升）',
-      stress: 'stress 收紧',
-      second_leg: 'second-leg 阻断',
-    };
-    rows.push(`<div class="pool-row" title="溯源 active_spx_pm_cap_regime: ${bp.cap_regime}"><span class="pr-key">Cap regime</span><span class="pr-val">${regimeMap[bp.cap_regime] || bp.cap_regime}</span></div>`);
-  }
-  if (bp.asof) {
-    // stale 判定对照「最近一个应跑的交易日 09:40 ET」而非墙钟——bot 周末不跑，
-    // 30h 墙钟阈值会在每个周日误报（2026-07-12 实测抓到）。市场假日仍可能
-    // 误报一次，可接受。
-    const nowET = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
-    const expected = new Date(nowET);
-    expected.setHours(9, 40, 0, 0);
-    if (nowET < expected) expected.setDate(expected.getDate() - 1);   // 今天还没到 09:40
-    while (expected.getDay() === 0 || expected.getDay() === 6) expected.setDate(expected.getDate() - 1);
-    const asofET = new Date(new Date(bp.asof).toLocaleString('en-US', { timeZone: 'America/New_York' }));
-    const lagH = (expected - asofET) / 3600000;
-    const stale = lagH > 2;   // 容忍 2h（重跑/补写）
-    const expStr = `${String(expected.getMonth() + 1).padStart(2, '0')}-${String(expected.getDate()).padStart(2, '0')} 09:40`;
-    rows.push(`<div class="pool-row"><span class="pr-key">As of</span><span class="pr-val ${stale ? 'pr-warn' : ''}">${String(bp.asof).slice(0, 16).replace('T', ' ')}${stale ? ` ⚠ 缺 ${expStr} 快照（bot 未更新？）` : ''}</span></div>`);
-  }
-  $('bp-rows').innerHTML = rows.join('');
+  $('pool-cash').innerHTML = PoolsRender.cashBlockHtml(p.cash);
+  $('pool-bp').innerHTML = PoolsRender.bpBlockHtml(p.bp);
+  $('pool-crash').innerHTML = PoolsRender.crashBlockHtml(p.crash);
 }
 
 function renderTimeline(hist) {

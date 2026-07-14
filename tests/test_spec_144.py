@@ -415,7 +415,10 @@ class AdditiveContractTests(unittest.TestCase):
             self.assertEqual(c.get(route).status_code, 200, route)
         for src, name in ((DASHBOARD, "aftermath.html"),
                           (BACKTEST, "aftermath_backtest.html")):
-            self.assertEqual(src.count("?v=spec144"), 3, name)
+            # theme.css buster 随内容变更全站同步（DESIGN.md 2026-07-11 规则；
+            # 2026-07-13 pools1 = PoolsRender 共享样式入 theme.css）
+            self.assertEqual(src.count("?v=pools1"), 1, name)     # theme.css
+            self.assertEqual(src.count("?v=spec144"), 2, name)    # bootstrap/theme.js
             self.assertNotIn("?v=spec108", src, name)
             self.assertNotIn("?v=spec141_1", src, name)
             self.assertIn("theme.css", src, name)            # 主题继续单源

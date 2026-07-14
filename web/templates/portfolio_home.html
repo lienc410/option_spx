@@ -5,10 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Portfolio · Command Center</title>
 <script src="{{ url_for('static', filename='theme_bootstrap.js') }}?v=spec108"></script>
-<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=spec144">
+<link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=pools1">
 <script src="{{ url_for('static', filename='theme.js') }}?v=spec108"></script>
 <!-- SPEC-135.3: Decision Trace 共享渲染器（与 /spx 同一 copy 源） -->
 <script src="{{ url_for('static', filename='trace_render.js') }}?v=spec141_1"></script>
+<script src="{{ url_for('static', filename='pools_render.js') }}?v=pools1"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1145,7 +1146,8 @@ body {
       const el = document.getElementById(id);
       if (el) el.innerHTML = '<span class="shs-k">' + k + '</span> ' + v;
     };
-    fetch('/api/state-surface').then(r => r.json()).then(s => {
+    window._stateSurfacePromise = fetch('/api/state-surface').then(r => r.json());
+    window._stateSurfacePromise.then(s => {
       const okf = f => f && f.status === 'ok';
       const vol = s.vol_axis || {};
       set('shs-vol', 'VOL', okf(vol) ? vol.state + ' ' + vol.vix : 'n/a');
@@ -1333,7 +1335,10 @@ body {
       <div class="pos-comp-header">
         <span class="pos-comp-title">Resource Waterline</span>
       </div>
-      <div id="resource-waterline-body"><div class="snapshot-unavail">Loading resource waterline…</div></div>
+      <div id="resource-waterline-body"><div class="pool-grid">
+        <div class="pool-block" id="home-pool-cash"><div class="snapshot-unavail">Loading resource waterline…</div></div>
+        <div class="pool-block" id="home-pool-crash"><div class="snapshot-unavail">Loading…</div></div>
+      </div></div>
     </div>
   </div>
 
@@ -2711,25 +2716,12 @@ function _renderRegimeBanner() {
   const boosterMode = String(state.booster_mode || caps.booster_mode || 'shadow');
   const regime = second ? 'second' : stress ? 'stress' : 'normal';
 
-  const conf = regime === 'second' ? {
-    label: 'SECOND LEG / R6',
-    color: 'var(--red)',
-    bg:    'var(--red-bg)',
-    border:'var(--red-border)',
-    note:  '全部 short-vol 入场阻断（R6）— 仅 DD Overlay 独立运行',
-  } : regime === 'stress' ? {
-    label: 'STRESS EPISODE',
-    color: 'var(--orange)',
-    bg:    'var(--orange-bg)',
-    border:'var(--orange-border)',
-    note:  'SPX PM cap 收紧 70% → 60% · Stress Put Ladder 可入场',
-  } : {
-    label: 'NORMAL',
-    color: 'var(--green)',
-    bg:    'var(--green-bg)',
-    border:'var(--green-border)',
-    note:  '所有策略入场条件正常',
-  };
+  // regime 词表单源（PoolsRender.REGIME_VOCAB，与 State Map Cap regime 行
+  // 同一份文案/配色）——此前本 banner 自带一版（含硬编码 70%→60%），与
+  // State Map 各说各话（2026-07-13 单源化）。
+  const R = PoolsRender.regimeOf(regime === 'second' ? 'second_leg' : regime);
+  const conf = { label: R.en, color: R.color, bg: R.bg, border: R.border,
+                 note: regime === 'normal' ? '所有策略入场条件正常' : R.note };
 
   el.style.background = conf.bg;
   el.style.borderColor = conf.border;
@@ -3766,80 +3758,30 @@ async function loadIntradayGov() {
 // ── Resource Waterline (SPEC-111 复审 + Q091, 2026-07-07) ──────────────────
 // 合并口径(池 = Schwab+E-Trade),不随 account-view 切换;数字全实时计算。
 async function loadResourceWaterline() {
-  const el = document.getElementById('resource-waterline-body');
-  if (!el) return;
+  // 2026-07-13 单源化：与 State Map Layer 3 同一 payload（/api/state-surface，
+  // 复用 hero strip 的同一次请求）+ 同一渲染器（PoolsRender）——此前本面板
+  // 独立读 /api/portfolio/resource-waterline 并自带一版渲染，标准仓口径
+  // $22k vs State Map $40k（活漂移实例，Q096 裁决 40k 为唯一显示真值）。
+  const cashEl = document.getElementById('home-pool-cash');
+  const crashEl = document.getElementById('home-pool-crash');
+  if (!cashEl || !crashEl) return;
   try {
-    const res = await fetch('/api/portfolio/resource-waterline');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const d = await res.json();
-    if (!d.available) throw new Error(d.error || 'unavailable');
-    const usd = (v) => v == null ? '—' : '$' + Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 });
-    const c = d.cash, b = d.crash_budget;
-    // 答案先行(PM 2026-07-07:"这一堆数字看不懂要讲什么"):状态句回答
-    // "还能不能开、能开多大、为什么",原始数字降级为脚注,情景参数进悬停。
-    const floorBad = c.floor_distance_usd != null && c.floor_distance_usd < 0;
-    // SPEC-138 F4: 缺轨(单券商掉线)时现金池缩水,floor/cap"击穿"是数据中断不是
-    // 治理裁决——降级为 advisory 语气(琥珀,非红),绝不出"锁定"/"已满"硬 verdict。
-    const railGap = d.rail_complete === false;
-    let cashCls, cashLine;
-    if (railGap) {
-      cashCls = 'rw-orange';
-      cashLine = `<span class="rw-word">数据降级</span> — 现金轨不齐(${d.degraded_error || '某账户数据缺失'}),池只统计在轨账户,预算/底线判定暂挂,数据恢复后自动复算`;
-    } else if (floorBad) {
-      cashCls = 'rw-red';
-      cashLine = `<span class="rw-word">锁定</span> — 现金已低于底线(${usd(c.floor_usd)}),所有吃现金的策略(BCD/T2)暂停,补现金后自动解锁`;
-    } else if (!c.fits_standard_debit) {
-      cashCls = 'rw-orange';
-      cashLine = `<span class="rw-word">已满</span> — 预算内只剩 ${usd(c.cap_headroom_usd)},装不下一笔标准仓(${usd(c.standard_debit_usd)}),下一笔 BCD/T2 会被挡`;
-    } else {
-      const n = Math.floor(c.cap_headroom_usd / c.standard_debit_usd);
-      cashCls = 'rw-green';
-      cashLine = `<span class="rw-word">可开新仓</span> — 预算内还能放 ${usd(c.cap_headroom_usd)}(约 ${n} 笔标准仓)`;
-    }
-    const crashOk = b.deployable_usd != null && b.deployable_usd > 0;
-    const crashLine = crashOk
-      ? `<span class="rw-word">安全</span> — 在 2008 级最恶情景下也不爆仓的前提下,还能承担新增最大亏损 ${usd(b.deployable_usd)}`
-      : `<span class="rw-word">超预算</span> — 再加仓会把最恶情景推入爆仓区,先减仓或补现金`;
-    el.innerHTML = `
-      <div class="rw-grid">
-        <div>
-          <div class="rw-title">现金通道 — BCD / T2 开仓</div>
-          <div class="rw-status ${cashCls}">${cashLine}</div>
-          <div class="rw-detail">池 <span class="rw-num">${usd(c.pool_usd)}</span>(两账户现金+货基)· 已投 <span class="rw-num">${usd(c.committed_usd)}</span>${c.utilization_pct != null ? '(<span class="rw-num">' + Number(c.utilization_pct).toFixed(1) + '%</span>)' : ''} · 预算线 <span class="rw-num">${Number(c.cap_pct).toFixed(0)}%</span></div>
-          ${(() => {
-            // 现金水位规则（只读参考，不拦单）——阈值来自 API 单一来源。
-            // 缺轨时池数字失真，跳过判定（与上方 F4 降级逻辑一致）。
-            const wSelf = c.waterline_self_consistent_usd, wSell = c.waterline_sell_or_skip_usd;
-            if (railGap || wSelf == null || c.pool_usd == null) return '';
-            let cls, txt;
-            if (c.pool_usd >= wSelf) {
-              cls = 'rw-green';
-              txt = `✓ 池 ≥ ${usd(wSelf)}：主 debit × DD Overlay × 现金预算三方自洽`;
-            } else if (c.pool_usd >= wSell) {
-              cls = 'rw-orange';
-              txt = `⚠ 池已跌破 ${usd(wSelf)} 自洽线 — DD Overlay 触发日可能需卖 QQQ/SGOV 腾现金，或主动跳过该次`;
-            } else {
-              cls = 'rw-red';
-              txt = `⚠ 池 < ${usd(wSell)} — DD Overlay 触发日预期必须卖 QQQ/SGOV 入场、或主动跳过（crash-day 卖资产成本自担）`;
-            }
-            return `<div class="rw-detail"><span class="rw-word ${cls}" style="font-size:inherit">现金水位</span> ${txt} <span class="spec-ref">Q093 P1 R-b</span></div>`;
-          })()}
-        </div>
-        <div>
-          <div class="rw-title">崩盘预算 — defined-risk 新仓</div>
-          <div class="rw-status ${crashOk ? 'rw-green' : 'rw-red'}">${crashLine}</div>
-          <div class="rw-detail" title="Q091 最恶已批情景:${b.scenario},再扣安全垫 ${usd(b.buffer_usd)}。数字随账户实时重算。">现有期权仓最大亏损 <span class="rw-num">${usd(b.options_sleeve_max_loss_usd)}</span> 已计入 · 实时计算(悬停看假设)${d.partial ? ' · <span style="color:var(--orange)">单账户数据缺失,数字偏保守</span>' : ''}</div>
-        </div>
-      </div>`;
+    const s = (window._stateSurfacePromise
+      ? await window._stateSurfacePromise
+      : await fetch('/api/state-surface').then(r => r.json()));
+    const p = s.pools || {};
+    cashEl.innerHTML = PoolsRender.cashBlockHtml(p.cash, { note: false });
+    crashEl.innerHTML = PoolsRender.crashBlockHtml(p.crash, { note: false });
   } catch (e) {
-    console.warn('resource waterline fetch failed', e);
-    el.innerHTML = '<div class="snapshot-unavail">Resource waterline unavailable.</div>';
+    console.warn('resource waterline render failed', e);
+    cashEl.innerHTML = '<div class="snapshot-unavail">Resource waterline unavailable.</div>';
+    crashEl.innerHTML = '';
   }
 }
 // 自调度(首载 + 5min 刷新),不并入下方 init 链——与并行 SPEC-135 会话的
 // 未提交改动共享同一行会导致提交无法分离;下次该文件统一整理时可并回。
 loadResourceWaterline();
-setInterval(loadResourceWaterline, 5 * 60 * 1000);
+setInterval(() => { window._stateSurfacePromise = fetch('/api/state-surface').then(r => r.json()); loadResourceWaterline(); }, 5 * 60 * 1000);
 
 (async () => {
   _initDefaultView();

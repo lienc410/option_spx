@@ -299,12 +299,14 @@ def compute_state_surface(today: Optional[str] = None) -> dict:
         gov_err = exc
 
     liquid = cash_err = None
+    cash_src: Optional[dict] = None
     try:
         from strategy.cash_budget_governance import get_current_liquid_cash
         cash_data = get_current_liquid_cash()
         if cash_data.get("source") == "unavailable":
             raise ValueError(f"liquid cash unavailable: {cash_data.get('error')}")
         liquid = _num(cash_data.get("total"))
+        cash_src = cash_data          # source=partial → 单券商掉线（rail 信号）
     except Exception as exc:  # noqa: BLE001
         cash_err = exc
 
@@ -657,6 +659,7 @@ def compute_state_surface(today: Optional[str] = None) -> dict:
                       "error": f"{cash_err or debit_err or 'liquid/debit unavailable'}"[:200]}
         if liquid is not None and liquid > 0 and debit is not None:
             from strategy.cash_budget_governance import (
+                BCD_STANDARD_DEBIT_DISPLAY_USD,
                 CAP_PCT, CASH_FLOOR_USD,
                 CASH_WATERLINE_SELF_CONSISTENT_USD,
                 CASH_WATERLINE_SELL_OR_SKIP_USD,
@@ -664,10 +667,9 @@ def compute_state_surface(today: Optional[str] = None) -> dict:
             inflight = debit
             a = ammo if ammo.get("status") == "ok" else {}
             reserve = _num(a.get("reserve_need"))
-            # Quant 裁决 2026-07-13：并发余量按 live 口径「1 张 SPX BCD ≈ $40k」
-            # 计（Q096：$22k 是 engine-canonical 非 live 指令；2026-06 实测一张
-            # $38-41k。display 估值；单张 ~$45k 时按 Q096 §3 复议并更新此常量）。
-            bcd_std = 40_000.0
+            # 标准仓 $ 单一真值（Q096 live 口径 40k；出处与漂移记录见常量定义）
+            bcd_std = float(BCD_STANDARD_DEBIT_DISPLAY_USD)
+            _cap_usd = CAP_PCT * liquid
             cash = {
                 "status": "ok",
                 "liquid": round(liquid, 2),
@@ -676,6 +678,16 @@ def compute_state_surface(today: Optional[str] = None) -> dict:
                 "floor_usd": CASH_FLOOR_USD,
                 "floor_pos_pct": round(min(100.0, CASH_FLOOR_USD / liquid * 100.0), 2),
                 "utilization_pct": round(inflight / liquid * 100.0, 1),
+                # 答案先行状态句输入（原首页 Resource Waterline 面板逻辑，
+                # 2026-07-13 单源化后两页共用同一渲染器）
+                "cap_headroom_usd": round(_cap_usd - inflight, 2),
+                "fits_standard_debit": bool(_cap_usd - inflight >= bcd_std),
+                "floor_distance_usd": round(liquid - CASH_FLOOR_USD, 2),
+                # 现金轨完整性（get_current_liquid_cash source=partial 时单券商
+                # 掉线——池缩水导致"已满/锁定"是数据中断不是治理裁决，SPEC-138 F4
+                # 姿态：渲染层必须降级为 advisory，不出硬 verdict）
+                "rail_complete": (cash_src or {}).get("source") == "live",
+                "degraded_error": (cash_src or {}).get("error"),
                 # 现金水位门线（Q093 P1 R-b，只读不拦单）——与 home Resource
                 # Waterline 卡同一常数源；state 供 Layer 3 行文与金色刻度线。
                 "waterline_self_usd": CASH_WATERLINE_SELF_CONSISTENT_USD,
@@ -698,6 +710,8 @@ def compute_state_surface(today: Optional[str] = None) -> dict:
                 "waterline_pos_pct": round(
                     CASH_WATERLINE_SELF_CONSISTENT_USD / _scale * 100.0, 2),
             }
+            # 标准仓 $ 始终下发（答案先行状态句需要，与 ammo 可用性无关）
+            cash["bcd_standard_usd"] = bcd_std
             if reserve is not None:
                 # 金色弹药刻度线：liquid − reserve_need 的绝对位置；
                 # committed 越过此线 = 抄底子弹被吃掉
@@ -707,10 +721,32 @@ def compute_state_surface(today: Optional[str] = None) -> dict:
                 cash["reserve_need"] = round(reserve, 2)
                 cash["ready"] = bool(a.get("ready"))
                 headroom = liquid - inflight - reserve
-                cash["bcd_standard_usd"] = bcd_std
                 cash["bcd_headroom_count"] = int(max(0.0, headroom) // bcd_std)
                 cash["headroom_after_reserve_usd"] = round(headroom, 2)
-        return {"bp": bp, "cash": cash}
+        # ── crash budget（Q091 最恶情景可部署容量；原首页独有，2026-07-13
+        # 单源化并入——resource_waterline 是唯一算式，broker 层有 60s 缓存，
+        # 与上方 liquid 读数共享缓存命中，近零额外延迟）────────────────────
+        crash: dict = {"status": "n/a", "error": "resource_waterline unavailable"}
+        try:
+            from strategy.cash_budget_governance import resource_waterline
+            rw = resource_waterline()
+            if not rw.get("available"):
+                raise RuntimeError(str(rw.get("error") or "unavailable"))
+            cb = rw.get("crash_budget") or {}
+            crash = {
+                "status": "ok",
+                "deployable_usd": _num(cb.get("deployable_usd")),
+                "worst_excess_usd": _num(cb.get("worst_excess_usd")),
+                "buffer_usd": _num(cb.get("buffer_usd")),
+                "options_sleeve_max_loss_usd": _num(cb.get("options_sleeve_max_loss_usd")),
+                "scenario": cb.get("scenario"),
+                "partial": bool(rw.get("partial")),
+                "rail_complete": bool(rw.get("rail_complete")),
+                "degraded_error": rw.get("degraded_error"),
+            }
+        except Exception as exc:  # noqa: BLE001
+            crash = {"status": "n/a", "error": str(exc)[:200]}
+        return {"bp": bp, "cash": cash, "crash": crash}
     pools = _guard(_pools)
 
     # ── rehearsal（触发预演：分型 → 弹药分支 → 建议结构；复用 094.4 helper）───
