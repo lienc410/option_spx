@@ -526,7 +526,14 @@ def _lane_d_dd_overlay() -> list[dict]:
         # 零持仓被渲染成 HOLD（词表违规，2026-07-11 生产实测抓获）
         def _live(p):
             return p if (p and p.get("is_active", True)) else None
-        a_pos, b_pos = _live(a.get("active_position")), _live(b.get("active_position"))
+        a_pos = _live(a.get("active_position"))
+        # SPEC-094.7: B 为阶梯多仓（active_positions 列表）；legacy 单仓字段兜底
+        b_pos_list = [pp for pp in (b.get("active_positions") or []) if _live(pp)]
+        if not b_pos_list and _live(b.get("active_position")):
+            b_pos_list = [b.get("active_position")]
+        b_pos = b_pos_list[0] if b_pos_list else None
+        b_rungs = b.get("rungs") or {}
+        b_armed_n = sum(1 for r in b_rungs.values() if r.get("armed"))
         trig_a = _DD4_THRESHOLD * 100                  # -4.0
         trig_b = _DD15_THRESHOLD * 100                 # -15.0
         rearm = _REARM_THRESHOLD * 100                 # -2.0
@@ -535,33 +542,39 @@ def _lane_d_dd_overlay() -> list[dict]:
             return f"{v:g}" if isinstance(v, (int, float)) else "—"
 
         def _pos_phrase(tag: str, p: dict) -> str:
-            return (f"Sleeve {tag} 已挂仓（{p.get('contracts', '—')} 张 "
-                    f"{_strike(p.get('long_strike'))}/{_strike(p.get('short_strike'))} "
-                    f"put spread，{p.get('expiry_date', '—')} 到期还剩 "
+            # SPEC-094.7 instrument-aware（原文案误写 put spread——结构是 call）
+            rung_s = ""
+            if p.get("rung") is not None:
+                try:
+                    rung_s = f"（rung {float(p['rung'])*100:+.0f}%）"
+                except (TypeError, ValueError):
+                    pass
+            if p.get("instrument") == "XSP_LEAP":
+                struct = f"{_strike(p.get('long_strike'))} XSP ITM LEAP 单腿"
+            else:
+                struct = (f"{_strike(p.get('long_strike'))}/"
+                          f"{_strike(p.get('short_strike'))} call spread")
+            return (f"Sleeve {tag}{rung_s} 已挂仓（{p.get('contracts', '—')} 张 "
+                    f"{struct}，{p.get('expiry_date', '—')} 到期还剩 "
                     f"{p.get('days_to_expiry', '—')} 天）")
 
-        if a_pos or b_pos:
-            phrases = [_pos_phrase(t, p) for t, p in (("A", a_pos), ("B", b_pos)) if p]
+        if a_pos or b_pos_list:
+            phrases = ([_pos_phrase("A", a_pos)] if a_pos else []) +                       [_pos_phrase("B", p) for p in b_pos_list]
             label = "DD Overlay：" + "；".join(phrases)
             badge_word, badge_label = "HOLD", "HOLD"
             summary = "DD Overlay HOLD"
             outcome = "info"
         elif a.get("armed") and b.get("armed"):
+            # SPEC-094.7: B 是阶梯（4 档），×2 语义退役 → A + B n/4 档
+            b_tag = (f"B {b_armed_n}/{len(b_rungs)} 档" if b_rungs else "B")
             if degraded:
-                label = "DD Overlay：双 sleeve 待命中"
+                label = f"DD Overlay：待命中（A + {b_tag}）"
             else:
                 gap = ddath - trig_a                   # 距 A 触发线还差几个百分点
-                label = (f"DD Overlay：双 sleeve 待命中（回撤 {ddath:+.1f}%，"
+                label = (f"DD Overlay：待命中（A + {b_tag}；回撤 {ddath:+.1f}%，"
                          f"距 Sleeve A 触发线 {trig_a:.0f}% 还差 {gap:.1f}pp）")
-            badge_word, badge_label = "ARMED", "ARMED ×2"
-            summary = "DD Overlay ARMED×2"
-            outcome = "info"
-        elif b.get("in_watching"):
-            label = (f"DD Overlay：Sleeve B 已进 watching（{trig_b:.0f}% 外触发后等 "
-                     f"MA10 收复，窗口自 {b.get('watch_start_date') or '—'}）"
-                     + ("" if a.get("armed") else "；Sleeve A 未武装"))
-            badge_word, badge_label = "WATCHING", "WATCHING"
-            summary = "DD Overlay WATCHING"
+            badge_word, badge_label = "ARMED", f"ARMED A+{b_armed_n or ''}"
+            summary = f"DD Overlay ARMED（A + {b_tag}）"
             outcome = "info"
         elif a.get("armed") or b.get("armed"):
             armed_tag = "A" if a.get("armed") else "B"
@@ -587,16 +600,18 @@ def _lane_d_dd_overlay() -> list[dict]:
             detail=(f"ddATH = SPX 收盘 ÷ 2007 起 running ATH − 1 = "
                     f"{'不可用（ATH degraded）' if degraded else f'{ddath:+.2f}%'} · "
                     f"Sleeve A 触发线 {trig_a:.0f}%（T+1 直接开）· "
-                    f"Sleeve B 外触发线 {trig_b:.0f}% 后等 MA10 收复 · "
-                    f"re-arm 线 {rearm:.0f}% · Sleeve A 生产档 cap "
+                    f"Sleeve B 阶梯 {trig_b:.0f}/−25/−35/−45%（touch 即 fire，"
+                    f"SPEC-094.7；浅档 spread D90，深档 XSP LEAP D730）· "
+                    f"re-arm 线 {rearm:.0f}%（全档复位）· Sleeve A 生产档 cap "
                     f"{a.get('production_cap_pct', '—')}%（{a.get('stage', '—')}，"
                     f"paper）· Sleeve B research_only"),
             inputs={"date": st.get("date"), "ddath_pct": ddath,
                     "ath_degraded": degraded,
                     "sleeve_a_armed": a.get("armed"),
                     "sleeve_b_armed": b.get("armed"),
-                    "sleeve_b_in_watching": b.get("in_watching"),
-                    "positions": [p.get("trade_id") for p in (a_pos, b_pos) if p]},
+                    "sleeve_b_rungs_armed": b_armed_n,
+                    "positions": ([a_pos.get("trade_id")] if a_pos else [])
+                                 + [p.get("trade_id") for p in b_pos_list]},
             outcome=outcome,
             code_ref="SPEC-094 F1 · signals/q042_trigger · /api/q042/state"))
     except Exception as exc:
