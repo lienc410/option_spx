@@ -1859,12 +1859,13 @@ def _apply_bcd_governance_live(rec: Recommendation, vix: VixSnapshot, iv: IVSnap
     advisory tag; after unlock, the first-5-trades 1-lot advisory."""
     if rec.strategy_key != "bull_call_diagonal":
         return rec
-    # Q096 操作 ratify（PM 2026-07-14）：BCD 单张 = 最小标准单位。SPX 当前点位
-    # 单张 debit ~$38-41k ≈ 6% NLV，half-size 预算语义（2.25%）物理不可达；
-    # engine cap 口径 ~0.6ct 双标注纪律（Q096 §2）。单张 ~$45k（SPX 8800）复议。
-    rec.size_rule += ("；BCD 整数下限：1 张 = 最小标准单位（Q096 ratify——单张 "
-                      "debit ≈6% NLV，超出上行 half-size 语义 ×1.7；engine cap "
-                      "口径 ~0.6ct）。开第二张前先核对抄底弹药（DD ammo）")
+    # Q096 操作 ratify（PM 2026-07-14）：BCD 单张 = 最小标准单位；口径 = 占用
+    # 现金美元额（cash-bound 账户，debit 结构不占保证金）。文案标准（PM
+    # 2026-07-14）：未参与本项目但懂期权的交易员必须能直接看懂——内部代号
+    # （Q096/engine cap/0.6ct 等）只留在本注释。单张 ~$45k（SPX 8800）复议。
+    rec.size_rule += ("；注意：这是 debit 交易，占用的是现金不是保证金——"
+                      "1 张约 $38–41k 现金（当前 SPX 点位），且 1 张就是最小单位，"
+                      "没有半张。开第二张前先确认现金池仍留得出大跌抄底的预留预算")
     try:
         from strategy import bcd_governance as gov
         halt = gov.is_halted()
