@@ -1859,6 +1859,12 @@ def _apply_bcd_governance_live(rec: Recommendation, vix: VixSnapshot, iv: IVSnap
     advisory tag; after unlock, the first-5-trades 1-lot advisory."""
     if rec.strategy_key != "bull_call_diagonal":
         return rec
+    # Q096 操作 ratify（PM 2026-07-14）：BCD 单张 = 最小标准单位。SPX 当前点位
+    # 单张 debit ~$38-41k ≈ 6% NLV，half-size 预算语义（2.25%）物理不可达；
+    # engine cap 口径 ~0.6ct 双标注纪律（Q096 §2）。单张 ~$45k（SPX 8800）复议。
+    rec.size_rule += ("；BCD 整数下限：1 张 = 最小标准单位（Q096 ratify——单张 "
+                      "debit ≈6% NLV，超出上行 half-size 语义 ×1.7；engine cap "
+                      "口径 ~0.6ct）。开第二张前先核对抄底弹药（DD ammo）")
     try:
         from strategy import bcd_governance as gov
         halt = gov.is_halted()

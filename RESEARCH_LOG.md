@@ -3999,3 +3999,9 @@ Owner: Planner or PM
 - **文件**: research/q102/q102_p2_confirmatory.py + q102_p2_gates.csv + findings §7（P2 补记）；task/SPEC-094.7.md
 
 **R-20260712-04 反事实结算定格（2026-07-13 收盘）**: 漏火仓名义到期结算完成——SPX 收 7515.13 ≥ short 7450 → 满宽 $185/share；最终反事实 = 7 张 × (185 − 87.66) × 100 = **+$68,138**（INC debit 口径；CALIB $88.08 → +$67,844）。案卷关闭：事故已修（SPEC-094.6）、金额已定格、不补录不追单。同日 AC-94.2-8 正式 PASS（gate log `main_bp_pct: 12.88` + bp_source 全溯源块）——dead-gate 案全链关卷。
+
+### R-20260714-01 — Q096 操作 ratify 执行 + SPEC-127 词表入 BCD 入场卡（PM 2026-07-14）
+
+- **Q096 "1 张 = 最小标准单位" PM ratify**：BCD 推荐的 Size Rule 行加整数下限 rider（单张 debit ≈6% NLV、超 half-size 语义 ×1.7、engine cap ~0.6ct 双口径标注、开第二张前核对抄底弹药）——07-13 晨报暴露旧 "risk ≤2.25%" 文案在当前 SPX 点位物理不可达。复议触发不变：单张 ~$45k（SPX 8800）
+- **SPEC-127 collapse buyback 入 catalog**：BCD roll_rule/detail 文案补"短腿残值 ≤15% → 立即回补/roll"（机械词表已有持仓推送，入场卡同源展示）
+- 落点：strategy/catalog.py（BCD descriptor）+ strategy/selector.py `_apply_bcd_governance_live` rider；67 相邻测试绿（含 SPEC-113 bit-identity）
