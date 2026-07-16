@@ -63,7 +63,7 @@ OUTDIR = Path(__file__).resolve().parent
 DEEP = 0.15               # 深套界：距滚动高 ≤ -DEEP（A6：深套/追踪统一用滚动高）
 RSI_OVERSOLD = 30         # 超卖否决阈
 DEADLINE_FAST = date(2026, 7, 16)   # 可减持(非上升)仓加速清空的节奏锚点
-DEADLINE_SLOW = date(2026, 8, 31)   # 上升趋势仓 延长清仓（慢速 TWAP，给赢家更多时间）
+DEADLINE_SLOW = date(2026, 8, 1)    # 硬外沿(PM 2026-07 提前 8-31→8-1): 全书清零日; 只可提前不可推迟
 # ── 2026-07-06 PM: deadline 软化 + 回前高减仓 ─────────────────────
 # 软化: fast 池周数下限 SOFT_FLOOR_WEEKS → 过期不悬崖到 100%/周, 维持 1/4=25%/周持续出清,
 #       给"回前高"反弹留窗口(前高=数个交易日前的滚动高, 锚新鲜)。
@@ -391,8 +391,11 @@ def analyze(name, code, mv, pnl_pct, weeks_fast, weeks_slow) -> FundResult:
 def main():
     # 周频截止日 TWAP：按真实今日到 deadline 的剩余周数定步
     today = datetime.now().date()
-    weeks_fast = max(weeks_remaining_at(today, DEADLINE_FAST), SOFT_FLOOR_WEEKS)  # 软化: 不悬崖到 100%/周
-    if today > DEADLINE_SLOW:   # 硬外沿: 软化有边界——8-31 后全书回到"剩1周清光"(thesis 到期)
+    # 软化地板不越外沿: min(软化周数, 到外沿周数) → 过 7-16 后按外沿 1/N 平滑收敛
+    # (33%→50%→100%), 精确在外沿归零, 无"最后一周巨量悬崖"
+    weeks_fast = min(max(weeks_remaining_at(today, DEADLINE_FAST), SOFT_FLOOR_WEEKS),
+                     weeks_remaining_at(today, DEADLINE_SLOW))
+    if today > DEADLINE_SLOW:   # 硬外沿备份: 过外沿全书"剩1周清光"
         weeks_fast = 1
     weeks_slow = weeks_remaining_at(today, DEADLINE_SLOW)
     twap_fast = min(1.0, 1.0 / weeks_fast)
@@ -688,7 +691,8 @@ def backfill_signal_log(days=60):
         for i in range(start, n):
             d = dates.iloc[i].strftime("%Y-%m-%d")
             d_i = dates.iloc[i].date()
-            wf = max(weeks_remaining_at(d_i, DEADLINE_FAST), SOFT_FLOOR_WEEKS)
+            wf = min(max(weeks_remaining_at(d_i, DEADLINE_FAST), SOFT_FLOOR_WEEKS),
+                     weeks_remaining_at(d_i, DEADLINE_SLOW))
             if d_i > DEADLINE_SLOW:
                 wf = 1
             s = signal_at(nav.iloc[:i + 1], wf, weeks_remaining_at(d_i, DEADLINE_SLOW))
