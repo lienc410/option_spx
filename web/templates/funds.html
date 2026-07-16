@@ -391,7 +391,7 @@ function render_table(title, funds, P, dataDate) {
         <th>基金</th>
         <th>持仓额</th>
         <th>动作</th>
-        <th>本周%</th>
+        <th title="占当前剩余持仓的比例；每次记录减仓后按新余额自动重算，份额随之递减">本周%*</th>
         <th>本周额</th>
         <th>累积减</th>
         <th>距滚高</th>
@@ -540,7 +540,7 @@ function recCalc() {
   const fmtSh = x => Math.round(x).toLocaleString('zh-CN');
   document.getElementById('rec-hint').innerHTML =
     `单位净值 <b>${unit>0?unit.toFixed(4):'—'}</b> · 约 ${amount>0?'<b style="color:var(--gold)">'+fmt_cny(amount)+'</b>':'¥—'}（持仓约 ${fmtSh(totalSh)} 份）<br>`
-    + `本周建议 ${(clip*100).toFixed(1)}% ≈ <a onclick="document.getElementById('rec-shares').value=${Math.round(suggSh)};recCalc()">${fmtSh(suggSh)}份</a> · `
+    + `本周建议 ${(clip*100).toFixed(1)}%（占当前剩余, 已扣你此前记录的减仓）≈ <a onclick="document.getElementById('rec-shares').value=${Math.round(suggSh)};recCalc()">${fmtSh(suggSh)}份</a> · `
     + `<a onclick="document.getElementById('rec-shares').value=${Math.round(totalSh)};recCalc()">全部赎回(${fmtSh(totalSh)}份)</a>`;
 }
 
