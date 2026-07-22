@@ -138,6 +138,13 @@ class StrategyParams:
     # Research mode: bypass IVP entry gates for full-history matrix analysis.
     # NEVER set to True in production. See SPEC-056.
     disable_entry_gates: bool = False
+    # Research mode (Q103, 2026-07-22): bypass the three "VIX rising → skip
+    # Iron Condor" P3 gates (LOW_VOL·NEUTRAL / NORMAL·HIGH·NEUTRAL /
+    # NORMAL·NEUTRAL·NEUTRAL) so the counterfactual IC would-be trades open
+    # and get priced/managed by the real engine — independent re-validation
+    # of a defensive gate never audited since SPEC-020. NEVER set True in
+    # production; only consumed by research/q103/.
+    bypass_p3_vix_rising_ic_gate: bool = False
     # Research mode: force a specific strategy regardless of signal routing.
     # When set, select_strategy() returns a recommendation for this strategy
     # using its standard legs, bypassing all regime/IV/trend routing logic.
@@ -1145,7 +1152,7 @@ def select_strategy(
               outcome="route", code_ref="selector LOW_VOL matrix", stage="routing")
         if t == TrendSignal.NEUTRAL:
             # P3: VIX rising in low-vol env = regime about to shift; skip condor
-            _rising = (vix.trend == Trend.RISING)
+            _rising = (vix.trend == Trend.RISING) and not params.bypass_p3_vix_rising_ic_gate
             if not T.gate(not _rising, "lv_neutral_vix_rising",
                           "恐慌在低位抬头吗？低波动区里 VIX 上冲常是体制切换前兆，不做 Iron Condor",
                           detail=f"VIX 动量 {T.ev(vix.trend)}",
@@ -1375,7 +1382,7 @@ def select_strategy(
 
         # NEUTRAL trend + HIGH IV → Iron Condor (stable vol is good for condors)
         # P3: skip if VIX rising — condor will be hit by the move that's building
-        _rising = (vix.trend == Trend.RISING)
+        _rising = (vix.trend == Trend.RISING) and not params.bypass_p3_vix_rising_ic_gate
         if not T.gate(not _rising, "nhn_vix_rising",
                       "恐慌还在升级吗？升级中不做 Iron Condor",
                       detail=f"VIX 动量 {T.ev(vix.trend)}",
@@ -1641,7 +1648,7 @@ def select_strategy(
 
     # NORMAL + NEUTRAL IV + NEUTRAL trend → Iron Condor (no directional bias, neutral vol)
     # P3: skip if VIX rising — range assumption breaking down
-    _rising = (vix.trend == Trend.RISING)
+    _rising = (vix.trend == Trend.RISING) and not params.bypass_p3_vix_rising_ic_gate
     if not T.gate(not _rising, "nnn_vix_rising",
                   "恐慌还在升级吗？升级中区间假设失效，不做 Iron Condor",
                   detail=f"VIX 动量 {T.ev(vix.trend)}",

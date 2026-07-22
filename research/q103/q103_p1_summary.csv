@@ -1,0 +1,5 @@
+label,n,mean_pnl,median_pnl,wr_pct,worst_pnl,tail_hit_pct,cvar10_pnl
+blocked-full,36,1837.0,3652.0,83,-8151.0,0.0,-7763.0
+passed-full,26,588.0,2863.0,69,-12044.0,3.8,-11585.0
+blocked-post2020,9,323.0,3587.0,67,-8151.0,0.0,-8151.0
+passed-post2020,8,2169.0,3576.0,75,-2398.0,0.0,-2398.0
