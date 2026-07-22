@@ -161,6 +161,32 @@ class TestAC2DigestHuman(unittest.TestCase):
             _, _, body = bot.build_preclose_digest()
         self.assertIn(sentinel, body)
 
+    def test_digest_quote_gate_label_escaped(self):
+        """回归（2026-07-21 生产事故）：quote_gate_status().label_human 含裸
+        "VIX<15"（PM 2026-07-13 措辞），digest 治理行未转义时被 Telegram HTML
+        解析器当 start tag 炸掉，降级纯文本重发（H-4 兜底兜住了，但本该零发生）。
+        digest 走"逐字段手动转义"路径（用 <b> 标签，非 whole-body escape），
+        每个动态字段都必须显式 _h()。"""
+        rec = MagicMock()
+        rec.strategy_key = "reduce_wait"
+        rec.canonical_strategy = "Bull Put Spread"
+        with patch.object(bot, "get_recommendation", return_value=rec), \
+             patch("strategy.state.read_all_positions",
+                   return_value={"positions": []}), \
+             patch("strategy.decision_trace.lane_b_positions",
+                   return_value=[]), \
+             patch("strategy.decision_trace.lane_d_sleeves",
+                   return_value=dict(self._LANE_D)), \
+             patch("strategy.bcd_governance.is_halted", return_value=None), \
+             patch("strategy.bcd_governance.quote_gate_status",
+                   return_value={"unlocked": False, "days": 0, "needed": 10,
+                                 "label_human": "真实报价已积累 0/10 天"
+                                                "（仅计 VIX<15 的 LOW_VOL 交易日）"}), \
+             patch.object(bot, "read_state", return_value={}):
+            _, _, body = bot.build_preclose_digest()
+        self.assertNotIn("VIX<15", body)
+        self.assertIn("VIX&lt;15", body)
+
     def test_quote_gate_status_carries_label_human(self):
         """label_human 与门逻辑同居 bcd_governance（真值来源存在性）。"""
         import strategy.bcd_governance as gov

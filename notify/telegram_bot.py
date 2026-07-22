@@ -1869,9 +1869,12 @@ def build_preclose_digest() -> tuple[str, str, str]:
                         if halt else "BCD（Bull Call Diagonal）：正常")
         qg = quote_gate_status()
         if not qg["unlocked"]:
-            # SPEC-136 单源：文案来自 quote_gate_status().label_human
-            gov_bits.append(qg.get("label_human")
-                            or f"真实报价已积累 {qg['days']}/{qg['needed']} 天")
+            # SPEC-136 单源：文案来自 quote_gate_status().label_human——该
+            # 字段含裸 "VIX<15"（PM 2026-07-13 措辞），digest 逐字段手动转义
+            # 路径（用 <b> 标签，非 whole-body escape），漏 _h() 会被 Telegram
+            # HTML 解析器当 start tag 炸掉降级纯文本（2026-07-21 实例）
+            gov_bits.append(_h(qg.get("label_human")
+                               or f"真实报价已积累 {qg['days']}/{qg['needed']} 天"))
         if halt:
             actionable = True
     except Exception:
