@@ -1284,32 +1284,14 @@ def select_strategy(
           outcome="route", code_ref="selector NORMAL matrix", stage="routing")
     if iv_s == IVSignal.HIGH:
         if t == TrendSignal.BULLISH:
-            # Backwardation filter: skip if near-term panic elevated
-            _bw = vix.backwardation
-            if not T.gate(not _bw, "nhb_backwardation",
-                          "近月恐慌是否高于远月（倒挂）？倒挂时不卖 put spread",
-                          detail=f"VIX {vix.vix:.1f} vs VIX3M {vix.vix3m}",
-                          inputs={"backwardation": _bw},
-                          code_ref="selector NORMAL·HIGH·BULLISH"):
-                return _reduce_wait(
-                    "NORMAL + IV HIGH + BULLISH but VIX term structure in BACKWARDATION — skip Bull Put Spread",
-                    vix, iv, trend, macro_warn, backwardation=True,
-                    canonical_strategy=StrategyName.BULL_PUT_SPREAD.value,
-                    params=params,
-                )
-            # P1: VIX momentum rising → conditions deteriorating, skip selling puts
-            _rising = (vix.trend == Trend.RISING)
-            if not T.gate(not _rising, "nhb_vix_rising",
-                          "恐慌还在升级吗？升级中不卖 put",
-                          detail=f"VIX 动量 {T.ev(vix.trend)}",
-                          inputs={"vix_trend": T.ev(vix.trend)},
-                          code_ref="selector NORMAL·HIGH·BULLISH P1"):
-                return _reduce_wait(
-                    "NORMAL + IV HIGH + BULLISH but VIX RISING — wait for VIX to stabilise before selling premium",
-                    vix, iv, trend, macro_warn,
-                    canonical_strategy=StrategyName.BULL_PUT_SPREAD.value,
-                    params=params,
-                )
+            # nhb_backwardation / nhb_vix_rising REMOVED as dead code (Q104,
+            # 2026-07-22): both gates sat upstream of the unconditional
+            # SPEC-060 dead-cell fallback below, which returns REDUCE_WAIT
+            # for this cell regardless of what either gate decided — their
+            # branch outcome never once reached a real trade (0/0 in 26y
+            # backtest). Removing vestigial checks whose result can't
+            # matter; SPEC-060's own rationale is the true — and only —
+            # reason this cell never trades. See research/q104/.
             # SPEC-060 Change 3: NORMAL + IV_HIGH + BULLISH → REDUCE_WAIT
             # Bootstrap matrix: BPS avg −$299 not significant (n=23);
             # BCS_HV CI [$755,$1,044] is bootstrap-degenerate (n=10, block_size=5 ≈ 2 blocks).
@@ -1328,18 +1310,12 @@ def select_strategy(
             )
 
         if t == TrendSignal.BEARISH:
-            _rising = (vix.trend == Trend.RISING)
-            if not T.gate(not _rising, "nhbe_vix_rising",
-                          "恐慌还在升级吗？升级中不做 Iron Condor",
-                          detail=f"VIX 动量 {T.ev(vix.trend)}",
-                          inputs={"vix_trend": T.ev(vix.trend)},
-                          code_ref="selector NORMAL·HIGH·BEARISH"):
-                return _reduce_wait(
-                    "NORMAL + IV HIGH + BEARISH + VIX RISING — skip Iron Condor while vol escalating",
-                    vix, iv, trend, macro_warn,
-                    canonical_strategy=StrategyName.IRON_CONDOR.value,
-                    params=params,
-                )
+            # nhbe_vix_rising RETIRED by Q104 (2026-07-22, batch re-validation
+            # of the VIX-rising-momentum family alongside the 3 sites Q103
+            # already retired same day): n=14 blocked vs n=7 passed, blocked
+            # mean +$3,346/WR 93% vs passed +$2,029/WR 86% — same direction
+            # as the killed sites, not the protective signature the gate was
+            # designed for. See research/q104/q104_p1_findings_2026-07-22.md.
             # IVP ≥ 50 gate removed by SPEC-058:
             # SPEC-057 matrix shows IC avg $2,043 (n=13) in NORMAL|HIGH|BEARISH —
             # rich premium outweighs put-side tail risk in this cell.
@@ -1361,7 +1337,7 @@ def select_strategy(
                 ],
                 size_rule=_size_rule(vix, iv_s, t),
                 rationale=(
-                    "NORMAL + IV HIGH + BEARISH + VIX stable — MA50 lag means downtrend confirmed; "
+                    "NORMAL + IV HIGH + BEARISH — MA50 lag means downtrend confirmed; "
                     "IC collects from both sides without directional bet"
                 ),
                 position_action=action,

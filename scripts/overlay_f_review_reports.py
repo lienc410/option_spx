@@ -7,7 +7,9 @@ from collections import Counter
 from pathlib import Path
 
 
-LOG = Path("data/overlay_f_shadow.jsonl")
+# Repo-root-anchored — see strategy/overlay.py for why a bare relative path
+# is unsafe (silently wrong file if CWD isn't the repo root).
+LOG = Path(__file__).resolve().parents[1] / "data" / "overlay_f_shadow.jsonl"
 
 
 def load_events(path: Path = LOG) -> list[dict]:

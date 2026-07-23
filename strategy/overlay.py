@@ -17,8 +17,13 @@ from strategy.catalog import strategy_key as catalog_strategy_key
 
 
 _ET = ZoneInfo("America/New_York")
-_SHADOW_LOG = Path("data/overlay_f_shadow.jsonl")
-_ALERT_LATEST = Path("data/overlay_f_alert_latest.txt")
+# Repo-root-anchored (not CWD-relative): a bare "data/..." path silently
+# writes/reads the wrong file whenever the caller's CWD isn't the repo root
+# (e.g. `cd research/qNNN && python script.py` — caught 2026-07-22 when a
+# research run left two stray files under research/q103/data/).
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_SHADOW_LOG = _REPO_ROOT / "data" / "overlay_f_shadow.jsonl"
+_ALERT_LATEST = _REPO_ROOT / "data" / "overlay_f_alert_latest.txt"
 SHORT_GAMMA_KEYS = {
     "bull_put_spread",
     "bull_put_spread_hv",

@@ -4006,4 +4006,22 @@ Owner: Planner or PM
 - **SPEC-127 collapse buyback 入 catalog**：BCD roll_rule/detail 文案补"短腿残值 ≤15% → 立即回补/roll"（机械词表已有持仓推送，入场卡同源展示）
 - 落点：strategy/catalog.py（BCD descriptor）+ strategy/selector.py `_apply_bcd_governance_live` rider；67 相邻测试绿（含 SPEC-113 bit-identity）
 
+### R-20260722-01 — Q103 P1+P2: 独立重验 P3 门"VIX rising 跳过 IC"（PM 指令，参照 Q087 A1-A5 方法，CLOSED，routing 决定待 PM ratify）
+
+- **触发**: PM 07-21 晨报复盘后指令"按你的说法，应该像 A1-A5 一样被独立重验"——该门（LOW_VOL·NEUTRAL / NORMAL·HIGH·NEUTRAL / NORMAL·NEUTRAL·NEUTRAL 三处，45DTE δ0.16-0.08 IC）自 SPEC-020 起从未被独立重验，不在 Q087 Track A 名单
+- **方法**: `strategy/selector.py` 新增 `StrategyParams.bypass_p3_vix_rising_ic_gate`（默认 False，生产零改动）；跑两次完整 26y walk-forward（门开/门关），用生产引擎反事实对照（同 Q087 A1-A5 方法，不建平行计价器）；预注册 R1-R6（evidence gate n≥8 / kill-class 反向举证门槛 / year-block bootstrap / 双口径尾部指标 / 时代分层 / 反事实局限披露）
+- **结果**: 全历史样本（n=36 blocked vs n=26 passed）六项独立指标（均值+1837 vs +588、中位数、胜率83% vs 69%、worst −8151 vs −12044、tail_hit 0% vs 3.8%、量级深尾 8.3% vs 11.5%）**全部指向同一方向——被拦下的交易不劣于甚至优于放行的交易**；两组触发日 VIX 水平几乎相同（16.90 vs 16.76），门捕捉的是同波动位的短期动量非危险区信号，与 Q090 S2/Q097/Q089 E2 同一模式；post-2020 唯一反号但 n=8-9 极薄；bootstrap CI 两个时代都不满足 MAINTAIN 门槛（CI 上界<0）
+- **P2 追加**: 组合状态涟漪量化（生产 26 笔交易在 bypass 世界位移，均值 PnL +1836 不劣于 passed，涟漪非系统性藏坏账）
+- **verdict**: 证据不支持 MAINTAIN，leans RETIRE；因涉及生产实时路由（非 paper-only），**不擅自翻转**，三选项（整体 RETIRE / 暂缓观察 / 窄化只退役 NORMAL·HIGH·NEUTRAL）交 PM 裁决
+- **文件**: research/q103/ q103_p1_p3_gate_revalidation.py + q103_p2_robustness.py + findings + 3 CSV；`bypass_p3_vix_rising_ic_gate` flag 已就位供任一裁决落地
+
 **Ratify + 部署（2026-07-22，同日）**：PM 裁决"整体退役"。三处 P3 门（`lv_neutral_vix_rising`/`nhn_vix_rising`/`nnn_vix_rising`）从 `strategy/selector.py` 删除，`StrategyParams.bypass_p3_vix_rising_ic_gate` 研究开关随之整体移除（不留旋钮）；71 相邻测试绿；live smoke test 用今日实盘数据验证——当前 VIX trend 仍为 RISING（与 07-21 触发日同型），退役前会被拦，退役后直接 `strategy_key=iron_condor, position_action=OPEN`，端到端确认生效。post-2020 反号疑点（n=8-9，未解释）记录在案，未来重开需从此疑点入手。research/q103/*.py 两脚本标记 FROZEN（引用字段已删，不可再运行）。
+
+### R-20260722-02 — Q104 P1: 批量重验剩余 7 个"VIX rising 跳过"动量门 + 全盘 gate 清点（PM 指令"检查全盘类似疑点"，CLOSED，裁决已执行）
+
+- **触发**: PM 指令清查 selector.py 全盘同类疑点。清点 27 个 gate，发现三个从未被任何审计（含 Q087 Track A）覆盖的机制家族：VIX 动量×10（3 个已被 Q103 退役）、backwardation×5、IVP 甜区带×6（与 Q087 A1 的 40-70 双门是不同常量）
+- **方法**: 同 Q103 评判尺（预注册 R1-R7），`bypass_vix_rising_momentum_gates` 一次性关闭剩余 7 处，跑两次完整 26y walk-forward，横跨 5 个策略（IC/IC_HV/BPS/BPS_HV/BCS_HV）反事实对照
+- **异质结果（非一刀切）**: **RETIRE** nhbe_vix_rising（n=14/7，方向同 Q103）；**死代码清理** nhb_backwardation+nhb_vix_rising（被 SPEC-060 无条件死格三行后覆盖，0/0 印证从未真正影响过交易，非经济学问题）；**MAINTAIN** hv_bullish_vix_rising（n=8/39，全家族首个方向正确的门：blocked 均值 $201/胜率62%/尾部命中12.5% vs passed $1212/72%/0%，每项指标都支持维持）；**DEFER** nnb_vix_rising（n=17/33，均值与尾部指标互相矛盾，不强行归类）；**登记不动** hv_bearish_vix_rising/hv_neutral_vix_rising（n=7<8）、nnbe_vix_rising（passed n=2 太薄）
+- **副产品修复**: `strategy/overlay.py`/`scripts/overlay_f_review_reports.py` 的 overlay_f shadow-log 路径从裸相对路径改锚定仓库根——研究过程中一次 `cd` 遗留副作用（CWD 非 repo-root 时静默读写错误文件）暴露了这个脆弱点，已修复+回归验证；顺带修正 NORMAL·HIGH·BEARISH cell 因 nhbe 退役而过时的"VIX stable" rationale 文案（同步更新 SPEC-113 bit-identical 冻结 fixture）
+- **登记**: bypass_vix_rising_momentum_gates 研究开关随裁决整体移除（不留旋钮）；backwardation 家族（5 站点）与 IVP 甜区带家族（6 站点）经济学机制不同，不套用本次证据，登记为独立候选研究，排期待 PM
+- **文件**: research/q104/q104_p1_vix_rising_family.py（FROZEN）+ findings + 3 CSV
