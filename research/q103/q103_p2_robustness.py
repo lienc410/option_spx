@@ -1,4 +1,6 @@
-"""Q103 P2 — P1 结果的稳健性追加：量级尾部指标（不依赖 exit_reason 标签）+
+"""
+FROZEN (2026-07-22, PM ratify): P3 门已整体退役（strategy/selector.py 三处 gate 删除），本脚本引用的 StrategyParams.bypass_p3_vix_rising_ic_gate 已随之移除——脚本不再可运行，作为本次研究的可追溯记录保留（结果已固化在 q103_p1_findings_2026-07-22.md 与 CSV 产物里）。
+Q103 P2 — P1 结果的稳健性追加：量级尾部指标（不依赖 exit_reason 标签）+
 production 中"bypass 世界里同日期不存在"的 26 笔交易特征刻画（组合状态涟漪
 效应，R6 附录局限的量化，而非脚注带过）。复用 P1 同一对 run_backtest 结果。
 """

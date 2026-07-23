@@ -138,13 +138,6 @@ class StrategyParams:
     # Research mode: bypass IVP entry gates for full-history matrix analysis.
     # NEVER set to True in production. See SPEC-056.
     disable_entry_gates: bool = False
-    # Research mode (Q103, 2026-07-22): bypass the three "VIX rising → skip
-    # Iron Condor" P3 gates (LOW_VOL·NEUTRAL / NORMAL·HIGH·NEUTRAL /
-    # NORMAL·NEUTRAL·NEUTRAL) so the counterfactual IC would-be trades open
-    # and get priced/managed by the real engine — independent re-validation
-    # of a defensive gate never audited since SPEC-020. NEVER set True in
-    # production; only consumed by research/q103/.
-    bypass_p3_vix_rising_ic_gate: bool = False
     # Research mode: force a specific strategy regardless of signal routing.
     # When set, select_strategy() returns a recommendation for this strategy
     # using its standard legs, bypassing all regime/IV/trend routing logic.
@@ -1151,19 +1144,14 @@ def select_strategy(
               inputs={"regime": T.ev(r), "trend": T.ev(t), "iv_signal": T.ev(iv_s)},
               outcome="route", code_ref="selector LOW_VOL matrix", stage="routing")
         if t == TrendSignal.NEUTRAL:
-            # P3: VIX rising in low-vol env = regime about to shift; skip condor
-            _rising = (vix.trend == Trend.RISING) and not params.bypass_p3_vix_rising_ic_gate
-            if not T.gate(not _rising, "lv_neutral_vix_rising",
-                          "恐慌在低位抬头吗？低波动区里 VIX 上冲常是体制切换前兆，不做 Iron Condor",
-                          detail=f"VIX 动量 {T.ev(vix.trend)}",
-                          inputs={"vix_trend": T.ev(vix.trend)},
-                          code_ref="selector LOW_VOL·NEUTRAL P3"):
-                return _reduce_wait(
-                    "LOW_VOL + NEUTRAL but VIX RISING — potential regime shift; Iron Condor risk too high",
-                    vix, iv, trend, macro_warn,
-                    canonical_strategy=StrategyName.IRON_CONDOR.value,
-                    params=params,
-                )
+            # P3 (lv_neutral_vix_rising) RETIRED by Q103 (2026-07-22, PM ratify):
+            # never independently revalidated since SPEC-020. 26y counterfactual
+            # (production engine, gate ON vs OFF) showed blocked-cohort PnL/WR/
+            # tail metrics ≥ passed-cohort across the board (mean +$1,837 vs
+            # +$588, WR 83% vs 69%, tail-hit 0% vs 3.8%); trigger-day VIX level
+            # nearly identical between cohorts (16.90 vs 16.76) — the gate was
+            # reacting to same-level short-term momentum, not a danger signal.
+            # See research/q103/q103_p1_findings_2026-07-22.md.
             # P3: IVP outside 20–50 sweet-spot — too low = insufficient premium; too high = tail risk
             _ivp_out = (iv.iv_percentile < 20 or iv.iv_percentile > 50)
             if not T.gate(not _ivp_out, "lv_neutral_ivp_band",
@@ -1381,19 +1369,10 @@ def select_strategy(
             )
 
         # NEUTRAL trend + HIGH IV → Iron Condor (stable vol is good for condors)
-        # P3: skip if VIX rising — condor will be hit by the move that's building
-        _rising = (vix.trend == Trend.RISING) and not params.bypass_p3_vix_rising_ic_gate
-        if not T.gate(not _rising, "nhn_vix_rising",
-                      "恐慌还在升级吗？升级中不做 Iron Condor",
-                      detail=f"VIX 动量 {T.ev(vix.trend)}",
-                      inputs={"vix_trend": T.ev(vix.trend)},
-                      code_ref="selector NORMAL·HIGH·NEUTRAL P3"):
-            return _reduce_wait(
-                "NORMAL + IV HIGH + NEUTRAL but VIX RISING — Iron Condor unsafe; wait for vol to stabilise",
-                vix, iv, trend, macro_warn,
-                canonical_strategy=StrategyName.IRON_CONDOR.value,
-                params=params,
-            )
+        # P3 (nhn_vix_rising) RETIRED by Q103 (2026-07-22, PM ratify) — largest
+        # counterfactual cohort (n=25 blocked), cleanest full-history evidence:
+        # blocked mean +$1,837/WR 83% vs passed +$588/WR 69%, tail-hit 0% vs
+        # 3.8%. See research/q103/q103_p1_findings_2026-07-22.md.
         # IVP > 50 gate removed by SPEC-058:
         # SPEC-057 matrix shows IC avg $1,017 (n=9) in NORMAL|HIGH|NEUTRAL —
         # rich premium still favors IC even when IVP elevated in NORMAL regime.
@@ -1647,19 +1626,12 @@ def select_strategy(
         )
 
     # NORMAL + NEUTRAL IV + NEUTRAL trend → Iron Condor (no directional bias, neutral vol)
-    # P3: skip if VIX rising — range assumption breaking down
-    _rising = (vix.trend == Trend.RISING) and not params.bypass_p3_vix_rising_ic_gate
-    if not T.gate(not _rising, "nnn_vix_rising",
-                  "恐慌还在升级吗？升级中区间假设失效，不做 Iron Condor",
-                  detail=f"VIX 动量 {T.ev(vix.trend)}",
-                  inputs={"vix_trend": T.ev(vix.trend)},
-                  code_ref="selector NORMAL·NEUTRAL·NEUTRAL P3"):
-        return _reduce_wait(
-            "NORMAL + IV NEUTRAL + NEUTRAL but VIX RISING — Iron Condor unsafe; wait for vol to stabilise",
-            vix, iv, trend, macro_warn,
-            canonical_strategy=StrategyName.IRON_CONDOR.value,
-            params=params,
-        )
+    # P3 (nnn_vix_rising) RETIRED by Q103 (2026-07-22, PM ratify) — the cell
+    # that triggered the re-audit (07-21 morning push blocked here). Blocked
+    # cohort's worst trade was still profitable (+$1,774, n=7); passed
+    # cohort's worst was the single worst trade in the whole study
+    # (−$12,044, 20% tail-hit, n=5). See
+    # research/q103/q103_p1_findings_2026-07-22.md.
     # P3: IVP outside 20–50 — too low = free money illusion; too high = breached too often
     _ivp_out = (iv.iv_percentile < 20 or iv.iv_percentile > 50)
     if not T.gate(not _ivp_out, "nnn_ivp_band",

@@ -4005,3 +4005,5 @@ Owner: Planner or PM
 - **Q096 "1 张 = 最小标准单位" PM ratify**：BCD 推荐的 Size Rule 行加整数下限 rider（单张 debit ≈6% NLV、超 half-size 语义 ×1.7、engine cap ~0.6ct 双口径标注、开第二张前核对抄底弹药）——07-13 晨报暴露旧 "risk ≤2.25%" 文案在当前 SPX 点位物理不可达。复议触发不变：单张 ~$45k（SPX 8800）
 - **SPEC-127 collapse buyback 入 catalog**：BCD roll_rule/detail 文案补"短腿残值 ≤15% → 立即回补/roll"（机械词表已有持仓推送，入场卡同源展示）
 - 落点：strategy/catalog.py（BCD descriptor）+ strategy/selector.py `_apply_bcd_governance_live` rider；67 相邻测试绿（含 SPEC-113 bit-identity）
+
+**Ratify + 部署（2026-07-22，同日）**：PM 裁决"整体退役"。三处 P3 门（`lv_neutral_vix_rising`/`nhn_vix_rising`/`nnn_vix_rising`）从 `strategy/selector.py` 删除，`StrategyParams.bypass_p3_vix_rising_ic_gate` 研究开关随之整体移除（不留旋钮）；71 相邻测试绿；live smoke test 用今日实盘数据验证——当前 VIX trend 仍为 RISING（与 07-21 触发日同型），退役前会被拦，退役后直接 `strategy_key=iron_condor, position_action=OPEN`，端到端确认生效。post-2020 反号疑点（n=8-9，未解释）记录在案，未来重开需从此疑点入手。research/q103/*.py 两脚本标记 FROZEN（引用字段已删，不可再运行）。

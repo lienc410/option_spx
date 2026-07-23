@@ -1,4 +1,6 @@
-"""Q103 P1 — 独立重验 P3 门（"VIX rising 时跳过 Iron Condor"）。
+"""
+FROZEN (2026-07-22, PM ratify): P3 门已整体退役（strategy/selector.py 三处 gate 删除），本脚本引用的 StrategyParams.bypass_p3_vix_rising_ic_gate 已随之移除——脚本不再可运行，作为本次研究的可追溯记录保留（结果已固化在 q103_p1_findings_2026-07-22.md 与 CSV 产物里）。
+Q103 P1 — 独立重验 P3 门（"VIX rising 时跳过 Iron Condor"）。
 
 PM 2026-07-22："按你的说法，我们是应该像 A1-A5 那五个门一样被独立重验"
 （回应 07-21 晨报复盘：selector NORMAL·NEUTRAL·NEUTRAL P3 拦了一次 IC，
