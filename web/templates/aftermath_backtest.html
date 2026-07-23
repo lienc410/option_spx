@@ -220,6 +220,9 @@ body { font-family:var(--f-ui); background:var(--bg); color:var(--text); min-hei
     <div style="margin-top:8px;padding:10px 12px;background:var(--surface-hi);border-radius:6px;font-size:0.78rem;line-height:1.6;color:var(--text-2)">
       <strong style="color:var(--text)">Q101 复审勘误（2026-07-12，独立复现 + 外审 CONFIRMED）：</strong>结构保留不变，但上行 “$30k+ alpha” 属 flat-σ 定价时代口径——收入 edge 幅度对期权定价假设高度敏感（实测中枢定价下仍显著，悲观定价×悲观摩擦角落转不显著），收益预期应打折看待。首笔另有 0.5× staging 规则（SPEC-143，见 Dashboard ④）。详 <code>research/q101/q101_e1_memo.md</code>。
     </div>
+    <div style="margin-top:8px;padding:10px 12px;background:var(--surface-hi);border-radius:6px;font-size:0.78rem;line-height:1.6;color:var(--text-2)">
+      <strong style="color:var(--text)">Q103/Q104 勘误（2026-07-22）：</strong>上方 “55–78%” 是 VIX_RISING / ivp63 / backwardation 三道门合计的拦截率——三道门中的 VIX_RISING 家族已过独立重验：10 处站点里 5 处已退役或作为死代码删除（3 处 Q103 + nhbe/nhb 2 处 Q104），仅 5 处仍在挡（含 hv_bullish_vix_rising，本次唯一证据支持保留的站点）。VIX_RISING 分量的实际拦截率现低于此文写下时——**该 55–78% 数字未重测，方向性偏高，V3-A 的绕门 alpha 大概率随之下修**。ivp63 / backwardation 两道门未受影响。重测排期为独立候选研究，详 <code>research/q104/q104_p1_findings_2026-07-22.md</code>。
+    </div>
   </div>
 
   <!-- Trading Discipline -->
