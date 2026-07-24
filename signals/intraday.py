@@ -32,6 +32,17 @@ VIX_SPIKE_ALERT   = 0.15   # VIX +15% from session open → ALERT
 SPX_STOP_CAUTION  = 0.01   # SPX -1%  from session open → CAUTION
 SPX_STOP_TRIGGER  = 0.02   # SPX -2%  from session open → TRIGGER
 
+# SPEC-147 — hysteresis clear lines (2026-07-23 incident: VIX chopped 7-9%
+# for hours, re-crossing the bare 8% WARN line 8+ times → 8+ WARNING/cleared
+# push pairs for one real market condition, no new information each time).
+# A level only clears once the reading drops back below this LOWER line, not
+# merely below the WARN/CAUTION line it was armed on. _classify_spike /
+# _classify_stop stay pure instantaneous classifiers (batch/backtest callers
+# unaffected) — the buffer is applied only by the stateful hysteresis_*
+# wrappers below, used by live monitors that track a previous level.
+VIX_SPIKE_CLEAR   = 0.05   # must drop below +5% (not just under +8%) to clear
+SPX_STOP_CLEAR    = 0.005  # must recover above -0.5% (not just above -1%) to clear
+
 
 # ─── Enums ───────────────────────────────────────────────────────────────────
 class SpikeLevel(str, Enum):
@@ -122,6 +133,30 @@ def _classify_spike(pct: float) -> SpikeLevel:
 def _classify_stop(pct: float) -> StopLevel:
     if pct <= -SPX_STOP_TRIGGER: return StopLevel.TRIGGER
     if pct <= -SPX_STOP_CAUTION: return StopLevel.CAUTION
+    return StopLevel.NONE
+
+
+def hysteresis_spike_level(pct: float, prev_level: SpikeLevel) -> SpikeLevel:
+    """SPEC-147 — stateful classification with a buffer zone: once WARNING or
+    ALERT fires, the level holds until pct drops below VIX_SPIKE_CLEAR (not
+    merely below VIX_SPIKE_WARN). Prevents flapping when pct hovers right at
+    the WARN boundary. Escalations (crossing WARN or ALERT going up) are
+    unaffected — only the downward "did it actually clear" decision changes."""
+    level = _classify_spike(pct)
+    if level != SpikeLevel.NONE:
+        return level
+    if prev_level != SpikeLevel.NONE and pct >= VIX_SPIKE_CLEAR:
+        return prev_level
+    return SpikeLevel.NONE
+
+
+def hysteresis_stop_level(pct: float, prev_level: StopLevel) -> StopLevel:
+    """SPEC-147 — mirror of hysteresis_spike_level for the SPX drop side."""
+    level = _classify_stop(pct)
+    if level != StopLevel.NONE:
+        return level
+    if prev_level != StopLevel.NONE and pct <= -SPX_STOP_CLEAR:
+        return prev_level
     return StopLevel.NONE
 
 

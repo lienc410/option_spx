@@ -183,7 +183,7 @@ class Spec086Tests(unittest.TestCase):
     @patch("notify.telegram_bot.get_vix_spike_from_quote", return_value=_flat_spike())
     @patch("notify.telegram_bot.get_spx_quote", return_value={"symbol": "$SPX"})
     @patch("notify.telegram_bot.get_vix_quote", return_value={"symbol": "$VIX"})
-    def test_ac5_clear_message_when_mark_falls_below_2x(
+    def test_ac5_clear_message_when_mark_falls_below_clear_line(
         self,
         _mock_vix_quote,
         _mock_spx_quote,
@@ -194,8 +194,11 @@ class Spec086Tests(unittest.TestCase):
         _mock_open,
     ) -> None:
         # SPEC-138 F1：同上——经 gateway.apush 断言（clear 消息 body 文案）。
+        # SPEC-147: clear now requires falling below ES_STOP_CLEAR_MULT (1.5x),
+        # not merely under ES_STOP_WARN_MULT (2.0x) — 14.0/10.0 = 1.4x, genuinely
+        # below the buffer.
         mock_read_state.return_value = _es_state(actual_premium=10.0)
-        mock_positions.side_effect = [_positions_payload(22.0), _positions_payload(18.0)]
+        mock_positions.side_effect = [_positions_payload(22.0), _positions_payload(14.0)]
         bot = AsyncMock()
 
         with patch("notify.gateway.apush", new_callable=AsyncMock) as mock_push:
@@ -205,7 +208,45 @@ class Spec086Tests(unittest.TestCase):
         self.assertEqual(mock_push.await_count, 2)
         cleared = _push_body(mock_push.await_args_list[1])
         self.assertIn("Stop watch cleared", cleared)
-        self.assertIn("18.00", cleared)
+        self.assertIn("14.00", cleared)
+
+    @patch("notify.telegram_bot.is_market_open", return_value=True)
+    @patch("schwab.client.get_account_positions")
+    @patch("notify.telegram_bot.read_state")
+    @patch("notify.telegram_bot.get_spx_stop_from_quote", return_value=_flat_stop())
+    @patch("notify.telegram_bot.get_vix_spike_from_quote", return_value=_flat_spike())
+    @patch("notify.telegram_bot.get_spx_quote", return_value={"symbol": "$SPX"})
+    @patch("notify.telegram_bot.get_vix_quote", return_value={"symbol": "$VIX"})
+    def test_ac6_hysteresis_buffer_zone_no_spurious_clear_or_reescalate(
+        self,
+        _mock_vix_quote,
+        _mock_spx_quote,
+        _mock_vix_from_quote,
+        _mock_spx_from_quote,
+        mock_read_state,
+        mock_positions,
+        _mock_open,
+    ) -> None:
+        """SPEC-147 regression (2026-07-23 incident): a mark that dips back
+        under WARN (2.0x) but stays inside the [CLEAR, WARN) buffer must NOT
+        produce a "cleared" push, and a subsequent tick back up within that
+        same buffer must NOT re-fire a fresh WARNING push either — both would
+        be noise, not new information. 22.0/10.0=2.2x (WARNING) →
+        18.0/10.0=1.8x (buffer, holds WARNING) → 21.0/10.0=2.1x (still
+        WARNING, no re-escalation since level never actually left WARNING)."""
+        mock_read_state.return_value = _es_state(actual_premium=10.0)
+        mock_positions.side_effect = [
+            _positions_payload(22.0), _positions_payload(18.0), _positions_payload(21.0),
+        ]
+        bot = AsyncMock()
+
+        with patch("notify.gateway.apush", new_callable=AsyncMock) as mock_push:
+            asyncio.run(bot_mod.intraday_monitor(bot, "chat"))
+            asyncio.run(bot_mod.intraday_monitor(bot, "chat"))
+            asyncio.run(bot_mod.intraday_monitor(bot, "chat"))
+
+        self.assertEqual(mock_push.await_count, 1)  # only the initial WARNING
+        self.assertEqual(bot_mod._intraday_state["es_stop_level"], bot_mod.EsStopLevel.WARNING)
 
     def test_ac7_reset_clears_es_stop_level(self) -> None:
         bot_mod._intraday_state["es_stop_level"] = bot_mod.EsStopLevel.TRIGGER

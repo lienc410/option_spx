@@ -51,6 +51,10 @@ from strategy.es_params import DEFAULT_ES_PARAMS as _ES_P
 # SPEC-121: WARNING stays at a fixed 2× (early-intelligence line) — deliberately
 # NOT derived from stop_mult, which moved 3× → 10× (canonical A3 stop).
 ES_STOP_WARN_MULT = 2.0
+# SPEC-147: hysteresis clear line — mark must fall back below 1.5x (not just
+# under 2.0x) to report "cleared". Mirrors VIX_SPIKE_CLEAR / SPX_STOP_CLEAR
+# (signals/intraday.py) — same fix, same reason (2026-07-23 flapping incident).
+ES_STOP_CLEAR_MULT = 1.5
 from strategy.state import (
     read_state, read_all_positions, write_state, close_position, roll_position, add_note,
 )
@@ -58,6 +62,7 @@ from backtest.engine import run_backtest, compute_metrics
 from signals.intraday import (
     get_vix_spike, get_spx_stop, get_vix_spike_from_quote, get_spx_stop_from_quote,
     SpikeLevel, StopLevel, VixSpikeAlert, IntradayStopTrigger,
+    hysteresis_spike_level, hysteresis_stop_level,
 )
 from schwab.client import get_spx_quote, get_vix_quote
 
@@ -370,6 +375,20 @@ def _check_es_credit_stop() -> EsStopResult:
     else:
         level = EsStopLevel.NONE
     return EsStopResult(level=level, entry_premium=entry_premium, current_mark=mark, ratio=ratio, observed=True)
+
+
+def _hysteresis_es_stop_level(ratio: float, prev_level: EsStopLevel) -> EsStopLevel:
+    """SPEC-147 — mirror of hysteresis_spike_level/hysteresis_stop_level
+    (signals/intraday.py) for the ES credit-stop mark ratio. Mark must fall
+    back below ES_STOP_CLEAR_MULT (not just under ES_STOP_WARN_MULT) to
+    report cleared; prevents flapping when mark hovers at the 2.0x line."""
+    if ratio >= _ES_P.stop_mult:
+        return EsStopLevel.TRIGGER
+    if ratio >= ES_STOP_WARN_MULT:
+        return EsStopLevel.WARNING
+    if prev_level != EsStopLevel.NONE and ratio >= ES_STOP_CLEAR_MULT:
+        return prev_level
+    return EsStopLevel.NONE
 
 
 def _format_es_stop_alert(result: EsStopResult) -> str:
@@ -968,17 +987,26 @@ async def intraday_monitor(bot: Bot, chat_id: str) -> None:
     prev_stop  = _intraday_state["stop_level"]
     prev_es_stop = _intraday_state["es_stop_level"]
 
+    # SPEC-147 — hysteresis-adjusted levels drive every push/state decision
+    # below; `spike`/`stop` dataclasses keep the TRUE instantaneous reading
+    # for message bodies (never lie about the current number, only about
+    # whether a dip below threshold counts as "cleared"). 2026-07-23: VIX
+    # chopped 7-9% for hours, re-crossing the bare 8% line 8+ times produced
+    # 8+ WARNING/cleared push pairs for one real market condition.
+    eff_spike = hysteresis_spike_level(spike.spike_pct, prev_spike)
+    eff_stop  = hysteresis_stop_level(stop.drop_pct, prev_stop)
+
     msgs: list[str] = []
 
     # VIX escalation
-    if _SPIKE_RANK[spike.level] > _SPIKE_RANK[prev_spike]:
+    if _SPIKE_RANK[eff_spike] > _SPIKE_RANK[prev_spike]:
         msgs.append(_format_spike_alert(spike))
 
     # SPX stop escalation
-    if _STOP_RANK[stop.level] > _STOP_RANK[prev_stop]:
+    if _STOP_RANK[eff_stop] > _STOP_RANK[prev_stop]:
         msgs.append(_format_stop_alert(stop))
         # Open position + TRIGGER → add close recommendation
-        if stop.level == StopLevel.TRIGGER:
+        if eff_stop == StopLevel.TRIGGER:
             state = read_state()
             if state:
                 msgs.append(
@@ -990,7 +1018,7 @@ async def intraday_monitor(bot: Bot, chat_id: str) -> None:
 
     # Conditions cleared after being elevated
     was_elevated = (prev_spike != SpikeLevel.NONE or prev_stop  != StopLevel.NONE)
-    now_clear    = (spike.level == SpikeLevel.NONE and stop.level  == StopLevel.NONE)
+    now_clear    = (eff_spike == SpikeLevel.NONE and eff_stop  == StopLevel.NONE)
     if was_elevated and now_clear:
         msgs.append(
             f"✅ <b>Intraday conditions cleared</b>\n"
@@ -999,12 +1027,15 @@ async def intraday_monitor(bot: Bot, chat_id: str) -> None:
         )
 
     es_stop = _check_es_credit_stop()
+    eff_es_stop = prev_es_stop
     if es_stop.observed:
-        if _ES_STOP_RANK[es_stop.level] > _ES_STOP_RANK[prev_es_stop]:
+        eff_es_stop = (_hysteresis_es_stop_level(es_stop.ratio, prev_es_stop)
+                       if es_stop.ratio is not None else es_stop.level)
+        if _ES_STOP_RANK[eff_es_stop] > _ES_STOP_RANK[prev_es_stop]:
             msgs.append(_format_es_stop_alert(es_stop))
         elif (
             prev_es_stop != EsStopLevel.NONE
-            and es_stop.level == EsStopLevel.NONE
+            and eff_es_stop == EsStopLevel.NONE
             and es_stop.current_mark is not None
         ):
             msgs.append(_format_es_stop_alert(es_stop))
@@ -1047,11 +1078,12 @@ async def intraday_monitor(bot: Bot, chat_id: str) -> None:
         except Exception:
             log.exception("intraday_monitor: profit target check failed")
 
-    # Persist new state
-    _intraday_state["spike_level"] = spike.level
-    _intraday_state["stop_level"]  = stop.level
+    # Persist new state — hysteresis-adjusted (SPEC-147), not the raw
+    # instantaneous level, so the buffer zone actually holds across polls.
+    _intraday_state["spike_level"] = eff_spike
+    _intraday_state["stop_level"]  = eff_stop
     if es_stop.observed:
-        _intraday_state["es_stop_level"] = es_stop.level
+        _intraday_state["es_stop_level"] = eff_es_stop
 
     for msg in msgs:
         try:
