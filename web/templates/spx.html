@@ -1498,6 +1498,28 @@ function selectedOpenMeta() {
   return STRATEGY_META[key] || {};
 }
 
+// SPEC-148: IC 家族判定 + put 翼区块显隐（call 侧 label 同步改名）
+function isIcKey(key) {
+  return key === 'iron_condor' || key === 'iron_condor_hv';
+}
+
+function updateIcLegVisibility(strategyKey) {
+  const ic = isIcKey(strategyKey);
+  document.querySelectorAll('#trade-modal-body .ic-only').forEach((el) => {
+    el.style.display = ic ? '' : 'none';
+  });
+  const sLabel = document.getElementById('open-short-strike-label');
+  const lLabel = document.getElementById('open-long-strike-label');
+  if (sLabel) sLabel.textContent = ic ? 'Short Call Strike' : 'Short Strike';
+  if (lLabel) lLabel.textContent = ic ? 'Long Call Strike' : 'Long Strike';
+  if (!ic) {
+    const sp = document.getElementById('open-short-put-strike');
+    const lp = document.getElementById('open-long-put-strike');
+    if (sp) sp.value = '';
+    if (lp) lp.value = '';
+  }
+}
+
 function updateOpenDerivedFields(userInitiated) {
   const strategyKey = document.getElementById('open-strategy-key')?.value || '';
   const meta = STRATEGY_META[strategyKey] || {};
@@ -1505,6 +1527,7 @@ function updateOpenDerivedFields(userInitiated) {
   const underlyingInput = document.getElementById('open-underlying');
   if (underlyingInput) underlyingInput.value = meta.underlying || 'SPX';
   if (expiryInput && !expiryInput.dataset.locked) expiryInput.value = plusDays(dteDefault(meta));
+  updateIcLegVisibility(strategyKey);
   if (userInitiated) loadEntryRisk();  // SPEC-129 §3: family follows strategy
   if (CURRENT_OPEN_DRAFT && CURRENT_OPEN_DRAFT.strategy_key === strategyKey) {
     renderStrikeScan(CURRENT_OPEN_DRAFT);
@@ -1540,11 +1563,16 @@ function openDraftHintText(draft) {
 function renderStrikeScan(draft) {
   const shortWrap = document.getElementById('scan-short-wrap');
   const longWrap = document.getElementById('scan-long-wrap');
+  // SPEC-148: IC put 翼 scan 容器（非 IC 时区块隐藏，清空即可）
+  const shortPutWrap = document.getElementById('scan-short-put-wrap');
+  const longPutWrap = document.getElementById('scan-long-put-wrap');
   if (!shortWrap || !longWrap) return;
   const empty = '<div class="scan-note">No live strike scan available for this leg.</div>';
   if (!draft?.strike_scan) {
     shortWrap.innerHTML = '';
     longWrap.innerHTML = '';
+    if (shortPutWrap) shortPutWrap.innerHTML = '';
+    if (longPutWrap) longPutWrap.innerHTML = '';
     return;
   }
   const renderBox = (slot, label, selectedValue) => {
@@ -1610,17 +1638,34 @@ function renderStrikeScan(draft) {
         </div>
       </div>`;
   };
-  shortWrap.innerHTML = renderBox('short_leg', 'Short Leg Scan', document.getElementById('open-short-strike')?.value);
-  longWrap.innerHTML = renderBox('long_leg', 'Long Leg Scan', document.getElementById('open-long-strike')?.value);
+  const ic = isIcKey(draft.strategy_key);
+  shortWrap.innerHTML = renderBox('short_leg', ic ? 'Short Call Scan' : 'Short Leg Scan', document.getElementById('open-short-strike')?.value);
+  longWrap.innerHTML = renderBox('long_leg', ic ? 'Long Call Scan' : 'Long Leg Scan', document.getElementById('open-long-strike')?.value);
+  // SPEC-148: IC put 翼 scan（槽位仅 IC draft 才有）
+  if (shortPutWrap) {
+    shortPutWrap.innerHTML = draft.strike_scan.short_put_leg
+      ? renderBox('short_put_leg', 'Short Put Scan', document.getElementById('open-short-put-strike')?.value) : '';
+  }
+  if (longPutWrap) {
+    longPutWrap.innerHTML = draft.strike_scan.long_put_leg
+      ? renderBox('long_put_leg', 'Long Put Scan', document.getElementById('open-long-put-strike')?.value) : '';
+  }
   const hint = document.getElementById('open-legs-hint');
   if (hint) hint.textContent = openDraftHintText(draft);
 }
+
+const SCAN_SLOT_INPUTS = {
+  short_leg: 'open-short-strike',
+  long_leg: 'open-long-strike',
+  short_put_leg: 'open-short-put-strike',
+  long_put_leg: 'open-long-put-strike',
+};
 
 function selectScanRow(slot, idx) {
   const rows = scanRowsFor(slot);
   const row = rows[idx];
   if (!row) return;
-  const inputId = slot === 'short_leg' ? 'open-short-strike' : 'open-long-strike';
+  const inputId = SCAN_SLOT_INPUTS[slot] || 'open-long-strike';
   const input = document.getElementById(inputId);
   if (input) input.value = row.strike ?? '';
   // SPEC-127 §2 长短腿分离: long-leg scan rows fill the LONG expiry field
@@ -1700,6 +1745,10 @@ function applyOpenDraft(draft, isLiveRec) {
   set('open-dte', draft.dte_at_entry);
   set('open-short-strike', draft.short_strike);
   set('open-long-strike', draft.long_strike);
+  // SPEC-148: IC put 翼预填（非 IC 时 draft 值为 null，set 跳过）
+  updateIcLegVisibility(draft.strategy_key);
+  set('open-short-put-strike', draft.short_put_strike);
+  set('open-long-put-strike', draft.long_put_strike);
   set('open-contracts', draft.contracts || 1);
   set('open-model-premium', draft.model_premium);
   // SPEC-129 §2 — 偏离基线只在"当日 live 推荐"预填时建立；force_strategy
@@ -1707,6 +1756,8 @@ function applyOpenDraft(draft, isLiveRec) {
   REC_BASELINE = isLiveRec ? {
     short_strike: draft.short_strike,
     long_strike: draft.long_strike,
+    short_put_strike: draft.short_put_strike,
+    long_put_strike: draft.long_put_strike,
     expiry: draft.expiry,
     dte_at_entry: draft.dte_at_entry,
   } : null;
@@ -1769,6 +1820,9 @@ function renderOpenWaitBanner() {
 const DEVIATION_FIELDS = [
   { field: 'short_strike', id: 'open-short-strike', numeric: true },
   { field: 'long_strike', id: 'open-long-strike', numeric: true },
+  // SPEC-148: IC put 翼——非 IC 时基线值为 null，collectOpenDeviations 自动跳过
+  { field: 'short_put_strike', id: 'open-short-put-strike', numeric: true },
+  { field: 'long_put_strike', id: 'open-long-put-strike', numeric: true },
   { field: 'expiry', id: 'open-expiry', numeric: false },
   { field: 'dte_at_entry', id: 'open-dte', numeric: true },
 ];
@@ -1829,12 +1883,14 @@ function updateOpenRiskRow() {
   const strategyKey = document.getElementById('open-strategy-key')?.value || '';
   const shortStrike = Number(document.getElementById('open-short-strike')?.value || 0);
   const longStrike = Number(document.getElementById('open-long-strike')?.value || 0);
+  const shortPutStrike = Number(document.getElementById('open-short-put-strike')?.value || 0);
+  const longPutStrike = Number(document.getElementById('open-long-put-strike')?.value || 0);
   const premium = document.getElementById('open-actual-premium')?.value
     || document.getElementById('open-model-premium')?.value || 0;
   const contracts = Math.max(1, Number(document.getElementById('open-contracts')?.value || 1));
   // 公式与服务端 _order_max_loss_usd 同源（credit=(width−credit)×100×n，
-  // debit=|debit|×100×n）— estimateBpPerContract 即该公式的前端镜像
-  const perContract = estimateBpPerContract(strategyKey, shortStrike, longStrike, premium);
+  // debit=|debit|×100×n；IC 取 max 翼宽）— estimateBpPerContract 即该公式的前端镜像
+  const perContract = estimateBpPerContract(strategyKey, shortStrike, longStrike, premium, shortPutStrike, longPutStrike);
   const orderMaxLoss = perContract > 0 ? perContract * contracts : null;
   const famMatch = ENTRY_RISK_CTX && ENTRY_RISK_CTX.family === (strategyKey.endsWith('_hv') ? strategyKey.slice(0, -3) : strategyKey);
   const famOpen = famMatch ? Number(ENTRY_RISK_CTX.family_open_max_loss_usd || 0) : null;
@@ -1898,13 +1954,22 @@ function bpTargetPctForStrategy(strategyKey) {
   return 15.0;
 }
 
-function estimateBpPerContract(strategyKey, shortStrike, longStrike, premium) {
+function estimateBpPerContract(strategyKey, shortStrike, longStrike, premium, shortPutStrike, longPutStrike) {
   const shortVal = Number(shortStrike || 0);
   const longVal = Number(longStrike || 0);
   const premiumVal = Math.abs(Number(premium || 0));
   const width = Math.abs(shortVal - longVal);
   if (strategyKey === 'bull_call_diagonal') return premiumVal > 0 ? premiumVal * 100 : 0;
-  if (['bull_put_spread', 'bull_put_spread_hv', 'bear_call_spread_hv', 'iron_condor', 'iron_condor_hv'].includes(strategyKey)) {
+  // SPEC-148: IC 有 put 对时 width 取 max(call 翼宽, put 翼宽)——与
+  // strategy/exposure.estimate_bp_per_contract 同源公式（后端真值镜像）
+  if (isIcKey(strategyKey)) {
+    const spVal = Number(shortPutStrike || 0);
+    const lpVal = Number(longPutStrike || 0);
+    const putWidth = spVal > 0 && lpVal > 0 ? Math.abs(spVal - lpVal) : 0;
+    const wing = Math.max(width, putWidth);
+    return wing > 0 ? Math.max((wing - premiumVal) * 100, 0) : 0;
+  }
+  if (['bull_put_spread', 'bull_put_spread_hv', 'bear_call_spread_hv'].includes(strategyKey)) {
     return width > 0 ? Math.max((width - premiumVal) * 100, 0) : 0;
   }
   return width > 0 ? Math.max((width - premiumVal) * 100, 0) : premiumVal * 100;
@@ -1916,11 +1981,13 @@ function updateOpenBpPreview() {
   const strategyKey = document.getElementById('open-strategy-key')?.value || CURRENT_OPEN_DRAFT?.strategy_key || '';
   const shortStrike = Number(document.getElementById('open-short-strike')?.value || 0);
   const longStrike = Number(document.getElementById('open-long-strike')?.value || 0);
+  const shortPutStrike = Number(document.getElementById('open-short-put-strike')?.value || 0);
+  const longPutStrike = Number(document.getElementById('open-long-put-strike')?.value || 0);
   const modelPremium = document.getElementById('open-model-premium')?.value;
   const actualPremium = document.getElementById('open-actual-premium')?.value;
   const contracts = Math.max(1, Number(document.getElementById('open-contracts')?.value || CURRENT_BP_PREVIEW?.recommended_contracts || 1));
   const premium = actualPremium || modelPremium || 0;
-  const bpPerContract = estimateBpPerContract(strategyKey, shortStrike, longStrike, premium);
+  const bpPerContract = estimateBpPerContract(strategyKey, shortStrike, longStrike, premium, shortPutStrike, longPutStrike);
   const basisDollars = Number(CURRENT_BP_PREVIEW?.basis_dollars || 0);
   const basisLabel = CURRENT_BP_PREVIEW?.basis_label || 'Model Equity';
   const pctBasis = CURRENT_BP_PREVIEW?.pct_basis_dollars == null ? null : Number(CURRENT_BP_PREVIEW.pct_basis_dollars);
@@ -2019,18 +2086,34 @@ function openTradeModal(kind, presetAccount, addTranche) {
           <input id="open-dte" class="modal-input" type="number" value="${dteDefault(STRATEGY_META[CURRENT_REC?.strategy_key] || {})}" oninput="checkOpenDeviations()">
         </div>
         <div class="modal-field">
-          <label class="modal-label">Short Strike</label>
+          <label class="modal-label" id="open-short-strike-label">Short Strike</label>
           <input id="open-short-strike" class="modal-input" type="number" oninput="updateOpenBpPreview(); checkOpenDeviations()">
         </div>
         <div class="modal-field full">
           <div class="scan-wrap" id="scan-short-wrap"></div>
         </div>
         <div class="modal-field">
-          <label class="modal-label">Long Strike</label>
+          <label class="modal-label" id="open-long-strike-label">Long Strike</label>
           <input id="open-long-strike" class="modal-input" type="number" oninput="updateOpenBpPreview(); checkOpenDeviations()">
         </div>
         <div class="modal-field full">
           <div class="scan-wrap" id="scan-long-wrap"></div>
+        </div>
+        <!-- SPEC-148: IC 四腿 — put 翼输入 + scan，仅 iron_condor 家族显示
+             （short/long_strike = call 侧的约定不变） -->
+        <div class="modal-field ic-only" style="display:none">
+          <label class="modal-label">Short Put Strike</label>
+          <input id="open-short-put-strike" class="modal-input" type="number" oninput="updateOpenBpPreview(); checkOpenDeviations()">
+        </div>
+        <div class="modal-field full ic-only" style="display:none">
+          <div class="scan-wrap" id="scan-short-put-wrap"></div>
+        </div>
+        <div class="modal-field ic-only" style="display:none">
+          <label class="modal-label">Long Put Strike</label>
+          <input id="open-long-put-strike" class="modal-input" type="number" oninput="updateOpenBpPreview(); checkOpenDeviations()">
+        </div>
+        <div class="modal-field full ic-only" style="display:none">
+          <div class="scan-wrap" id="scan-long-put-wrap"></div>
         </div>
         <!-- SPEC-127 §2: 长短腿分离 — diagonal 的长腿 expiry 独立登记；
              per-leg fill 可选（collapse 触发需要短腿自己的入场权利金） -->
@@ -2383,6 +2466,11 @@ async function submitOpenPosition() {
     underlying: document.getElementById('open-underlying').value || 'SPX',
     short_strike: Number(document.getElementById('open-short-strike').value || 0),
     long_strike: Number(document.getElementById('open-long-strike').value || 0),
+    // SPEC-148: IC put 翼（非 IC 时输入隐藏且为空 → null，不写新字段值）
+    short_put_strike: isIcKey(strategyKey)
+      ? Number(document.getElementById('open-short-put-strike')?.value || 0) || null : null,
+    long_put_strike: isIcKey(strategyKey)
+      ? Number(document.getElementById('open-long-put-strike')?.value || 0) || null : null,
     expiry: document.getElementById('open-expiry').value,
     dte_at_entry: Number(document.getElementById('open-dte').value || dteDefault(selectedOpenMeta())),
     contracts: Number(document.getElementById('open-contracts').value || 1),

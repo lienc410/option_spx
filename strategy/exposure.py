@@ -53,9 +53,14 @@ def strategy_family(strategy_key: str) -> str:
     return k[:-3] if k.endswith("_hv") else k
 
 
-def estimate_bp_per_contract(strategy_key: str, short_strike, long_strike, premium) -> float | None:
+def estimate_bp_per_contract(strategy_key: str, short_strike, long_strike, premium,
+                             short_put_strike=None, long_put_strike=None) -> float | None:
     """Schwab PM BP ≈ max loss（研究结论：spread ≈ max_loss；BCD = debit×100）。
-    SPEC-129 从 web/server._estimate_bp_per_contract 原样下沉。"""
+    SPEC-129 从 web/server._estimate_bp_per_contract 原样下沉。
+
+    SPEC-148：IC 四腿——short/long_strike = CALL 侧，可选 short/long_put_strike
+    = PUT 侧；有 put 对时 width 取 max(call 翼宽, put 翼宽)（IC max loss 由更宽
+    的一翼决定）。无 put 对回落 call 翼口径（旧记录向后兼容）。"""
     short_k = _num(short_strike)
     long_k = _num(long_strike)
     premium_val = abs(_num(premium) or 0.0)
@@ -64,12 +69,19 @@ def estimate_bp_per_contract(strategy_key: str, short_strike, long_strike, premi
     if strategy_key == "bull_call_diagonal":
         return round(max(premium_val * 100.0, 0.0), 2)
 
+    if strategy_key in {"iron_condor", "iron_condor_hv"}:
+        sp = _num(short_put_strike)
+        lp = _num(long_put_strike)
+        put_width = abs(sp - lp) if sp is not None and lp is not None else None
+        if width is None and put_width is None:
+            return None
+        wing = max(w for w in (width, put_width) if w is not None)
+        return round(max((wing - premium_val) * 100.0, 0.0), 2)
+
     if strategy_key in {
         "bull_put_spread",
         "bull_put_spread_hv",
         "bear_call_spread_hv",
-        "iron_condor",
-        "iron_condor_hv",
     }:
         if width is None:
             return None
@@ -80,10 +92,12 @@ def estimate_bp_per_contract(strategy_key: str, short_strike, long_strike, premi
     return round(max(premium_val * 100.0, 0.0), 2)
 
 
-def order_max_loss_usd(strategy_key: str, short_strike, long_strike, premium, contracts) -> float | None:
+def order_max_loss_usd(strategy_key: str, short_strike, long_strike, premium, contracts,
+                       short_put_strike=None, long_put_strike=None) -> float | None:
     """本单 max loss $（今日尺度绝对值）。credit 结构 = (width−credit)×100×n；
     debit 结构 = |debit|×100×n。"""
-    per_contract = estimate_bp_per_contract(strategy_key, short_strike, long_strike, premium)
+    per_contract = estimate_bp_per_contract(strategy_key, short_strike, long_strike, premium,
+                                            short_put_strike, long_put_strike)
     n = _num(contracts)
     if per_contract is None or not n or n <= 0:
         return None
@@ -106,6 +120,7 @@ def family_open_exposure(strategy_key: str) -> dict:
                 p_key, p.get("short_strike"), p.get("long_strike"),
                 p.get("actual_premium") or p.get("model_premium"),
                 p.get("contracts") or 1,
+                p.get("short_put_strike"), p.get("long_put_strike"),
             )
             if ml is None:
                 continue

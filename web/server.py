@@ -5587,10 +5587,12 @@ def _bp_basis_snapshot() -> dict:
     return basis
 
 
-def _bp_preview_payload(strategy_key: str, regime_name: str | None, short_strike, long_strike, premium, contracts: int | float | None) -> dict:
+def _bp_preview_payload(strategy_key: str, regime_name: str | None, short_strike, long_strike, premium, contracts: int | float | None,
+                        short_put_strike=None, long_put_strike=None) -> dict:
     target_fraction = _bp_target_fraction_for_strategy(strategy_key, regime_name)
     basis = _bp_basis_snapshot()
-    bp_per_contract = _estimate_bp_per_contract(strategy_key, short_strike, long_strike, premium)
+    bp_per_contract = _estimate_bp_per_contract(strategy_key, short_strike, long_strike, premium,
+                                                short_put_strike, long_put_strike)
     target_dollars = round(float(basis["basis_dollars"]) * target_fraction, 2)
 
     if bp_per_contract and bp_per_contract > 0:
@@ -5709,6 +5711,9 @@ def api_position_open():
     state_payload = {
         "short_strike": body.get("short_strike"),
         "long_strike": body.get("long_strike"),
+        # SPEC-148: IC 四腿——put 对可选字段（append-only 兼容；非 IC 为 None）
+        "short_put_strike": body.get("short_put_strike"),
+        "long_put_strike": body.get("long_put_strike"),
         "expiry": body.get("expiry"),
         "long_expiry": long_expiry,
         "dte_at_entry": body.get("dte_at_entry"),
@@ -5869,6 +5874,14 @@ def api_position_open():
             legs[0]["entry_price"] = short_entry_price
         if long_entry_price is not None:
             legs[1]["entry_price"] = long_entry_price
+        # SPEC-148: IC 四腿——put 翼记入 legs（side 带 _put 后缀；close/roll
+        # 流程按 tranche/premium 结算，不消费本数组，纯记录层）
+        if body.get("short_put_strike") not in (None, ""):
+            legs.append({"side": "short_put", "strike": body.get("short_put_strike"),
+                         "expiry": body.get("expiry")})
+        if body.get("long_put_strike") not in (None, ""):
+            legs.append({"side": "long_put", "strike": body.get("long_put_strike"),
+                         "expiry": body.get("expiry")})
         write_state(desc.name, body.get("underlying", desc.underlying), strategy_key=strategy_key, account=account, add_tranche=add_tranche, **state_payload)
         if ladder_state_for_active is not None and ladder_decision_for_active and ladder_decision_for_active[0]:
             try:
@@ -5886,6 +5899,9 @@ def api_position_open():
             "legs": legs,
             "short_strike": body.get("short_strike"),
             "long_strike": body.get("long_strike"),
+            # SPEC-148: IC put 对（非 IC 为 None）
+            "short_put_strike": body.get("short_put_strike"),
+            "long_put_strike": body.get("long_put_strike"),
             "expiry": body.get("expiry"),
             "long_expiry": long_expiry,
             "short_entry_price": short_entry_price,
@@ -6015,6 +6031,8 @@ def api_position_entry_risk():
         flask_req.args.get("long_strike"),
         flask_req.args.get("premium"),
         flask_req.args.get("contracts") or 1,
+        flask_req.args.get("short_put_strike"),
+        flask_req.args.get("long_put_strike"),
     )
 
     fam = family_open_exposure(strategy_key)
@@ -6183,12 +6201,20 @@ def api_position_open_draft():
                     if long_idx is not None:
                         scan_slots["long_leg"] = long_idx
                 elif rec.strategy_key in {"iron_condor", "iron_condor_hv"}:
+                    # SPEC-148: IC 四腿全扫——call 侧沿用 short/long_leg 槽，
+                    # put 侧新增 short/long_put_leg 槽（此前 put 翼从不对照真实链）
                     short_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "SELL" and l["option"] == "CALL"), None)
                     long_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "BUY" and l["option"] == "CALL"), None)
+                    short_put_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "SELL" and l["option"] == "PUT"), None)
+                    long_put_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "BUY" and l["option"] == "PUT"), None)
                     if short_idx is not None:
                         scan_slots["short_leg"] = short_idx
                     if long_idx is not None:
                         scan_slots["long_leg"] = long_idx
+                    if short_put_idx is not None:
+                        scan_slots["short_put_leg"] = short_put_idx
+                    if long_put_idx is not None:
+                        scan_slots["long_put_leg"] = long_put_idx
                 else:
                     short_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "SELL"), None)
                     long_idx = next((i for i, l in enumerate(priced_legs) if l["action"] == "BUY"), None)
@@ -6276,9 +6302,14 @@ def api_position_open_draft():
                 scanner_error = str(exc)
         short_leg = None
         long_leg = None
+        short_put_leg = None
+        long_put_leg = None
         if rec.strategy_key in {"iron_condor", "iron_condor_hv"}:
+            # SPEC-148: short/long_strike = CALL 侧（约定不变），put 对单列
             short_leg = next((l for l in priced_legs if l["action"] == "SELL" and l["option"] == "CALL"), None)
             long_leg = next((l for l in priced_legs if l["action"] == "BUY" and l["option"] == "CALL"), None)
+            short_put_leg = next((l for l in priced_legs if l["action"] == "SELL" and l["option"] == "PUT"), None)
+            long_put_leg = next((l for l in priced_legs if l["action"] == "BUY" and l["option"] == "PUT"), None)
         elif rec.strategy_key == "bull_call_diagonal":
             short_leg = next((l for l in priced_legs if l["action"] == "SELL" and l["option"] == "CALL"), None)
             long_leg = next((l for l in priced_legs if l["action"] == "BUY" and l["option"] == "CALL"), None)
@@ -6298,6 +6329,9 @@ def api_position_open_draft():
             "dte_at_entry": expiry_dte,
             "short_strike": short_leg["strike"] if short_leg else None,
             "long_strike": long_leg["strike"] if long_leg else None,
+            # SPEC-148: IC 专属 put 对；非 IC 为 None（前端据此隐藏区块）
+            "short_put_strike": short_put_leg["strike"] if short_put_leg else None,
+            "long_put_strike": long_put_leg["strike"] if long_put_leg else None,
             "contracts": 1,
             "model_premium": model_premium,
             "entry_spx": round(rec.trend_snapshot.spx, 2),
@@ -6319,6 +6353,8 @@ def api_position_open_draft():
             payload["long_strike"],
             model_premium,
             1,
+            payload["short_put_strike"],
+            payload["long_put_strike"],
         )
         payload["contracts"] = bp_preview["recommended_contracts"]
         _apply_aftermath_staging_to_draft(payload, rec)
