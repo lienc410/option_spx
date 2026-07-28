@@ -4025,3 +4025,13 @@ Owner: Planner or PM
 - **副产品修复**: `strategy/overlay.py`/`scripts/overlay_f_review_reports.py` 的 overlay_f shadow-log 路径从裸相对路径改锚定仓库根——研究过程中一次 `cd` 遗留副作用（CWD 非 repo-root 时静默读写错误文件）暴露了这个脆弱点，已修复+回归验证；顺带修正 NORMAL·HIGH·BEARISH cell 因 nhbe 退役而过时的"VIX stable" rationale 文案（同步更新 SPEC-113 bit-identical 冻结 fixture）
 - **登记**: bypass_vix_rising_momentum_gates 研究开关随裁决整体移除（不留旋钮）；backwardation 家族（5 站点）与 IVP 甜区带家族（6 站点）经济学机制不同，不套用本次证据，登记为独立候选研究，排期待 PM
 - **文件**: research/q104/q104_p1_vix_rising_family.py（FROZEN）+ findings + 3 CSV
+
+### R-20260728-01 — Q105 P1: FOMC 事件前操作研究（PM 立项，CLOSED，当日操作建议无代码改动）
+
+- **触发**: PM 立项——明日 FOMC，hike 概率抬升至 30%，较大可能 hold-unchanged 但鹰派言论；SPX 处于长期箱体中下方；方向性/vol/不交易三选一
+- **数据边界**: 220 个真实 FOMC 公告日期（2000-2026）+ 完整 SPX/VIX/VIX3M 历史可用；**无历史 Fed funds futures/FedWatch 概率序列**——无法条件化"鹰派 hold"具体会议类型，只测全样本 FOMC 日统计，诚实标注数据缺口
+- **历史实证**: vol crush 负偏态（VIX 当日→+1日均值 +0.6% 但中位数 −0.8%，crush 发生率 56%——多数小赚少数大亏，非稳定确定性事件）；已实现波动 FOMC日/基准比值 1.19x(全历史,CI跨零不显著)/1.55x(post-2020,未单独检验)；期限结构 backwardation 历史仅 11% FOMC 前夜出现，今日 ratio 落 60 百分位（比典型更 contango，不异常紧张）
+- **今日算术**: 现价 7396.81，箱内位置 39%（PM"中下方"读法准确），距 DD Overlay A 触发（−4%）仅 1.2%，四档 B 全部 armed 无持仓，现金 $281,488/open debit $0；**生产 selector 实盘信号** = Iron Condor OPEN（NORMAL+IV HIGH+BEARISH，独立于 FOMC 推理成立）
+- **verdict**: 执行系统已有信号、正常仓位（45DTE 缓冲足够，不因 FOMC 跳过也不加码）；不为 FOMC 额外加码卖 vol（负偏态 payoff + 30% hike 概率是肥尾理由非加码理由）；不做方向性押注（DD Overlay 已武装 1.2% 外会自动接管，猜会议结果方向是本项目反复测过无 edge 的模式，同 Q089 E2/Q097/Q082 P9）
+- **附带**: 佐证 Q104 backwardation 门家族独立立项的合理性（今日期限结构 contango，若那几道门在跑也不会触发）
+- **文件**: research/q105/q105_p1_fomc_playbook.py + findings + 2 CSV
