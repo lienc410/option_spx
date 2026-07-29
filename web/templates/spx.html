@@ -2064,6 +2064,10 @@ function openTradeModal(kind, presetAccount, addTranche) {
         <div class="modal-field">
           <label class="modal-label">Strategy</label>
           <select id="open-strategy-key" class="modal-select" onchange="updateOpenDerivedFields(true)">${options}</select>
+          <div class="modal-hint" style="margin-top:4px">
+            DD Overlay（回撤加仓）不在此列——去 DD Overlay 页登记，那边会联动触发器状态。<br>
+            Aftermath 日的开仓 = Iron Condor (High Vol)：信号日自动预选，首笔张数按减半规则预填。
+          </div>
         </div>
         <div class="modal-field">
           <label class="modal-label">Underlying</label>
