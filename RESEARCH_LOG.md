@@ -4035,3 +4035,10 @@ Owner: Planner or PM
 - **verdict**: 执行系统已有信号、正常仓位（45DTE 缓冲足够，不因 FOMC 跳过也不加码）；不为 FOMC 额外加码卖 vol（负偏态 payoff + 30% hike 概率是肥尾理由非加码理由）；不做方向性押注（DD Overlay 已武装 1.2% 外会自动接管，猜会议结果方向是本项目反复测过无 edge 的模式，同 Q089 E2/Q097/Q082 P9）
 - **附带**: 佐证 Q104 backwardation 门家族独立立项的合理性（今日期限结构 contango，若那几道门在跑也不会触发）
 - **文件**: research/q105/q105_p1_fomc_playbook.py + findings + 2 CSV
+
+### R-20260729-01 — Q095 P6b/P6c：BPS vs CS 外审两轮吸收 + BPS credit 真实链对账（CLOSED 2026-07-29）
+
+- **外审（ChatGPT via PM）verdict**: Accept with minor revisions；三 standing 全吸收——①措辞纪律（「未找到 predictor」≠「不存在」；routing = engineering decision given current evidence；可实施条件化 = E[PnL|今日可观测]）②BPS 定价 CALIB 优先级最高 ③铺垫/突发分类的时效监控（hidden-variable 代理风险，复检触发器 = 突发 n≥8 或微观结构长期变化）
+- **P6b 逐带检验**: 外审条件表逐带验证为真（BPS 赢组 = 30d 前向 <+2% 的 10/35 笔）但条件变量不可观测；入场日特征零分离（VIX 23.7 vs 20.9；BPS 赢组 8/10 反而是铺垫型）。机制表述修正：等预算下两结构单笔 max loss 相同，突发型 4× 差在赢侧恢复力（credit 封顶赢补不回尾损）
+- **P6c 真实链对账（平静期段，5 日 VIX 18-20）**: FLAT 高估 BPS 净 credit **+45.5%**、P6 保守端（−2vp）仍高估 **+26.1%**、**CALIB −2.1%**——外审"真实成交可能更肥"的幅度猜测在平静期反转；P6 两臂皆偏慷慨，CS:BPS ≥7.4× 只宽不窄；SPEC-119 CALIB put 侧获真实链验证；fallback 首用门槛升级为「触发当日真实链现场校验 + CALIB 历史重放」
+- **文件**: research/q095/ p6b/p6c 脚本 + CSV + findings §5/§6
