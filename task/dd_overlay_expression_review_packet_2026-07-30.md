@@ -113,3 +113,9 @@ Defined-risk vertical 的条件峰值 PM 占用有硬上界 = max loss ≈ **全
 ## 优先级：接受 reviewer 排序
 
 1 危机现场 CALIB 协议（SPEC-094.8） > 2 peak-PM（本轮以上界论证基本关闭） > 3 动态管理（enhancement 非 blocking）。
+
+---
+
+# CLOSING（2026-07-30）
+
+**外审终审签署：Accepted for production deployment。** 零 blocking comments。签署依据（reviewer 原文要点）：策略假设明确写出；已知不确定性已标记并设生产保护；关键决策由预注册规则取代现场裁量；证据推翻解释时修正解释而非坚持叙事。唯一 governance 附言 = 年度复审三问（crash-shape 预测价值 / CALIB 稳定性 / routing 仍优），已登记 DEFERRED #23（复核期限 2027-07-30，年度周期）。本讨论线关卷。

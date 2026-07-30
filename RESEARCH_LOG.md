@@ -4056,3 +4056,5 @@ Owner: Planner or PM
 - **规则**: |CALIB−现场 credit|/现场 ≤10% PASS / ≤15% WARNING / >15% 或不可校验 FREEZE→fallback 自动降空仓分支；阈值为治理约定非统计最优（对齐 F4 惯例，spec 明文）；三态每次评估落 data/q042_fallback_check_log.jsonl（untracked 运行时）供 CALIB 漂移监控
 - **实现**: executor 三函数（纯分类/现场链校验/日志）+ advisory bps 分支集成；UNVERIFIABLE=FREEZE（fallback 次选天然 fail-closed）；Trigger Rehearsal preview 模式（不打真实链不落日志，附规则说明行）；094.2/4 fixture 注入 PASS 默认；全套回归绿（141 zero-diff commit 后复绿）；old Air 部署 + dry-run 验证
 - **本轮 DD Overlay 表达讨论线全部收口**：三轮外审、P6b/P6c、口径澄清、D30/D60、全损形状、hazard curve 自我修正、094.8 落地——standing 仅剩危机期现场校验的首次实弹执行（规则已自动化，无待办动作）
+
+**R-20260730-02 终审附记**: 外审正式签署 **Accepted for production deployment**（零 blocking）；年度复审三问（crash-shape/CALIB 稳定性/routing 仍优）登记 DEFERRED #23（2027-07-30 周期复审）。Reviewer 结案评语存档于 packet CLOSING 节——"可验证性、可审计性、可维护性比任何一次回测结果都重要"。
