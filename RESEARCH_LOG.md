@@ -4049,3 +4049,10 @@ Owner: Planner or PM
 - **条件处置**: ①Peak PM → 上界论证关闭（defined-risk vertical 峰值占用 ≤ 全 width，等 TOS-BP 敏感性即 peak bound；fallback 永禁裸腿/ratio）②机制降级 → **自我修正**：hazard curve 证伪「alpha 四周耗尽」（中位超额 +2.4pp@21TD 持续涨至 +4.2pp@52TD，26-31 回吐坑）——D30 2.7× 优势改述为结构性机制（上界截断/时间价值成本/周转/坑前结算），与深档 LEAP 长跑道设计自洽，Q100 §3 已更正 ③全损呈现改「10/37 高度聚集于熊市段 + 最长 4 连亏簇」，27% 降括号 ④现场校验预注册规则：credit 误差 >15% 或无法校验 → fallback 自动降空仓分支（SPEC-094.8 DRAFT，待 PM ratify）
 - **12.5% 常数预算挑战**: 跨深度 state-dependence = 阶梯本身（累计 ~32.5%@−25%）；单笔常数 = Q091 治理常数 + 现金水位约束 + Q021 P4 sizing-up 曲线先例全输常数；sleeve 内深度条件化未测 → open question 登记（先验不利）
 - **文件**: task/dd_overlay_expression_review_packet_2026-07-30.md（含处置全文）
+
+### R-20260730-02 — SPEC-094.8 DEPLOYED：BPS fallback 触发日现场校验（外审终审 Accept for implementation，CLOSED 2026-07-30）
+
+- **外审终 verdict**: Accept for implementation + 非阻塞建议（三态记录）——已内建。Reviewer 认可的两个治理级变化：①关键决策（routing/freeze/fallback）全部前置为可审计预注册规则，零交易日裁量；②证据推翻机制解释时修正解释而非坚持叙事（hazard curve 案例）
+- **规则**: |CALIB−现场 credit|/现场 ≤10% PASS / ≤15% WARNING / >15% 或不可校验 FREEZE→fallback 自动降空仓分支；阈值为治理约定非统计最优（对齐 F4 惯例，spec 明文）；三态每次评估落 data/q042_fallback_check_log.jsonl（untracked 运行时）供 CALIB 漂移监控
+- **实现**: executor 三函数（纯分类/现场链校验/日志）+ advisory bps 分支集成；UNVERIFIABLE=FREEZE（fallback 次选天然 fail-closed）；Trigger Rehearsal preview 模式（不打真实链不落日志，附规则说明行）；094.2/4 fixture 注入 PASS 默认；全套回归绿（141 zero-diff commit 后复绿）；old Air 部署 + dry-run 验证
+- **本轮 DD Overlay 表达讨论线全部收口**：三轮外审、P6b/P6c、口径澄清、D30/D60、全损形状、hazard curve 自我修正、094.8 落地——standing 仅剩危机期现场校验的首次实弹执行（规则已自动化，无待办动作）
