@@ -4042,3 +4042,10 @@ Owner: Planner or PM
 - **P6b 逐带检验**: 外审条件表逐带验证为真（BPS 赢组 = 30d 前向 <+2% 的 10/35 笔）但条件变量不可观测；入场日特征零分离（VIX 23.7 vs 20.9；BPS 赢组 8/10 反而是铺垫型）。机制表述修正：等预算下两结构单笔 max loss 相同，突发型 4× 差在赢侧恢复力（credit 封顶赢补不回尾损）
 - **P6c 真实链对账（平静期段，5 日 VIX 18-20）**: FLAT 高估 BPS 净 credit **+45.5%**、P6 保守端（−2vp）仍高估 **+26.1%**、**CALIB −2.1%**——外审"真实成交可能更肥"的幅度猜测在平静期反转；P6 两臂皆偏慷慨，CS:BPS ≥7.4× 只宽不窄；SPEC-119 CALIB put 侧获真实链验证；fallback 首用门槛升级为「触发当日真实链现场校验 + CALIB 历史重放」
 - **文件**: research/q095/ p6b/p6c 脚本 + CSV + findings §5/§6
+
+### R-20260730-01 — DD Overlay 表达讨论第三轮外审收口：Accept for implementation + 四条件处置（CLOSED 2026-07-30）
+
+- **Verdict 升级**: Accept with minor revisions → **Accept for implementation with continuing validation requirements**；剩余问题定性为 model governance + production controls，非策略统计设计
+- **条件处置**: ①Peak PM → 上界论证关闭（defined-risk vertical 峰值占用 ≤ 全 width，等 TOS-BP 敏感性即 peak bound；fallback 永禁裸腿/ratio）②机制降级 → **自我修正**：hazard curve 证伪「alpha 四周耗尽」（中位超额 +2.4pp@21TD 持续涨至 +4.2pp@52TD，26-31 回吐坑）——D30 2.7× 优势改述为结构性机制（上界截断/时间价值成本/周转/坑前结算），与深档 LEAP 长跑道设计自洽，Q100 §3 已更正 ③全损呈现改「10/37 高度聚集于熊市段 + 最长 4 连亏簇」，27% 降括号 ④现场校验预注册规则：credit 误差 >15% 或无法校验 → fallback 自动降空仓分支（SPEC-094.8 DRAFT，待 PM ratify）
+- **12.5% 常数预算挑战**: 跨深度 state-dependence = 阶梯本身（累计 ~32.5%@−25%）；单笔常数 = Q091 治理常数 + 现金水位约束 + Q021 P4 sizing-up 曲线先例全输常数；sleeve 内深度条件化未测 → open question 登记（先验不利）
+- **文件**: task/dd_overlay_expression_review_packet_2026-07-30.md（含处置全文）
