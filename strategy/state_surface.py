@@ -762,6 +762,7 @@ def compute_state_surface(today: Optional[str] = None) -> dict:
         spx_close = float(c.iloc[-1])
         long_k, short_k, contracts, est = compute_sizing(nlv, spx_close, float(v.vix), "A")
         advisory_line, ammo_payload = ex._ammo_advisory(
+            preview=True,   # SPEC-094.8: 预演不打真实链/不落监控日志
             sleeve_id="A", signal_date=today, nlv=nlv, spx_close=spx_close,
             vix=float(v.vix), contracts=int(contracts or 0), est_debit=est,
             closes=c,

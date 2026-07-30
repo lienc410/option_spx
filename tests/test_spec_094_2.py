@@ -103,6 +103,7 @@ def q042_env(tmp_path, monkeypatch):
     monkeypatch.setattr(pos, "PAPER_LOG", paper_log)
     monkeypatch.setattr(pos, "LIVE_LOG", live_log)
     monkeypatch.setattr(ex, "PAPER_LOG", paper_log)  # executor writes pending here
+    monkeypatch.setattr(ex, "FALLBACK_CHECK_LOG", tmp_path / "q042_fallback_check_log.jsonl")  # SPEC-094.8
 
     # F5b cash context → deterministic n/a-free line (isolated from live brokers).
     import strategy.cash_budget_governance as cbg

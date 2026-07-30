@@ -83,6 +83,7 @@ def q042_env(tmp_path, monkeypatch):
     monkeypatch.setattr(pos, "PAPER_LOG", paper_log)
     monkeypatch.setattr(pos, "LIVE_LOG", live_log)
     monkeypatch.setattr(ex, "PAPER_LOG", paper_log)  # executor writes pending here
+    monkeypatch.setattr(ex, "FALLBACK_CHECK_LOG", tmp_path / "q042_fallback_check_log.jsonl")  # SPEC-094.8
 
     import strategy.cash_budget_governance as cbg
     monkeypatch.setattr(cbg, "get_current_liquid_cash", lambda: {"total": 412_000.0})
@@ -165,6 +166,10 @@ def _prime_fire_a(q042_env, monkeypatch, *, closes, liquid=None):
     _write_json(q042_env["runtime"], _healthy_runtime())
     _patch_market(monkeypatch, spx_close=950.0, today_str=TODAY)
     monkeypatch.setattr(ex, "_fetch_spx_close_series", lambda today_str: closes)
+    # SPEC-094.8: routing 测试默认现场校验 PASS（三态语义由 test_spec_094_8 专测）
+    monkeypatch.setattr(ex, "_fallback_onsite_check",
+                        lambda **k: {"state": "PASS", "err_pct": 3.0,
+                                     "real_credit": 20.0, "calib_credit": 20.6})
     if liquid is not None:
         import strategy.cash_budget_governance as cbg
         monkeypatch.setattr(cbg, "get_current_liquid_cash", lambda: {"total": liquid})

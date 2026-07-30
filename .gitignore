@@ -73,3 +73,5 @@ data/capital_flows.jsonl
 # 两机各自落盘；2026-07-11 一次 ad-hoc 短窗口调用曾把 old Air 版刷成 2 行）
 data/q042_backtest_trades.csv
 data/.lane_claims.json
+# SPEC-094.8 现场校验三态日志（运行时）
+data/q042_fallback_check_log.jsonl

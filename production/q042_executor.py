@@ -321,10 +321,78 @@ def _classify_trigger_type(closes: pd.Series, signal_date: str) -> str:
     return "episode" if is_episode else "sudden"
 
 
+# ── SPEC-094.8 — BPS fallback 触发日现场校验（外审三轮 ratify）────────────────
+# 阈值为治理约定（对齐 F4 惯例），非统计最优（threshold selected for governance
+# consistency rather than statistical optimality）。三态记录供 CALIB 漂移监控；
+# FREEZE / 不可校验 → fallback 分支自动降级为空仓（fail-closed，预注册零现场裁量）。
+_FALLBACK_TOL_WARN = 10.0     # |err| ≤10% PASS；10-15% WARNING
+_FALLBACK_TOL_FREEZE = 15.0   # >15% FREEZE
+FALLBACK_CHECK_LOG = REPO_ROOT / "data" / "q042_fallback_check_log.jsonl"
+
+
+def _classify_fallback_err(err_pct: float) -> str:
+    a = abs(float(err_pct))
+    if a <= _FALLBACK_TOL_WARN:
+        return "PASS"
+    if a <= _FALLBACK_TOL_FREEZE:
+        return "WARNING"
+    return "FREEZE"
+
+
+def _fallback_onsite_check(*, spx_close: float, vix: float, k_short: int,
+                           k_long: int, dte: int) -> dict:
+    """现场链 credit vs CALIB 校验。任何数据缺失/异常由调用方按 UNVERIFIABLE
+    （= FREEZE 语义）处理——fallback 是次选，天然 fail-closed。"""
+    from pricing import core as _pcore
+    from pricing.calibration import load_offsets
+    from pricing.sigma import SigmaMode, sigma_for
+    from schwab.client import get_option_chain
+
+    rows = get_option_chain("SPX", "PUT", int(dte),
+                            center_strike=float((k_short + k_long) / 2),
+                            strike_window=30)
+    if not rows:
+        raise ValueError("empty chain")
+
+    def leg(k):
+        r = min(rows, key=lambda x: abs(float(x.get("strike") or 0) - k))
+        if abs(float(r["strike"]) - k) > 25:
+            raise ValueError(f"no strike near {k}")
+        return float(r["strike"]), float(r["mid"]), abs(float(r.get("delta") or 0))
+
+    ks, mid_s, d_s = leg(k_short)
+    kl, mid_l, d_l = leg(k_long)
+    real = mid_s - mid_l
+    if real <= 0:
+        raise ValueError("non-positive real credit")
+    offsets = load_offsets()
+    T = int(dte) / 365.0
+    calib = 0.0
+    for k, ad, sgn in ((ks, d_s, +1), (kl, d_l, -1)):
+        sig = sigma_for(SigmaMode.CALIB, vix=float(vix), option_type="PUT",
+                        abs_delta=ad or 0.2, dte=int(dte), offsets=offsets)
+        calib += sgn * _pcore.put_price(float(spx_close), k, T, sig, 0.045)
+    err_pct = (calib - real) / real * 100.0
+    return {"state": _classify_fallback_err(err_pct),
+            "err_pct": round(err_pct, 1), "real_credit": round(real, 2),
+            "calib_credit": round(calib, 2),
+            "k_short_listed": ks, "k_long_listed": kl}
+
+
+def _log_fallback_check(record: dict, date: str) -> None:
+    try:
+        FALLBACK_CHECK_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with FALLBACK_CHECK_LOG.open("a") as f:
+            f.write(json.dumps({"date": date, **record}) + "\n")
+    except Exception:
+        _logger(False).exception("SPEC-094.8 fallback check log write failed")
+
+
 def _ammo_advisory(*, sleeve_id: str, signal_date: str, nlv: float,
                    spx_close: float, vix: float, contracts: int,
                    est_debit: Optional[float],
                    closes: Optional[pd.Series] = None,
+                   preview: bool = False,
                    ) -> tuple[str, Optional[dict]]:
     """SPEC-094.4 F1 — 三分支弹药路由建议块（Q095 P6 ratified 规则，提示不拦）。
 
@@ -359,14 +427,47 @@ def _ammo_advisory(*, sleeve_id: str, signal_date: str, nlv: float,
             k_long = int(round(find_strike_for_delta(
                 float(spx_close), dte, sigma, 0.15, is_call=False) / 5.0) * 5)
             budget = float(nlv) * _AMMO_BPS_BUDGET_NLV_PCT / 100.0
+            # ── SPEC-094.8: 触发日现场校验（三态；失败/异常 = UNVERIFIABLE → 冻结）
+            # preview（Trigger Rehearsal 预演）：不打真实链、不落监控日志——校验
+            # 属于 fire 日实弹语义，预演只展示规则本身。──────────────────────────
+            if preview:
+                payload["branch"] = "bps_fallback"
+                payload["bps_strikes"] = {"short_put": k_short, "long_put": k_long}
+                payload["fallback_check"] = {"state": "PREVIEW"}
+                return (
+                    f"→ 现金不足·震荡铺垫型：可用 BPS fallback — SELL PUT {k_short}(Δ0.30)"
+                    f" / BUY PUT {k_long}(Δ0.15)，同 expiry，预算按 BP"
+                    f"（max loss ≤ 12.5% NLV ≈ ${budget:,.0f}）。"
+                    f"⚠️ BPS 收益显著低于 call spread（26 年同预算差 3.7-7.4×，Q095 P6）"
+                    f"——弹药不足下的次优替代"
+                    f"（触发日将现场校验 credit：误差 >15% 或不可校验 → 自动降空仓，SPEC-094.8）"
+                ), payload
+            try:
+                check = _fallback_onsite_check(
+                    spx_close=float(spx_close), vix=float(vix),
+                    k_short=k_short, k_long=k_long, dte=dte)
+            except Exception as exc:
+                check = {"state": "UNVERIFIABLE", "error": str(exc)}
+            payload["fallback_check"] = check
+            _log_fallback_check(check, date=signal_date)
+            if check["state"] in ("FREEZE", "UNVERIFIABLE"):
+                payload["branch"] = "bps_fallback_frozen"
+                reason = (f"credit 误差 {check['err_pct']:+.1f}% 超 ±{_FALLBACK_TOL_FREEZE:.0f}% 容差"
+                          if check["state"] == "FREEZE" else "现场无法校验")
+                return (
+                    f"→ 现金不足·震荡铺垫型：BPS fallback 已冻结（{reason}，"
+                    f"SPEC-094.8 预注册规则）——按空仓分支执行，零现场裁量"
+                ), payload
             payload["branch"] = "bps_fallback"
             payload["bps_strikes"] = {"short_put": k_short, "long_put": k_long}
+            check_tag = (f"［现场校验 {check['state']}：credit 误差 {check['err_pct']:+.1f}%］"
+                         if "err_pct" in check else "")
             return (
                 f"→ 现金不足·震荡铺垫型：可用 BPS fallback — SELL PUT {k_short}(Δ0.30)"
                 f" / BUY PUT {k_long}(Δ0.15)，同 expiry，预算按 BP"
                 f"（max loss ≤ 12.5% NLV ≈ ${budget:,.0f}）。"
                 f"⚠️ BPS 收益显著低于 call spread（26 年同预算差 3.7-7.4×，Q095 P6）"
-                f"——弹药不足下的次优替代"
+                f"——弹药不足下的次优替代{check_tag}"
             ), payload
         payload["branch"] = "stand_aside"
         return (
