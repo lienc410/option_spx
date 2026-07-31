@@ -68,8 +68,23 @@ median +0.03% · p90 +0.38% · **max +0.67% · min −1.61%**
 
 **② 执行时点正式关闭声明（防未来重提）**：
 
-> Execution timing was investigated exhaustively within the production design space (T+1 open, delayed entry, gap cohorts). Under current evidence, remaining execution variance (~2.4% of total PnL) is immaterial relative to expression selection (3.7-7.4×) and signal quality; therefore execution timing is no longer an active research topic. 重开条件 = 出现 gap>1% 的真实触发（史上首例）或日内数据经济性发生根本变化。
+> Execution timing was investigated exhaustively within the production design space (T+1 open, delayed entry, gap cohorts). Under current evidence, remaining execution variance (2.4-9.1% of total PnL across admissible threshold conventions; PM plateau-challenge robustness check 2026-07-30) is second-order relative to expression selection (3.7-7.4×) and signal quality; therefore execution timing is no longer an active research topic. 重开条件 = 出现 gap>1% 的真实触发（史上首例）或日内数据经济性发生根本变化。
 
 **③ 优先级定案（reviewer ratify）**：P1 Broker 数据链路韧性（DEFERRED #24，2026-08-15）> P2 危机期 CALIB 现场校验（SPEC-094.8 已自动化，等首次实弹）> P3 Signal 研究。Execution 关闭。
 
 **④ 本轮定性（reviewer 原话存档）**："证明了一个看起来很合理的直觉在真实条件分布下几乎没有发生，因此不值得引入新的执行复杂度——有价值的负结果：减少系统复杂度，同时保持纪律性。"
+
+
+---
+
+# 高原稳健性修正（PM 二次挑战，2026-07-30 晚）
+
+PM 指出关闭结论部分依赖"昨天没触发"的约定判定，而该约定无 bp 级权威——循环成立，
+三表重跑于四个可容许约定（−3.85/−3.90/−3.95/−4.00）：
+
+- **站住**：recovery rule 全约定 +EV（Σ+$352-492k, WR 67-75%）；gap 分层单调性保持；不移线
+- **修正**：执行时点杠杆 = **2.4-9.1%**（原引 2.4% 为最有利约定值）——结论不变（T+1 立即，
+  延迟在部分约定下更贵），定量句已改
+- **新事实**：−3.85 约定下 2026-07-29 = 26 年首个 Group C 事件（影子触发 gap +1.02%），
+  30d 结果 2026-09-01 入档；影子触发规则候选登记为 n≥8 条件重看（现 n=5, 3:1 混合）
+- **裁量边界重申**：无信号日的裁量入场不因高原视角获得正当性——rule-shopping 禁令

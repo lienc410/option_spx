@@ -29,3 +29,5 @@
 | 23 | **DD Overlay 表达线年度复审**（外审终审签署时的唯一 governance 附言）：①铺垫/突发分类是否仍有路由价值（含微观结构变化核查：0DTE 占比/做市商 gamma）②CALIB offsets 是否稳定（q042_fallback_check_log 三态分布 + q085 moff 漂移）③routing（CS 默认/BPS 后备/突发空仓）是否仍优④**−4% 阈值高原是否仍平**（新触发+新 near-miss 并入 q100_p3 sweep 重跑，Q100 P3 2026-07-30 增补） | 外审三轮 closing 2026-07-30 | 2026-07-30 | **2027-07-30（年度）** | Quant | 周期复审 |
 
 | 24 | **Fire 日 gate 数据韧性**：07-21（degraded_pools）与 07-29（basis_degraded，SPX −2% 日、距触发 10 点）两次 16:15 gate 数据 degraded → fail-closed。若触发日撞上 degraded，fire 被拦转人工。评估：staleness 容忍窗 / schwab-view 兜底 / governance runtime 刷新时点与 16:15 的时序 / **Decision Quality Degradation Matrix**（数据状态→系统行为的完整映射表：正常→Fire / 延迟可验→备用视图+标记 / 缺失不可验→fail-closed / 主备冲突→freeze+governance log——094.8 三态同一治理思想，外审提议 2026-07-30） | 07-29 near-miss 复盘 | 2026-07-30 | 2026-08-15 | Quant | 排队 |
+| 25 | **2026-07-29 影子触发 30d 结果入档**（−3.85 约定下 26 年首个 Group C 事件：near-miss −3.86% + T+1 gap +1.02%；结果无论涨跌均为未来重开执行讨论的 1 号样本）；附带登记：影子触发规则候选（near-miss+次日强势）n≥8 时重看（现 n=5, 3:1 混合） | PM 高原挑战 2026-07-30 | 2026-07-30 | 2026-09-01 | Quant | 排队 |
+
