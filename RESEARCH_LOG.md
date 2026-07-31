@@ -4067,3 +4067,10 @@ Owner: Planner or PM
 - **文件**: research/q100/q100_p2_execution_timing.py + q100_p2_day1pop_t2.csv
 
 **R-20260730-03 终轮附记**: 外审撤回 Execution Timing 立项建议（"为不存在的状态不建 production rule"），接受三表与 n=12 读法；两处文档补充落档——①2.4% 比较口径写明（T+1 收盘完全重锚 ATM/+5%/D30，兼作漏日 recovery rule）②执行时点正式关闭声明（重开条件 = gap>1% 真触发首例或日内数据经济性质变）。优先级定案：**P1 Broker 数据韧性（DEFERRED #24）> P2 危机 CALIB 现场校验（已自动化）> P3 Signal 研究**；Execution 关闭。Reviewer 定性："有价值的负结果——减少复杂度，保持纪律。"
+
+### R-20260730-04 — DD Overlay 表达与执行讨论线终章：方法论入宪（CLOSED 2026-07-30）
+
+- **PM + 外审共同结案**：不再修改 DD Overlay 本身；注意力转 P1（Broker 数据韧性）
+- **METHODOLOGY v1.3**：两课入宪——①条件分布前置（§1：情景不存在于信号条件分布 → 不建规则；Execution Timing 判例）②负结果的正面价值（§4：关闭声明 + 预注册重开条件；减少复杂度计为收益）
+- **DEFERRED #24 扩容**：P1 方案纳入外审提议的 Decision Quality Degradation Matrix（数据状态→系统行为完整映射，094.8 三态同思想）
+- **外审结案语存档**："越来越少讨论今天怎么办，越来越多讨论以后任何一天怎么办——正常时知道做什么、异常时知道何时不做、新证据时知道改解释还是改规则、基础设施故障时知道如何安全退出。" P1 = 从"研究完成"到"长期稳定运行"的最后一步
