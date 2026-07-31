@@ -59,3 +59,17 @@ median +0.03% · p90 +0.38% · **max +0.67% · min −1.61%**
 1. 不立项裁定是否同意？（若你认为 2.4% 的杠杆仍值得压榨，请指明哪个格子)
 2. n=12 子集（day1≥+1% → T+2 仍 +EV）的读法有无异议？
 3. gate 数据韧性作为本次复盘的第一优先级——同意吗？
+
+---
+
+# 终轮吸收（reviewer 撤回立项建议 + 两处文档补充，2026-07-30）
+
+**① 2.4% 比较口径（应 reviewer 要求写明）**：T+1-close 锚定变体 = **在 T+1 收盘重新定 ATM 与 +5% 上界、同 30 DTE、debit 按锚定日 close/VIX 以 CALIB 定价、T+2 入场**——完全重锚，非沿用原 strikes。n=12 子集同口径（day1 ≥+1% 后按当日 ATM 重建仓）。该口径同时是"生产漏了一天"的 recovery rule 依据：晚一天按新 ATM 进，历史仍 +EV。
+
+**② 执行时点正式关闭声明（防未来重提）**：
+
+> Execution timing was investigated exhaustively within the production design space (T+1 open, delayed entry, gap cohorts). Under current evidence, remaining execution variance (~2.4% of total PnL) is immaterial relative to expression selection (3.7-7.4×) and signal quality; therefore execution timing is no longer an active research topic. 重开条件 = 出现 gap>1% 的真实触发（史上首例）或日内数据经济性发生根本变化。
+
+**③ 优先级定案（reviewer ratify）**：P1 Broker 数据链路韧性（DEFERRED #24，2026-08-15）> P2 危机期 CALIB 现场校验（SPEC-094.8 已自动化，等首次实弹）> P3 Signal 研究。Execution 关闭。
+
+**④ 本轮定性（reviewer 原话存档）**："证明了一个看起来很合理的直觉在真实条件分布下几乎没有发生，因此不值得引入新的执行复杂度——有价值的负结果：减少系统复杂度，同时保持纪律性。"

@@ -4065,3 +4065,5 @@ Owner: Planner or PM
 - **三表终局**: ①T+1 gap 分布 median +0.03%/max +0.67%——">1% gap" 触发史零次（提案 Group C 空集）②gap 分层单调向好（0.5-1%: 3/3 全胜）——gap filter 删最好 cohort，死刑③执行时点杠杆宽度 2.4%（T+1-close 锚 1311k vs 1343k）；T+1 日涨 ≥1% 后 T+2 进 n=12 Σ+352k WR67% vs 跳过 $0——真触发后晚+涨仍进
 - **裁定**: Execution Timing 不立项（效应量不支持；日内变体被 SPEC-030 经济性排除）；本分析即最终答案。Playbook 已补执行信号纪律行（16:15 开火告警 vs 盘中推送）；DEFERRED #24 登记 fire 日 gate 数据韧性（07-21/07-29 两次 degraded——真正的 action item）
 - **文件**: research/q100/q100_p2_execution_timing.py + q100_p2_day1pop_t2.csv
+
+**R-20260730-03 终轮附记**: 外审撤回 Execution Timing 立项建议（"为不存在的状态不建 production rule"），接受三表与 n=12 读法；两处文档补充落档——①2.4% 比较口径写明（T+1 收盘完全重锚 ATM/+5%/D30，兼作漏日 recovery rule）②执行时点正式关闭声明（重开条件 = gap>1% 真触发首例或日内数据经济性质变）。优先级定案：**P1 Broker 数据韧性（DEFERRED #24）> P2 危机 CALIB 现场校验（已自动化）> P3 Signal 研究**；Execution 关闭。Reviewer 定性："有价值的负结果——减少复杂度，保持纪律。"
