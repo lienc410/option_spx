@@ -40,7 +40,10 @@ STATE_FILE = REPO_ROOT / "data" / "q042_state.json"
 # ATH seed: SPX all-time-high as of 2026-05-10
 _ATH_SEED_DATE = "2007-01-01"
 _REARM_THRESHOLD = -0.02   # ddATH ≥ -2% to re-arm
-_DD4_THRESHOLD   = -0.04   # Sleeve A trigger
+_DD4_THRESHOLD   = -0.04   # Sleeve A trigger —— 高原上的治理常数（非校准最优）：
+                           # 细网格 sweep [-3.5,-4.5] 无悬崖，相邻 0.05pp 格点差 =
+                           # 1-2 笔/26y 事件噪音；near-miss ~6.5 年一次、结果 3:1 混合。
+                           # 预注册禁事后移线（Q100 P3, 2026-07-30, PM 挑战触发）
 # SPEC-094.7 Sleeve B ladder（结构性 10pp 步长，Q102 预注册值，禁拟合调整）
 _B_RUNGS         = (-0.15, -0.25, -0.35, -0.45)
 _B_STOP_FLOOR    = -0.55   # 最深档的击穿告警下界（F3）
