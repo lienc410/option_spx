@@ -4058,3 +4058,10 @@ Owner: Planner or PM
 - **本轮 DD Overlay 表达讨论线全部收口**：三轮外审、P6b/P6c、口径澄清、D30/D60、全损形状、hazard curve 自我修正、094.8 落地——standing 仅剩危机期现场校验的首次实弹执行（规则已自动化，无待办动作）
 
 **R-20260730-02 终审附记**: 外审正式签署 **Accepted for production deployment**（零 blocking）；年度复审三问（crash-shape/CALIB 稳定性/routing 仍优）登记 DEFERRED #23（2027-07-30 周期复审）。Reviewer 结案评语存档于 packet CLOSING 节——"可验证性、可审计性、可维护性比任何一次回测结果都重要"。
+
+### R-20260730-03 — Q100 P2：执行时点分析（07-29 near-miss 复盘 + 外部 quant 提案终局回答，CLOSED 2026-07-30）
+
+- **事实**: 07-29 盘中穿 −4% 收盘 −3.86% 未触发（差 10 点）；PM 15:50 所见为盘中告警非开火单；次日 +1.5% 引发"追不追"问题 + 外部 quant 提案 Execution Timing 研究线
+- **三表终局**: ①T+1 gap 分布 median +0.03%/max +0.67%——">1% gap" 触发史零次（提案 Group C 空集）②gap 分层单调向好（0.5-1%: 3/3 全胜）——gap filter 删最好 cohort，死刑③执行时点杠杆宽度 2.4%（T+1-close 锚 1311k vs 1343k）；T+1 日涨 ≥1% 后 T+2 进 n=12 Σ+352k WR67% vs 跳过 $0——真触发后晚+涨仍进
+- **裁定**: Execution Timing 不立项（效应量不支持；日内变体被 SPEC-030 经济性排除）；本分析即最终答案。Playbook 已补执行信号纪律行（16:15 开火告警 vs 盘中推送）；DEFERRED #24 登记 fire 日 gate 数据韧性（07-21/07-29 两次 degraded——真正的 action item）
+- **文件**: research/q100/q100_p2_execution_timing.py + q100_p2_day1pop_t2.csv
