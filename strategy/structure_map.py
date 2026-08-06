@@ -205,11 +205,14 @@ def load_chain(date_str: str):
     return df if len(df) else None
 
 
-def latest_chain_date() -> str | None:
+def latest_chain_date(before: str | None = None) -> str | None:
+    """最近的有 SPX parquet 的链日；before 给定时只看更早的日
+    （OI 全零降级路径用——当日 parquet 存在但对墙层无效）。"""
     if not CHAIN_DIR.exists():
         return None
     days = sorted(d.name for d in CHAIN_DIR.iterdir()
-                  if d.is_dir() and (d / "SPX.parquet").exists())
+                  if d.is_dir() and (d / "SPX.parquet").exists()
+                  and (before is None or d.name < before))
     return days[-1] if days else None
 
 
@@ -267,9 +270,15 @@ def build_daily_row(today: str | None = None) -> dict:
         **flags,
     }
     chain = load_chain(today)
+    # 2026-08-05 事故：盘后补采的链 bid/ask 正常但 OI 全零（Schwab 盘后清零
+    # open_interest）——对墙层等同链缺失；不拦会落一行假"无墙"进证据流
+    oi_empty = chain is not None and not bool((chain.open_interest > 0).any())
+    if oi_empty:
+        chain = None
     if chain is None:
         row["chain_missing"] = True
-        row["chain_asof"] = latest_chain_date()
+        # OI 全零降级：asof 指向最近一个对墙层有效的链日（排除当日）
+        row["chain_asof"] = latest_chain_date(before=today if oi_empty else None)
     else:
         walls = top_walls(chain, flags["spot"])
         row["walls"] = {"calls": walls["calls"], "puts": walls["puts"]}

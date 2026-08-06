@@ -205,6 +205,25 @@ class ShadowRowTests(unittest.TestCase):
         self.assertIn("s1r_flag", row)
         self.assertTrue(sm.append_shadow(row))           # 行照写（心跳新鲜度成立）
 
+    def test_oi_empty_chain_degrades_to_missing(self) -> None:
+        """2026-08-05 事故回归：盘后补采链 bid/ask 正常但 OI 全零（Schwab
+        盘后清零）→ 墙层等同链缺失（不落假"无墙"行），chain_asof 指向最近
+        一个有 OI 的链日（排除当日）。"""
+        prev_day = (date.today() - timedelta(days=1)).isoformat()
+        with patch.object(sm, "refresh_ohlc_cache", return_value="2026-01-01"):
+            sm._ensure_runtime_ohlc()
+            spot = float(sm.load_ohlc()["close"].iloc[-1])
+            self._write_chain(prev_day, spot)            # 昨日有效链（有 OI）
+            p = sm.CHAIN_DIR / self.today
+            p.mkdir(parents=True, exist_ok=True)
+            synth_chain(spot, [("CALL", spot * 1.01, 0, 30),
+                               ("PUT", spot * 0.99, 0, 30)]).to_parquet(p / "SPX.parquet")
+            row = sm.build_daily_row(self.today)
+        self.assertTrue(row["chain_missing"])
+        self.assertEqual(row["chain_asof"], prev_day)    # 不指向当日无效链
+        self.assertNotIn("walls", row)
+        self.assertNotIn("s3_flag", row)
+
     def test_finite_assert_rejects_inf(self) -> None:
         with self.assertRaises(ValueError):
             sm._assert_finite({"x": float("inf")})
