@@ -380,6 +380,18 @@ produces visibly wrong rhythm in side-by-side comparison.
 
 - **Approach:** Grid-disciplined — single-column 880px max-width for all strategy pages; portfolio backtest may expand to 1100px for chart width
 - **Grid:** Single column, centered, 880px max-width, 24px side padding
+- **Modal widths (SPEC-150):** two sizes only.
+  - **Form dialog — 560px (default `.modal`)**: close / roll / note / correct / void.
+    A handful of inputs; wider would just stretch fields.
+  - **Data workbench — 1060px (`.modal.modal-wide`)**: Open Position only. It
+    carries up to four 10-column strike-scan tables plus four strike inputs and
+    the scan-parameter row. At 560px the table gets ~51px per column and
+    everything wraps (row height 61px vs 32px single-line).
+  - Rule: a modal earns `modal-wide` by containing a **scan/comparison table**,
+    not by having many fields. Inside a wide modal: form grid goes 3-up
+    (2-up ≤1100px, 1-up ≤720px), table cells are `white-space: nowrap` with
+    horizontal scroll as the narrow-viewport fallback (never re-wrap), and each
+    leg renders as one `.leg-block` = strike input + its own scan table.
 - **Nav:** Sticky top, 50px height, blur backdrop, `--border` bottom edge
 - **Multi-page structure:**
   - **Home**
@@ -474,3 +486,4 @@ Label decisions (2026-07-06): `DD Overlay` (nav-width form of display name
 | 2026-07-12 | ON/STANDBY（State Map 路由态轴）与 ARMED/HOLD 等词表词（信号态轴）确立为两条并存词汇轴，页面内禁混轴借词 | 同一引擎 State Map 显 STANDBY、Lane D 显 ARMED——语义有对应但映射未成文会像 WAIT/NO ENTRY 一样漂移（SPEC-141.1 seam #2）；映射小表落在 Signal-outcome states 节 |
 | 2026-07-13 | 推送哲学入宪（SPEC-140 §5）：推"事件"不推"状态"、三级信息架构 PUSH→DIGEST→WEB、新 surface 默认零新推送；State Map（SPEC-141）=首个判例（纯拉取零推送钩子）；Lane B/D 文案单源 + about↔泳道 / outcome↔category 双映射入 Push Vocabulary | PM 提问"State Map 要不要推送"暴露 doctrine 只存在于口头判例；推送与网页此前存在三处手写第二套行文（H-5 "CLOSE 或 ROLL"、digest 持仓行、q042 状态行），逐字单源后新 surface 不再逐个重辩 |
 | 2026-07-13 | 跨页同题同设计入规（PM 指示）：同一话题出现在多页时必须共用同一渲染模块 + 同一 payload 端点，禁止各页自写第二套渲染。先例：TraceRender（Decision Trace）→ PoolsRender（资源池/crash budget/regime 词表，theme.css 共享样式类） | 首页 Resource Waterline 与 State Map Layer 3 曾两套渲染 + 两个端点：标准 BCD 一页 $22k 一页 $40k（Q096 裁决 40k 为唯一显示真值）、缺轨降级语气各写各的、regime 文案 banner 与 cap 行各一版（含硬编码 70%→60%）——同题两版渲染 = param-mirror 的 UI 形态 |
+| 2026-09-14 | 弹窗宽度确立两档：表单对话框 560px / 数据工作台 1060px（`.modal-wide`，目前仅 Open Position）；宽版内表格单元格一律 nowrap，窄视口退横向滚动而非折行 | Open 弹窗承载最多 4 张 10 列扫描表，560px 下每列仅 ~51px：日期/表头/买卖价全部折行，行高 61px（单行应 32px），PM 反馈"被宽度限制导致表格多行显示"。加宽只给含扫描/比较表的弹窗，避免其余表单弹窗被拉稀疏 |

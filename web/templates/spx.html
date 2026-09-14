@@ -619,6 +619,18 @@ body {
   overscroll-behavior: contain;
   margin: auto 0;
 }
+/* SPEC-150 — Open Position 是数据工作台（两张 10 列扫描表 + 最多 4 组行权价
+   + 扫描参数行），560px 对话框宽度装不下：列被压到 ~51px，日期/表头/买卖价
+   全部折行，行高 61px（单行应 ~30px）。只加宽这一个弹窗；close/roll/note
+   等纯表单弹窗保持 560px。页面主栅格 880px 不变，此处同 DESIGN.md
+   "portfolio backtest may expand to 1100px for chart width" 的内容驱动例外。 */
+.modal.modal-wide { width: min(1060px, 100%); }
+/* 小输入框在 1016px 下用两栏会过于稀疏 → 三栏；.full 项照常整行 */
+.modal-wide .modal-grid { grid-template-columns: repeat(3, 1fr); }
+/* SPEC-150: 一条腿 = 行权价 + 它的扫描表，整行一个区块（输入框限宽，
+   不跟着整行拉成 1000px），两者靠拢读作一组 */
+.leg-block { gap: 8px; }
+.leg-block .leg-input { display: grid; gap: 5px; max-width: 220px; }
 .modal-hd {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 14px;
@@ -742,13 +754,28 @@ body {
   text-transform: uppercase;
   color: var(--text-2);
   border-bottom: 1px solid var(--border);
+  /* SPEC-150: 表头与数据一律单行——"TARGET Δ"/"ETRADE B/A"/"41.00 / 44.10"
+     折行是行高翻倍的直接原因。宽度不够时整表横向滚动，不再拆字。 */
+  white-space: nowrap;
+  /* 滚动时表头钉住：扫描框是 220px 滚动区，滚到第 6 行还知道在看哪一列 */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-hi);
 }
 .scan-table td {
   padding: 8px 8px;
   font-size: 0.67rem;
   color: var(--text);
   border-bottom: 1px solid var(--theme-lit-100);
+  white-space: nowrap;
 }
+/* 数字列右对齐（mono 下小数点成列，扫一眼就能比大小）；
+   Strike/Expiry 左对齐保持锚点 */
+.scan-table th:nth-child(n+3),
+.scan-table td:nth-child(n+3) { text-align: right; }
+.scan-table th:nth-last-child(-n+2),
+.scan-table td:nth-last-child(-n+2) { text-align: left; }
 .scan-table tr:last-child td { border-bottom: none; }
 .scan-row {
   cursor: pointer;
@@ -801,6 +828,11 @@ body {
 .modal-msg.error { color: var(--red); }
 .modal-msg.ok { color: var(--green); }
 
+/* SPEC-150 — 宽弹窗的中间档：视口装不下三栏时退两栏，扫描表转横向滚动
+   （而不是回到折行）。1100px 是 1060 弹窗 + 左右边距的临界点。 */
+@media (max-width: 1100px) {
+  .modal-wide .modal-grid { grid-template-columns: 1fr 1fr; }
+}
 @media (max-width: 720px) {
   .modal-wrap {
     padding: 12px;
@@ -810,12 +842,16 @@ body {
     max-height: calc(100vh - 24px);
     padding: 16px;
   }
-  .modal-grid {
+  .modal-grid,
+  .modal-wide .modal-grid {
     grid-template-columns: 1fr;
   }
   .scan-table-wrap {
     max-height: 180px;
   }
+  /* 手机上参数格不再挤成 5 栏，两栏起排；按钮各占半行 */
+  .scan-params .sp-cell { flex: 1 1 calc(50% - 4px); min-width: 0; }
+  .scan-params .action-btn { flex: 1 1 calc(50% - 4px); }
 }
 
 /* ── Loading / Error ─────────────────────────────────────────── */
@@ -2127,6 +2163,8 @@ function modalShell(inner) {
 
 function openTradeModal(kind, presetAccount, addTranche) {
   const wrap = document.getElementById('trade-modal-wrap');
+  // SPEC-150: 只有 open 走宽版（扫描表工作台）；其余仍是 560px 表单对话框
+  wrap.querySelector('.modal')?.classList.toggle('modal-wide', kind === 'open');
   const body = document.getElementById('trade-modal-body');
   const title = document.getElementById('trade-modal-title');
   if (kind === 'open') {
@@ -2141,10 +2179,6 @@ function openTradeModal(kind, presetAccount, addTranche) {
         <div class="modal-field">
           <label class="modal-label">Strategy</label>
           <select id="open-strategy-key" class="modal-select" onchange="updateOpenDerivedFields(true)">${options}</select>
-          <div class="modal-hint" style="margin-top:4px">
-            DD Overlay（回撤加仓）不在此列——去 DD Overlay 页登记，那边会联动触发器状态。<br>
-            Aftermath 日的开仓 = Iron Condor (High Vol)：信号日自动预选，首笔张数按减半规则预填。
-          </div>
         </div>
         <div class="modal-field">
           <label class="modal-label">Underlying</label>
@@ -2157,6 +2191,13 @@ function openTradeModal(kind, presetAccount, addTranche) {
             <option value="etrade" ${presetAccount === 'etrade' ? 'selected' : ''}>E-Trade</option>
             <option value="both">Both (same params)</option>
           </select>
+        </div>
+        <!-- SPEC-150: 这段是整行叙事，塞进 1/3 栏会把首行撑歪 → 独占一行 -->
+        <div class="modal-field full">
+          <div class="modal-hint">
+            DD Overlay（回撤加仓）不在此列——去 DD Overlay 页登记，那边会联动触发器状态。<br>
+            Aftermath 日的开仓 = Iron Condor (High Vol)：信号日自动预选，首笔张数按减半规则预填。
+          </div>
         </div>
         <div class="modal-field">
           <label class="modal-label">Expiry</label>
@@ -2204,34 +2245,36 @@ function openTradeModal(kind, presetAccount, addTranche) {
             Short/Long DTE 单独填时覆盖左边的 DTE (both legs)——diagonal 长短腿天数不同时用这两格。
           </div>
         </div>
-        <div class="modal-field">
-          <label class="modal-label" id="open-short-strike-label">Short Strike</label>
-          <input id="open-short-strike" class="modal-input" type="number" oninput="updateOpenBpPreview(); checkOpenDeviations()">
-        </div>
-        <div class="modal-field full">
+        <!-- SPEC-150: 每条腿 = 行权价输入 + 它的扫描表，合成一个整行区块。
+             原本输入框单占 1/3 栏、右侧两格空白，与下方整行表格读起来是断的。 -->
+        <div class="modal-field full leg-block">
+          <div class="leg-input">
+            <label class="modal-label" id="open-short-strike-label">Short Strike</label>
+            <input id="open-short-strike" class="modal-input" type="number" oninput="updateOpenBpPreview(); checkOpenDeviations()">
+          </div>
           <div class="scan-wrap" id="scan-short-wrap"></div>
         </div>
-        <div class="modal-field">
-          <label class="modal-label" id="open-long-strike-label">Long Strike</label>
-          <input id="open-long-strike" class="modal-input" type="number" oninput="updateOpenBpPreview(); checkOpenDeviations()">
-        </div>
-        <div class="modal-field full">
+        <div class="modal-field full leg-block">
+          <div class="leg-input">
+            <label class="modal-label" id="open-long-strike-label">Long Strike</label>
+            <input id="open-long-strike" class="modal-input" type="number" oninput="updateOpenBpPreview(); checkOpenDeviations()">
+          </div>
           <div class="scan-wrap" id="scan-long-wrap"></div>
         </div>
         <!-- SPEC-148: IC 四腿 — put 翼输入 + scan，仅 iron_condor 家族显示
              （short/long_strike = call 侧的约定不变） -->
-        <div class="modal-field ic-only" style="display:none">
-          <label class="modal-label">Short Put Strike</label>
-          <input id="open-short-put-strike" class="modal-input" type="number" oninput="updateOpenBpPreview(); checkOpenDeviations()">
-        </div>
-        <div class="modal-field full ic-only" style="display:none">
+        <div class="modal-field full leg-block ic-only" style="display:none">
+          <div class="leg-input">
+            <label class="modal-label">Short Put Strike</label>
+            <input id="open-short-put-strike" class="modal-input" type="number" oninput="updateOpenBpPreview(); checkOpenDeviations()">
+          </div>
           <div class="scan-wrap" id="scan-short-put-wrap"></div>
         </div>
-        <div class="modal-field ic-only" style="display:none">
-          <label class="modal-label">Long Put Strike</label>
-          <input id="open-long-put-strike" class="modal-input" type="number" oninput="updateOpenBpPreview(); checkOpenDeviations()">
-        </div>
-        <div class="modal-field full ic-only" style="display:none">
+        <div class="modal-field full leg-block ic-only" style="display:none">
+          <div class="leg-input">
+            <label class="modal-label">Long Put Strike</label>
+            <input id="open-long-put-strike" class="modal-input" type="number" oninput="updateOpenBpPreview(); checkOpenDeviations()">
+          </div>
           <div class="scan-wrap" id="scan-long-put-wrap"></div>
         </div>
         <!-- SPEC-127 §2: 长短腿分离 — diagonal 的长腿 expiry 独立登记；
