@@ -6146,6 +6146,66 @@ def _apply_aftermath_staging_to_draft(payload: dict, rec) -> dict:
     return payload
 
 
+_DRAFT_DTE_MIN, _DRAFT_DTE_MAX = 1, 365
+_DRAFT_DELTA_MIN, _DRAFT_DELTA_MAX = 0.01, 0.95
+
+
+def _parse_draft_overrides(args) -> dict:
+    """SPEC-149 — open-draft 的 DTE/delta 覆盖参数（探索性预填，非信号层）。
+
+    `dte` / `delta` 作用于全部腿；`short_*` / `long_*` 按方向细分并优先于
+    通用值（diagonal 长短腿 DTE 本就不同，必须能分开给）。缺省 = 目录值。
+    越界一律 400（静默夹取会让 PM 以为扫的是他要的参数——不可接受）。
+    """
+    def _dte(name):
+        raw = (args.get(name) or "").strip()
+        if not raw:
+            return None
+        try:
+            v = int(float(raw))
+        except ValueError:
+            raise ValueError(f"{name} 必须是整数天数")
+        if not (_DRAFT_DTE_MIN <= v <= _DRAFT_DTE_MAX):
+            raise ValueError(f"{name}={v} 超出范围（{_DRAFT_DTE_MIN}-{_DRAFT_DTE_MAX} 天）")
+        return v
+
+    def _delta(name):
+        raw = (args.get(name) or "").strip()
+        if not raw:
+            return None
+        try:
+            v = abs(float(raw))
+        except ValueError:
+            raise ValueError(f"{name} 必须是数字")
+        if not (_DRAFT_DELTA_MIN <= v <= _DRAFT_DELTA_MAX):
+            raise ValueError(f"{name}={v} 超出范围（{_DRAFT_DELTA_MIN}-{_DRAFT_DELTA_MAX}）")
+        return v
+
+    out = {
+        "dte": _dte("dte"),
+        "short_dte": _dte("short_dte"),
+        "long_dte": _dte("long_dte"),
+        "delta": _delta("delta"),
+        "short_delta": _delta("short_delta"),
+        "long_delta": _delta("long_delta"),
+    }
+    out["active"] = any(v is not None for v in out.values())
+    return out
+
+
+def _apply_leg_overrides(leg, overrides: dict) -> tuple[int, float]:
+    """(dte, delta) for one leg after overrides. 方向专属值优先于通用值。"""
+    is_short = str(getattr(leg, "action", "")).upper() == "SELL"
+    dte = (overrides["short_dte"] if is_short else overrides["long_dte"])
+    if dte is None:
+        dte = overrides["dte"]
+    delta = (overrides["short_delta"] if is_short else overrides["long_delta"])
+    if delta is None:
+        delta = overrides["delta"]
+    return (int(dte if dte is not None else leg.dte),
+            float(delta if delta is not None else leg.delta))
+
+
 @app.route("/api/position/open-draft")
 def api_position_open_draft():
     from backtest.pricer import call_price, put_price, find_strike_for_delta
@@ -6165,20 +6225,33 @@ def api_position_open_draft():
         if rec.strategy_key == "reduce_wait" or not rec.legs:
             return jsonify({"error": "No tradeable recommendation to prefill"}), 400
 
+        # SPEC-149 — 探索性 DTE/delta 覆盖（纯预填层）。selector 信号与门逻辑
+        # 零影响：覆盖只改"按什么 DTE/δ 去找腿"，不改今日推荐本身；
+        # REC_BASELINE 仍锚定原推荐，所以偏离照常被 SPEC-129 记录。
+        try:
+            overrides = _parse_draft_overrides(flask_req.args)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
         spx = float(rec.trend_snapshot.spx)
         sigma = max(float(rec.vix_snapshot.vix) / 100.0, 0.01)
 
         priced_legs = []
         for leg in rec.legs:
             is_call = leg.option.upper() == "CALL"
-            strike = find_strike_for_delta(spx, leg.dte, sigma, abs(float(leg.delta)), is_call)
+            leg_dte, leg_delta = _apply_leg_overrides(leg, overrides)
+            strike = find_strike_for_delta(spx, leg_dte, sigma, abs(float(leg_delta)), is_call)
             strike = int(round(strike / 5.0) * 5)
-            price = call_price(spx, strike, leg.dte, sigma) if is_call else put_price(spx, strike, leg.dte, sigma)
+            price = call_price(spx, strike, leg_dte, sigma) if is_call else put_price(spx, strike, leg_dte, sigma)
             priced_legs.append({
                 "action": leg.action,
                 "option": leg.option,
-                "dte": leg.dte,
-                "delta": leg.delta,
+                # SPEC-149: 覆盖后的值才是本次扫描/预填的真值（scan 槽位与
+                # expiry 推导都读这里）；rec 原值单列供 UI 标注"已改"
+                "dte": leg_dte,
+                "delta": leg_delta,
+                "rec_dte": leg.dte,
+                "rec_delta": leg.delta,
                 "strike": strike,
                 "price": round(price, 2),
                 "note": leg.note,
@@ -6341,8 +6414,18 @@ def api_position_open_draft():
             "trend_signal": rec.trend_snapshot.signal.value,
             "paper_trade": False,
             "legs": priced_legs,
-            "legs_hint": " / ".join(f'{l["action"]} {l["option"]} {l["strike"]} ({l["dte"]}D)' for l in priced_legs),
+            "legs_hint": " / ".join(
+                f'{l["action"]} {l["option"]} {l["strike"]} ({l["dte"]}D δ{abs(float(l["delta"])):.2f})'
+                for l in priced_legs),
         }
+        # SPEC-149: 覆盖生效时回显参数 + 主文案标注，避免 PM 误以为看的是
+        # 当日推荐的腿（默认参数下字段为 None，前端零变化）
+        if overrides["active"]:
+            applied = {k: v for k, v in overrides.items()
+                       if k != "active" and v is not None}
+            payload["draft_overrides"] = applied
+            payload["legs_hint"] += (
+                " · 自定义参数扫描（非当日推荐腿；提交时差异会记入偏离备注）")
         if scanner_error:
             payload["scanner_error"] = scanner_error
             payload["legs_hint"] += " · Live strike scan unavailable — using model estimate."

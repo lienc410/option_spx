@@ -664,6 +664,17 @@ body {
   border-color: var(--orange-border);
   background: var(--orange-bg);
 }
+/* SPEC-149 — 自定义扫描参数行（DTE / δ 覆盖 + 重扫按钮） */
+.scan-params { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
+.scan-params .sp-cell { display: grid; gap: 4px; min-width: 96px; flex: 1 1 96px; }
+.scan-params .sp-cell .modal-label { font-size: 0.58rem; }
+.scan-params .modal-input { padding: 7px 9px; font-size: 0.78rem; }
+.scan-params .action-btn { padding: 7px 12px; white-space: nowrap; }
+.scan-params .modal-input.overridden {
+  border-color: var(--gold-border);
+  background: var(--gold-bg);
+  color: var(--gold);
+}
 /* SPEC-129 §2 — wait 日横幅（含 selector reason；提示不拦） */
 .open-wait-banner {
   display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
@@ -1535,6 +1546,9 @@ function updateOpenDerivedFields(userInitiated) {
     updateOpenBpPreview();
   } else {
     // Strategy changed — re-fetch draft with the new strategy's delta strikes
+    // SPEC-149: 换策略清空扫描覆盖——上一格的 DTE/δ 对新策略无意义（把
+    // dte=45 带进 diagonal 会把 90/45 压成同月，等于悄悄换了结构）
+    clearScanOverrideInputs();
     renderStrikeScan(null);
     updatePremiumDiff();
     updateOpenBpPreview();
@@ -1548,16 +1562,26 @@ function scanRowsFor(slot) {
 
 function openDraftHintText(draft) {
   if (!draft) return 'Loading algorithm draft…';
+  // SPEC-149: 自定义参数扫描时，腿不再是"当日推荐的腿"——措辞必须区分，
+  // 否则 PM 会把自己调出来的 45 天腿当成系统推荐的
+  const ov = draft.draft_overrides;
+  const ovNote = ov
+    ? ' 本次按自定义参数扫描（' + Object.entries(ov)
+        .map(([k, v]) => `${SCAN_PARAM_LABELS[k] || k} ${v}`).join(' · ')
+        + '），非当日推荐腿；与推荐的差异会在提交时记入偏离备注。'
+    : '';
   if (draft.scanner_error) {
-    return 'Model fallback active — live liquidity scan is currently unavailable, so strikes use the model estimate.';
+    return 'Model fallback active — live liquidity scan is currently unavailable, so strikes use the model estimate.' + ovNote;
   }
   if (draft.strike_scan?.scan_fallback) {
-    return 'Live liquidity scan active — at least one leg had no liquid strike, so model fallback is being used where needed.';
+    return 'Live liquidity scan active — at least one leg had no liquid strike, so model fallback is being used where needed.' + ovNote;
   }
   if (draft.strike_scan) {
-    return 'Live liquidity scan active — recommended strikes are coming from the live option chain.';
+    return (ov
+      ? 'Live liquidity scan active — strikes are coming from the live option chain.'
+      : 'Live liquidity scan active — recommended strikes are coming from the live option chain.') + ovNote;
   }
-  return draft.legs_hint || 'Algorithm draft loaded.';
+  return (draft.legs_hint || 'Algorithm draft loaded.');
 }
 
 function renderStrikeScan(draft) {
@@ -1753,15 +1777,20 @@ function applyOpenDraft(draft, isLiveRec) {
   set('open-model-premium', draft.model_premium);
   // SPEC-129 §2 — 偏离基线只在"当日 live 推荐"预填时建立；force_strategy
   // override（wait 日或异格策略）没有推荐可偏离。
-  REC_BASELINE = isLiveRec ? {
-    short_strike: draft.short_strike,
-    long_strike: draft.long_strike,
-    short_put_strike: draft.short_put_strike,
-    long_put_strike: draft.long_put_strike,
-    expiry: draft.expiry,
-    dte_at_entry: draft.dte_at_entry,
-  } : null;
+  // SPEC-149：自定义 DTE/δ 扫描**不动基线**——基线必须一直锚在当日推荐上，
+  // 否则"按 45 天扫出来的腿"会变成自己的参照物，偏离永远记不到。
+  if (!draft.draft_overrides) {
+    REC_BASELINE = isLiveRec ? {
+      short_strike: draft.short_strike,
+      long_strike: draft.long_strike,
+      short_put_strike: draft.short_put_strike,
+      long_put_strike: draft.long_put_strike,
+      expiry: draft.expiry,
+      dte_at_entry: draft.dte_at_entry,
+    } : null;
+  }
   checkOpenDeviations();
+  markScanOverrideFields();          // SPEC-149: 金色高亮标出被改过的参数格
   const paperEl = document.getElementById('open-paper-trade');
   if (paperEl) paperEl.checked = !!draft.paper_trade;
   const hint = document.getElementById('open-legs-hint');
@@ -1770,6 +1799,53 @@ function applyOpenDraft(draft, isLiveRec) {
   updatePremiumDiff();
   updateOpenBpPreview();
   updateSpreadQuotes();
+}
+
+// SPEC-149 — 自定义 DTE/δ 扫描参数（留空 = 用目录默认；方向专属值优先）
+const SCAN_PARAM_LABELS = {
+  dte: 'DTE', short_dte: 'Short DTE', long_dte: 'Long DTE',
+  delta: 'δ', short_delta: 'Short δ', long_delta: 'Long δ',
+};
+const SCAN_PARAM_FIELDS = [
+  { param: 'dte', id: 'scan-dte' },
+  { param: 'short_delta', id: 'scan-short-delta' },
+  { param: 'long_delta', id: 'scan-long-delta' },
+  { param: 'short_dte', id: 'scan-short-dte' },
+  { param: 'long_dte', id: 'scan-long-dte' },
+];
+
+function collectScanOverrides() {
+  const out = {};
+  for (const f of SCAN_PARAM_FIELDS) {
+    const v = (document.getElementById(f.id)?.value || '').trim();
+    if (v !== '') out[f.param] = v;
+  }
+  return out;
+}
+
+function markScanOverrideFields() {
+  for (const f of SCAN_PARAM_FIELDS) {
+    const el = document.getElementById(f.id);
+    if (el) el.classList.toggle('overridden', (el.value || '').trim() !== '');
+  }
+}
+
+function clearScanOverrideInputs() {
+  for (const f of SCAN_PARAM_FIELDS) {
+    const el = document.getElementById(f.id);
+    if (el) el.value = '';
+  }
+  markScanOverrideFields();
+}
+
+// 用户显式重扫：走 userInitiated，wait 日也允许（与切策略同属 override 动作）
+function rescanOpenDraft() {
+  loadOpenDraft(document.getElementById('open-strategy-key')?.value || '', true);
+}
+
+function resetScanOverrides() {
+  clearScanOverrideInputs();
+  rescanOpenDraft();
 }
 
 async function loadOpenDraft(strategyKey, userInitiated) {
@@ -1784,9 +1860,10 @@ async function loadOpenDraft(strategyKey, userInitiated) {
     // (including when rec is reduce_wait — server will compute legs for the chosen strategy)
     const recKey = CURRENT_REC?.strategy_key || '';
     const forced = !!(key && key !== recKey);
-    const url = forced
-      ? `/api/position/open-draft?force_strategy=${encodeURIComponent(key)}`
-      : '/api/position/open-draft';
+    const qs = new URLSearchParams(collectScanOverrides());   // SPEC-149
+    if (forced) qs.set('force_strategy', key);
+    const q = qs.toString();
+    const url = '/api/position/open-draft' + (q ? `?${q}` : '');
     const res = await fetch(url);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
@@ -2088,6 +2165,44 @@ function openTradeModal(kind, presetAccount, addTranche) {
         <div class="modal-field">
           <label class="modal-label">DTE at Entry</label>
           <input id="open-dte" class="modal-input" type="number" value="${dteDefault(STRATEGY_META[CURRENT_REC?.strategy_key] || {})}" oninput="checkOpenDeviations()">
+        </div>
+        <!-- SPEC-149: 自定义扫描参数 — 改 DTE/δ 后重新找腿（只影响预填，
+             不改当日推荐；偏离仍以推荐为基准记录） -->
+        <div class="modal-field full">
+          <label class="modal-label">Strike Scan Parameters</label>
+          <div class="scan-params">
+            <div class="sp-cell">
+              <label class="modal-label" for="scan-dte">DTE (both legs)</label>
+              <input id="scan-dte" class="modal-input" type="number" min="1" max="365" step="1"
+                     placeholder="default" onkeydown="if(event.key==='Enter'){event.preventDefault();rescanOpenDraft()}">
+            </div>
+            <div class="sp-cell">
+              <label class="modal-label" for="scan-short-delta">Short δ</label>
+              <input id="scan-short-delta" class="modal-input" type="number" min="0.01" max="0.95" step="0.01"
+                     placeholder="default" onkeydown="if(event.key==='Enter'){event.preventDefault();rescanOpenDraft()}">
+            </div>
+            <div class="sp-cell">
+              <label class="modal-label" for="scan-long-delta">Long δ</label>
+              <input id="scan-long-delta" class="modal-input" type="number" min="0.01" max="0.95" step="0.01"
+                     placeholder="default" onkeydown="if(event.key==='Enter'){event.preventDefault();rescanOpenDraft()}">
+            </div>
+            <div class="sp-cell">
+              <label class="modal-label" for="scan-short-dte">Short DTE</label>
+              <input id="scan-short-dte" class="modal-input" type="number" min="1" max="365" step="1"
+                     placeholder="as above" onkeydown="if(event.key==='Enter'){event.preventDefault();rescanOpenDraft()}">
+            </div>
+            <div class="sp-cell">
+              <label class="modal-label" for="scan-long-dte">Long DTE</label>
+              <input id="scan-long-dte" class="modal-input" type="number" min="1" max="365" step="1"
+                     placeholder="as above" onkeydown="if(event.key==='Enter'){event.preventDefault();rescanOpenDraft()}">
+            </div>
+            <button class="action-btn primary" type="button" onclick="rescanOpenDraft()">Re-scan</button>
+            <button class="action-btn" type="button" onclick="resetScanOverrides()">Reset</button>
+          </div>
+          <div class="modal-hint" id="scan-params-hint">
+            留空 = 按策略目录参数扫描。改完按回车或点 Re-scan 重新计算行权价、报价与 BP。<br>
+            Short/Long DTE 单独填时覆盖左边的 DTE (both legs)——diagonal 长短腿天数不同时用这两格。
+          </div>
         </div>
         <div class="modal-field">
           <label class="modal-label" id="open-short-strike-label">Short Strike</label>
