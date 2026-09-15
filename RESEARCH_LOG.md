@@ -4099,3 +4099,15 @@ Owner: Planner or PM
 - **方向**: P1 扩容全输入面（gate+liquid+NLV+Matrix；PM 行动 = E-Trade re-auth）> SPEC-142.2（显示/分类语义解耦 + 换箱通知 AC）> 执行黏着度量（月度 digest 对账行）
 - **当下**: A 触发线上移 7427；Playbook 实际场景 = UP BREAK（不等回调），state-map 修复前以 memo 为准
 - **文件**: research/q106/q106_market_fit_review_2026-08-05.md
+
+### R-20260914-01 — Q107 P1：BPS 持有窗口双候选裁定（PM 发现策略卡矛盾，CLOSED 2026-09-14）
+
+- **矛盾实锤**: NORMAL BPS 30 DTE 入场 / 短腿 21 DTE 平仓（9 DTE 刻度 = 13-14 日历日），profit_target 被 min_hold_days=10 gate → **26 年触发 0 次**（首版 BULL_PUT 匹配污染了 HV 的 12 次，口径修正后归零）；HIGH_VOL BPS（35−21=14）与 IC（45−21=24）止盈本就活——作者当年修了 HV 未回头修 NORMAL
+- **四变体预注册**（R1 主指标 $/BP-day / R3 bootstrap≥0.90 / R4 时代一致 / R6 噪音门槛 / R7 禁网格）：**三候选全 FAIL，维持现状**
+  - A（min_hold 10→5，止盈复活）：$/BP-day −11%，bootstrap 0.025，**主动有害**——赢单均值 $3,797→$3,589（砍赢家尾巴）、输单 n=7→8 且均值更差（经典"卖出赢家持有输家"）；**死区是意外的祝福**
+  - B（DTE 30→45）：唯一过 R3（0.915）且尾部全面改善（worst −9.4→−3.9 / CVaR −5.4→−3.2 / WR +7pp / 总额 +$23.9k），但每笔占用 201.9k→344.2k bp-days（+70%）、笔数 35→30（占用挡后续触发，同 Q100 D30/D60 的发射频率损失）→ $/BP-day −11% 判 FAIL。**"用 11% 资本效率换 58% 尾部改善"的真实 trade-off**，登记 open question（重开条件 = 账户约束从 cash-bound 转向）
+  - C（两者都改）：最差（$/BP-day −26%、worst −14.5、worst21 −21.9）
+  - 全账本层四变体 $/BP-day 全在 4.847-4.889（±0.9%，噪音内）→ BPS 层结论不外推账本级
+- **PM 原始关切两处修正**: ①持有是 13-14 日历日非 9 日历日（DTE 按交易日推进）②"没时间等反转"数据 3:1 反向（4 笔亏损单 3 笔继续跌，2025-02-20 那笔退出 −4.5% → 21TD 后 −11.8%，早退救命）
+- **处置**: 代码零改动；**文案已修**（catalog.py BPS 卡从"Target 60% profit after at least 10 days held"改为代码真值：时间退出、止盈不激活、2× 止损仍在）；IC/HV BPS 文案正确不动
+- **文件**: research/q107/ q107_p1_bps_hold_window.py + findings + 6 CSV
